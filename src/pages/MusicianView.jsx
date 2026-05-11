@@ -1,4 +1,4 @@
-import { Maximize2 } from "lucide-react";
+import { ExternalLink, Maximize2 } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -6,7 +6,7 @@ import { useMusicData } from "../hooks/useMusicData";
 import { formatDate, getUpcomingSchedule } from "../services/dateUtils";
 
 export function MusicianView() {
-  const { schedules } = useMusicData();
+  const { schedules, songs } = useMusicData();
   const upcoming = getUpcomingSchedule(schedules);
 
   const enterFullscreen = () => {
@@ -41,6 +41,15 @@ export function MusicianView() {
               <div>
                 <h3 className="text-2xl font-bold text-ink">{song.titleSnapshot}</h3>
                 <p className="mt-2 text-base text-ink/60">{song.notes || "Sin notas para este canto."}</p>
+                {(() => {
+                  const fullSong = songs.find((item) => item.id === song.songId);
+                  const pdf = song.pdfUrl || fullSong?.pdfPreviewUrl || fullSong?.pdfUrl || fullSong?.drivePdfUrl || fullSong?.chordsUrl;
+                  return pdf ? (
+                    <a className="mt-3 inline-flex items-center gap-2 text-sm font-bold text-brass" href={pdf} target="_blank" rel="noreferrer">
+                      Letra / acordes <ExternalLink className="h-4 w-4" />
+                    </a>
+                  ) : null;
+                })()}
               </div>
               <div className="rounded-3xl bg-brass/12 p-4 text-center">
                 <p className="text-xs font-bold uppercase tracking-wide text-brass">Tono</p>

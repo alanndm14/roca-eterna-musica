@@ -9,7 +9,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["icons/icon-192.svg", "icons/icon-512.svg"],
+      includeAssets: ["icons/icon-192.png", "icons/icon-512.png", "icons/icon-192.svg", "icons/icon-512.svg"],
       manifest: {
         name: "Roca Eterna Música",
         short_name: "RE Música",
@@ -30,6 +30,18 @@ export default defineConfig({
             sizes: "512x512",
             type: "image/svg+xml",
             purpose: "any maskable"
+          },
+          {
+            src: "icons/icon-192.png",
+            sizes: "192x192",
+            type: "image/png",
+            purpose: "any maskable"
+          },
+          {
+            src: "icons/icon-512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "any maskable"
           }
         ]
       }
@@ -42,7 +54,8 @@ export default defineConfig({
           firebase: ["firebase/app", "firebase/auth", "firebase/firestore"],
           react: ["react", "react-dom", "react-router-dom"],
           motion: ["framer-motion"],
-          icons: ["lucide-react"]
+          icons: ["lucide-react"],
+          charts: ["recharts"]
         }
       }
     }

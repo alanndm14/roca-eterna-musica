@@ -71,6 +71,42 @@ La app incluye 5 cantos y 2 programaciones de ejemplo. En modo demo local aparec
 
 Los cantos de ejemplo no incluyen letras protegidas por copyright; solo placeholders editables.
 
+## PDFs de letra y acordes
+
+El flujo recomendado es guardar cada canto como un PDF separado en Google Drive y pegar el link en el campo **PDF de letra y acordes**.
+
+Usa un link compartido de Drive como:
+
+```text
+https://drive.google.com/file/d/FILE_ID/view?usp=sharing
+```
+
+La app intenta convertirlo automáticamente a:
+
+```text
+https://drive.google.com/file/d/FILE_ID/preview
+```
+
+Ese link permite usar “Ver dentro de la app”. Si Google Drive bloquea la vista previa, usa “Abrir PDF”.
+
+## Importar repertorio
+
+En Configuración > Importar repertorio puedes pegar CSV/TSV o cargar archivo `.csv`/`.tsv`.
+
+Columnas esperadas:
+
+```text
+id, nombre, tema, otros_temas, categoria, cantado, tonalidad, capo, tonalidad_con_capo, cambio_de_tono, revision_musical, revision_keynote, revision_pdf, formato, comentario
+```
+
+Notas:
+
+- `cantado` y `cambio_de_tono` aceptan `si/no`.
+- `otros_temas` puede traer varios valores separados por coma.
+- Si `tonalidad_con_capo` viene vacío, la app la calcula con la preferencia de sostenidos/bemoles.
+- Si un canto ya existe con el mismo nombre, puedes omitirlo o actualizarlo.
+- La importación no borra datos existentes.
+
 ## Publicar en GitHub Pages
 
 1. Cambia `base` en `vite.config.js`:

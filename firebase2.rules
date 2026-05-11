@@ -90,6 +90,12 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    match /themes/{themeId} {
+      allow read: if isAuthorized();
+      allow create, update: if isEditor();
+      allow delete: if isAdmin();
+    }
+
     match /settings/{settingId} {
       allow read: if isAuthorized();
       allow write: if isAdmin();

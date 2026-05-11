@@ -24,12 +24,27 @@ export const sampleSongs = [
   {
     id: "song-vine-a-adorarte",
     title: "Vine a adorarte",
-    artist: "Referencia congregacional",
+    artistOrSource: "Referencia congregacional",
+    category: "normal",
+    mainTheme: "adoración",
+    otherThemes: ["gratitud"],
     mainKey: "D",
+    capo: 0,
+    keyWithCapo: "D",
+    hasKeyChange: false,
+    format: "pdf",
+    pdfUrl: "",
+    drivePdfUrl: "",
+    pdfPreviewUrl: "",
+    storagePdfUrl: "",
     tempo: "72",
     timeSignature: "4/4",
     youtubeUrl: "https://youtube.com",
     chordsUrl: "",
+    musicReviewStatus: "completado",
+    keynoteReviewStatus: "pendiente",
+    pdfReviewStatus: "pendiente",
+    sungBefore: true,
     lyricsSections: [
       { type: "verso", text: "Texto de ejemplo para reemplazar manualmente." },
       { type: "coro", text: "Placeholder de letra. No incluye letra protegida." }
@@ -45,12 +60,27 @@ export const sampleSongs = [
   {
     id: "song-tu-gloria",
     title: "Tu gloria",
-    artist: "Referencia congregacional",
+    artistOrSource: "Referencia congregacional",
+    category: "normal",
+    mainTheme: "adoración",
+    otherThemes: ["esperanza"],
     mainKey: "G",
+    capo: 2,
+    keyWithCapo: "A",
+    hasKeyChange: false,
+    format: "pdf",
+    pdfUrl: "",
+    drivePdfUrl: "",
+    pdfPreviewUrl: "",
+    storagePdfUrl: "",
     tempo: "68",
     timeSignature: "4/4",
     youtubeUrl: "https://youtube.com",
     chordsUrl: "",
+    musicReviewStatus: "en revisión",
+    keynoteReviewStatus: "pendiente",
+    pdfReviewStatus: "pendiente",
+    sungBefore: true,
     lyricsSections: [
       { type: "verso", text: "Texto de ejemplo para agregar letra propia." },
       { type: "puente", text: "Placeholder editable." }
@@ -66,12 +96,27 @@ export const sampleSongs = [
   {
     id: "song-te-alabamos",
     title: "Te alabamos",
-    artist: "Referencia congregacional",
+    artistOrSource: "Referencia congregacional",
+    category: "normal",
+    mainTheme: "alabanza",
+    otherThemes: ["gratitud"],
     mainKey: "E",
+    capo: 0,
+    keyWithCapo: "E",
+    hasKeyChange: false,
+    format: "pdf",
+    pdfUrl: "",
+    drivePdfUrl: "",
+    pdfPreviewUrl: "",
+    storagePdfUrl: "",
     tempo: "96",
     timeSignature: "4/4",
     youtubeUrl: "https://youtube.com",
     chordsUrl: "",
+    musicReviewStatus: "completado",
+    keynoteReviewStatus: "completado",
+    pdfReviewStatus: "completado",
+    sungBefore: true,
     lyricsSections: [
       { type: "verso", text: "Texto de ejemplo." },
       { type: "coro", text: "Placeholder editable para letra." }
@@ -87,12 +132,27 @@ export const sampleSongs = [
   {
     id: "song-su-manto",
     title: "Su manto por el mío",
-    artist: "Referencia congregacional",
+    artistOrSource: "Referencia congregacional",
+    category: "santa cena",
+    mainTheme: "cruz",
+    otherThemes: ["gracia", "santa cena"],
     mainKey: "C",
+    capo: 2,
+    keyWithCapo: "D",
+    hasKeyChange: false,
+    format: "pdf",
+    pdfUrl: "",
+    drivePdfUrl: "",
+    pdfPreviewUrl: "",
+    storagePdfUrl: "",
     tempo: "64",
     timeSignature: "6/8",
     youtubeUrl: "https://youtube.com",
     chordsUrl: "",
+    musicReviewStatus: "completado",
+    keynoteReviewStatus: "en revisión",
+    pdfReviewStatus: "pendiente",
+    sungBefore: true,
     lyricsSections: [
       { type: "verso", text: "Texto de ejemplo sin letra protegida." },
       { type: "final", text: "Placeholder para cierre." }
@@ -108,12 +168,27 @@ export const sampleSongs = [
   {
     id: "song-recordamos-hoy",
     title: "Recordamos hoy",
-    artist: "Referencia congregacional",
+    artistOrSource: "Referencia congregacional",
+    category: "santa cena",
+    mainTheme: "santa cena",
+    otherThemes: ["cruz"],
     mainKey: "F",
+    capo: 0,
+    keyWithCapo: "F",
+    hasKeyChange: false,
+    format: "pdf",
+    pdfUrl: "",
+    drivePdfUrl: "",
+    pdfPreviewUrl: "",
+    storagePdfUrl: "",
     tempo: "70",
     timeSignature: "4/4",
     youtubeUrl: "https://youtube.com",
     chordsUrl: "",
+    musicReviewStatus: "pendiente",
+    keynoteReviewStatus: "pendiente",
+    pdfReviewStatus: "pendiente",
+    sungBefore: true,
     lyricsSections: [
       { type: "verso", text: "Texto de ejemplo para completar." },
       { type: "coro", text: "Placeholder editable." }
@@ -132,8 +207,11 @@ export const sampleSchedules = [
   {
     id: "schedule-next-sunday",
     date: "2026-05-17",
-    time: "10:00",
+    time: "11:00",
     type: "domingo",
+    serviceType: "domingo-manana",
+    serviceLabel: "Domingo mañana",
+    status: "confirmado",
     leader: "Equipo de alabanza",
     songs: [
       {
@@ -163,8 +241,11 @@ export const sampleSchedules = [
   {
     id: "schedule-midweek",
     date: "2026-05-13",
-    time: "19:30",
+    time: "19:00",
     type: "miércoles",
+    serviceType: "miercoles-oracion",
+    serviceLabel: "Miércoles oración",
+    status: "confirmado",
     leader: "Director de música",
     songs: [
       {
@@ -203,5 +284,16 @@ export const sampleUsers = [
 export const sampleSettings = {
   churchName: "Roca Eterna",
   appName: "Roca Eterna Música",
-  logoUrl: ""
+  logoUrl: "",
+  keyPreference: "sharps",
+  themeMode: "light",
+  accentColor: "#b6945f",
+  blueGrayColor: "#60717d"
 };
+
+export const sampleThemes = songTags.map((name, index) => ({
+  id: `theme-${name.replace(/\s+/g, "-")}`,
+  name,
+  active: true,
+  createdAt: `2026-01-${String(index + 1).padStart(2, "0")}`
+}));

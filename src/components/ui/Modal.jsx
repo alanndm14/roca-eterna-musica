@@ -16,7 +16,7 @@ export function Modal({ open, title, children, onClose, wide = false }) {
             initial={{ opacity: 0, y: 24, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 24, scale: 0.98 }}
-            className={`max-h-[92vh] w-full overflow-y-auto rounded-3xl bg-stonewash p-5 shadow-2xl ${wide ? "max-w-4xl" : "max-w-2xl"}`}
+            className={`max-h-[92vh] w-full overflow-hidden rounded-3xl bg-stonewash p-4 shadow-2xl md:p-5 ${wide ? "max-w-5xl" : "max-w-2xl"}`}
           >
             <div className="mb-5 flex items-center justify-between gap-4">
               <h2 className="text-xl font-bold text-ink">{title}</h2>

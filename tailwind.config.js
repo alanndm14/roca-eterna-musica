@@ -4,12 +4,12 @@ export default {
   theme: {
     extend: {
       colors: {
-        ink: "#111111",
-        charcoal: "#242424",
-        stonewash: "#f6f5f2",
-        linen: "#ede9df",
-        brass: "#b6945f",
-        "blue-gray": "#60717d"
+        ink: "rgb(var(--color-ink) / <alpha-value>)",
+        charcoal: "rgb(var(--color-charcoal) / <alpha-value>)",
+        stonewash: "rgb(var(--color-stonewash) / <alpha-value>)",
+        linen: "rgb(var(--color-linen) / <alpha-value>)",
+        brass: "rgb(var(--color-brass) / <alpha-value>)",
+        "blue-gray": "rgb(var(--color-blue-gray) / <alpha-value>)"
       },
       boxShadow: {
         soft: "0 18px 60px rgba(17, 17, 17, 0.08)"

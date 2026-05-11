@@ -4,10 +4,24 @@
 
 :root {
   color-scheme: light;
+  --color-ink: 17 17 17;
+  --color-charcoal: 36 36 36;
+  --color-stonewash: 246 245 242;
+  --color-linen: 237 233 223;
+  --color-brass: 182 148 95;
+  --color-blue-gray: 96 113 125;
   font-synthesis: none;
   text-rendering: geometricPrecision;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+.dark {
+  color-scheme: dark;
+  --color-ink: 245 242 235;
+  --color-charcoal: 229 224 215;
+  --color-stonewash: 18 18 18;
+  --color-linen: 32 32 32;
 }
 
 * {

@@ -1,11 +1,12 @@
 import { LogIn, ShieldCheck } from "lucide-react";
 import { motion } from "framer-motion";
-import logo from "../assets/logo-roca-eterna.svg";
+import { appLogo, fallbackAppLogo } from "../assets/logo";
 import { Button } from "../components/ui/Button";
 import { useAuth } from "../hooks/useAuth";
 
 export function Login() {
   const { signInWithGoogle, enterDemoMode, error, isFirebaseConfigured } = useAuth();
+  const showDemoMode = !isFirebaseConfigured || import.meta.env.DEV;
 
   return (
     <div className="grid min-h-screen bg-ink text-white lg:grid-cols-[1.05fr_0.95fr]">
@@ -17,7 +18,7 @@ export function Login() {
           transition={{ duration: 0.45 }}
           className="relative z-10 max-w-xl"
         >
-          <img src={logo} alt="Roca Eterna Música" className="h-24 w-24 rounded-3xl shadow-2xl" />
+          <img src={appLogo} onError={(event) => { event.currentTarget.src = fallbackAppLogo; }} alt="Roca Eterna Música" className="h-28 w-28 rounded-3xl bg-white object-contain p-2 shadow-2xl" />
           <h1 className="mt-8 text-4xl font-bold leading-tight tracking-normal md:text-6xl">
             Roca Eterna Música
           </h1>
@@ -29,7 +30,7 @@ export function Login() {
               <LogIn className="h-4 w-4" />
               Entrar con Google
             </Button>
-            {!isFirebaseConfigured ? (
+            {showDemoMode ? (
               <Button variant="darkSubtle" onClick={enterDemoMode}>
                 Modo demo local
               </Button>

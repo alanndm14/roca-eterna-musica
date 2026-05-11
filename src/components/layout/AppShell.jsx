@@ -20,9 +20,14 @@ export function AppShell() {
   const { profile } = useAuth();
   const { settings, useLocal } = useMusicData();
   const pageTitle = pageNames[location.pathname] || "Roca Eterna Música";
+  const isDark = settings.themeMode === "dark";
+  const shellStyle = {
+    "--color-brass": hexToRgb(settings.accentColor || "#b6945f"),
+    "--color-blue-gray": hexToRgb(settings.blueGrayColor || "#60717d")
+  };
 
   return (
-    <div className="min-h-screen bg-stonewash text-ink">
+    <div className={`min-h-screen bg-stonewash text-ink ${isDark ? "dark" : ""}`} style={shellStyle}>
       <Sidebar profile={profile} />
       <main className="pb-24 lg:ml-72 lg:pb-0">
         <header className="sticky top-0 z-30 border-b border-ink/10 bg-stonewash/86 px-4 py-4 backdrop-blur md:px-8">
@@ -58,4 +63,10 @@ export function AppShell() {
       <BottomNav />
     </div>
   );
+}
+
+function hexToRgb(hex) {
+  const normalized = String(hex || "").replace("#", "");
+  if (!/^[0-9a-fA-F]{6}$/.test(normalized)) return "182 148 95";
+  return `${parseInt(normalized.slice(0, 2), 16)} ${parseInt(normalized.slice(2, 4), 16)} ${parseInt(normalized.slice(4, 6), 16)}`;
 }

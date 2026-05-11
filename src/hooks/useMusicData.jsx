@@ -13,7 +13,8 @@ import {
   writeBatch
 } from "firebase/firestore";
 import { db, isFirebaseConfigured } from "../lib/firebase";
-import { sampleSchedules, sampleSettings, sampleSongs, sampleUsers } from "../data/mockData";
+import { sampleSchedules, sampleSettings, sampleSongs, sampleThemes, sampleUsers } from "../data/mockData";
+import { normalizeSong } from "../services/songUtils";
 import { useAuth } from "./useAuth";
 
 const MusicDataContext = createContext(null);
@@ -24,6 +25,7 @@ const defaultLocalData = {
   schedules: sampleSchedules,
   users: sampleUsers,
   allowedEmails: [],
+  themes: sampleThemes,
   settings: sampleSettings
 };
 
@@ -54,10 +56,11 @@ const makeId = (prefix) => `${prefix}-${Date.now()}-${Math.random().toString(36)
 
 export function MusicDataProvider({ children }) {
   const { profile, isDemoMode } = useAuth();
-  const [songs, setSongs] = useState(sampleSongs);
+  const [songs, setSongs] = useState(sampleSongs.map((song) => normalizeSong(song, sampleSettings.keyPreference)));
   const [schedules, setSchedules] = useState(sampleSchedules);
   const [users, setUsers] = useState(sampleUsers);
   const [allowedEmails, setAllowedEmails] = useState([]);
+  const [themes, setThemes] = useState(sampleThemes);
   const [settings, setSettings] = useState(sampleSettings);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -72,10 +75,12 @@ export function MusicDataProvider({ children }) {
 
     if (useLocal) {
       const localData = loadLocalData();
-      setSongs(localData.songs || sampleSongs);
+      const keyPreference = localData.settings?.keyPreference || sampleSettings.keyPreference;
+      setSongs((localData.songs || sampleSongs).map((song) => normalizeSong(song, keyPreference)));
       setSchedules(localData.schedules || sampleSchedules);
       setUsers(localData.users || sampleUsers);
       setAllowedEmails(localData.allowedEmails || []);
+      setThemes(localData.themes || sampleThemes);
       setSettings(localData.settings || sampleSettings);
       setLoading(false);
       return undefined;
@@ -85,7 +90,7 @@ export function MusicDataProvider({ children }) {
     const unsubscribers = [
       onSnapshot(
         query(collection(db, "songs"), orderBy("title")),
-        (snapshot) => setSongs(snapshot.docs.map(withId)),
+        (snapshot) => setSongs(snapshot.docs.map(withId).map((song) => normalizeSong(song, settings.keyPreference))),
         (snapshotError) => setError(snapshotError.message)
       ),
       onSnapshot(
@@ -104,6 +109,11 @@ export function MusicDataProvider({ children }) {
         (snapshotError) => setError(snapshotError.message)
       ),
       onSnapshot(
+        query(collection(db, "themes"), orderBy("name")),
+        (snapshot) => setThemes(snapshot.docs.map(withId)),
+        (snapshotError) => setError(snapshotError.message)
+      ),
+      onSnapshot(
         doc(db, "settings", "main"),
         (snapshot) => setSettings(snapshot.exists() ? normalizeValue(snapshot.data()) : sampleSettings),
         (snapshotError) => setError(snapshotError.message)
@@ -112,18 +122,19 @@ export function MusicDataProvider({ children }) {
 
     setLoading(false);
     return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
-  }, [profile, useLocal]);
+  }, [profile, settings.keyPreference, useLocal]);
 
   useEffect(() => {
     if (!profile || !useLocal) return;
-    localStorage.setItem(storageKey, JSON.stringify({ songs, schedules, users, allowedEmails, settings }));
-  }, [allowedEmails, profile, schedules, settings, songs, useLocal, users]);
+    localStorage.setItem(storageKey, JSON.stringify({ songs, schedules, users, allowedEmails, themes, settings }));
+  }, [allowedEmails, profile, schedules, settings, songs, themes, useLocal, users]);
 
   const saveSong = async (song) => {
+    const normalizedSong = normalizeSong(song, settings.keyPreference);
     const payload = {
-      ...song,
-      tags: song.tags || [],
-      lyricsSections: song.lyricsSections || [],
+      ...normalizedSong,
+      tags: normalizedSong.tags || [],
+      lyricsSections: normalizedSong.lyricsSections || [],
       updatedAt: useLocal ? new Date().toISOString().slice(0, 10) : serverTimestamp()
     };
 
@@ -134,7 +145,7 @@ export function MusicDataProvider({ children }) {
         setSongs((current) => [
           ...current,
           {
-            ...payload,
+            ...normalizeSong(payload, settings.keyPreference),
             id: makeId("song"),
             usageCount: 0,
             createdAt: new Date().toISOString().slice(0, 10),
@@ -270,10 +281,58 @@ export function MusicDataProvider({ children }) {
     await setDoc(doc(db, "settings", "main"), nextSettings, { merge: true });
   };
 
+  const saveTheme = async (theme) => {
+    const payload = {
+      name: theme.name.trim(),
+      active: theme.active !== false,
+      createdAt: theme.createdAt || (useLocal ? new Date().toISOString() : serverTimestamp())
+    };
+    if (!payload.name) return;
+
+    if (useLocal) {
+      setThemes((current) =>
+        theme.id
+          ? current.map((item) => (item.id === theme.id ? { ...item, ...payload } : item))
+          : [...current, { ...payload, id: makeId("theme") }]
+      );
+      return;
+    }
+
+    if (theme.id) {
+      await updateDoc(doc(db, "themes", theme.id), payload);
+    } else {
+      await addDoc(collection(db, "themes"), payload);
+    }
+  };
+
+  const importSongs = async (incomingSongs, mode = "skip") => {
+    const existingByTitle = new Map(songs.map((song) => [song.title.trim().toLowerCase(), song]));
+    const results = { created: 0, updated: 0, skipped: 0 };
+
+    for (const incoming of incomingSongs) {
+      const normalized = normalizeSong(incoming, settings.keyPreference);
+      const existing = existingByTitle.get(normalized.title.trim().toLowerCase());
+      if (existing && mode === "skip") {
+        results.skipped += 1;
+        continue;
+      }
+      if (existing && mode === "update") {
+        await saveSong({ ...existing, ...normalized, id: existing.id });
+        results.updated += 1;
+      } else {
+        await saveSong(normalized);
+        results.created += 1;
+      }
+    }
+
+    return results;
+  };
+
   const seedExampleData = async () => {
     if (useLocal) {
       setSongs(sampleSongs);
       setSchedules(sampleSchedules);
+      setThemes(sampleThemes);
       setSettings(sampleSettings);
       return;
     }
@@ -287,6 +346,10 @@ export function MusicDataProvider({ children }) {
       const { id, ...data } = schedule;
       batch.set(doc(db, "schedules", id), data);
     });
+    sampleThemes.forEach((theme) => {
+      const { id, ...data } = theme;
+      batch.set(doc(db, "themes", id), data);
+    });
     batch.set(doc(db, "settings", "main"), sampleSettings, { merge: true });
     await batch.commit();
   };
@@ -297,6 +360,7 @@ export function MusicDataProvider({ children }) {
       schedules,
       users,
       allowedEmails,
+      themes,
       settings,
       loading,
       error,
@@ -309,9 +373,11 @@ export function MusicDataProvider({ children }) {
       duplicateSchedule,
       saveUser,
       saveSettings,
+      saveTheme,
+      importSongs,
       seedExampleData
     }),
-    [allowedEmails, error, loading, schedules, settings, songs, useLocal, users]
+    [allowedEmails, error, loading, schedules, settings, songs, themes, useLocal, users]
   );
 
   return <MusicDataContext.Provider value={value}>{children}</MusicDataContext.Provider>;

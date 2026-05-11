@@ -1,12 +1,12 @@
 import { NavLink } from "react-router-dom";
-import logo from "../../assets/logo-roca-eterna.svg";
+import { appLogo, fallbackAppLogo } from "../../assets/logo";
 import { navItems } from "./navigation";
 
 export function Sidebar({ profile }) {
   return (
     <aside className="fixed left-0 top-0 hidden h-screen w-72 flex-col bg-ink p-5 text-white lg:flex">
       <div className="flex items-center gap-3">
-        <img src={logo} alt="Roca Eterna Música" className="h-12 w-12 rounded-2xl" />
+        <img src={appLogo} onError={(event) => { event.currentTarget.src = fallbackAppLogo; }} alt="Roca Eterna Música" className="h-12 w-12 rounded-2xl bg-white object-contain p-1" />
         <div>
           <p className="text-sm font-bold">Roca Eterna</p>
           <p className="text-xs text-white/55">Música</p>
