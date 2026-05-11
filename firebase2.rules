@@ -1,0 +1,98 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function bootstrapAdminEmails() {
+      // Cambia esta lista antes de publicar reglas en producción.
+      return ["liquea45@gmail.com"];
+    }
+
+    function isBootstrapAdmin() {
+      return signedIn() && request.auth.token.email in bootstrapAdminEmails();
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function allowedEmailDoc() {
+      return get(/databases/$(database)/documents/allowedEmails/$(request.auth.token.email));
+    }
+
+    function hasUserDoc() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function hasAllowedEmailDoc() {
+      return exists(/databases/$(database)/documents/allowedEmails/$(request.auth.token.email))
+        && allowedEmailDoc().data.active == true;
+    }
+
+    function isAuthorized() {
+      return signedIn()
+        && (
+          isBootstrapAdmin()
+          || (
+            hasUserDoc()
+            && userDoc().data.active == true
+            && userDoc().data.email == request.auth.token.email
+          )
+          || hasAllowedEmailDoc()
+        );
+    }
+
+    function role() {
+      return isBootstrapAdmin()
+        ? "admin"
+        : hasUserDoc()
+          ? userDoc().data.role
+          : allowedEmailDoc().data.role;
+    }
+
+    function isAdmin() {
+      return isAuthorized() && role() == "admin";
+    }
+
+    function isEditor() {
+      return isAuthorized() && (role() == "admin" || role() == "editor");
+    }
+
+    match /users/{userId} {
+      allow read: if isAuthorized();
+      allow create: if signedIn()
+        && request.auth.uid == userId
+        && (isBootstrapAdmin() || hasAllowedEmailDoc())
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.active == true
+        && request.resource.data.role in ["admin", "editor", "viewer"]
+        && (isBootstrapAdmin() || request.resource.data.role == allowedEmailDoc().data.role);
+      allow update, delete: if isAdmin();
+    }
+
+    match /allowedEmails/{email} {
+      allow get: if isAdmin() || (signedIn() && request.auth.token.email == email);
+      allow list, create, update, delete: if isAdmin();
+    }
+
+    match /songs/{songId} {
+      allow read: if isAuthorized();
+      allow create, update: if isEditor();
+      allow delete: if isAdmin();
+    }
+
+    match /schedules/{scheduleId} {
+      allow read: if isAuthorized();
+      allow create, update: if isEditor();
+      allow delete: if isAdmin();
+    }
+
+    match /settings/{settingId} {
+      allow read: if isAuthorized();
+      allow write: if isAdmin();
+    }
+  }
+}

@@ -1,0 +1,11 @@
+<svg width="280" height="280" viewBox="0 0 280 280" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Roca Eterna Música</title>
+  <desc id="desc">Logo placeholder con roca, cruz y líneas fluidas.</desc>
+  <rect width="280" height="280" rx="48" fill="#111111"/>
+  <path d="M45 184C66 150 83 128 98 118C113 107 129 121 144 101C159 82 172 52 186 42C197 63 206 87 218 109C228 128 243 145 255 184H45Z" fill="#EDE9DF"/>
+  <path d="M84 181C101 161 120 151 143 153C166 154 185 166 203 181" stroke="#B6945F" stroke-width="8" stroke-linecap="round"/>
+  <path d="M44 211C77 197 110 194 141 202C174 211 205 208 236 191" stroke="#F6F5F2" stroke-width="8" stroke-linecap="round"/>
+  <path d="M181 76V145" stroke="#111111" stroke-width="12" stroke-linecap="round"/>
+  <path d="M154 100H208" stroke="#111111" stroke-width="12" stroke-linecap="round"/>
+  <path d="M79 230H203" stroke="#B6945F" stroke-width="7" stroke-linecap="round"/>
+</svg>
