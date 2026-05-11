@@ -14,7 +14,7 @@ import {
 } from "firebase/firestore";
 import { db, isFirebaseConfigured } from "../lib/firebase";
 import { sampleSchedules, sampleSettings, sampleSongs, sampleThemes, sampleUsers } from "../data/mockData";
-import { normalizeSong } from "../services/songUtils";
+import { canonicalThemeKey, normalizeSong, normalizeThemeName } from "../services/songUtils";
 import { useAuth } from "./useAuth";
 
 const MusicDataContext = createContext(null);
@@ -24,7 +24,7 @@ const defaultLocalData = {
   songs: sampleSongs,
   schedules: sampleSchedules,
   users: sampleUsers,
-  allowedEmails: [],
+  authorizedEmails: [],
   themes: sampleThemes,
   settings: sampleSettings
 };
@@ -59,7 +59,7 @@ export function MusicDataProvider({ children }) {
   const [songs, setSongs] = useState(sampleSongs.map((song) => normalizeSong(song, sampleSettings.keyPreference)));
   const [schedules, setSchedules] = useState(sampleSchedules);
   const [users, setUsers] = useState(sampleUsers);
-  const [allowedEmails, setAllowedEmails] = useState([]);
+  const [authorizedEmails, setAuthorizedEmails] = useState([]);
   const [themes, setThemes] = useState(sampleThemes);
   const [settings, setSettings] = useState(sampleSettings);
   const [loading, setLoading] = useState(true);
@@ -79,7 +79,7 @@ export function MusicDataProvider({ children }) {
       setSongs((localData.songs || sampleSongs).map((song) => normalizeSong(song, keyPreference)));
       setSchedules(localData.schedules || sampleSchedules);
       setUsers(localData.users || sampleUsers);
-      setAllowedEmails(localData.allowedEmails || []);
+      setAuthorizedEmails(localData.authorizedEmails || localData.allowedEmails || []);
       setThemes(localData.themes || sampleThemes);
       setSettings(localData.settings || sampleSettings);
       setLoading(false);
@@ -104,8 +104,8 @@ export function MusicDataProvider({ children }) {
         (snapshotError) => setError(snapshotError.message)
       ),
       onSnapshot(
-        query(collection(db, "allowedEmails"), orderBy("email")),
-        (snapshot) => setAllowedEmails(snapshot.docs.map(withId)),
+        query(collection(db, "authorizedEmails"), orderBy("email")),
+        (snapshot) => setAuthorizedEmails(snapshot.docs.map(withId)),
         (snapshotError) => setError(snapshotError.message)
       ),
       onSnapshot(
@@ -126,8 +126,8 @@ export function MusicDataProvider({ children }) {
 
   useEffect(() => {
     if (!profile || !useLocal) return;
-    localStorage.setItem(storageKey, JSON.stringify({ songs, schedules, users, allowedEmails, themes, settings }));
-  }, [allowedEmails, profile, schedules, settings, songs, themes, useLocal, users]);
+    localStorage.setItem(storageKey, JSON.stringify({ songs, schedules, users, authorizedEmails, themes, settings }));
+  }, [authorizedEmails, profile, schedules, settings, songs, themes, useLocal, users]);
 
   const saveSong = async (song) => {
     const normalizedSong = normalizeSong(song, settings.keyPreference);
@@ -255,10 +255,16 @@ export function MusicDataProvider({ children }) {
           ? current.map((item) => (item.id === user.id ? { ...item, ...payload } : item))
           : [...current, { ...payload, id: makeId("user"), uid: makeId("uid"), createdAt: new Date().toISOString() }]
       );
+      setAuthorizedEmails((current) => {
+        const exists = current.some((item) => item.email === email);
+        return exists
+          ? current.map((item) => (item.email === email ? { ...item, ...payload, id: item.id || email } : item))
+          : [...current, { ...payload, id: email }];
+      });
       return;
     }
 
-    await setDoc(doc(db, "allowedEmails", email), payload, { merge: true });
+    await setDoc(doc(db, "authorizedEmails", email), payload, { merge: true });
 
     if (!user.uid && (!user.id || user.id.includes("@"))) return;
 
@@ -283,8 +289,9 @@ export function MusicDataProvider({ children }) {
 
   const saveTheme = async (theme) => {
     const payload = {
-      name: theme.name.trim(),
+      name: normalizeThemeName(theme.name),
       active: theme.active !== false,
+      ignored: Boolean(theme.ignored),
       createdAt: theme.createdAt || (useLocal ? new Date().toISOString() : serverTimestamp())
     };
     if (!payload.name) return;
@@ -325,7 +332,46 @@ export function MusicDataProvider({ children }) {
       }
     }
 
+    const existingThemeKeys = new Set(themes.map((theme) => canonicalThemeKey(theme.name)));
+    const importedThemes = new Set();
+    incomingSongs.forEach((song) => {
+      [song.mainTheme, ...(song.otherThemes || []), ...(song.tags || [])].forEach((theme) => {
+        const normalized = normalizeThemeName(theme);
+        if (normalized && !existingThemeKeys.has(canonicalThemeKey(normalized))) importedThemes.add(normalized);
+      });
+    });
+    for (const theme of importedThemes) {
+      await saveTheme({ name: theme, active: true });
+    }
+
     return results;
+  };
+
+  const mergeTheme = async (sourceName, targetName) => {
+    const sourceKey = canonicalThemeKey(sourceName);
+    const target = normalizeThemeName(targetName);
+    if (!sourceKey || !target) return;
+
+    const replaceThemes = (values = []) =>
+      [...new Set(values.map((value) => (canonicalThemeKey(value) === sourceKey ? target : normalizeThemeName(value))).filter(Boolean))];
+
+    const affected = songs.filter((song) =>
+      [song.mainTheme, ...(song.otherThemes || []), ...(song.tags || [])].some((theme) => canonicalThemeKey(theme) === sourceKey)
+    );
+
+    for (const song of affected) {
+      const mainTheme = canonicalThemeKey(song.mainTheme) === sourceKey ? target : normalizeThemeName(song.mainTheme);
+      const otherThemes = replaceThemes(song.otherThemes || []).filter((theme) => canonicalThemeKey(theme) !== canonicalThemeKey(mainTheme));
+      await saveSong({
+        ...song,
+        mainTheme,
+        otherThemes,
+        tags: [...new Set([mainTheme, ...otherThemes].filter(Boolean))]
+      });
+    }
+
+    const sourceTheme = themes.find((theme) => canonicalThemeKey(theme.name) === sourceKey);
+    if (sourceTheme) await saveTheme({ ...sourceTheme, active: false, ignored: true });
   };
 
   const seedExampleData = async () => {
@@ -359,7 +405,8 @@ export function MusicDataProvider({ children }) {
       songs,
       schedules,
       users,
-      allowedEmails,
+      authorizedEmails,
+      allowedEmails: authorizedEmails,
       themes,
       settings,
       loading,
@@ -374,10 +421,11 @@ export function MusicDataProvider({ children }) {
       saveUser,
       saveSettings,
       saveTheme,
+      mergeTheme,
       importSongs,
       seedExampleData
     }),
-    [allowedEmails, error, loading, schedules, settings, songs, themes, useLocal, users]
+    [authorizedEmails, error, loading, schedules, settings, songs, themes, useLocal, users]
   );
 
   return <MusicDataContext.Provider value={value}>{children}</MusicDataContext.Provider>;

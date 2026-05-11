@@ -19,7 +19,11 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid));
     }
 
-    function allowedEmailDoc() {
+    function authorizedEmailDoc() {
+      return get(/databases/$(database)/documents/authorizedEmails/$(request.auth.token.email));
+    }
+
+    function legacyAllowedEmailDoc() {
       return get(/databases/$(database)/documents/allowedEmails/$(request.auth.token.email));
     }
 
@@ -27,9 +31,14 @@ service cloud.firestore {
       return exists(/databases/$(database)/documents/users/$(request.auth.uid));
     }
 
-    function hasAllowedEmailDoc() {
+    function hasAuthorizedEmailDoc() {
+      return exists(/databases/$(database)/documents/authorizedEmails/$(request.auth.token.email))
+        && authorizedEmailDoc().data.active == true;
+    }
+
+    function hasLegacyAllowedEmailDoc() {
       return exists(/databases/$(database)/documents/allowedEmails/$(request.auth.token.email))
-        && allowedEmailDoc().data.active == true;
+        && legacyAllowedEmailDoc().data.active == true;
     }
 
     function isAuthorized() {
@@ -41,7 +50,8 @@ service cloud.firestore {
             && userDoc().data.active == true
             && userDoc().data.email == request.auth.token.email
           )
-          || hasAllowedEmailDoc()
+          || hasAuthorizedEmailDoc()
+          || hasLegacyAllowedEmailDoc()
         );
     }
 
@@ -50,7 +60,9 @@ service cloud.firestore {
         ? "admin"
         : hasUserDoc()
           ? userDoc().data.role
-          : allowedEmailDoc().data.role;
+          : hasAuthorizedEmailDoc()
+            ? authorizedEmailDoc().data.role
+            : legacyAllowedEmailDoc().data.role;
     }
 
     function isAdmin() {
@@ -65,12 +77,21 @@ service cloud.firestore {
       allow read: if isAuthorized();
       allow create: if signedIn()
         && request.auth.uid == userId
-        && (isBootstrapAdmin() || hasAllowedEmailDoc())
+        && (isBootstrapAdmin() || hasAuthorizedEmailDoc() || hasLegacyAllowedEmailDoc())
         && request.resource.data.email == request.auth.token.email
         && request.resource.data.active == true
         && request.resource.data.role in ["admin", "editor", "viewer"]
-        && (isBootstrapAdmin() || request.resource.data.role == allowedEmailDoc().data.role);
+        && (
+          isBootstrapAdmin()
+          || (hasAuthorizedEmailDoc() && request.resource.data.role == authorizedEmailDoc().data.role)
+          || (hasLegacyAllowedEmailDoc() && request.resource.data.role == legacyAllowedEmailDoc().data.role)
+        );
       allow update, delete: if isAdmin();
+    }
+
+    match /authorizedEmails/{email} {
+      allow get: if isAdmin() || (signedIn() && request.auth.token.email == email);
+      allow list, create, update, delete: if isAdmin();
     }
 
     match /allowedEmails/{email} {

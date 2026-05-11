@@ -10,10 +10,10 @@ import { useMusicData } from "../hooks/useMusicData";
 import { formatDate, todayString } from "../services/dateUtils";
 
 const serviceOptions = [
-  { value: "miercoles-oracion", label: "Miércoles oración", time: "19:00" },
-  { value: "domingo-manana", label: "Domingo mañana", time: "11:00" },
-  { value: "domingo-tarde", label: "Domingo tarde", time: "17:00" },
-  { value: "especial", label: "Especial / aniversario / conferencia / otro", time: "" }
+  { value: "miercoles-oracion", label: "Miércoles de oración", time: "19:00", weekday: 3 },
+  { value: "domingo-manana", label: "Domingo mañana", time: "11:00", weekday: 0 },
+  { value: "domingo-tarde", label: "Domingo tarde", time: "17:00", weekday: 0 },
+  { value: "especial", label: "Especial / aniversario / conferencia / otro", time: "", weekday: null }
 ];
 
 const blankSchedule = {
@@ -28,6 +28,7 @@ const blankSchedule = {
 };
 
 const getService = (value) => serviceOptions.find((item) => item.value === value) || serviceOptions[0];
+const dateWeekday = (date) => (date ? new Date(`${date}T00:00:00`).getDay() : null);
 
 function ScheduleForm({ initialSchedule, songs, onSubmit, onCancel }) {
   const initialService = initialSchedule?.serviceType ? getService(initialSchedule.serviceType) : getService("domingo-manana");
@@ -38,17 +39,19 @@ function ScheduleForm({ initialSchedule, songs, onSubmit, onCancel }) {
     serviceLabel: initialSchedule?.serviceLabel || initialService.label,
     time: initialSchedule?.time || initialService.time
   });
+  const service = getService(schedule.serviceType);
+  const wrongDay = schedule.date && service.weekday !== null && dateWeekday(schedule.date) !== service.weekday;
 
   const update = (field, value) => setSchedule((current) => ({ ...current, [field]: value }));
 
   const updateService = (serviceType) => {
-    const service = getService(serviceType);
+    const nextService = getService(serviceType);
     setSchedule((current) => ({
       ...current,
       serviceType,
-      serviceLabel: service.label,
-      time: service.time || current.time || "",
-      type: service.label
+      serviceLabel: nextService.value === "especial" ? current.serviceLabel || "Servicio especial" : nextService.label,
+      time: nextService.time || current.time || "",
+      type: nextService.value === "especial" ? current.serviceLabel || "Servicio especial" : nextService.label
     }));
   };
 
@@ -85,11 +88,13 @@ function ScheduleForm({ initialSchedule, songs, onSubmit, onCancel }) {
   const submit = (event) => {
     event.preventDefault();
     if (!schedule.date) return;
-    const service = getService(schedule.serviceType);
+    const nextService = getService(schedule.serviceType);
+    const label = schedule.serviceType === "especial" ? schedule.serviceLabel || "Servicio especial" : nextService.label;
     onSubmit({
       ...schedule,
-      serviceLabel: schedule.serviceType === "especial" ? schedule.serviceLabel || service.label : service.label,
-      type: schedule.serviceType === "especial" ? schedule.serviceLabel || service.label : service.label
+      serviceLabel: label,
+      type: label,
+      time: schedule.serviceType === "especial" ? schedule.time : nextService.time
     });
   };
 
@@ -102,14 +107,14 @@ function ScheduleForm({ initialSchedule, songs, onSubmit, onCancel }) {
             <Field label="Fecha">
               <Input type="date" value={schedule.date} onChange={(event) => update("date", event.target.value)} required />
             </Field>
-            <Field label="Tipo de servicio">
+            <Field label="Servicio">
               <Select value={schedule.serviceType} onChange={(event) => updateService(event.target.value)}>
                 {serviceOptions.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
               </Select>
             </Field>
             {schedule.serviceType === "especial" ? (
               <Field label="Nombre del evento">
-                <Input value={schedule.serviceLabel || ""} onChange={(event) => update("serviceLabel", event.target.value)} />
+                <Input value={schedule.serviceLabel || ""} onChange={(event) => update("serviceLabel", event.target.value)} placeholder="Aniversario, conferencia, otro" />
               </Field>
             ) : null}
             <Field label={schedule.serviceType === "especial" ? "Hora manual" : "Hora automática"}>
@@ -126,6 +131,11 @@ function ScheduleForm({ initialSchedule, songs, onSubmit, onCancel }) {
               </Select>
             </Field>
           </div>
+          {wrongDay ? (
+            <p className="mt-4 rounded-2xl bg-brass/12 px-4 py-3 text-sm font-semibold text-brass">
+              Revisa la fecha: este servicio normalmente corresponde a {service.weekday === 0 ? "domingo" : "miércoles"}.
+            </p>
+          ) : null}
         </section>
 
         <section className="rounded-2xl border border-ink/10 bg-white p-4">
@@ -134,7 +144,7 @@ function ScheduleForm({ initialSchedule, songs, onSubmit, onCancel }) {
             <Select value="" onChange={(event) => addSong(event.target.value)}>
               <option value="">Seleccionar del repertorio</option>
               {songs.map((song) => (
-                <option key={song.id} value={song.id}>{song.title} - {song.keyWithCapo || song.mainKey}</option>
+                <option key={song.id} value={song.id}>{song.title} - {song.keyWithCapo || song.mainKey || "Sin tono"}</option>
               ))}
             </Select>
           </Field>
@@ -145,7 +155,7 @@ function ScheduleForm({ initialSchedule, songs, onSubmit, onCancel }) {
                 <div className="flex h-11 items-center justify-center rounded-xl bg-ink text-sm font-bold text-white">{index + 1}</div>
                 <Input value={song.titleSnapshot} onChange={(event) => updateSong(index, "titleSnapshot", event.target.value)} />
                 <Input value={song.keySnapshot} onChange={(event) => updateSong(index, "keySnapshot", event.target.value)} />
-                <Input value={song.notes} onChange={(event) => updateSong(index, "notes", event.target.value)} placeholder="Notas del canto" />
+                <Input value={song.notes || ""} onChange={(event) => updateSong(index, "notes", event.target.value)} placeholder="Notas del canto" />
                 <div className="flex gap-1">
                   <Button variant="subtle" className="h-11 w-9 px-0" onClick={() => moveSong(index, -1)} aria-label="Subir"><ArrowUp className="h-4 w-4" /></Button>
                   <Button variant="subtle" className="h-11 w-9 px-0" onClick={() => moveSong(index, 1)} aria-label="Bajar"><ArrowDown className="h-4 w-4" /></Button>
@@ -255,7 +265,7 @@ function ScheduleCard({ schedule, canEdit, canDelete, onEdit, onDuplicate, onDel
           <div key={`${song.songId}-${songIndex}`} className="rounded-2xl bg-ink/5 p-3">
             <div className="flex items-center justify-between gap-3">
               <p className="font-semibold text-ink">{songIndex + 1}. {song.titleSnapshot}</p>
-              <span className="rounded-xl bg-white px-3 py-1 text-sm font-bold">{song.keySnapshot}</span>
+              <span className="rounded-xl bg-white px-3 py-1 text-sm font-bold text-ink">{song.keySnapshot}</span>
             </div>
             <p className="mt-1 text-sm text-ink/55">{song.notes || "Sin notas"}</p>
           </div>
@@ -269,7 +279,7 @@ export function Schedules() {
   const { canEdit, canDelete } = useAuth();
   const { songs, schedules, saveSchedule, deleteSchedule, duplicateSchedule } = useMusicData();
   const [editingSchedule, setEditingSchedule] = useState(null);
-  const [isAdding, setIsAdding] = useState(false);
+  const [newScheduleDraft, setNewScheduleDraft] = useState(null);
   const [tab, setTab] = useState("calendar");
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = todayString();
@@ -305,9 +315,15 @@ export function Schedules() {
     return [...list].sort((a, b) => (tab === "past" ? b.date.localeCompare(a.date) : a.date.localeCompare(b.date)));
   }, [searchedSchedules, selectedDate, tab]);
 
+  const openNewSchedule = () => {
+    const date = tab === "calendar" ? selectedDate || todayString() : todayString();
+    setEditingSchedule(null);
+    setNewScheduleDraft({ ...blankSchedule, date });
+  };
+
   const closeModal = () => {
     setEditingSchedule(null);
-    setIsAdding(false);
+    setNewScheduleDraft(null);
   };
 
   return (
@@ -319,9 +335,9 @@ export function Schedules() {
             <p className="mt-1 text-sm text-ink/55">Calendario, listas y servicios de la iglesia.</p>
           </div>
           {canEdit ? (
-            <Button onClick={() => setIsAdding(true)}>
+            <Button onClick={openNewSchedule}>
               <Plus className="h-4 w-4" />
-              Nueva programación
+              {tab === "calendar" ? "Nueva programación para este día" : "Nueva programación"}
             </Button>
           ) : null}
         </div>
@@ -376,12 +392,12 @@ export function Schedules() {
           ))}
         </div>
       ) : tab !== "calendar" ? (
-        <EmptyState title="Sin programaciones" text="Crea una programación para la próxima reunión del ministerio." />
+        <EmptyState title="Sin programaciones" text="Crea una programación para el próximo servicio del ministerio." />
       ) : null}
 
-      <Modal open={isAdding || Boolean(editingSchedule)} title={editingSchedule ? "Editar programación" : "Nueva programación"} onClose={closeModal} wide>
+      <Modal open={Boolean(newScheduleDraft) || Boolean(editingSchedule)} title={editingSchedule ? "Editar programación" : "Nueva programación"} onClose={closeModal} wide>
         <ScheduleForm
-          initialSchedule={editingSchedule || blankSchedule}
+          initialSchedule={editingSchedule || newScheduleDraft || blankSchedule}
           songs={songs}
           onCancel={closeModal}
           onSubmit={async (schedule) => {

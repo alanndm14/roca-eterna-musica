@@ -244,7 +244,7 @@ export const sampleSchedules = [
     time: "19:00",
     type: "miércoles",
     serviceType: "miercoles-oracion",
-    serviceLabel: "Miércoles oración",
+    serviceLabel: "Miércoles de oración",
     status: "confirmado",
     leader: "Director de música",
     songs: [

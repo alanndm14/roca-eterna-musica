@@ -1,4 +1,5 @@
-import { calculateKeyWithCapo, normalizeBoolean, normalizeReviewStatus, splitThemes } from "./songUtils";
+import Papa from "papaparse";
+import { calculateKeyWithCapo, normalizeBoolean, normalizeReviewStatus, splitThemes, stripAccents } from "./songUtils";
 
 const columnAliases = {
   id: ["id"],
@@ -23,70 +24,63 @@ const columnAliases = {
 };
 
 const normalizeHeader = (value) =>
-  String(value || "")
+  stripAccents(value)
     .trim()
     .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
+    .replace(/\s+/g, "_");
 
-function detectDelimiter(text) {
-  const firstLine = text.split(/\r?\n/).find(Boolean) || "";
-  return firstLine.includes("\t") ? "\t" : ",";
-}
+const aliasLookup = Object.entries(columnAliases).reduce((acc, [field, aliases]) => {
+  aliases.forEach((alias) => {
+    acc[normalizeHeader(alias)] = field;
+  });
+  return acc;
+}, {});
 
-function parseLine(line, delimiter) {
-  if (delimiter === "\t") return line.split("\t");
-  const result = [];
-  let current = "";
-  let quoted = false;
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index];
-    if (char === '"' && line[index + 1] === '"') {
-      current += '"';
-      index += 1;
-    } else if (char === '"') {
-      quoted = !quoted;
-    } else if (char === delimiter && !quoted) {
-      result.push(current);
-      current = "";
-    } else {
-      current += char;
-    }
-  }
-  result.push(current);
-  return result.map((item) => item.trim());
-}
-
-function resolveColumn(header) {
-  const normalized = normalizeHeader(header);
-  return Object.entries(columnAliases).find(([, aliases]) =>
-    aliases.map(normalizeHeader).includes(normalized)
-  )?.[0];
-}
+const detectDelimiter = (text) => {
+  const firstLine = String(text || "").split(/\r?\n/).find(Boolean) || "";
+  return firstLine.includes("\t") ? "\t" : "";
+};
 
 export function parseSongsTable(text, keyPreference = "sharps") {
   const clean = String(text || "").trim();
-  if (!clean) return [];
-  const delimiter = detectDelimiter(clean);
-  const lines = clean.split(/\r?\n/).filter((line) => line.trim());
-  const headers = parseLine(lines[0], delimiter);
-  const mappedHeaders = headers.map(resolveColumn);
+  if (!clean) {
+    return { songs: [], errors: [], rows: [], headers: [] };
+  }
 
-  return lines.slice(1).map((line, index) => {
-    const values = parseLine(line, delimiter);
-    const raw = {};
-    mappedHeaders.forEach((field, fieldIndex) => {
-      if (field) raw[field] = values[fieldIndex] || "";
-    });
+  const parsed = Papa.parse(clean, {
+    header: true,
+    skipEmptyLines: "greedy",
+    delimiter: detectDelimiter(clean),
+    transformHeader: (header) => aliasLookup[normalizeHeader(header)] || normalizeHeader(header)
+  });
+
+  const errors = parsed.errors.map((error) => ({
+    row: error.row ? error.row + 2 : "-",
+    message: error.message
+  }));
+
+  const songs = [];
+  const rows = [];
+
+  parsed.data.forEach((rawRow, index) => {
+    const rowNumber = index + 2;
+    const raw = Object.fromEntries(Object.entries(rawRow).map(([key, value]) => [key, String(value ?? "").trim()]));
+    rows.push(raw);
+
+    if (!raw.title) {
+      errors.push({ row: rowNumber, message: "Fila omitida: falta el nombre del canto." });
+      return;
+    }
 
     const otherThemes = splitThemes(raw.otherThemes);
-    const mainTheme = raw.mainTheme || "";
-    const capo = raw.capo === "" ? 0 : Number(raw.capo || 0);
+    const mainTheme = splitThemes(raw.mainTheme)[0] || "";
+    const parsedCapo = raw.capo === "" ? 0 : Number(raw.capo || 0);
+    const capo = Number.isFinite(parsedCapo) ? Math.min(Math.max(parsedCapo, 0), 12) : 0;
     const keyWithCapo = raw.keyWithCapo || calculateKeyWithCapo(raw.mainKey, capo, keyPreference);
 
-    return {
-      importId: raw.id || `fila-${index + 2}`,
-      title: raw.title || "",
+    songs.push({
+      importId: raw.id || `fila-${rowNumber}`,
+      title: raw.title,
       artistOrSource: raw.artistOrSource || "",
       category: raw.category || "normal",
       mainTheme,
@@ -106,7 +100,20 @@ export function parseSongsTable(text, keyPreference = "sharps") {
       pdfReviewStatus: normalizeReviewStatus(raw.pdfReviewStatus),
       sungBefore: normalizeBoolean(raw.sungBefore),
       internalNotes: raw.internalNotes || "",
-      lyricsSections: []
-    };
-  }).filter((song) => song.title);
+      lyricsSections: [],
+      _rowNumber: rowNumber
+    });
+  });
+
+  return { songs, errors, rows, headers: parsed.meta.fields || [] };
+}
+
+export function analyzeImport(parsedSongs, existingSongs) {
+  const existingByTitle = new Set(existingSongs.map((song) => song.title?.trim().toLowerCase()).filter(Boolean));
+  const duplicates = parsedSongs.filter((song) => existingByTitle.has(song.title.trim().toLowerCase())).length;
+  return {
+    detected: parsedSongs.length,
+    duplicates,
+    news: parsedSongs.length - duplicates
+  };
 }

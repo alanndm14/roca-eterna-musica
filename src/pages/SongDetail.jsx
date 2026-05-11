@@ -153,7 +153,7 @@ export function SongDetail() {
               <InfoRow label="Tono con capo" value={song.keyWithCapo} />
               <InfoRow label="Cambio de tono" value={song.hasKeyChange ? "Sí" : "No"} />
               <InfoRow label="Formato" value={song.format} />
-              <InfoRow label="Cantado" value={song.sungBefore ? "Sí" : "No"} />
+              <InfoRow label="Ya se ha cantado" value={song.sungBefore ? "Sí" : "No"} />
               <InfoRow label="Última vez" value={song.lastUsedAt ? formatDate(song.lastUsedAt) : "Sin registro"} />
             </dl>
           </Card>
@@ -177,7 +177,7 @@ export function SongDetail() {
               ) : null}
               {song.chordsUrl ? (
                 <a className="flex items-center justify-between rounded-2xl bg-ink/5 p-3 text-sm font-semibold" href={song.chordsUrl} target="_blank" rel="noreferrer">
-                  PDF / acordes <ExternalLink className="h-4 w-4" />
+                  PDF de letra y acordes <ExternalLink className="h-4 w-4" />
                 </a>
               ) : null}
             </div>

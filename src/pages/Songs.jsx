@@ -199,7 +199,7 @@ function SongForm({ initialSong, themes, keyPreference, onSubmit, onCancel }) {
             <Field label="Vista previa embebible">
               <Input value={song.pdfPreviewUrl || normalizeDrivePdfUrl(song.drivePdfUrl || song.pdfUrl)} onChange={(event) => update("pdfPreviewUrl", event.target.value)} />
             </Field>
-            <Field label="PDF / acordes">
+            <Field label="PDF de letra y acordes">
               <Input value={song.chordsUrl || ""} onChange={(event) => update("chordsUrl", event.target.value)} />
             </Field>
             <Field label="YouTube">
@@ -228,7 +228,7 @@ function SongForm({ initialSong, themes, keyPreference, onSubmit, onCancel }) {
                 {REVIEW_STATUSES.map((status) => <option key={status}>{status}</option>)}
               </Select>
             </Field>
-            <Field label="Cantado">
+            <Field label="Ya se ha cantado">
               <Select value={song.sungBefore ? "si" : "no"} onChange={(event) => update("sungBefore", event.target.value === "si")}>
                 <option value="si">Sí</option>
                 <option value="no">No</option>
@@ -394,9 +394,9 @@ export function Songs() {
             {REVIEW_STATUSES.map((status) => <option key={status}>{status}</option>)}
           </Select>
           <Select value={filters.sung} onChange={(event) => setFilter("sung", event.target.value)}>
-            <option value="">Cantado sí/no</option>
-            <option value="si">Cantado</option>
-            <option value="no">No cantado</option>
+            <option value="">Ya se ha cantado</option>
+            <option value="si">Sí se ha cantado</option>
+            <option value="no">No se ha cantado</option>
           </Select>
           <Select value={filters.format} onChange={(event) => setFilter("format", event.target.value)}>
             <option value="">Todos los formatos</option>
@@ -432,8 +432,8 @@ export function Songs() {
               </div>
               <div className="mt-4 grid grid-cols-3 gap-2 text-sm">
                 <span className="rounded-2xl bg-ink/5 p-2">Capo {song.capo || 0}</span>
-                <span className="rounded-2xl bg-ink/5 p-2">Con capo {song.keyWithCapo || "--"}</span>
-                <span className="rounded-2xl bg-ink/5 p-2">{song.sungBefore ? "Cantado" : "No cantado"}</span>
+                <span className="rounded-2xl bg-ink/5 p-2">Tono con capo: {song.keyWithCapo || "--"}</span>
+                <span className="rounded-2xl bg-ink/5 p-2">{song.sungBefore ? "Ya se ha cantado" : "No se ha cantado"}</span>
               </div>
               <p className="mt-4 line-clamp-2 text-sm leading-6 text-ink/58">{song.internalNotes || "Sin comentarios."}</p>
               <div className="mt-auto flex items-center justify-between pt-5">

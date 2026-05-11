@@ -1,22 +1,20 @@
 import { Link } from "react-router-dom";
-import { CalendarPlus, Clock, ListPlus, Music2, RotateCcw, Sparkles } from "lucide-react";
+import { CalendarPlus, Clock, FileClock, ListPlus, Music2, RotateCcw, Sparkles } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { StatCard } from "../components/ui/StatCard";
 import { useMusicData } from "../hooks/useMusicData";
-import { daysUntil, formatDate, getUpcomingSchedule, todayString } from "../services/dateUtils";
+import { daysUntil, formatDate, getUpcomingSchedule } from "../services/dateUtils";
+
+const serviceLabel = (schedule) => schedule?.serviceLabel || schedule?.type || "Servicio pendiente";
 
 export function Dashboard() {
   const { songs, schedules } = useMusicData();
   const upcoming = getUpcomingSchedule(schedules);
   const days = daysUntil(upcoming?.date);
-  const monthPrefix = todayString().slice(0, 7);
-  const usedThisMonth = new Set(
-    schedules
-      .filter((schedule) => schedule.date?.startsWith(monthPrefix))
-      .flatMap((schedule) => schedule.songs?.map((song) => song.songId) || [])
-  ).size;
-  const staleSongs = songs.filter((song) => !song.lastUsedAt || song.lastUsedAt < "2026-03-01").length;
+  const pdfPending = songs.filter((song) => song.pdfReviewStatus !== "completado").length;
+  const musicPending = songs.filter((song) => song.musicReviewStatus !== "completado").length;
+  const withoutAppHistory = songs.filter((song) => !song.lastUsedAt).length;
 
   return (
     <div className="space-y-6">
@@ -24,19 +22,19 @@ export function Dashboard() {
         <Card className="relative overflow-hidden bg-ink p-6 text-white">
           <div className="absolute -right-20 -top-20 h-56 w-56 rounded-full border border-white/10" />
           <div className="relative z-10">
-            <p className="text-sm font-semibold uppercase tracking-wide text-brass">Próxima reunión</p>
+            <p className="text-sm font-semibold uppercase tracking-wide text-brass">Próximo servicio</p>
             <h2 className="mt-3 text-3xl font-bold tracking-normal md:text-4xl">
               {upcoming ? formatDate(upcoming.date) : "Sin programación cercana"}
             </h2>
             {upcoming ? (
               <div className="mt-5 grid gap-3 text-sm text-white/72 sm:grid-cols-3">
+                <span className="rounded-2xl bg-white/8 p-3">Servicio: {serviceLabel(upcoming)}</span>
                 <span className="rounded-2xl bg-white/8 p-3">Hora: {upcoming.time || "Sin hora"}</span>
-                <span className="rounded-2xl bg-white/8 p-3">Tipo: {upcoming.type}</span>
                 <span className="rounded-2xl bg-white/8 p-3">Responsable: {upcoming.leader || "Pendiente"}</span>
               </div>
             ) : null}
             <p className="mt-5 max-w-3xl text-sm leading-6 text-white/62">
-              {upcoming?.generalNotes || "Crea una programación para que el equipo pueda revisar cantos, tonos y notas desde cualquier dispositivo."}
+              {upcoming?.generalNotes || "Crea una programación para que el equipo pueda revisar cantos, tonos, PDFs y notas desde cualquier dispositivo."}
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
               <Link to="/repertorio">
@@ -81,9 +79,9 @@ export function Dashboard() {
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatCard icon={Music2} label="Cantos en repertorio" value={songs.length} detail="Disponibles para programar" />
-        <StatCard icon={CalendarPlus} label="Próximo culto" value={upcoming?.type || "Pendiente"} detail={upcoming?.time || "Sin hora"} delay={0.05} />
-        <StatCard icon={Sparkles} label="Usados este mes" value={usedThisMonth} detail="Cantos únicos programados" delay={0.1} />
-        <StatCard icon={RotateCcw} label="No usados recientemente" value={staleSongs} detail="Revisar rotación del repertorio" delay={0.15} />
+        <StatCard icon={FileClock} label="PDFs pendientes" value={pdfPending} detail="Revisión PDF no completada" delay={0.05} />
+        <StatCard icon={Sparkles} label="Revisión musical pendiente" value={musicPending} detail="Cantos por revisar musicalmente" delay={0.1} />
+        <StatCard icon={RotateCcw} label="Sin historial en la app" value={withoutAppHistory} detail="Sin fecha de último uso registrada" delay={0.15} />
       </section>
     </div>
   );

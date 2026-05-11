@@ -3,7 +3,7 @@ import { mobileNavItems } from "./navigation";
 
 export function BottomNav() {
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-ink/10 bg-white/94 px-2 pb-2 pt-1 backdrop-blur lg:hidden">
+    <nav className="mobile-bottom-nav fixed bottom-0 left-0 right-0 z-40 border-t border-ink/10 bg-white/94 px-2 pb-2 pt-1 backdrop-blur lg:hidden">
       <div className="mx-auto grid max-w-xl grid-cols-5 gap-1">
         {mobileNavItems.map((item) => (
           <NavLink

@@ -5,26 +5,58 @@ export const SONG_CATEGORIES = ["normal", "navidad", "himno", "especial", "santa
 const sharpNotes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const flatNotes = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
 const aliases = {
-  "C": 0,
+  C: 0,
   "C#": 1,
-  "DB": 1,
-  "D": 2,
+  DB: 1,
+  D: 2,
   "D#": 3,
-  "EB": 3,
-  "E": 4,
-  "F": 5,
+  EB: 3,
+  E: 4,
+  F: 5,
   "F#": 6,
-  "GB": 6,
-  "G": 7,
+  GB: 6,
+  G: 7,
   "G#": 8,
-  "AB": 8,
-  "A": 9,
+  AB: 8,
+  A: 9,
   "A#": 10,
-  "BB": 10,
-  "B": 11
+  BB: 10,
+  B: 11
+};
+
+const canonicalThemeNames = {
+  adoracion: "adoración",
+  senorio: "señorío",
+  redencion: "redención",
+  mision: "misión",
+  oracion: "oración",
+  acciondegracias: "gratitud",
+  agradecimiento: "gratitud"
 };
 
 export const BASIC_KEYS = ["", "C", "C#", "Db", "D", "D#", "Eb", "E", "F", "F#", "Gb", "G", "G#", "Ab", "A", "A#", "Bb", "B"];
+
+export function stripAccents(value = "") {
+  return String(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+export function canonicalThemeKey(value = "") {
+  return stripAccents(value)
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/[^a-z0-9ñ\s]/g, "")
+    .replace(/\s/g, "");
+}
+
+export function normalizeThemeName(value = "") {
+  const clean = String(value || "").trim().replace(/\s+/g, " ");
+  if (!clean) return "";
+  const key = canonicalThemeKey(clean);
+  return canonicalThemeNames[key] || clean.toLowerCase();
+}
 
 export function transposeKey(key, steps = 0, preference = "sharps") {
   if (!key) return "";
@@ -53,40 +85,41 @@ export function normalizeDrivePdfUrl(url = "") {
 }
 
 export function getSongPdfUrl(song) {
-  return song?.pdfPreviewUrl || normalizeDrivePdfUrl(song?.drivePdfUrl) || song?.pdfUrl || song?.chordsUrl || "";
+  return song?.pdfPreviewUrl || normalizeDrivePdfUrl(song?.drivePdfUrl) || song?.pdfUrl || song?.storagePdfUrl || song?.chordsUrl || "";
 }
 
 export function normalizeBoolean(value) {
   if (typeof value === "boolean") return value;
-  const normalized = String(value || "").trim().toLowerCase();
-  if (["si", "sí", "yes", "true", "1", "x"].includes(normalized)) return true;
-  if (["no", "false", "0"].includes(normalized)) return false;
+  const normalized = stripAccents(value).trim().toLowerCase();
+  if (["si", "yes", "true", "1", "x", "cantado"].includes(normalized)) return true;
+  if (["no", "false", "0", "pendiente", ""].includes(normalized)) return false;
   return false;
 }
 
 export function normalizeReviewStatus(value) {
-  const normalized = String(value || "").trim().toLowerCase();
-  if (["completo", "completado", "done", "listo"].includes(normalized)) return "completado";
-  if (["revision", "revisión", "en revision", "en revisión", "review"].includes(normalized)) return "en revisión";
+  const normalized = stripAccents(value).trim().toLowerCase();
+  if (["completo", "completado", "done", "listo", "terminado"].includes(normalized)) return "completado";
+  if (["revision", "en revision", "review", "revisando"].includes(normalized)) return "en revisión";
   return "pendiente";
 }
 
 export function splitThemes(value) {
-  if (Array.isArray(value)) return value.map(String).map((item) => item.trim()).filter(Boolean);
+  if (Array.isArray(value)) return value.map(normalizeThemeName).filter(Boolean);
   return String(value || "")
     .split(/[;,]/)
-    .map((item) => item.trim())
+    .map(normalizeThemeName)
     .filter(Boolean);
 }
 
 export function normalizeSong(song = {}, keyPreference = "sharps") {
-  const mainTheme = song.mainTheme || song.tema || song.theme || song.tags?.[0] || "";
+  const mainTheme = normalizeThemeName(song.mainTheme || song.tema || song.theme || song.tags?.[0] || "");
   const otherThemes = splitThemes(song.otherThemes || song.otros_temas || song.tags?.slice?.(1) || []);
-  const tags = [...new Set([mainTheme, ...otherThemes, ...(song.tags || [])].filter(Boolean))];
+  const tags = [...new Set([mainTheme, ...otherThemes, ...(song.tags || []).map(normalizeThemeName)].filter(Boolean))];
   const drivePdfUrl = song.drivePdfUrl || "";
   const pdfUrl = song.pdfUrl || song.chordsUrl || "";
   const pdfPreviewUrl = song.pdfPreviewUrl || normalizeDrivePdfUrl(drivePdfUrl || pdfUrl);
-  const capo = song.capo === "" || song.capo === undefined ? 0 : Number(song.capo);
+  const capoNumber = song.capo === "" || song.capo === undefined ? 0 : Number(song.capo);
+  const capo = Number.isFinite(capoNumber) ? Math.min(Math.max(capoNumber, 0), 12) : 0;
   const keyWithCapo = song.keyWithCapo || calculateKeyWithCapo(song.mainKey, capo, keyPreference);
 
   return {
@@ -117,14 +150,22 @@ export function normalizeSong(song = {}, keyPreference = "sharps") {
 }
 
 export function collectSongThemes(songs = [], configuredThemes = []) {
-  const themeSet = new Set();
-  configuredThemes.filter((theme) => theme.active !== false).forEach((theme) => themeSet.add(theme.name));
+  const byKey = new Map();
+  configuredThemes
+    .filter((theme) => theme.active !== false)
+    .forEach((theme) => {
+      const name = normalizeThemeName(theme.name);
+      if (name) byKey.set(canonicalThemeKey(name), name);
+    });
+
   songs.forEach((song) => {
-    if (song.mainTheme) themeSet.add(song.mainTheme);
-    (song.otherThemes || []).forEach((theme) => themeSet.add(theme));
-    (song.tags || []).forEach((theme) => themeSet.add(theme));
+    [song.mainTheme, ...(song.otherThemes || []), ...(song.tags || [])].forEach((theme) => {
+      const name = normalizeThemeName(theme);
+      if (name) byKey.set(canonicalThemeKey(name), name);
+    });
   });
-  return [...themeSet].filter(Boolean).sort((a, b) => a.localeCompare(b, "es"));
+
+  return [...byKey.values()].filter(Boolean).sort((a, b) => a.localeCompare(b, "es"));
 }
 
 export function collectSongKeys(songs = []) {

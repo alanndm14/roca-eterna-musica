@@ -47,7 +47,8 @@ export function AuthProvider({ children }) {
       const uid = firebaseUser.uid;
       const email = firebaseUser.email?.toLowerCase();
       const userRef = doc(db, "users", uid);
-      const allowedEmailRef = doc(db, "allowedEmails", email);
+      const authorizedEmailRef = doc(db, "authorizedEmails", email);
+      const legacyAllowedEmailRef = doc(db, "allowedEmails", email);
 
       try {
         const snap = await getDoc(userRef);
@@ -76,10 +77,11 @@ export function AuthProvider({ children }) {
           setProfile({ id: uid, ...adminProfile, createdAt: new Date(), lastLogin: new Date() });
           setUnauthorized(false);
         } else {
-          const allowedSnap = await getDoc(allowedEmailRef);
+          const authorizedSnap = await getDoc(authorizedEmailRef);
+          const legacyAllowedSnap = authorizedSnap.exists() ? authorizedSnap : await getDoc(legacyAllowedEmailRef);
 
-          if (allowedSnap.exists() && allowedSnap.data().active) {
-            const allowed = allowedSnap.data();
+          if (legacyAllowedSnap.exists() && legacyAllowedSnap.data().active) {
+            const allowed = legacyAllowedSnap.data();
             const allowedProfile = {
               uid,
               email,
