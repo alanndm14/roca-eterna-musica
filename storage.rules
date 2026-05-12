@@ -1,0 +1,71 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function bootstrapAdminEmails() {
+      return ["liquea45@gmail.com"];
+    }
+
+    function isBootstrapAdmin() {
+      return signedIn() && request.auth.token.email in bootstrapAdminEmails();
+    }
+
+    function userDoc() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid));
+    }
+
+    function hasUserDoc() {
+      return firestore.exists(/databases/(default)/documents/users/$(request.auth.uid));
+    }
+
+    function authorizedEmailDoc() {
+      return firestore.get(/databases/(default)/documents/authorizedEmails/$(request.auth.token.email));
+    }
+
+    function hasAuthorizedEmailDoc() {
+      return firestore.exists(/databases/(default)/documents/authorizedEmails/$(request.auth.token.email))
+        && authorizedEmailDoc().data.active == true;
+    }
+
+    function isAuthorized() {
+      return signedIn()
+        && (
+          isBootstrapAdmin()
+          || (
+            hasUserDoc()
+            && userDoc().data.active == true
+            && userDoc().data.email == request.auth.token.email
+          )
+          || hasAuthorizedEmailDoc()
+        );
+    }
+
+    function role() {
+      return isBootstrapAdmin()
+        ? "admin"
+        : hasUserDoc()
+          ? userDoc().data.role
+          : authorizedEmailDoc().data.role;
+    }
+
+    function isEditor() {
+      return isAuthorized() && (role() == "admin" || role() == "editor");
+    }
+
+    match /song-pdfs/{songId}/{fileName} {
+      allow read: if isAuthorized();
+      allow write: if isEditor()
+        && request.resource.size < 25 * 1024 * 1024
+        && request.resource.contentType == "application/pdf";
+      allow delete: if isEditor();
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

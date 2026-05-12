@@ -8,6 +8,7 @@ Web app tipo PWA para organizar el ministerio de música de la iglesia Roca Eter
 - Tailwind CSS
 - Firebase Authentication con Google Sign-In
 - Cloud Firestore
+- Firebase Storage para PDFs subidos a la app
 - Framer Motion
 - lucide-react
 - PWA con manifest y service worker
@@ -39,6 +40,12 @@ npm run build
 
 ```bash
 firebase deploy --only firestore:rules
+```
+
+Si vas a subir PDFs a la app y generar PDFs combinados, habilita Firebase Storage y publica también:
+
+```bash
+firebase deploy --only storage
 ```
 
 Las API keys web de Firebase pueden estar en el frontend. La protección real está en Firebase Authentication y Firestore Security Rules. No agregues service accounts ni claves privadas en esta app.
@@ -88,6 +95,30 @@ https://drive.google.com/file/d/FILE_ID/preview
 ```
 
 Ese link permite usar “Ver dentro de la app”. Si Google Drive bloquea la vista previa, usa “Abrir PDF”.
+
+### Subir PDFs a Firebase Storage
+
+Para que la app pueda generar un PDF combinado del servicio, sube cada PDF directamente desde el formulario del canto:
+
+1. Habilita Firebase Storage en Firebase Console.
+2. Verifica que `.env` tenga `VITE_FIREBASE_STORAGE_BUCKET`.
+3. Publica `storage.rules` con `firebase deploy --only storage`.
+4. En Repertorio, edita un canto.
+5. En **Archivos y enlaces**, usa **Subir PDF a la app** y selecciona un `.pdf`.
+6. Guarda el canto.
+
+La app guarda internamente `storagePath`, `storagePdfUrl`, `originalFileName`, `uploadedAt` y `uploadedBy`.
+
+Los usuarios `viewer` pueden leer PDFs. Solo `admin` y `editor` pueden subir, reemplazar o eliminar PDFs.
+
+### PDF combinado del servicio
+
+En Vista para músicos, **Descargar PDFs del servicio** intenta combinar en orden los PDFs subidos a Firebase Storage usando `pdf-lib`.
+
+- Si todos los cantos tienen PDF subido a la app, descarga un PDF completo.
+- Si algunos cantos solo tienen Drive o no tienen PDF, muestra incluidos/omitidos.
+- Si al menos un PDF se pudo incluir, permite descargar un PDF parcial.
+- Los PDFs de Drive no se fusionan por restricciones normales de permisos/CORS.
 
 ## Importar repertorio
 

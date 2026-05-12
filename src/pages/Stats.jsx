@@ -15,11 +15,12 @@ import {
 } from "recharts";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
-import { StatCard } from "../components/ui/StatCard";
 import { Select } from "../components/ui/Field";
+import { SongNameLink, findSongForNavigation } from "../components/ui/SongNameLink";
+import { StatCard } from "../components/ui/StatCard";
 import { useMusicData } from "../hooks/useMusicData";
-import { formatDate, todayString } from "../services/dateUtils";
-import { collectSongThemes, normalizeThemeName } from "../services/songUtils";
+import { formatDate } from "../services/dateUtils";
+import { collectSongThemes, getSongPdfUrl, normalizeThemeName } from "../services/songUtils";
 
 const chartColors = ["#b6945f", "#60717d", "#8e989f", "#d7c7a7", "#242424", "#b8b0a4"];
 const reviewColors = { pendiente: "#8e989f", "en revisión": "#d7c7a7", completado: "#b6945f" };
@@ -44,23 +45,6 @@ const topWithOthers = (data, limit = 10) => {
   const top = sorted.slice(0, limit);
   const rest = sorted.slice(limit).reduce((sum, item) => sum + item.value, 0);
   return rest ? [...top, { name: "Otros", value: rest }] : top;
-};
-
-const lastSixMonths = (schedules) => {
-  const now = new Date(`${todayString()}T00:00:00`);
-  const months = Array.from({ length: 6 }, (_, index) => {
-    const date = new Date(now.getFullYear(), now.getMonth() - (5 - index), 1);
-    const key = date.toISOString().slice(0, 7);
-    return { key, name: new Intl.DateTimeFormat("es-MX", { month: "short" }).format(date), value: 0 };
-  });
-  const byKey = new Map(months.map((month) => [month.key, month]));
-  schedules
-    .filter((schedule) => schedule.date <= todayString() || schedule.status === "realizado")
-    .forEach((schedule) => {
-      const key = schedule.date?.slice(0, 7);
-      if (byKey.has(key)) byKey.get(key).value += schedule.songs?.length || 0;
-    });
-  return months;
 };
 
 function ChartCard({ title, children, aside }) {
@@ -131,24 +115,48 @@ function ReviewGraph({ data }) {
   );
 }
 
+function SongTable({ rows, songs, columns }) {
+  return (
+    <div className="overflow-auto rounded-2xl border border-ink/10">
+      <table className="min-w-[860px] w-full text-left text-sm">
+        <thead className="bg-ink/5 text-xs uppercase tracking-wide text-ink/55">
+          <tr>{columns.map((column) => <th key={column.key} className="p-3">{column.label}</th>)}</tr>
+        </thead>
+        <tbody>
+          {rows.map((song) => (
+            <tr key={song.id} className="border-t border-ink/10">
+              {columns.map((column) => (
+                <td key={`${song.id}-${column.key}`} className="p-3 text-ink/65">
+                  {column.key === "title" ? (
+                    <SongNameLink songId={song.id} title={song.title} songs={songs}>{song.title}</SongNameLink>
+                  ) : column.render ? column.render(song) : song[column.key] || "--"}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export function Stats() {
   const { songs, schedules, themes } = useMusicData();
+  const [view, setView] = useState("musicians");
   const [keyMode, setKeyMode] = useState("main");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [themeFilter, setThemeFilter] = useState("");
+
   const categories = useMemo(() => [...new Set(songs.map((song) => song.category || "normal"))].sort((a, b) => a.localeCompare(b, "es")), [songs]);
   const themeOptions = useMemo(() => collectSongThemes(songs, themes), [songs, themes]);
-
   const filteredSongs = useMemo(() => songs.filter((song) => {
     const songThemes = [song.mainTheme, ...(song.otherThemes || []), ...(song.tags || [])].map(normalizeThemeName);
-    const matchesCategory = !categoryFilter || (song.category || "normal") === categoryFilter;
-    const matchesTheme = !themeFilter || songThemes.includes(normalizeThemeName(themeFilter));
-    return matchesCategory && matchesTheme;
+    return (!categoryFilter || (song.category || "normal") === categoryFilter) && (!themeFilter || songThemes.includes(normalizeThemeName(themeFilter)));
   }), [categoryFilter, songs, themeFilter]);
 
   const byTheme = topWithOthers(toChartData(countBy(filteredSongs, (song) => [song.mainTheme, ...(song.otherThemes || [])].map(normalizeThemeName))), 10);
   const byKey = toChartData(countBy(filteredSongs, (song) => [keyMode === "main" ? song.mainKey : song.keyWithCapo]));
-  const byMonth = lastSixMonths(schedules);
+  const byCapo = toChartData(countBy(filteredSongs, (song) => [`Capo ${Number(song.capo || 0)}`])).sort((a, b) => Number(a.name.replace("Capo ", "")) - Number(b.name.replace("Capo ", "")));
   const byCategory = toChartData(countBy(filteredSongs, (song) => [song.category || "normal"]));
   const reviewData = useMemo(() => (
     [
@@ -162,27 +170,62 @@ export function Stats() {
       completado: filteredSongs.filter((song) => song[field] === "completado").length
     }))
   ), [filteredSongs]);
-  const mostUsed = [...filteredSongs].sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0)).slice(0, 8);
+
+  const programmedSongEntries = schedules.flatMap((schedule) => (schedule.songs || []).map((entry) => ({ ...entry, schedule })));
+  const programmedThemes = toChartData(countBy(programmedSongEntries, (entry) => {
+    const song = findSongForNavigation({ songId: entry.songId, title: entry.titleSnapshot, songs });
+    return song ? [song.mainTheme, ...(song.otherThemes || [])].map(normalizeThemeName) : [];
+  }));
+  const mostUsed = [...filteredSongs].sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0)).slice(0, 10);
   const leastUsed = [...filteredSongs]
-    .sort((a, b) => {
-      const usageDiff = (a.usageCount || 0) - (b.usageCount || 0);
-      if (usageDiff !== 0) return usageDiff;
-      return (a.lastUsedAt || "0000").localeCompare(b.lastUsedAt || "0000");
-    })
+    .sort((a, b) => (a.usageCount || 0) - (b.usageCount || 0) || (a.lastUsedAt || "0000").localeCompare(b.lastUsedAt || "0000"))
     .slice(0, 12);
+  const rotationSuggestions = filteredSongs
+    .filter((song) =>
+      song.pdfReviewStatus === "completado"
+      && song.keynoteReviewStatus === "completado"
+      && song.musicReviewStatus === "completado"
+      && song.sungBefore
+      && (!song.lastUsedAt || (song.usageCount || 0) <= 1)
+    )
+    .slice(0, 10);
+  const changeKeySongs = filteredSongs.filter((song) => song.hasKeyChange);
+  const incompleteMusicalData = filteredSongs.filter((song) =>
+    !song.mainKey
+    || song.capo === undefined
+    || !getSongPdfUrl(song)
+    || !song.musicReviewStatus
+    || !song.keynoteReviewStatus
+  );
   const total = filteredSongs.length;
-  const pdfDone = filteredSongs.filter((song) => song.pdfReviewStatus === "completado").length;
+  const pdfReady = filteredSongs.filter((song) => getSongPdfUrl(song)).length;
   const keynoteDone = filteredSongs.filter((song) => song.keynoteReviewStatus === "completado").length;
   const musicDone = filteredSongs.filter((song) => song.musicReviewStatus === "completado").length;
-  const sparseUsage = schedules.filter((schedule) => schedule.date <= todayString() || schedule.status === "realizado").length < 3;
+  const noCapo = filteredSongs.filter((song) => Number(song.capo || 0) === 0).length;
+
+  const leastUsedColumns = [
+    { key: "title", label: "Canto" },
+    { key: "category", label: "Categoría" },
+    { key: "mainTheme", label: "Tema" },
+    { key: "mainKey", label: "Tono" },
+    { key: "capo", label: "Capo", render: (song) => song.capo ?? 0 },
+    { key: "usageCount", label: "Usos", render: (song) => song.usageCount || 0 },
+    { key: "lastUsedAt", label: "Última vez", render: (song) => song.lastUsedAt ? formatDate(song.lastUsedAt) : "Sin historial en la app" },
+    { key: "sungBefore", label: "Histórico", render: (song) => song.sungBefore ? "Ya se ha cantado" : "No cantado históricamente" },
+    { key: "state", label: "Estado", render: (song) => song.lastUsedAt ? "Poco usado en la app" : "Sin historial en la app" }
+  ];
 
   return (
     <div className="space-y-5">
       <Card>
-        <div className="grid gap-3 md:grid-cols-[1fr_220px_220px_auto] md:items-end">
+        <div className="grid gap-4 xl:grid-cols-[1fr_220px_220px_auto] xl:items-end">
           <div>
             <h2 className="text-xl font-bold text-ink">Estadísticas</h2>
-            <p className="mt-1 text-sm text-ink/55">Filtra por categoría o tema para analizar partes específicas del repertorio.</p>
+            <p className="mt-1 text-sm text-ink/55">Analizando {filteredSongs.length} de {songs.length} cantos.</p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button variant={view === "musicians" ? "primary" : "secondary"} onClick={() => setView("musicians")}>Para músicos</Button>
+              <Button variant={view === "programming" ? "primary" : "secondary"} onClick={() => setView("programming")}>Para programación</Button>
+            </div>
           </div>
           <label className="block">
             <span className="mb-2 block text-xs font-semibold uppercase tracking-wide text-ink/55">Categoría</span>
@@ -198,99 +241,105 @@ export function Stats() {
               {themeOptions.map((theme) => <option key={theme}>{theme}</option>)}
             </Select>
           </label>
-          <Button variant="secondary" onClick={() => { setCategoryFilter(""); setThemeFilter(""); }}>Limpiar</Button>
+          <Button variant="secondary" onClick={() => { setCategoryFilter(""); setThemeFilter(""); }}>Limpiar filtros</Button>
         </div>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard icon={Music2} label="Cantos analizados" value={total} />
-        <StatCard icon={FileCheck2} label="PDF completado" value={`${percent(pdfDone, total)}%`} detail={`${pdfDone} de ${total}`} delay={0.05} />
-        <StatCard icon={Presentation} label="Keynote completado" value={`${percent(keynoteDone, total)}%`} detail={`${keynoteDone} de ${total}`} delay={0.1} />
-        <StatCard icon={BarChart3} label="Revisión musical" value={`${percent(musicDone, total)}%`} detail={`${musicDone} de ${total}`} delay={0.15} />
-      </div>
-
-      <div className="grid gap-5 xl:grid-cols-2">
-        <ChartCard title="Cantos por tema">
-          <BarGraph data={byTheme} horizontal />
-        </ChartCard>
-        <ChartCard
-          title="Cantos por tonalidad"
-          aside={
-            <div className="flex rounded-xl bg-ink/5 p-1">
-              <Button variant={keyMode === "main" ? "primary" : "subtle"} className="min-h-8 px-3 py-1 text-xs" onClick={() => setKeyMode("main")}>Principal</Button>
-              <Button variant={keyMode === "capo" ? "primary" : "subtle"} className="min-h-8 px-3 py-1 text-xs" onClick={() => setKeyMode("capo")}>Tonalidad con capo</Button>
-            </div>
-          }
-        >
-          <BarGraph data={byKey} />
-        </ChartCard>
-        <ChartCard title="Uso mensual del repertorio">
-          <BarGraph data={byMonth} />
-        </ChartCard>
-        <ChartCard title="Estados de revisión">
-          <ReviewGraph data={reviewData} />
-        </ChartCard>
-        <ChartCard title="Categorías">
-          <PieGraph data={byCategory} />
-        </ChartCard>
-        <Card>
-          <h2 className="text-lg font-bold text-ink">Cantos más usados</h2>
-          {sparseUsage ? (
-            <p className="mt-2 rounded-2xl bg-brass/12 p-3 text-sm font-semibold text-brass">
-              Esta gráfica se volverá más útil conforme registres más programaciones.
-            </p>
-          ) : null}
-          <div className="mt-5 space-y-2">
-            {mostUsed.map((song) => (
-              <div key={song.id} className="flex justify-between rounded-2xl bg-ink/5 p-3 text-sm">
-                <span className="font-semibold text-ink">{song.title}</span>
-                <span className="text-ink">{song.usageCount || 0}</span>
-              </div>
-            ))}
+      {view === "musicians" ? (
+        <>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <StatCard icon={Music2} label="Sin capo" value={`${percent(noCapo, total)}%`} detail={`${noCapo} de ${total}`} />
+            <StatCard icon={FileCheck2} label="Con PDF disponible" value={`${percent(pdfReady, total)}%`} detail={`${pdfReady} de ${total}`} delay={0.05} />
+            <StatCard icon={Presentation} label="Keynote completado" value={`${percent(keynoteDone, total)}%`} detail={`${keynoteDone} de ${total}`} delay={0.1} />
+            <StatCard icon={BarChart3} label="Revisión musical" value={`${percent(musicDone, total)}%`} detail={`${musicDone} de ${total}`} delay={0.15} />
           </div>
-        </Card>
-      </div>
-
-      <Card>
-        <h2 className="text-lg font-bold text-ink">Cantos menos usados</h2>
-        <p className="mt-1 text-sm text-ink/55">Diferencia entre cantos sin historial dentro de la app y cantos poco usados según el contador registrado.</p>
-        <div className="mt-5 overflow-auto rounded-2xl border border-ink/10">
-          <table className="min-w-[980px] w-full text-left text-sm">
-            <thead className="bg-ink/5 text-xs uppercase tracking-wide text-ink/55">
-              <tr>
-                <th className="p-3">Canto</th>
-                <th className="p-3">Categoría</th>
-                <th className="p-3">Tema principal</th>
-                <th className="p-3">Tono</th>
-                <th className="p-3">Capo</th>
-                <th className="p-3">Veces usado en la app</th>
-                <th className="p-3">Última vez en la app</th>
-                <th className="p-3">Ya se ha cantado históricamente</th>
-                <th className="p-3">Estado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {leastUsed.map((song) => (
-                <tr key={song.id} className="border-t border-ink/10">
-                  <td className="p-3 font-semibold text-ink">{song.title}</td>
-                  <td className="p-3 text-ink/60">{song.category || "normal"}</td>
-                  <td className="p-3 text-ink/60">{song.mainTheme || "--"}</td>
-                  <td className="p-3 text-ink/60">{song.mainKey || "--"}</td>
-                  <td className="p-3 text-ink/60">{song.capo || 0}</td>
-                  <td className="p-3 text-ink/60">{song.usageCount || 0}</td>
-                  <td className="p-3 text-ink/60">{song.lastUsedAt ? formatDate(song.lastUsedAt) : "Sin historial en la app"}</td>
-                  <td className="p-3 text-ink/60">{song.sungBefore ? "Sí" : "No"}</td>
-                  <td className="p-3">
-                    <span className="rounded-full bg-ink/7 px-3 py-1 text-xs font-bold text-ink/60">
-                      {song.lastUsedAt ? "Poco usado en la app" : "Sin historial en la app"}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+          <div className="grid gap-5 xl:grid-cols-2">
+            <ChartCard
+              title="Tonalidades"
+              aside={
+                <div className="flex rounded-xl bg-ink/5 p-1">
+                  <Button variant={keyMode === "main" ? "primary" : "subtle"} className="min-h-8 px-3 py-1 text-xs" onClick={() => setKeyMode("main")}>Principal</Button>
+                  <Button variant={keyMode === "capo" ? "primary" : "subtle"} className="min-h-8 px-3 py-1 text-xs" onClick={() => setKeyMode("capo")}>Con capo</Button>
+                </div>
+              }
+            >
+              <BarGraph data={byKey} />
+            </ChartCard>
+            <ChartCard title="Cantos por capo"><BarGraph data={byCapo} /></ChartCard>
+            <ChartCard title="Estados de revisión"><ReviewGraph data={reviewData} /></ChartCard>
+            <ChartCard title="PDFs disponibles"><PieGraph data={[{ name: "Con PDF", value: pdfReady }, { name: "Sin PDF", value: total - pdfReady }]} /></ChartCard>
+          </div>
+          <Card>
+            <h2 className="text-lg font-bold text-ink">Cantos con cambio de tono</h2>
+            <div className="mt-4">
+              <SongTable rows={changeKeySongs} songs={songs} columns={[
+                { key: "title", label: "Canto" },
+                { key: "mainKey", label: "Tono principal" },
+                { key: "capo", label: "Capo", render: (song) => song.capo ?? 0 },
+                { key: "keyWithCapo", label: "Tono con capo" },
+                { key: "internalNotes", label: "Comentario" }
+              ]} />
+            </div>
+          </Card>
+          <Card>
+            <h2 className="text-lg font-bold text-ink">Cantos sin datos musicales completos</h2>
+            <div className="mt-4">
+              <SongTable rows={incompleteMusicalData} songs={songs} columns={[
+                { key: "title", label: "Canto" },
+                { key: "mainKey", label: "Tono", render: (song) => song.mainKey || "Sin tonalidad" },
+                { key: "capo", label: "Capo", render: (song) => song.capo ?? "Sin capo definido" },
+                { key: "pdf", label: "PDF", render: (song) => getSongPdfUrl(song) ? "Con PDF" : "Sin PDF" },
+                { key: "musicReviewStatus", label: "Revisión musical" },
+                { key: "keynoteReviewStatus", label: "Keynote" }
+              ]} />
+            </div>
+          </Card>
+        </>
+      ) : (
+        <>
+          <div className="grid gap-5 xl:grid-cols-2">
+            <Card>
+              <h2 className="text-lg font-bold text-ink">Cantos más usados</h2>
+              <div className="mt-4">
+                <SongTable rows={mostUsed} songs={songs} columns={[
+                  { key: "title", label: "Canto" },
+                  { key: "usageCount", label: "Uso total", render: (song) => song.usageCount || 0 },
+                  { key: "lastUsedAt", label: "Última vez", render: (song) => song.lastUsedAt ? formatDate(song.lastUsedAt) : "Sin historial" },
+                  { key: "category", label: "Categoría" },
+                  { key: "mainTheme", label: "Tema" }
+                ]} />
+              </div>
+            </Card>
+            <ChartCard title="Rotación por tema en programaciones">
+              <BarGraph data={topWithOthers(programmedThemes, 10)} horizontal />
+            </ChartCard>
+            <ChartCard title="Repertorio por categoría">
+              <PieGraph data={byCategory} />
+            </ChartCard>
+            <ChartCard title="Cantos por tema del repertorio">
+              <BarGraph data={byTheme} horizontal />
+            </ChartCard>
+          </div>
+          <Card>
+            <h2 className="text-lg font-bold text-ink">Cantos menos usados</h2>
+            <div className="mt-4"><SongTable rows={leastUsed} songs={songs} columns={leastUsedColumns} /></div>
+          </Card>
+          <Card>
+            <h2 className="text-lg font-bold text-ink">Sugerencias de rotación</h2>
+            <p className="mt-1 text-sm text-ink/55">Cantos listos para considerar: PDF, Keynote y revisión musical completados, históricamente cantados y con poco uso o sin historial en la app.</p>
+            <div className="mt-4">
+              <SongTable rows={rotationSuggestions} songs={songs} columns={[
+                { key: "title", label: "Canto" },
+                { key: "category", label: "Categoría" },
+                { key: "mainTheme", label: "Tema" },
+                { key: "mainKey", label: "Tono" },
+                { key: "usageCount", label: "Usos", render: (song) => song.usageCount || 0 },
+                { key: "lastUsedAt", label: "Última vez", render: (song) => song.lastUsedAt ? formatDate(song.lastUsedAt) : "Sin historial en la app" }
+              ]} />
+            </div>
+          </Card>
+        </>
+      )}
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Field, Input, Select, Textarea } from "../components/ui/Field";
 import { Modal } from "../components/ui/Modal";
+import { SongNameLink } from "../components/ui/SongNameLink";
 import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
 import { formatDate, todayString } from "../services/dateUtils";
@@ -232,7 +233,7 @@ function MonthCalendar({ schedules, selectedDate, onSelectDate }) {
   );
 }
 
-function ScheduleCard({ schedule, canEdit, canDelete, onEdit, onDuplicate, onDelete }) {
+function ScheduleCard({ schedule, songs, canEdit, canDelete, onEdit, onDuplicate, onDelete }) {
   return (
     <Card>
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
@@ -264,7 +265,9 @@ function ScheduleCard({ schedule, canEdit, canDelete, onEdit, onDuplicate, onDel
         {(schedule.songs || []).map((song, songIndex) => (
           <div key={`${song.songId}-${songIndex}`} className="rounded-2xl bg-ink/5 p-3">
             <div className="flex items-center justify-between gap-3">
-              <p className="font-semibold text-ink">{songIndex + 1}. {song.titleSnapshot}</p>
+              <p className="font-semibold text-ink">
+                {songIndex + 1}. <SongNameLink songId={song.songId} title={song.titleSnapshot} songs={songs}>{song.titleSnapshot}</SongNameLink>
+              </p>
               <span className="rounded-xl bg-white px-3 py-1 text-sm font-bold text-ink">{song.keySnapshot}</span>
             </div>
             <p className="mt-1 text-sm text-ink/55">{song.notes || "Sin notas"}</p>
@@ -383,6 +386,7 @@ export function Schedules() {
             <ScheduleCard
               key={schedule.id}
               schedule={schedule}
+              songs={songs}
               canEdit={canEdit}
               canDelete={canDelete}
               onEdit={setEditingSchedule}

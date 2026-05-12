@@ -12,7 +12,8 @@ import {
   updateDoc,
   writeBatch
 } from "firebase/firestore";
-import { db, isFirebaseConfigured } from "../lib/firebase";
+import { deleteObject, getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import { db, isFirebaseConfigured, storage } from "../lib/firebase";
 import { sampleSchedules, sampleSettings, sampleSongs, sampleThemes, sampleUsers } from "../data/mockData";
 import { canonicalThemeKey, normalizeSong, normalizeThemeName } from "../services/songUtils";
 import { useAuth } from "./useAuth";
@@ -141,32 +142,102 @@ export function MusicDataProvider({ children }) {
     if (useLocal) {
       if (song.id) {
         setSongs((current) => current.map((item) => (item.id === song.id ? { ...item, ...payload } : item)));
+        return song.id;
       } else {
+        const id = makeId("song");
         setSongs((current) => [
           ...current,
           {
             ...normalizeSong(payload, settings.keyPreference),
-            id: makeId("song"),
+            id,
             usageCount: 0,
             createdAt: new Date().toISOString().slice(0, 10),
             createdBy: profile.uid
           }
         ]);
+        return id;
       }
-      return;
     }
 
     if (song.id) {
       const { id, ...data } = payload;
       await updateDoc(doc(db, "songs", id), data);
+      return id;
     } else {
-      await addDoc(collection(db, "songs"), {
+      const created = await addDoc(collection(db, "songs"), {
         ...payload,
         usageCount: 0,
         createdAt: serverTimestamp(),
         createdBy: profile.uid
       });
+      return created.id;
     }
+  };
+
+  const uploadSongPdf = async (songId, file) => {
+    if (!songId || !file) return null;
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]+/g, "-");
+    const storagePath = `song-pdfs/${songId}/${Date.now()}-${safeName}`;
+
+    if (useLocal) {
+      const storagePdfUrl = URL.createObjectURL(file);
+      const payload = {
+        storagePath,
+        storagePdfUrl,
+        originalFileName: file.name,
+        uploadedAt: new Date().toISOString(),
+        uploadedBy: profile.uid,
+        pdfReviewStatus: "completado",
+        format: "pdf"
+      };
+      setSongs((current) => current.map((song) => (song.id === songId ? { ...song, ...payload } : song)));
+      return payload;
+    }
+
+    const storageRef = ref(storage, storagePath);
+    await uploadBytes(storageRef, file, { contentType: "application/pdf" });
+    const storagePdfUrl = await getDownloadURL(storageRef);
+    const payload = {
+      storagePath,
+      storagePdfUrl,
+      originalFileName: file.name,
+      uploadedAt: serverTimestamp(),
+      uploadedBy: profile.uid,
+      pdfReviewStatus: "completado",
+      format: "pdf",
+      updatedAt: serverTimestamp()
+    };
+    await updateDoc(doc(db, "songs", songId), payload);
+    return payload;
+  };
+
+  const deleteSongPdf = async (song) => {
+    if (!song?.id) return;
+    if (useLocal) {
+      setSongs((current) =>
+        current.map((item) =>
+          item.id === song.id
+            ? { ...item, storagePath: "", storagePdfUrl: "", originalFileName: "", uploadedAt: "", uploadedBy: "" }
+            : item
+        )
+      );
+      return;
+    }
+    if (song.storagePath) {
+      try {
+        await deleteObject(ref(storage, song.storagePath));
+      } catch (deleteError) {
+        console.warn("No se pudo eliminar el PDF anterior de Storage.", deleteError);
+      }
+    }
+    await updateDoc(doc(db, "songs", song.id), {
+      storagePath: "",
+      storagePdfUrl: "",
+      originalFileName: "",
+      uploadedAt: "",
+      uploadedBy: "",
+      updatedAt: serverTimestamp()
+    });
   };
 
   const deleteSong = async (songId) => {
@@ -413,6 +484,8 @@ export function MusicDataProvider({ children }) {
       error,
       useLocal,
       saveSong,
+      uploadSongPdf,
+      deleteSongPdf,
       deleteSong,
       duplicateSong,
       saveSchedule,

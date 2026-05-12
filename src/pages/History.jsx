@@ -1,5 +1,6 @@
 import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
+import { SongNameLink } from "../components/ui/SongNameLink";
 import { useMusicData } from "../hooks/useMusicData";
 import { formatDate, getPastSchedules } from "../services/dateUtils";
 
@@ -24,7 +25,7 @@ export function History() {
             <div className="mt-4 flex flex-wrap gap-2">
               {(schedule.songs || []).map((song, index) => (
                 <span key={`${song.songId}-${index}`} className="rounded-full bg-ink/5 px-3 py-2 text-sm font-semibold text-ink">
-                  {song.titleSnapshot} · {song.keySnapshot}
+                  <SongNameLink songId={song.songId} title={song.titleSnapshot} songs={songs}>{song.titleSnapshot}</SongNameLink> · {song.keySnapshot}
                 </span>
               ))}
             </div>
@@ -58,7 +59,7 @@ export function History() {
           <div className="mt-4 space-y-3">
             {mostRepeated.map((song) => (
               <div key={song.id} className="flex items-center justify-between rounded-2xl bg-ink/5 p-3">
-                <span className="text-sm font-semibold text-ink">{song.title}</span>
+                <SongNameLink songId={song.id} title={song.title} songs={songs} className="text-sm">{song.title}</SongNameLink>
                 <span className="rounded-xl bg-white px-2 py-1 text-xs font-bold text-ink">{song.usageCount || 0}</span>
               </div>
             ))}
@@ -69,7 +70,7 @@ export function History() {
           <div className="mt-4 space-y-3">
             {withoutAppHistory.map((song) => (
               <div key={song.id} className="rounded-2xl bg-ink/5 p-3">
-                <p className="text-sm font-semibold text-ink">{song.title}</p>
+                <SongNameLink songId={song.id} title={song.title} songs={songs} className="text-sm">{song.title}</SongNameLink>
                 <p className="text-xs text-ink/55">{song.sungBefore ? "Ya se ha cantado históricamente" : "Sin historial previo marcado"}</p>
               </div>
             ))}

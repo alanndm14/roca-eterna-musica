@@ -56,7 +56,7 @@ export default defineConfig({
           motion: ["framer-motion"],
           icons: ["lucide-react"],
           charts: ["recharts"],
-          pdf: ["@react-pdf/renderer"]
+          pdf: ["@react-pdf/renderer", "pdf-lib"]
         }
       }
     }

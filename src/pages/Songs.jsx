@@ -78,7 +78,7 @@ const toneSummary = (song) => {
   return `Sin capo · Tono ${song.mainKey || song.keyWithCapo || "--"}`;
 };
 
-function SongForm({ initialSong, themes, keyPreference, onSubmit, onCancel }) {
+function SongForm({ initialSong, themes, keyPreference, onSubmit, onCancel, onDeleteUploadedPdf }) {
   const normalizedInitial = normalizeSong(initialSong || blankSong, keyPreference);
   const [song, setSong] = useState(() => ({
     ...normalizedInitial,
@@ -86,6 +86,7 @@ function SongForm({ initialSong, themes, keyPreference, onSubmit, onCancel }) {
   }));
   const [manualKey, setManualKey] = useState(Boolean(initialSong?.keyWithCapo && initialSong?.keyWithCapo !== calculateKeyWithCapo(initialSong?.mainKey, initialSong?.capo, keyPreference)));
   const [showLyrics, setShowLyrics] = useState(Boolean(normalizedInitial.lyricsSections?.length));
+  const [pdfFile, setPdfFile] = useState(null);
 
   const update = (field, value) => setSong((current) => ({ ...current, [field]: value }));
 
@@ -149,7 +150,7 @@ function SongForm({ initialSong, themes, keyPreference, onSubmit, onCancel }) {
       },
       keyPreference
     );
-    onSubmit(next);
+    onSubmit(next, pdfFile);
   };
 
   return (
@@ -227,6 +228,34 @@ function SongForm({ initialSong, themes, keyPreference, onSubmit, onCancel }) {
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="PDF de letra y acordes">
               <Input value={getVisiblePdfInput(song)} onChange={(event) => updatePdf(event.target.value)} placeholder="https://drive.google.com/file/d/..." />
+            </Field>
+            <Field label="Subir PDF a la app">
+              <div className="rounded-xl border border-ink/10 bg-white p-3">
+                <input
+                  id="song-pdf-upload"
+                  className="sr-only"
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  onChange={(event) => setPdfFile(event.target.files?.[0] || null)}
+                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <label htmlFor="song-pdf-upload" className="inline-flex min-h-10 cursor-pointer items-center justify-center rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white transition hover:bg-charcoal">
+                    {song.storagePath ? "Reemplazar PDF" : "Seleccionar PDF"}
+                  </label>
+                  <span className="text-sm text-ink/55">{pdfFile?.name || song.originalFileName || "Ningún archivo seleccionado"}</span>
+                  {song.storagePath || song.storagePdfUrl ? (
+                    <Button
+                      variant="danger"
+                      onClick={async () => {
+                        await onDeleteUploadedPdf?.(song);
+                        setSong((current) => ({ ...current, storagePath: "", storagePdfUrl: "", originalFileName: "", uploadedAt: "", uploadedBy: "" }));
+                      }}
+                    >
+                      Eliminar PDF subido
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
             </Field>
             <Field label="YouTube">
               <Input value={song.youtubeUrl || ""} onChange={(event) => update("youtubeUrl", event.target.value)} placeholder="https://youtube.com/..." />
@@ -314,7 +343,7 @@ function SongForm({ initialSong, themes, keyPreference, onSubmit, onCancel }) {
 
 export function Songs() {
   const { canEdit, canDelete } = useAuth();
-  const { songs, themes, settings, deleteSong, saveSong } = useMusicData();
+  const { songs, themes, settings, deleteSong, saveSong, uploadSongPdf, deleteSongPdf } = useMusicData();
   const [filters, setFilters] = useState({
     query: "",
     category: "",
@@ -530,8 +559,10 @@ export function Songs() {
           themes={themeOptions}
           keyPreference={settings.keyPreference || "sharps"}
           onCancel={closeModal}
-          onSubmit={async (song) => {
-            await saveSong(song);
+          onDeleteUploadedPdf={deleteSongPdf}
+          onSubmit={async (song, pdfFile) => {
+            const songId = await saveSong(song);
+            if (pdfFile) await uploadSongPdf(songId || song.id, pdfFile);
             closeModal();
           }}
         />

@@ -6,6 +6,7 @@ import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Select } from "../components/ui/Field";
 import { Modal } from "../components/ui/Modal";
+import { SongNameLink } from "../components/ui/SongNameLink";
 import { useMusicData } from "../hooks/useMusicData";
 import { formatDate, todayString } from "../services/dateUtils";
 import {
@@ -14,6 +15,7 @@ import {
   getServiceDisplayLabel,
   getServiceFileName
 } from "../services/serviceSheetPdf";
+import { downloadBlob, getSongPdfSource, mergeServicePdfs } from "../services/mergeServicePdfs";
 
 const compactDate = (dateString) => {
   if (!dateString) return "Sin fecha";
@@ -35,6 +37,8 @@ export function MusicianView() {
   const [showSheet, setShowSheet] = useState(false);
   const [showServicePdfs, setShowServicePdfs] = useState(false);
   const [activePdfIndex, setActivePdfIndex] = useState(0);
+  const [mergeResult, setMergeResult] = useState(null);
+  const [isMerging, setIsMerging] = useState(false);
   const today = todayString();
 
   const scheduleOptions = useMemo(() => {
@@ -91,6 +95,22 @@ export function MusicianView() {
     if (sheetUrl) URL.revokeObjectURL(sheetUrl);
     setSheetUrl(URL.createObjectURL(blob));
     setShowSheet(true);
+  };
+
+  const downloadCombinedPdfs = async () => {
+    setIsMerging(true);
+    try {
+      const result = await mergeServicePdfs(selectedSchedule, songs, settings.keyPreference || "sharps");
+      if (result.omitted.length) {
+        setMergeResult(result);
+      } else if (result.blob) {
+        downloadBlob(result.blob, result.fileName);
+      } else {
+        setMergeResult(result);
+      }
+    } finally {
+      setIsMerging(false);
+    }
   };
 
   if (!scheduleOptions.length) {
@@ -159,6 +179,10 @@ export function MusicianView() {
               <FileStack className="h-4 w-4" />
               Ver PDFs del servicio
             </Button>
+            <Button variant="secondary" isLoading={isMerging} onClick={downloadCombinedPdfs}>
+              <Download className="h-4 w-4" />
+              Descargar PDFs del servicio
+            </Button>
           </div>
         </div>
       </Card>
@@ -170,7 +194,9 @@ export function MusicianView() {
               <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-ink text-2xl font-bold text-white">{song.index}</div>
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="text-2xl font-bold text-ink">{song.title}</h3>
+                  <h3 className="text-2xl font-bold">
+                    <SongNameLink songId={song.entry.songId} title={song.title} songs={songs}>{song.title}</SongNameLink>
+                  </h3>
                   {song.hasKeyChange ? <span className="rounded-full bg-brass/12 px-3 py-1 text-xs font-bold text-brass">Cambio de tono</span> : null}
                 </div>
                 <p className="mt-2 text-base text-ink/60">{song.notes || "Sin notas para este canto."}</p>
@@ -221,6 +247,22 @@ export function MusicianView() {
               {activePdfSong?.pdfUrl ? <a className={linkButtonClass} href={activePdfSong.pdfUrl} target="_blank" rel="noreferrer">Abrir PDF <ExternalLink className="h-4 w-4" /></a> : null}
             </div>
           </div>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {serviceSongs.map((song, index) => {
+              const source = getSongPdfSource(song.full);
+              return (
+                <button
+                  key={`${song.index}-${song.title}-jump`}
+                  type="button"
+                  onClick={() => setActivePdfIndex(index)}
+                  className={`min-w-48 rounded-2xl border p-3 text-left text-sm transition ${index === activePdfIndex ? "border-brass bg-brass/10" : "border-ink/10 bg-white hover:border-brass/40"}`}
+                >
+                  <span className="block font-bold text-ink">{song.index}. {song.title}</span>
+                  <span className="mt-1 block text-xs text-ink/55">{source.label}</span>
+                </button>
+              );
+            })}
+          </div>
           <div className="h-[68vh] overflow-hidden rounded-2xl border border-ink/10 bg-white">
             {activePdfSong?.previewUrl ? (
               <iframe title={`PDF ${activePdfSong.title}`} src={activePdfSong.previewUrl} className="h-full w-full" />
@@ -233,6 +275,37 @@ export function MusicianView() {
           {activePdfSong?.previewUrl ? (
             <p className="text-sm text-ink/55">Si la vista previa no carga, abre el PDF en una pestaña nueva.</p>
           ) : null}
+        </div>
+      </Modal>
+
+      <Modal open={Boolean(mergeResult)} title="No se pudo incluir todo" onClose={() => setMergeResult(null)}>
+        <div className="space-y-4">
+          <p className="text-sm leading-6 text-ink/60">
+            Los PDFs combinados solo pueden incluir archivos subidos a Firebase Storage. Los enlaces de Drive se mantienen para verlos o abrirlos, pero no siempre se pueden fusionar desde el navegador.
+          </p>
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="rounded-2xl bg-ink/5 p-4">
+              <h3 className="font-bold text-ink">Incluidos</h3>
+              <div className="mt-3 space-y-2 text-sm text-ink/60">
+                {mergeResult?.included?.length ? mergeResult.included.map((item) => <p key={item.title}>{item.title}</p>) : <p>Ningún PDF pudo incluirse.</p>}
+              </div>
+            </div>
+            <div className="rounded-2xl bg-ink/5 p-4">
+              <h3 className="font-bold text-ink">Omitidos</h3>
+              <div className="mt-3 space-y-2 text-sm text-ink/60">
+                {mergeResult?.omitted?.map((item) => <p key={`${item.title}-${item.reason}`}>{item.title}: {item.reason}</p>)}
+              </div>
+            </div>
+          </div>
+          <div className="flex justify-end gap-3">
+            <Button variant="secondary" onClick={() => setMergeResult(null)}>Cancelar</Button>
+            <Button disabled={!mergeResult?.blob} onClick={() => {
+              downloadBlob(mergeResult.blob, mergeResult.fileName);
+              setMergeResult(null);
+            }}>
+              Descargar PDF parcial
+            </Button>
+          </div>
         </div>
       </Modal>
     </div>

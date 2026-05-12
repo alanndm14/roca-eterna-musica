@@ -85,11 +85,11 @@ export function normalizeDrivePdfUrl(url = "") {
 }
 
 export function getSongPdfUrl(song) {
-  return song?.pdfPreviewUrl || normalizeDrivePdfUrl(song?.drivePdfUrl) || song?.pdfUrl || song?.storagePdfUrl || song?.chordsUrl || "";
+  return song?.storagePdfUrl || song?.pdfPreviewUrl || normalizeDrivePdfUrl(song?.drivePdfUrl) || song?.pdfUrl || song?.chordsUrl || "";
 }
 
 export function getSongPreviewUrl(song) {
-  return song?.pdfPreviewUrl || normalizeDrivePdfUrl(song?.drivePdfUrl || song?.pdfUrl || song?.chordsUrl || song?.storagePdfUrl) || "";
+  return song?.storagePdfUrl || song?.pdfPreviewUrl || normalizeDrivePdfUrl(song?.drivePdfUrl || song?.pdfUrl || song?.chordsUrl) || "";
 }
 
 export function getSongYoutubeUrl(song) {
