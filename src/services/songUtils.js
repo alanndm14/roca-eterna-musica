@@ -88,6 +88,25 @@ export function getSongPdfUrl(song) {
   return song?.pdfPreviewUrl || normalizeDrivePdfUrl(song?.drivePdfUrl) || song?.pdfUrl || song?.storagePdfUrl || song?.chordsUrl || "";
 }
 
+export function getSongPreviewUrl(song) {
+  return song?.pdfPreviewUrl || normalizeDrivePdfUrl(song?.drivePdfUrl || song?.pdfUrl || song?.chordsUrl || song?.storagePdfUrl) || "";
+}
+
+export function getSongYoutubeUrl(song) {
+  return song?.youtubeUrl || song?.youTubeUrl || "";
+}
+
+export function getSongSpotifyUrl(song) {
+  return song?.spotifyUrl || song?.spotify || "";
+}
+
+export function getSongExternalChordsUrl(song) {
+  const explicit = song?.externalChordsUrl || song?.chordsExternalUrl || "";
+  if (explicit) return explicit;
+  const hasSeparatePdf = Boolean(song?.pdfUrl || song?.drivePdfUrl || song?.pdfPreviewUrl || song?.storagePdfUrl);
+  return hasSeparatePdf ? song?.chordsUrl || "" : "";
+}
+
 export function normalizeBoolean(value) {
   if (typeof value === "boolean") return value;
   const normalized = stripAccents(value).trim().toLowerCase();
@@ -116,7 +135,8 @@ export function normalizeSong(song = {}, keyPreference = "sharps") {
   const otherThemes = splitThemes(song.otherThemes || song.otros_temas || song.tags?.slice?.(1) || []);
   const tags = [...new Set([mainTheme, ...otherThemes, ...(song.tags || []).map(normalizeThemeName)].filter(Boolean))];
   const drivePdfUrl = song.drivePdfUrl || "";
-  const pdfUrl = song.pdfUrl || song.chordsUrl || "";
+  const chordsAsPdfFallback = song.externalChordsUrl || song.chordsExternalUrl ? "" : song.chordsUrl || "";
+  const pdfUrl = song.pdfUrl || chordsAsPdfFallback || "";
   const pdfPreviewUrl = song.pdfPreviewUrl || normalizeDrivePdfUrl(drivePdfUrl || pdfUrl);
   const capoNumber = song.capo === "" || song.capo === undefined ? 0 : Number(song.capo);
   const capo = Number.isFinite(capoNumber) ? Math.min(Math.max(capoNumber, 0), 12) : 0;
@@ -139,6 +159,9 @@ export function normalizeSong(song = {}, keyPreference = "sharps") {
     pdfPreviewUrl,
     storagePdfUrl: song.storagePdfUrl || "",
     chordsUrl: song.chordsUrl || pdfUrl,
+    externalChordsUrl: song.externalChordsUrl || song.chordsExternalUrl || "",
+    youtubeUrl: song.youtubeUrl || song.youTubeUrl || "",
+    spotifyUrl: song.spotifyUrl || song.spotify || "",
     musicReviewStatus: normalizeReviewStatus(song.musicReviewStatus || song.revision_musical),
     keynoteReviewStatus: normalizeReviewStatus(song.keynoteReviewStatus || song.revision_keynote),
     pdfReviewStatus: normalizeReviewStatus(song.pdfReviewStatus || song.revision_pdf),

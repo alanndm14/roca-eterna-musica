@@ -1,6 +1,8 @@
 import { Navigate, Route, Routes } from "react-router-dom";
+import { useCallback, useEffect, useState } from "react";
 import { AppShell } from "./components/layout/AppShell";
 import { LoadingScreen } from "./components/ui/LoadingScreen";
+import { WelcomeSplash } from "./components/ui/WelcomeSplash";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
 import { MusicDataProvider, useMusicData } from "./hooks/useMusicData";
 import { Dashboard } from "./pages/Dashboard";
@@ -25,8 +27,21 @@ function ProtectedRoute({ children }) {
 }
 
 function DataReady({ children }) {
+  const { profile } = useAuth();
   const { loading } = useMusicData();
+  const [showWelcome, setShowWelcome] = useState(false);
+
+  useEffect(() => {
+    if (loading || !profile?.active) return;
+    if (sessionStorage.getItem("roca-eterna-welcome-shown") === "true") return;
+    sessionStorage.setItem("roca-eterna-welcome-shown", "true");
+    setShowWelcome(true);
+  }, [loading, profile?.active]);
+
+  const finishWelcome = useCallback(() => setShowWelcome(false), []);
+
   if (loading) return <LoadingScreen />;
+  if (showWelcome) return <WelcomeSplash profile={profile} onDone={finishWelcome} />;
   return children;
 }
 

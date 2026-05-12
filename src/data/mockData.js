@@ -45,10 +45,7 @@ export const sampleSongs = [
     keynoteReviewStatus: "pendiente",
     pdfReviewStatus: "pendiente",
     sungBefore: true,
-    lyricsSections: [
-      { type: "verso", text: "Texto de ejemplo para reemplazar manualmente." },
-      { type: "coro", text: "Placeholder de letra. No incluye letra protegida." }
-    ],
+    lyricsSections: [],
     tags: ["adoración", "gratitud"],
     internalNotes: "Buena para abrir un tiempo de adoración tranquilo.",
     usageCount: 4,
@@ -81,10 +78,7 @@ export const sampleSongs = [
     keynoteReviewStatus: "pendiente",
     pdfReviewStatus: "pendiente",
     sungBefore: true,
-    lyricsSections: [
-      { type: "verso", text: "Texto de ejemplo para agregar letra propia." },
-      { type: "puente", text: "Placeholder editable." }
-    ],
+    lyricsSections: [],
     tags: ["adoración", "esperanza"],
     internalNotes: "Cuidar dinámica antes del puente.",
     usageCount: 2,
@@ -117,10 +111,7 @@ export const sampleSongs = [
     keynoteReviewStatus: "completado",
     pdfReviewStatus: "completado",
     sungBefore: true,
-    lyricsSections: [
-      { type: "verso", text: "Texto de ejemplo." },
-      { type: "coro", text: "Placeholder editable para letra." }
-    ],
+    lyricsSections: [],
     tags: ["alabanza", "gratitud"],
     internalNotes: "Energía media, funciona después de bienvenida.",
     usageCount: 6,
@@ -153,10 +144,7 @@ export const sampleSongs = [
     keynoteReviewStatus: "en revisión",
     pdfReviewStatus: "pendiente",
     sungBefore: true,
-    lyricsSections: [
-      { type: "verso", text: "Texto de ejemplo sin letra protegida." },
-      { type: "final", text: "Placeholder para cierre." }
-    ],
+    lyricsSections: [],
     tags: ["cruz", "gracia", "santa cena"],
     internalNotes: "Ideal para santa cena o meditación.",
     usageCount: 3,
@@ -189,10 +177,7 @@ export const sampleSongs = [
     keynoteReviewStatus: "pendiente",
     pdfReviewStatus: "pendiente",
     sungBefore: true,
-    lyricsSections: [
-      { type: "verso", text: "Texto de ejemplo para completar." },
-      { type: "coro", text: "Placeholder editable." }
-    ],
+    lyricsSections: [],
     tags: ["santa cena", "cruz"],
     internalNotes: "Mantener arreglo simple.",
     usageCount: 1,

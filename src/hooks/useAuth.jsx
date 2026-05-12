@@ -127,6 +127,7 @@ export function AuthProvider({ children }) {
   };
 
   const signOut = async () => {
+    sessionStorage.removeItem("roca-eterna-welcome-shown");
     if (isFirebaseConfigured && auth.currentUser) {
       await firebaseSignOut(auth);
     }

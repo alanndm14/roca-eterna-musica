@@ -16,9 +16,10 @@ import {
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { StatCard } from "../components/ui/StatCard";
+import { Select } from "../components/ui/Field";
 import { useMusicData } from "../hooks/useMusicData";
 import { formatDate, todayString } from "../services/dateUtils";
-import { normalizeThemeName } from "../services/songUtils";
+import { collectSongThemes, normalizeThemeName } from "../services/songUtils";
 
 const chartColors = ["#b6945f", "#60717d", "#8e989f", "#d7c7a7", "#242424", "#b8b0a4"];
 const reviewColors = { pendiente: "#8e989f", "en revisión": "#d7c7a7", completado: "#b6945f" };
@@ -28,8 +29,7 @@ const countBy = (items, getter) =>
   items.reduce((acc, item) => {
     getter(item).forEach((value) => {
       if (!value) return;
-      const key = value;
-      acc[key] = (acc[key] || 0) + 1;
+      acc[value] = (acc[value] || 0) + 1;
     });
     return acc;
   }, {});
@@ -78,12 +78,12 @@ function ChartCard({ title, children, aside }) {
 function BarGraph({ data, horizontal = false }) {
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <BarChart data={data} layout={horizontal ? "vertical" : "horizontal"} margin={horizontal ? { left: 40, right: 12, top: 8, bottom: 8 } : { left: 0, right: 12, top: 8, bottom: 8 }}>
+      <BarChart data={data} layout={horizontal ? "vertical" : "horizontal"} margin={horizontal ? { left: 42, right: 12, top: 8, bottom: 8 } : { left: 0, right: 12, top: 8, bottom: 8 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="rgba(142,152,159,0.22)" />
         {horizontal ? (
           <>
             <XAxis type="number" allowDecimals={false} tick={{ fontSize: 12, fill: "currentColor" }} />
-            <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 12, fill: "currentColor" }} />
+            <YAxis type="category" dataKey="name" width={118} tick={{ fontSize: 12, fill: "currentColor" }} />
           </>
         ) : (
           <>
@@ -91,7 +91,7 @@ function BarGraph({ data, horizontal = false }) {
             <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "currentColor" }} />
           </>
         )}
-        <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid rgba(142,152,159,.25)" }} />
+        <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid rgba(142,152,159,.25)", color: "#171717" }} />
         <Bar dataKey="value" radius={horizontal ? [0, 8, 8, 0] : [8, 8, 0, 0]}>
           {data.map((_, index) => <Cell key={index} fill={chartColors[index % chartColors.length]} />)}
         </Bar>
@@ -107,7 +107,7 @@ function PieGraph({ data }) {
         <Pie data={data} dataKey="value" nameKey="name" innerRadius={58} outerRadius={96} paddingAngle={3}>
           {data.map((_, index) => <Cell key={index} fill={chartColors[index % chartColors.length]} />)}
         </Pie>
-        <Tooltip />
+        <Tooltip contentStyle={{ color: "#171717" }} />
         <Legend />
       </PieChart>
     </ResponsiveContainer>
@@ -121,7 +121,7 @@ function ReviewGraph({ data }) {
         <CartesianGrid strokeDasharray="3 3" stroke="rgba(142,152,159,0.22)" />
         <XAxis dataKey="name" tick={{ fontSize: 12, fill: "currentColor" }} />
         <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "currentColor" }} />
-        <Tooltip />
+        <Tooltip contentStyle={{ color: "#171717" }} />
         <Legend />
         <Bar dataKey="pendiente" stackId="estado" fill={reviewColors.pendiente} radius={[8, 8, 0, 0]} />
         <Bar dataKey="en revisión" stackId="estado" fill={reviewColors["en revisión"]} />
@@ -132,12 +132,24 @@ function ReviewGraph({ data }) {
 }
 
 export function Stats() {
-  const { songs, schedules } = useMusicData();
+  const { songs, schedules, themes } = useMusicData();
   const [keyMode, setKeyMode] = useState("main");
-  const byTheme = topWithOthers(toChartData(countBy(songs, (song) => [song.mainTheme, ...(song.otherThemes || [])].map(normalizeThemeName))), 10);
-  const byKey = toChartData(countBy(songs, (song) => [keyMode === "main" ? song.mainKey : song.keyWithCapo]));
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [themeFilter, setThemeFilter] = useState("");
+  const categories = useMemo(() => [...new Set(songs.map((song) => song.category || "normal"))].sort((a, b) => a.localeCompare(b, "es")), [songs]);
+  const themeOptions = useMemo(() => collectSongThemes(songs, themes), [songs, themes]);
+
+  const filteredSongs = useMemo(() => songs.filter((song) => {
+    const songThemes = [song.mainTheme, ...(song.otherThemes || []), ...(song.tags || [])].map(normalizeThemeName);
+    const matchesCategory = !categoryFilter || (song.category || "normal") === categoryFilter;
+    const matchesTheme = !themeFilter || songThemes.includes(normalizeThemeName(themeFilter));
+    return matchesCategory && matchesTheme;
+  }), [categoryFilter, songs, themeFilter]);
+
+  const byTheme = topWithOthers(toChartData(countBy(filteredSongs, (song) => [song.mainTheme, ...(song.otherThemes || [])].map(normalizeThemeName))), 10);
+  const byKey = toChartData(countBy(filteredSongs, (song) => [keyMode === "main" ? song.mainKey : song.keyWithCapo]));
   const byMonth = lastSixMonths(schedules);
-  const byCategory = toChartData(countBy(songs, (song) => [song.category || "normal"]));
+  const byCategory = toChartData(countBy(filteredSongs, (song) => [song.category || "normal"]));
   const reviewData = useMemo(() => (
     [
       ["PDF", "pdfReviewStatus"],
@@ -145,23 +157,53 @@ export function Stats() {
       ["Musical", "musicReviewStatus"]
     ].map(([name, field]) => ({
       name,
-      pendiente: songs.filter((song) => (song[field] || "pendiente") === "pendiente").length,
-      "en revisión": songs.filter((song) => song[field] === "en revisión").length,
-      completado: songs.filter((song) => song[field] === "completado").length
+      pendiente: filteredSongs.filter((song) => (song[field] || "pendiente") === "pendiente").length,
+      "en revisión": filteredSongs.filter((song) => song[field] === "en revisión").length,
+      completado: filteredSongs.filter((song) => song[field] === "completado").length
     }))
-  ), [songs]);
-  const mostUsed = [...songs].sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0)).slice(0, 8);
-  const leastRecent = [...songs].filter((song) => !song.lastUsedAt).slice(0, 8);
-  const total = songs.length;
-  const pdfDone = songs.filter((song) => song.pdfReviewStatus === "completado").length;
-  const keynoteDone = songs.filter((song) => song.keynoteReviewStatus === "completado").length;
-  const musicDone = songs.filter((song) => song.musicReviewStatus === "completado").length;
+  ), [filteredSongs]);
+  const mostUsed = [...filteredSongs].sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0)).slice(0, 8);
+  const leastUsed = [...filteredSongs]
+    .sort((a, b) => {
+      const usageDiff = (a.usageCount || 0) - (b.usageCount || 0);
+      if (usageDiff !== 0) return usageDiff;
+      return (a.lastUsedAt || "0000").localeCompare(b.lastUsedAt || "0000");
+    })
+    .slice(0, 12);
+  const total = filteredSongs.length;
+  const pdfDone = filteredSongs.filter((song) => song.pdfReviewStatus === "completado").length;
+  const keynoteDone = filteredSongs.filter((song) => song.keynoteReviewStatus === "completado").length;
+  const musicDone = filteredSongs.filter((song) => song.musicReviewStatus === "completado").length;
   const sparseUsage = schedules.filter((schedule) => schedule.date <= todayString() || schedule.status === "realizado").length < 3;
 
   return (
     <div className="space-y-5">
+      <Card>
+        <div className="grid gap-3 md:grid-cols-[1fr_220px_220px_auto] md:items-end">
+          <div>
+            <h2 className="text-xl font-bold text-ink">Estadísticas</h2>
+            <p className="mt-1 text-sm text-ink/55">Filtra por categoría o tema para analizar partes específicas del repertorio.</p>
+          </div>
+          <label className="block">
+            <span className="mb-2 block text-xs font-semibold uppercase tracking-wide text-ink/55">Categoría</span>
+            <Select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
+              <option value="">Todas</option>
+              {categories.map((category) => <option key={category}>{category}</option>)}
+            </Select>
+          </label>
+          <label className="block">
+            <span className="mb-2 block text-xs font-semibold uppercase tracking-wide text-ink/55">Tema</span>
+            <Select value={themeFilter} onChange={(event) => setThemeFilter(event.target.value)}>
+              <option value="">Todos</option>
+              {themeOptions.map((theme) => <option key={theme}>{theme}</option>)}
+            </Select>
+          </label>
+          <Button variant="secondary" onClick={() => { setCategoryFilter(""); setThemeFilter(""); }}>Limpiar</Button>
+        </div>
+      </Card>
+
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard icon={Music2} label="Total de cantos" value={total} />
+        <StatCard icon={Music2} label="Cantos analizados" value={total} />
         <StatCard icon={FileCheck2} label="PDF completado" value={`${percent(pdfDone, total)}%`} detail={`${pdfDone} de ${total}`} delay={0.05} />
         <StatCard icon={Presentation} label="Keynote completado" value={`${percent(keynoteDone, total)}%`} detail={`${keynoteDone} de ${total}`} delay={0.1} />
         <StatCard icon={BarChart3} label="Revisión musical" value={`${percent(musicDone, total)}%`} detail={`${musicDone} de ${total}`} delay={0.15} />
@@ -192,34 +234,63 @@ export function Stats() {
           <PieGraph data={byCategory} />
         </ChartCard>
         <Card>
-          <h2 className="text-lg font-bold text-ink">Tablas útiles</h2>
+          <h2 className="text-lg font-bold text-ink">Cantos más usados</h2>
           {sparseUsage ? (
             <p className="mt-2 rounded-2xl bg-brass/12 p-3 text-sm font-semibold text-brass">
               Esta gráfica se volverá más útil conforme registres más programaciones.
             </p>
           ) : null}
-          <div className="mt-5 grid gap-4 md:grid-cols-2">
-            <div>
-              <p className="mb-3 text-sm font-bold text-ink/55">Cantos más usados</p>
-              {mostUsed.map((song) => (
-                <div key={song.id} className="mb-2 flex justify-between rounded-2xl bg-ink/5 p-3 text-sm">
-                  <span className="font-semibold text-ink">{song.title}</span>
-                  <span className="text-ink">{song.usageCount || 0}</span>
-                </div>
-              ))}
-            </div>
-            <div>
-              <p className="mb-3 text-sm font-bold text-ink/55">Sin historial en la app</p>
-              {leastRecent.map((song) => (
-                <div key={song.id} className="mb-2 rounded-2xl bg-ink/5 p-3 text-sm">
-                  <p className="font-semibold text-ink">{song.title}</p>
-                  <p className="text-ink/55">{song.lastUsedAt ? formatDate(song.lastUsedAt) : "Sin fecha de último uso registrada"}</p>
-                </div>
-              ))}
-            </div>
+          <div className="mt-5 space-y-2">
+            {mostUsed.map((song) => (
+              <div key={song.id} className="flex justify-between rounded-2xl bg-ink/5 p-3 text-sm">
+                <span className="font-semibold text-ink">{song.title}</span>
+                <span className="text-ink">{song.usageCount || 0}</span>
+              </div>
+            ))}
           </div>
         </Card>
       </div>
+
+      <Card>
+        <h2 className="text-lg font-bold text-ink">Cantos menos usados</h2>
+        <p className="mt-1 text-sm text-ink/55">Diferencia entre cantos sin historial dentro de la app y cantos poco usados según el contador registrado.</p>
+        <div className="mt-5 overflow-auto rounded-2xl border border-ink/10">
+          <table className="min-w-[980px] w-full text-left text-sm">
+            <thead className="bg-ink/5 text-xs uppercase tracking-wide text-ink/55">
+              <tr>
+                <th className="p-3">Canto</th>
+                <th className="p-3">Categoría</th>
+                <th className="p-3">Tema principal</th>
+                <th className="p-3">Tono</th>
+                <th className="p-3">Capo</th>
+                <th className="p-3">Veces usado en la app</th>
+                <th className="p-3">Última vez en la app</th>
+                <th className="p-3">Ya se ha cantado históricamente</th>
+                <th className="p-3">Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {leastUsed.map((song) => (
+                <tr key={song.id} className="border-t border-ink/10">
+                  <td className="p-3 font-semibold text-ink">{song.title}</td>
+                  <td className="p-3 text-ink/60">{song.category || "normal"}</td>
+                  <td className="p-3 text-ink/60">{song.mainTheme || "--"}</td>
+                  <td className="p-3 text-ink/60">{song.mainKey || "--"}</td>
+                  <td className="p-3 text-ink/60">{song.capo || 0}</td>
+                  <td className="p-3 text-ink/60">{song.usageCount || 0}</td>
+                  <td className="p-3 text-ink/60">{song.lastUsedAt ? formatDate(song.lastUsedAt) : "Sin historial en la app"}</td>
+                  <td className="p-3 text-ink/60">{song.sungBefore ? "Sí" : "No"}</td>
+                  <td className="p-3">
+                    <span className="rounded-full bg-ink/7 px-3 py-1 text-xs font-bold text-ink/60">
+                      {song.lastUsedAt ? "Poco usado en la app" : "Sin historial en la app"}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
     </div>
   );
 }

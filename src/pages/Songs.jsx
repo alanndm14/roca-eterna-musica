@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Edit3, ExternalLink, FileText, Plus, Search, Trash2 } from "lucide-react";
+import { Edit3, ExternalLink, FileText, Headphones, Plus, Search, Trash2, Youtube } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -16,6 +16,10 @@ import {
   calculateKeyWithCapo,
   collectSongKeys,
   collectSongThemes,
+  getSongExternalChordsUrl,
+  getSongPdfUrl,
+  getSongSpotifyUrl,
+  getSongYoutubeUrl,
   normalizeDrivePdfUrl,
   normalizeSong
 } from "../services/songUtils";
@@ -36,7 +40,9 @@ const blankSong = {
   pdfPreviewUrl: "",
   storagePdfUrl: "",
   youtubeUrl: "",
+  spotifyUrl: "",
   chordsUrl: "",
+  externalChordsUrl: "",
   musicReviewStatus: "pendiente",
   keynoteReviewStatus: "pendiente",
   pdfReviewStatus: "pendiente",
@@ -65,10 +71,21 @@ function ReviewBadge({ label, value }) {
   );
 }
 
+const getVisiblePdfInput = (song) => song.pdfUrl || song.drivePdfUrl || song.storagePdfUrl || (!song.pdfUrl && !song.drivePdfUrl ? song.chordsUrl : "") || "";
+
+const toneSummary = (song) => {
+  if (Number(song.capo || 0) > 0) return `Capo ${song.capo} · Suena en ${song.keyWithCapo || song.mainKey || "--"}`;
+  return `Sin capo · Tono ${song.mainKey || song.keyWithCapo || "--"}`;
+};
+
 function SongForm({ initialSong, themes, keyPreference, onSubmit, onCancel }) {
-  const [song, setSong] = useState(() => normalizeSong(initialSong || blankSong, keyPreference));
+  const normalizedInitial = normalizeSong(initialSong || blankSong, keyPreference);
+  const [song, setSong] = useState(() => ({
+    ...normalizedInitial,
+    externalChordsUrl: getSongExternalChordsUrl(normalizedInitial)
+  }));
   const [manualKey, setManualKey] = useState(Boolean(initialSong?.keyWithCapo && initialSong?.keyWithCapo !== calculateKeyWithCapo(initialSong?.mainKey, initialSong?.capo, keyPreference)));
-  const themeOptions = themes;
+  const [showLyrics, setShowLyrics] = useState(Boolean(normalizedInitial.lyricsSections?.length));
 
   const update = (field, value) => setSong((current) => ({ ...current, [field]: value }));
 
@@ -80,6 +97,16 @@ function SongForm({ initialSong, themes, keyPreference, onSubmit, onCancel }) {
       }));
     }
   }, [song.mainKey, song.capo, keyPreference, manualKey]);
+
+  const updatePdf = (value) => {
+    setSong((current) => ({
+      ...current,
+      pdfUrl: value,
+      drivePdfUrl: value.includes("drive.google.com") ? value : "",
+      pdfPreviewUrl: normalizeDrivePdfUrl(value),
+      chordsUrl: current.chordsUrl && current.chordsUrl !== getVisiblePdfInput(current) ? current.chordsUrl : value
+    }));
+  };
 
   const updateSection = (index, field, value) => {
     setSong((current) => ({
@@ -95,17 +122,30 @@ function SongForm({ initialSong, themes, keyPreference, onSubmit, onCancel }) {
     update("otherThemes", [...song.otherThemes, value]);
   };
 
+  const addLyricsSection = () => {
+    setShowLyrics(true);
+    setSong((current) => ({
+      ...current,
+      lyricsSections: current.lyricsSections?.length ? current.lyricsSections : [{ type: "verso", text: "" }]
+    }));
+  };
+
   const submit = (event) => {
     event.preventDefault();
     if (!song.title.trim()) return;
-    const drivePreview = normalizeDrivePdfUrl(song.drivePdfUrl || song.pdfUrl || song.chordsUrl);
+    const visiblePdf = getVisiblePdfInput(song);
+    const preview = normalizeDrivePdfUrl(song.drivePdfUrl || visiblePdf);
     const next = normalizeSong(
       {
         ...song,
         title: song.title.trim(),
-        pdfPreviewUrl: song.pdfPreviewUrl || drivePreview,
-        chordsUrl: song.chordsUrl || song.pdfUrl,
-        tags: [...new Set([song.mainTheme, ...(song.otherThemes || [])].filter(Boolean))]
+        pdfUrl: visiblePdf || song.pdfUrl,
+        drivePdfUrl: visiblePdf.includes("drive.google.com") ? visiblePdf : song.drivePdfUrl,
+        pdfPreviewUrl: song.pdfPreviewUrl || preview,
+        chordsUrl: song.externalChordsUrl || song.chordsUrl || visiblePdf,
+        externalChordsUrl: song.externalChordsUrl || "",
+        tags: [...new Set([song.mainTheme, ...(song.otherThemes || [])].filter(Boolean))],
+        lyricsSections: showLyrics ? (song.lyricsSections || []).filter((section) => section.text?.trim() || section.type) : []
       },
       keyPreference
     );
@@ -113,10 +153,10 @@ function SongForm({ initialSong, themes, keyPreference, onSubmit, onCancel }) {
   };
 
   return (
-    <form onSubmit={submit} className="flex max-h-[74vh] flex-col overflow-hidden">
+    <form onSubmit={submit} className="flex max-h-[78vh] flex-col overflow-hidden">
       <div className="space-y-4 overflow-y-auto pr-1">
         <Section title="Información básica">
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-3">
             <Field label="Nombre">
               <Input value={song.title} onChange={(event) => update("title", event.target.value)} required />
             </Field>
@@ -126,11 +166,6 @@ function SongForm({ initialSong, themes, keyPreference, onSubmit, onCancel }) {
             <Field label="Categoría">
               <Select value={song.category || "normal"} onChange={(event) => update("category", event.target.value)}>
                 {SONG_CATEGORIES.map((category) => <option key={category}>{category}</option>)}
-              </Select>
-            </Field>
-            <Field label="Formato">
-              <Select value={song.format || "pdf"} onChange={(event) => update("format", event.target.value)}>
-                {SONG_FORMATS.map((format) => <option key={format}>{format}</option>)}
               </Select>
             </Field>
           </div>
@@ -162,18 +197,18 @@ function SongForm({ initialSong, themes, keyPreference, onSubmit, onCancel }) {
           </label>
         </Section>
 
-        <Section title="Temas y categoría">
+        <Section title="Temas">
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="Tema principal">
               <Select value={song.mainTheme || ""} onChange={(event) => update("mainTheme", event.target.value)}>
                 <option value="">Sin tema</option>
-                {themeOptions.map((theme) => <option key={theme}>{theme}</option>)}
+                {themes.map((theme) => <option key={theme}>{theme}</option>)}
               </Select>
             </Field>
             <Field label="Otros temas">
               <Select value="" onChange={(event) => addOtherTheme(event.target.value)}>
                 <option value="">Agregar tema</option>
-                {themeOptions.map((theme) => <option key={theme}>{theme}</option>)}
+                {themes.map((theme) => <option key={theme}>{theme}</option>)}
               </Select>
             </Field>
           </div>
@@ -191,24 +226,19 @@ function SongForm({ initialSong, themes, keyPreference, onSubmit, onCancel }) {
         <Section title="Archivos y enlaces">
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="PDF de letra y acordes">
-              <Input value={song.pdfUrl || ""} onChange={(event) => update("pdfUrl", event.target.value)} placeholder="https://drive.google.com/file/d/..." />
-            </Field>
-            <Field label="Google Drive original">
-              <Input value={song.drivePdfUrl || ""} onChange={(event) => update("drivePdfUrl", event.target.value)} placeholder="Link compartido de Drive" />
-            </Field>
-            <Field label="Vista previa embebible">
-              <Input value={song.pdfPreviewUrl || normalizeDrivePdfUrl(song.drivePdfUrl || song.pdfUrl)} onChange={(event) => update("pdfPreviewUrl", event.target.value)} />
-            </Field>
-            <Field label="PDF de letra y acordes">
-              <Input value={song.chordsUrl || ""} onChange={(event) => update("chordsUrl", event.target.value)} />
+              <Input value={getVisiblePdfInput(song)} onChange={(event) => updatePdf(event.target.value)} placeholder="https://drive.google.com/file/d/..." />
             </Field>
             <Field label="YouTube">
-              <Input value={song.youtubeUrl || ""} onChange={(event) => update("youtubeUrl", event.target.value)} />
+              <Input value={song.youtubeUrl || ""} onChange={(event) => update("youtubeUrl", event.target.value)} placeholder="https://youtube.com/..." />
             </Field>
-            <Field label="Firebase Storage PDF URL (futuro)">
-              <Input value={song.storagePdfUrl || ""} onChange={(event) => update("storagePdfUrl", event.target.value)} placeholder="Opcional" />
+            <Field label="Spotify">
+              <Input value={song.spotifyUrl || ""} onChange={(event) => update("spotifyUrl", event.target.value)} placeholder="https://open.spotify.com/..." />
+            </Field>
+            <Field label="Acordes externos opcional">
+              <Input value={song.externalChordsUrl || ""} onChange={(event) => update("externalChordsUrl", event.target.value)} placeholder="Link externo si es distinto del PDF" />
             </Field>
           </div>
+          <p className="mt-3 text-sm text-ink/55">Pega un link compartido de Google Drive o un link directo a PDF. La app intentará generar la vista previa automáticamente.</p>
         </Section>
 
         <Section title="Estado de revisión">
@@ -244,23 +274,33 @@ function SongForm({ initialSong, themes, keyPreference, onSubmit, onCancel }) {
         </Section>
 
         <Section title="Letra manual opcional">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-ink/55">Campo secundario. La prioridad es el PDF de letra y acordes.</p>
-            <Button variant="subtle" onClick={() => update("lyricsSections", [...(song.lyricsSections || []), { type: "verso", text: "" }])}>
+          {!showLyrics ? (
+            <Button variant="subtle" onClick={addLyricsSection}>
               <Plus className="h-4 w-4" />
-              Sección
+              Agregar letra manual
             </Button>
-          </div>
-          <div className="mt-3 space-y-3">
-            {(song.lyricsSections || []).map((section, index) => (
-              <div key={index} className="grid gap-3 rounded-2xl border border-ink/10 bg-stonewash p-3 md:grid-cols-[180px_1fr]">
-                <Select value={section.type} onChange={(event) => updateSection(index, "type", event.target.value)}>
-                  {["verso", "coro", "puente", "final", "instrumental"].map((type) => <option key={type}>{type}</option>)}
-                </Select>
-                <Textarea value={section.text} onChange={(event) => updateSection(index, "text", event.target.value)} placeholder="Opcional" />
+          ) : (
+            <>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm text-ink/55">Solo usa esta sección si no quieres depender únicamente del PDF.</p>
+                <Button variant="subtle" onClick={() => update("lyricsSections", [...(song.lyricsSections || []), { type: "verso", text: "" }])}>
+                  <Plus className="h-4 w-4" />
+                  Sección
+                </Button>
               </div>
-            ))}
-          </div>
+              <div className="mt-3 space-y-3">
+                {(song.lyricsSections || []).map((section, index) => (
+                  <div key={index} className="grid gap-3 rounded-2xl border border-ink/10 bg-stonewash p-3 md:grid-cols-[180px_1fr_44px]">
+                    <Select value={section.type} onChange={(event) => updateSection(index, "type", event.target.value)}>
+                      {["verso", "coro", "puente", "final", "instrumental"].map((type) => <option key={type}>{type}</option>)}
+                    </Select>
+                    <Textarea value={section.text} onChange={(event) => updateSection(index, "text", event.target.value)} placeholder="Letra manual opcional" />
+                    <Button variant="danger" className="h-11 w-11 px-0" onClick={() => update("lyricsSections", song.lyricsSections.filter((_, itemIndex) => itemIndex !== index))}>×</Button>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </Section>
       </div>
 
@@ -286,7 +326,8 @@ export function Songs() {
     keynote: "",
     pdf: "",
     sung: "",
-    format: ""
+    format: "",
+    keyChange: ""
   });
   const [editingSong, setEditingSong] = useState(null);
   const [isAdding, setIsAdding] = useState(false);
@@ -298,6 +339,7 @@ export function Songs() {
   const formats = useMemo(() => [...new Set([...SONG_FORMATS, ...songs.map((song) => song.format).filter(Boolean)])], [songs]);
 
   const setFilter = (field, value) => setFilters((current) => ({ ...current, [field]: value }));
+  const clearFilters = () => setFilters({ query: "", category: "", mainTheme: "", otherTheme: "", key: "", capo: "", music: "", keynote: "", pdf: "", sung: "", format: "", keyChange: "" });
 
   const filteredSongs = useMemo(
     () =>
@@ -324,15 +366,14 @@ export function Songs() {
         const matchesPdf = !filters.pdf || song.pdfReviewStatus === filters.pdf;
         const matchesSung = !filters.sung || (filters.sung === "si" ? song.sungBefore : !song.sungBefore);
         const matchesFormat = !filters.format || song.format === filters.format;
-        return matchesQuery && matchesCategory && matchesMainTheme && matchesOtherTheme && matchesKey && matchesCapo && matchesMusic && matchesKeynote && matchesPdf && matchesSung && matchesFormat;
+        const matchesKeyChange = !filters.keyChange || (filters.keyChange === "si" ? song.hasKeyChange : !song.hasKeyChange);
+        return matchesQuery && matchesCategory && matchesMainTheme && matchesOtherTheme && matchesKey && matchesCapo && matchesMusic && matchesKeynote && matchesPdf && matchesSung && matchesFormat && matchesKeyChange;
       }),
     [filters, songs]
   );
 
   const handleDelete = async (song) => {
-    if (confirm(`¿Eliminar "${song.title}" del repertorio?`)) {
-      await deleteSong(song.id);
-    }
+    if (confirm(`¿Eliminar "${song.title}" del repertorio?`)) await deleteSong(song.id);
   };
 
   const closeModal = () => {
@@ -356,10 +397,10 @@ export function Songs() {
           ) : null}
         </div>
 
-        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-          <div className="relative md:col-span-2">
+        <div className="mt-5 grid gap-3 lg:grid-cols-[1.6fr_0.8fr_0.8fr_0.7fr]">
+          <div className="relative">
             <Search className="absolute left-3 top-3 h-4 w-4 text-ink/35" />
-            <Input className="pl-9" placeholder="Buscar por nombre, tema, tono, comentario..." value={filters.query} onChange={(event) => setFilter("query", event.target.value)} />
+            <Input className="pl-9" placeholder="Buscar por nombre, fuente, tema, tono o comentario" value={filters.query} onChange={(event) => setFilter("query", event.target.value)} />
           </div>
           <Select value={filters.category} onChange={(event) => setFilter("category", event.target.value)}>
             <option value="">Todas las categorías</option>
@@ -369,93 +410,115 @@ export function Songs() {
             <option value="">Tema principal</option>
             {themeOptions.map((theme) => <option key={theme}>{theme}</option>)}
           </Select>
-          <Select value={filters.otherTheme} onChange={(event) => setFilter("otherTheme", event.target.value)}>
-            <option value="">Todos los temas</option>
-            {themeOptions.map((theme) => <option key={theme}>{theme}</option>)}
-          </Select>
           <Select value={filters.key} onChange={(event) => setFilter("key", event.target.value)}>
             <option value="">Todos los tonos</option>
             {keyOptions.map((key) => <option key={key}>{key}</option>)}
           </Select>
-          <Select value={filters.capo} onChange={(event) => setFilter("capo", event.target.value)}>
-            <option value="">Todos los capos</option>
-            {capoOptions.map((capo) => <option key={capo} value={capo}>Capo {capo}</option>)}
-          </Select>
-          <Select value={filters.music} onChange={(event) => setFilter("music", event.target.value)}>
-            <option value="">Revisión musical</option>
-            {REVIEW_STATUSES.map((status) => <option key={status}>{status}</option>)}
-          </Select>
-          <Select value={filters.keynote} onChange={(event) => setFilter("keynote", event.target.value)}>
-            <option value="">Revisión Keynote</option>
-            {REVIEW_STATUSES.map((status) => <option key={status}>{status}</option>)}
-          </Select>
-          <Select value={filters.pdf} onChange={(event) => setFilter("pdf", event.target.value)}>
-            <option value="">Revisión PDF</option>
-            {REVIEW_STATUSES.map((status) => <option key={status}>{status}</option>)}
-          </Select>
-          <Select value={filters.sung} onChange={(event) => setFilter("sung", event.target.value)}>
-            <option value="">Ya se ha cantado</option>
-            <option value="si">Sí se ha cantado</option>
-            <option value="no">No se ha cantado</option>
-          </Select>
-          <Select value={filters.format} onChange={(event) => setFilter("format", event.target.value)}>
-            <option value="">Todos los formatos</option>
-            {formats.map((format) => <option key={format}>{format}</option>)}
-          </Select>
+        </div>
+
+        <details className="mt-4 rounded-2xl border border-ink/10 bg-white p-4">
+          <summary className="cursor-pointer text-sm font-bold text-ink">Filtros avanzados</summary>
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <Select value={filters.otherTheme} onChange={(event) => setFilter("otherTheme", event.target.value)}>
+              <option value="">Otros temas</option>
+              {themeOptions.map((theme) => <option key={theme}>{theme}</option>)}
+            </Select>
+            <Select value={filters.capo} onChange={(event) => setFilter("capo", event.target.value)}>
+              <option value="">Todos los capos</option>
+              {capoOptions.map((capo) => <option key={capo} value={capo}>Capo {capo}</option>)}
+            </Select>
+            <Select value={filters.music} onChange={(event) => setFilter("music", event.target.value)}>
+              <option value="">Revisión musical</option>
+              {REVIEW_STATUSES.map((status) => <option key={status}>{status}</option>)}
+            </Select>
+            <Select value={filters.keynote} onChange={(event) => setFilter("keynote", event.target.value)}>
+              <option value="">Revisión Keynote</option>
+              {REVIEW_STATUSES.map((status) => <option key={status}>{status}</option>)}
+            </Select>
+            <Select value={filters.pdf} onChange={(event) => setFilter("pdf", event.target.value)}>
+              <option value="">Revisión PDF</option>
+              {REVIEW_STATUSES.map((status) => <option key={status}>{status}</option>)}
+            </Select>
+            <Select value={filters.sung} onChange={(event) => setFilter("sung", event.target.value)}>
+              <option value="">Ya se ha cantado</option>
+              <option value="si">Sí</option>
+              <option value="no">No</option>
+            </Select>
+            <Select value={filters.format} onChange={(event) => setFilter("format", event.target.value)}>
+              <option value="">Todos los formatos</option>
+              {formats.map((format) => <option key={format}>{format}</option>)}
+            </Select>
+            <Select value={filters.keyChange} onChange={(event) => setFilter("keyChange", event.target.value)}>
+              <option value="">Cambio de tono</option>
+              <option value="si">Con cambio</option>
+              <option value="no">Sin cambio</option>
+            </Select>
+          </div>
+        </details>
+
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm font-semibold text-ink/55">Mostrando {filteredSongs.length} de {songs.length} cantos</p>
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={clearFilters}>Limpiar filtros</Button>
+            <Button variant="subtle">Aplicar filtros</Button>
+          </div>
         </div>
       </Card>
 
       {filteredSongs.length ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {filteredSongs.map((song, index) => (
-            <Card key={song.id} delay={index * 0.02} className="flex flex-col">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <Link to={`/repertorio/${song.id}`} className="text-lg font-bold text-ink hover:text-brass">
-                    {song.title}
+          {filteredSongs.map((song, index) => {
+            const pdfUrl = getSongPdfUrl(song);
+            const youtubeUrl = getSongYoutubeUrl(song);
+            const spotifyUrl = getSongSpotifyUrl(song);
+            return (
+              <Card key={song.id} delay={index * 0.02} className="flex flex-col">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <Link to={`/repertorio/${song.id}`} className="text-lg font-bold text-ink hover:text-brass">
+                      {song.title}
+                    </Link>
+                    <p className="mt-1 text-sm text-ink/55">{song.artistOrSource || "Sin fuente"}</p>
+                  </div>
+                  <span className="rounded-xl bg-ink px-3 py-1 text-sm font-bold text-white">{song.mainKey || "--"}</span>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {song.category ? <span className="rounded-full bg-ink/7 px-3 py-1 text-xs font-semibold text-ink/60">{song.category}</span> : null}
+                  {song.mainTheme ? <span className="rounded-full bg-brass/10 px-3 py-1 text-xs font-semibold text-brass">{song.mainTheme}</span> : null}
+                  {song.hasKeyChange ? <span className="rounded-full bg-blue-gray/10 px-3 py-1 text-xs font-semibold text-blue-gray">Cambio de tono</span> : null}
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <ReviewBadge label="PDF" value={song.pdfReviewStatus} />
+                  <ReviewBadge label="Keynote" value={song.keynoteReviewStatus} />
+                  <ReviewBadge label="Música" value={song.musicReviewStatus} />
+                </div>
+                <p className="mt-4 rounded-2xl bg-ink/5 p-3 text-sm font-semibold text-ink">{toneSummary(song)}</p>
+                <p className="mt-4 line-clamp-2 text-sm leading-6 text-ink/58">{song.internalNotes || "Sin comentarios."}</p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {pdfUrl ? <a className="inline-flex items-center gap-1 rounded-xl bg-brass/12 px-3 py-2 text-xs font-bold text-brass" href={pdfUrl} target="_blank" rel="noreferrer"><FileText className="h-4 w-4" />PDF</a> : null}
+                  {youtubeUrl ? <a className="inline-flex items-center gap-1 rounded-xl bg-ink/5 px-3 py-2 text-xs font-bold text-ink" href={youtubeUrl} target="_blank" rel="noreferrer"><Youtube className="h-4 w-4" />YouTube</a> : null}
+                  {spotifyUrl ? <a className="inline-flex items-center gap-1 rounded-xl bg-ink/5 px-3 py-2 text-xs font-bold text-ink" href={spotifyUrl} target="_blank" rel="noreferrer"><Headphones className="h-4 w-4" />Spotify</a> : null}
+                </div>
+                <div className="mt-auto flex items-center justify-between pt-5">
+                  <Link to={`/repertorio/${song.id}`} className="inline-flex items-center gap-1 text-sm font-semibold text-blue-gray">
+                    Ver detalle <ExternalLink className="h-4 w-4" />
                   </Link>
-                  <p className="mt-1 text-sm text-ink/55">{song.artistOrSource || "Sin fuente"}</p>
+                  <div className="flex gap-2">
+                    {canEdit ? (
+                      <Button variant="subtle" className="h-10 w-10 px-0" onClick={() => setEditingSong(song)} aria-label="Editar">
+                        <Edit3 className="h-4 w-4" />
+                      </Button>
+                    ) : null}
+                    {canDelete ? (
+                      <Button variant="danger" className="h-10 w-10 px-0" onClick={() => handleDelete(song)} aria-label="Eliminar">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    ) : null}
+                  </div>
                 </div>
-                <span className="rounded-xl bg-ink px-3 py-1 text-sm font-bold text-white">{song.mainKey || "--"}</span>
-              </div>
-              <div className="mt-4 flex flex-wrap gap-2">
-                {song.category ? <span className="rounded-full bg-ink/7 px-3 py-1 text-xs font-semibold text-ink/60">{song.category}</span> : null}
-                {song.mainTheme ? <span className="rounded-full bg-brass/10 px-3 py-1 text-xs font-semibold text-brass">{song.mainTheme}</span> : null}
-                {(song.otherThemes || []).map((theme) => (
-                  <span key={theme} className="rounded-full bg-blue-gray/10 px-3 py-1 text-xs font-semibold text-blue-gray">{theme}</span>
-                ))}
-              </div>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <ReviewBadge label="PDF" value={song.pdfReviewStatus} />
-                <ReviewBadge label="Keynote" value={song.keynoteReviewStatus} />
-                <ReviewBadge label="Música" value={song.musicReviewStatus} />
-              </div>
-              <div className="mt-4 grid grid-cols-3 gap-2 text-sm">
-                <span className="rounded-2xl bg-ink/5 p-2">Capo {song.capo || 0}</span>
-                <span className="rounded-2xl bg-ink/5 p-2">Tono con capo: {song.keyWithCapo || "--"}</span>
-                <span className="rounded-2xl bg-ink/5 p-2">{song.sungBefore ? "Ya se ha cantado" : "No se ha cantado"}</span>
-              </div>
-              <p className="mt-4 line-clamp-2 text-sm leading-6 text-ink/58">{song.internalNotes || "Sin comentarios."}</p>
-              <div className="mt-auto flex items-center justify-between pt-5">
-                <Link to={`/repertorio/${song.id}`} className="inline-flex items-center gap-1 text-sm font-semibold text-blue-gray">
-                  Ver detalle <ExternalLink className="h-4 w-4" />
-                </Link>
-                <div className="flex gap-2">
-                  {(song.pdfUrl || song.drivePdfUrl || song.chordsUrl) ? <FileText className="mt-2 h-4 w-4 text-brass" /> : null}
-                  {canEdit ? (
-                    <Button variant="subtle" className="h-10 w-10 px-0" onClick={() => setEditingSong(song)} aria-label="Editar">
-                      <Edit3 className="h-4 w-4" />
-                    </Button>
-                  ) : null}
-                  {canDelete ? (
-                    <Button variant="danger" className="h-10 w-10 px-0" onClick={() => handleDelete(song)} aria-label="Eliminar">
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  ) : null}
-                </div>
-              </div>
-            </Card>
-          ))}
+              </Card>
+            );
+          })}
         </div>
       ) : (
         <EmptyState title="No hay cantos con esos filtros" text="Ajusta la búsqueda o agrega un canto al repertorio." />

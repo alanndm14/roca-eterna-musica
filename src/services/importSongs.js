@@ -20,6 +20,7 @@ const columnAliases = {
   pdfUrl: ["pdf", "pdfUrl", "pdf_url", "link_pdf"],
   drivePdfUrl: ["drivePdfUrl", "drive_pdf_url", "google_drive", "drive"],
   youtubeUrl: ["youtube", "youtubeUrl"],
+  spotifyUrl: ["spotify", "spotifyUrl", "spotify_url"],
   artistOrSource: ["fuente", "artista", "artistOrSource", "artist"]
 };
 
@@ -94,6 +95,7 @@ export function parseSongsTable(text, keyPreference = "sharps") {
       pdfUrl: raw.pdfUrl || "",
       drivePdfUrl: raw.drivePdfUrl || "",
       youtubeUrl: raw.youtubeUrl || "",
+      spotifyUrl: raw.spotifyUrl || "",
       chordsUrl: raw.pdfUrl || "",
       musicReviewStatus: normalizeReviewStatus(raw.musicReviewStatus),
       keynoteReviewStatus: normalizeReviewStatus(raw.keynoteReviewStatus),
