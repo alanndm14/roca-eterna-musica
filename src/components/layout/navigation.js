@@ -19,4 +19,6 @@ export const navItems = [
   { label: "Configuración", path: "/configuracion", icon: Settings }
 ];
 
-export const mobileNavItems = [navItems[0], navItems[1], navItems[2], navItems[3], { ...navItems[6], icon: UsersRound }];
+export const mobilePrimaryItems = [navItems[0], navItems[1], navItems[2], navItems[3]];
+export const mobileExtraItems = [navItems[4], navItems[5], { ...navItems[6], icon: UsersRound }];
+export const mobileNavItems = [...mobilePrimaryItems, { ...navItems[6], icon: UsersRound }];

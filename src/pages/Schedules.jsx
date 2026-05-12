@@ -383,6 +383,13 @@ export function Schedules() {
                 <div key={schedule.id} className="rounded-2xl bg-ink/5 p-3">
                   <p className="font-semibold text-ink">{schedule.serviceLabel || schedule.type}</p>
                   <p className="text-sm text-ink/55">{schedule.time} · {schedule.leader || "Sin responsable"}</p>
+                  <div className="mt-3 space-y-1">
+                    {(schedule.songs || []).map((song, index) => (
+                      <p key={`${song.songId || song.titleSnapshot}-${index}`} className="text-sm font-semibold text-ink/70">
+                        {index + 1}. <SongNameLink songId={song.songId} title={song.titleSnapshot} songs={songs}>{song.titleSnapshot}</SongNameLink>
+                      </p>
+                    ))}
+                  </div>
                 </div>
               )) : <p className="text-sm text-ink/55">No hay programaciones para este día.</p>}
             </div>

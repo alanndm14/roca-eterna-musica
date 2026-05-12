@@ -139,9 +139,9 @@ export function SongDetail() {
             <p className="mt-3 text-sm leading-6 text-ink/62">{song.internalNotes || "Sin comentarios."}</p>
           </Card>
 
-          <Card>
-            <h3 className="text-lg font-bold text-ink">Letra manual opcional</h3>
-            {lyricsSections.length ? (
+          {lyricsSections.length ? (
+            <Card>
+              <h3 className="text-lg font-bold text-ink">Letra manual opcional</h3>
               <div className="mt-4 space-y-4">
                 {lyricsSections.map((section, index) => (
                   <div key={`${section.type}-${index}`} className="rounded-2xl bg-ink/5 p-4">
@@ -150,10 +150,8 @@ export function SongDetail() {
                   </div>
                 ))}
               </div>
-            ) : (
-              <p className="mt-2 text-sm text-ink/55">Sin letra manual. El flujo principal usa el PDF.</p>
-            )}
-          </Card>
+            </Card>
+          ) : null}
         </div>
 
         <aside className="space-y-4">

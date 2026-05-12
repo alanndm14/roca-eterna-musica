@@ -110,6 +110,18 @@ textarea {
   box-shadow: 0 18px 60px rgba(0, 0, 0, 0.32);
 }
 
+.dark .bg-red-50 {
+  background-color: rgb(69 26 26 / 0.65) !important;
+}
+
+.dark .text-red-700 {
+  color: rgb(252 165 165 / var(--tw-text-opacity, 1)) !important;
+}
+
+.dark .border-red-200 {
+  border-color: rgb(252 165 165 / 0.25) !important;
+}
+
 .dark .recharts-legend-item-text,
 .dark .recharts-default-legend {
   color: rgb(245 242 235 / 0.72) !important;

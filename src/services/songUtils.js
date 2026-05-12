@@ -84,12 +84,22 @@ export function normalizeDrivePdfUrl(url = "") {
   return match?.[1] ? `https://drive.google.com/file/d/${match[1]}/preview` : value;
 }
 
+export function resolvePublicPdfPath(path = "") {
+  const value = String(path || "").trim();
+  if (!value) return "";
+  if (/^https?:\/\//i.test(value)) return value;
+  const base = import.meta.env.BASE_URL || "/";
+  const cleanBase = base.endsWith("/") ? base : `${base}/`;
+  const cleanPath = value.startsWith("/") ? value.slice(1) : value;
+  return `${cleanBase}${cleanPath}`;
+}
+
 export function getSongPdfUrl(song) {
-  return song?.storagePdfUrl || song?.pdfPreviewUrl || normalizeDrivePdfUrl(song?.drivePdfUrl) || song?.pdfUrl || song?.chordsUrl || "";
+  return song?.pdfPreviewUrl || normalizeDrivePdfUrl(song?.drivePdfUrl) || song?.pdfUrl || song?.chordsUrl || resolvePublicPdfPath(song?.localPdfPath) || song?.storagePdfUrl || "";
 }
 
 export function getSongPreviewUrl(song) {
-  return song?.storagePdfUrl || song?.pdfPreviewUrl || normalizeDrivePdfUrl(song?.drivePdfUrl || song?.pdfUrl || song?.chordsUrl) || "";
+  return song?.pdfPreviewUrl || normalizeDrivePdfUrl(song?.drivePdfUrl || song?.pdfUrl || song?.chordsUrl) || resolvePublicPdfPath(song?.localPdfPath) || song?.storagePdfUrl || "";
 }
 
 export function getSongYoutubeUrl(song) {
@@ -103,7 +113,7 @@ export function getSongSpotifyUrl(song) {
 export function getSongExternalChordsUrl(song) {
   const explicit = song?.externalChordsUrl || song?.chordsExternalUrl || "";
   if (explicit) return explicit;
-  const hasSeparatePdf = Boolean(song?.pdfUrl || song?.drivePdfUrl || song?.pdfPreviewUrl || song?.storagePdfUrl);
+  const hasSeparatePdf = Boolean(song?.pdfUrl || song?.drivePdfUrl || song?.pdfPreviewUrl || song?.localPdfPath || song?.storagePdfUrl);
   return hasSeparatePdf ? song?.chordsUrl || "" : "";
 }
 
@@ -157,6 +167,7 @@ export function normalizeSong(song = {}, keyPreference = "sharps") {
     pdfUrl,
     drivePdfUrl,
     pdfPreviewUrl,
+    localPdfPath: song.localPdfPath || song.local_pdf_path || "",
     storagePdfUrl: song.storagePdfUrl || "",
     chordsUrl: song.chordsUrl || pdfUrl,
     externalChordsUrl: song.externalChordsUrl || song.chordsExternalUrl || "",

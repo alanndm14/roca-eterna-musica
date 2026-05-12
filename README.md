@@ -11,7 +11,7 @@ Web app tipo PWA para organizar el ministerio de música de la iglesia Roca Eter
 - Framer Motion
 - lucide-react
 - Recharts
-- pdf-lib para intentar unir PDFs del servicio
+- pdf-lib para unir PDFs locales en el navegador
 - PWA con manifest y service worker
 - Preparada para GitHub Pages
 
@@ -43,7 +43,7 @@ npm run build
 firebase deploy --only firestore:rules
 ```
 
-Las API keys web de Firebase pueden estar en el frontend. La protección real está en Firebase Authentication y Firestore Security Rules. No agregues service accounts ni claves privadas en esta app.
+Firebase Storage no es requisito. La app funciona con Authentication, Firestore y links de PDFs.
 
 ## Modelo de acceso
 
@@ -52,21 +52,6 @@ Las API keys web de Firebase pueden estar en el frontend. La protección real es
 - `viewer`: solo ve información.
 
 El primer admin se crea cuando inicia sesión con un correo incluido en `VITE_INITIAL_ADMIN_EMAILS` y en `firebase2.rules`. Después, desde Configuración, el admin puede agregar correos a `allowedEmails` con rol y estado activo.
-
-Si una persona inicia sesión con Google pero su correo no está autorizado, verá la pantalla “Acceso no autorizado”.
-
-## Estructura de Firestore
-
-```text
-users/{uid}
-allowedEmails/{email}
-songs/{songId}
-schedules/{scheduleId}
-themes/{themeId}
-settings/main
-```
-
-`allowedEmails` permite autorizar correos antes de conocer el `uid` de Firebase Auth. Cuando el usuario autorizado inicia sesión, la app crea su perfil en `users/{uid}`.
 
 ## PDFs de letra y acordes
 
@@ -84,23 +69,34 @@ La app intenta convertirlo automáticamente a:
 https://drive.google.com/file/d/FILE_ID/preview
 ```
 
-Ese link permite usar “Ver dentro de la app”. Si Google Drive bloquea la vista previa, usa “Abrir PDF”.
+Ese link permite usar **Ver PDFs del servicio** dentro de la app. Si Google Drive no se desplaza bien o bloquea la vista previa, usa **Abrir PDF**.
 
-### Intentar unir PDFs del servicio
+## Unir PDFs sin Firebase Storage
 
-En Vista para músicos, **Intentar unir PDFs del servicio** usa `pdf-lib` e intenta descargar los PDFs en el orden de la programación.
+La app no intenta fusionar PDFs de Drive automáticamente porque Google Drive no lo permite de forma confiable desde el navegador.
 
-La app intenta:
+Opciones disponibles en Vista para músicos:
 
-- detectar links de Google Drive;
-- convertirlos a `https://drive.google.com/uc?export=download&id=FILE_ID`;
-- descargar PDFs directos que terminen en `.pdf`;
-- unir los PDFs que sí se pudieron leer;
-- descargar un PDF completo o parcial.
+- **Ver PDFs del servicio**: abre los PDFs de los cantos en un visor dentro de la app.
+- **Descargar hoja del servicio**: genera un PDF resumen con fecha, servicio, responsable, cantos, tonos, notas y links.
+- **Unir PDFs desde mi computadora**: selecciona varios PDFs locales, los reordena y los une en el navegador. No se suben a la nube.
+- **Unir PDFs del servicio desde la app**: usa solo archivos disponibles en `public/pdfs/` mediante el campo `localPdfPath`.
 
-Limitación importante: Google Drive puede bloquear descargas desde el navegador por permisos, CORS o pantallas intermedias. Si eso ocurre, la app no se rompe: muestra incluidos/omitidos y permite usar **Ver PDFs del servicio** o abrir los enlaces individualmente.
+### PDFs en public/pdfs
 
-Firebase Storage no es requisito para este flujo. Si más adelante activas Storage, la app conserva campos compatibles para PDFs subidos, pero el uso principal actual puede hacerse solo con Drive.
+Puedes guardar PDFs en:
+
+```text
+public/pdfs/
+```
+
+Luego, en el formulario de canto, usa:
+
+```text
+/pdfs/nombre-del-canto.pdf
+```
+
+Los PDFs guardados en `public/pdfs` se publican junto con GitHub Pages. No uses esta opción para material privado o restringido.
 
 ## Importar repertorio
 
@@ -112,13 +108,7 @@ Columnas esperadas:
 id, nombre, tema, otros_temas, categoria, cantado, tonalidad, capo, tonalidad_con_capo, cambio_de_tono, revision_musical, revision_keynote, revision_pdf, formato, comentario
 ```
 
-Notas:
-
-- `cantado` y `cambio_de_tono` aceptan `si/no`.
-- `otros_temas` puede traer varios valores separados por coma.
-- Si `tonalidad_con_capo` viene vacío, la app la calcula con la preferencia de sostenidos/bemoles.
-- Si un canto ya existe con el mismo nombre, puedes omitirlo o actualizarlo.
-- La importación no borra datos existentes.
+También puedes incluir `ruta_pdf_local` o `localPdfPath` para llenar el campo de PDF local.
 
 ## Publicar en GitHub Pages
 
@@ -143,12 +133,13 @@ La app usa `HashRouter`, por lo que funciona mejor en GitHub Pages sin configura
 - No guardes datos sensibles de miembros; esta app solo debe contener información del ministerio de música.
 - Revisa periódicamente la colección `allowedEmails`.
 - Considera habilitar Firebase App Check antes de producción.
-- Usa reglas más estrictas si separas iglesias, ministerios o ambientes.
+- No guardes PDFs privados en `public/pdfs`, porque serán públicos en GitHub Pages.
 
 ## Pasos posteriores recomendados
 
-- Probar links reales de Drive con “Ver PDFs del servicio” e “Intentar unir PDFs del servicio”.
+- Probar links reales de Drive con **Ver PDFs del servicio**.
+- Probar **Unir PDFs desde mi computadora** con varios PDFs.
+- Probar `public/pdfs` con uno o dos archivos no privados.
 - Revisar roles reales del equipo antes de cargar información.
-- Agregar App Check.
 - Importar el repertorio real sin letras con copyright no autorizadas.
 - Activar backups/exportaciones periódicas de Firestore.

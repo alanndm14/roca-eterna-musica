@@ -1,25 +1,33 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { appLogo, fallbackAppLogo } from "../../assets/logo";
 
 export function WelcomeSplash({ profile, onDone }) {
   const reduceMotion = useReducedMotion();
-  const name = profile?.displayName || profile?.email || "";
+  const [leaving, setLeaving] = useState(false);
+  const name = profile?.displayName || "";
 
   useEffect(() => {
-    const timeout = window.setTimeout(onDone, reduceMotion ? 900 : 1900);
-    return () => window.clearTimeout(timeout);
+    const fadeTimer = window.setTimeout(() => setLeaving(true), reduceMotion ? 700 : 2850);
+    const doneTimer = window.setTimeout(onDone, reduceMotion ? 950 : 3350);
+    return () => {
+      window.clearTimeout(fadeTimer);
+      window.clearTimeout(doneTimer);
+    };
   }, [onDone, reduceMotion]);
 
-  const letters = "Bienvenido".split("");
-
   return (
-    <div className="flex min-h-screen items-center justify-center bg-stonewash p-6 text-ink">
+    <motion.div
+      className="flex min-h-screen items-center justify-center bg-stonewash p-6 text-ink"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: leaving ? 0 : 1 }}
+      transition={{ duration: reduceMotion ? 0.15 : 0.5, ease: "easeInOut" }}
+    >
       <motion.div
         className="text-center"
-        initial={reduceMotion ? false : { opacity: 0, y: 10 }}
+        initial={reduceMotion ? false : { opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.45 }}
+        transition={{ duration: 0.65, ease: "easeOut" }}
       >
         <motion.img
           src={appLogo}
@@ -28,47 +36,41 @@ export function WelcomeSplash({ profile, onDone }) {
           }}
           alt="Roca Eterna Música"
           className="mx-auto h-24 w-24 rounded-3xl bg-white object-contain p-2 shadow-soft"
-          initial={reduceMotion ? false : { opacity: 0, scale: 0.94 }}
+          initial={reduceMotion ? false : { opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.55, ease: "easeOut" }}
+          transition={{ duration: 0.8, ease: "easeOut" }}
         />
-        <div className="mt-7 flex justify-center text-3xl font-bold tracking-normal md:text-4xl">
-          {letters.map((letter, index) => (
-            <motion.span
-              key={`${letter}-${index}`}
-              initial={reduceMotion ? false : { opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.24 + index * 0.035, duration: 0.28 }}
-            >
-              {letter}
-            </motion.span>
-          ))}
-        </div>
-        {name ? (
-          <motion.p
-            className="mt-2 text-xl font-semibold text-brass"
-            initial={reduceMotion ? false : { opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.68, duration: 0.34 }}
-          >
-            {name}
-          </motion.p>
-        ) : null}
+        <motion.h1
+          className="mt-7 text-3xl font-bold tracking-normal md:text-4xl"
+          initial={reduceMotion ? false : { opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.55, duration: 0.55, ease: "easeOut" }}
+        >
+          {name ? `Bienvenido, ${name}` : "Bienvenido"}
+        </motion.h1>
         <motion.p
-          className="mt-4 text-sm font-semibold text-ink/55"
+          className="mt-4 text-base font-semibold text-brass"
+          initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.95, duration: 0.45 }}
+        >
+          Roca Eterna Música
+        </motion.p>
+        <motion.p
+          className="mt-2 text-sm font-semibold text-ink/55"
           initial={reduceMotion ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.86, duration: 0.34 }}
+          transition={{ delay: 1.18, duration: 0.45 }}
         >
-          Roca Eterna Música · Preparando tu repertorio...
+          Preparando tu repertorio...
         </motion.p>
         <motion.div
-          className="mx-auto mt-6 h-0.5 w-36 rounded-full bg-brass"
+          className="mx-auto mt-6 h-0.5 w-40 origin-left rounded-full bg-brass"
           initial={reduceMotion ? false : { scaleX: 0, opacity: 0 }}
           animate={{ scaleX: 1, opacity: 1 }}
-          transition={{ delay: 0.96, duration: 0.48 }}
+          transition={{ delay: 1.35, duration: 0.9, ease: "easeInOut" }}
         />
       </motion.div>
-    </div>
+    </motion.div>
   );
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Database, LogOut, Palette, Save, Tags, Upload, UserPlus } from "lucide-react";
+import { Database, HelpCircle, LogOut, Palette, Save, Tags, Upload, UserPlus } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { Field, Input, Select, Textarea } from "../components/ui/Field";
@@ -393,6 +393,15 @@ export function Settings() {
           <Button variant="danger" className="mt-6 w-full" onClick={signOut}>
             <LogOut className="h-4 w-4" />
             Cerrar sesión
+          </Button>
+        </Card>
+
+        <Card>
+          <h2 className="text-xl font-bold text-ink">Ayuda</h2>
+          <p className="mt-3 text-sm leading-6 text-ink/60">Abre de nuevo la guía interactiva para repasar cómo usar cada sección de la app.</p>
+          <Button className="mt-4 w-full" variant="secondary" onClick={() => window.dispatchEvent(new Event("roca-eterna-open-guide"))}>
+            <HelpCircle className="h-4 w-4" />
+            Ver guía otra vez
           </Button>
         </Card>
 

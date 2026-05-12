@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Edit3, ExternalLink, FileText, Headphones, Plus, Search, Trash2, Youtube } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
@@ -38,6 +38,7 @@ const blankSong = {
   pdfUrl: "",
   drivePdfUrl: "",
   pdfPreviewUrl: "",
+  localPdfPath: "",
   storagePdfUrl: "",
   youtubeUrl: "",
   spotifyUrl: "",
@@ -71,14 +72,14 @@ function ReviewBadge({ label, value }) {
   );
 }
 
-const getVisiblePdfInput = (song) => song.pdfUrl || song.drivePdfUrl || song.storagePdfUrl || (!song.pdfUrl && !song.drivePdfUrl ? song.chordsUrl : "") || "";
+const getVisiblePdfInput = (song) => song.pdfUrl || song.drivePdfUrl || (!song.pdfUrl && !song.drivePdfUrl ? song.chordsUrl : "") || "";
 
 const toneSummary = (song) => {
   if (Number(song.capo || 0) > 0) return `Capo ${song.capo} · Suena en ${song.keyWithCapo || song.mainKey || "--"}`;
   return `Sin capo · Tono ${song.mainKey || song.keyWithCapo || "--"}`;
 };
 
-function SongForm({ initialSong, themes, keyPreference, onSubmit, onCancel, onDeleteUploadedPdf }) {
+function SongForm({ initialSong, themes, keyPreference, onSubmit, onCancel }) {
   const normalizedInitial = normalizeSong(initialSong || blankSong, keyPreference);
   const [song, setSong] = useState(() => ({
     ...normalizedInitial,
@@ -86,7 +87,6 @@ function SongForm({ initialSong, themes, keyPreference, onSubmit, onCancel, onDe
   }));
   const [manualKey, setManualKey] = useState(Boolean(initialSong?.keyWithCapo && initialSong?.keyWithCapo !== calculateKeyWithCapo(initialSong?.mainKey, initialSong?.capo, keyPreference)));
   const [showLyrics, setShowLyrics] = useState(Boolean(normalizedInitial.lyricsSections?.length));
-  const [pdfFile, setPdfFile] = useState(null);
 
   const update = (field, value) => setSong((current) => ({ ...current, [field]: value }));
 
@@ -150,7 +150,7 @@ function SongForm({ initialSong, themes, keyPreference, onSubmit, onCancel, onDe
       },
       keyPreference
     );
-    onSubmit(next, pdfFile);
+    onSubmit(next);
   };
 
   return (
@@ -229,33 +229,8 @@ function SongForm({ initialSong, themes, keyPreference, onSubmit, onCancel, onDe
             <Field label="PDF de letra y acordes">
               <Input value={getVisiblePdfInput(song)} onChange={(event) => updatePdf(event.target.value)} placeholder="https://drive.google.com/file/d/..." />
             </Field>
-            <Field label="Subir PDF a la app">
-              <div className="rounded-xl border border-ink/10 bg-white p-3">
-                <input
-                  id="song-pdf-upload"
-                  className="sr-only"
-                  type="file"
-                  accept="application/pdf,.pdf"
-                  onChange={(event) => setPdfFile(event.target.files?.[0] || null)}
-                />
-                <div className="flex flex-wrap items-center gap-2">
-                  <label htmlFor="song-pdf-upload" className="inline-flex min-h-10 cursor-pointer items-center justify-center rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white transition hover:bg-charcoal">
-                    {song.storagePath ? "Reemplazar PDF" : "Seleccionar PDF"}
-                  </label>
-                  <span className="text-sm text-ink/55">{pdfFile?.name || song.originalFileName || "Ningún archivo seleccionado"}</span>
-                  {song.storagePath || song.storagePdfUrl ? (
-                    <Button
-                      variant="danger"
-                      onClick={async () => {
-                        await onDeleteUploadedPdf?.(song);
-                        setSong((current) => ({ ...current, storagePath: "", storagePdfUrl: "", originalFileName: "", uploadedAt: "", uploadedBy: "" }));
-                      }}
-                    >
-                      Eliminar PDF subido
-                    </Button>
-                  ) : null}
-                </div>
-              </div>
+            <Field label="Ruta PDF local, opcional">
+              <Input value={song.localPdfPath || ""} onChange={(event) => update("localPdfPath", event.target.value)} placeholder="/pdfs/nombre-del-canto.pdf" />
             </Field>
             <Field label="YouTube">
               <Input value={song.youtubeUrl || ""} onChange={(event) => update("youtubeUrl", event.target.value)} placeholder="https://youtube.com/..." />
@@ -268,6 +243,7 @@ function SongForm({ initialSong, themes, keyPreference, onSubmit, onCancel, onDe
             </Field>
           </div>
           <p className="mt-3 text-sm text-ink/55">Pega un link compartido de Google Drive o un link directo a PDF. La app intentará generar la vista previa automáticamente.</p>
+          <p className="mt-2 text-sm text-ink/55">La ruta PDF local solo funciona si el archivo existe dentro de public/pdfs en el proyecto. Estos PDFs serán públicos en GitHub Pages.</p>
         </Section>
 
         <Section title="Estado de revisión">
@@ -343,7 +319,8 @@ function SongForm({ initialSong, themes, keyPreference, onSubmit, onCancel, onDe
 
 export function Songs() {
   const { canEdit, canDelete } = useAuth();
-  const { songs, themes, settings, deleteSong, saveSong, uploadSongPdf, deleteSongPdf } = useMusicData();
+  const navigate = useNavigate();
+  const { songs, themes, settings, deleteSong, saveSong } = useMusicData();
   const [filters, setFilters] = useState({
     query: "",
     category: "",
@@ -489,7 +466,6 @@ export function Songs() {
           <p className="text-sm font-semibold text-ink/55">Mostrando {filteredSongs.length} de {songs.length} cantos</p>
           <div className="flex gap-2">
             <Button variant="secondary" onClick={clearFilters}>Limpiar filtros</Button>
-            <Button variant="subtle">Aplicar filtros</Button>
           </div>
         </div>
       </Card>
@@ -501,10 +477,10 @@ export function Songs() {
             const youtubeUrl = getSongYoutubeUrl(song);
             const spotifyUrl = getSongSpotifyUrl(song);
             return (
-              <Card key={song.id} delay={index * 0.02} className="flex flex-col">
+              <Card key={song.id} delay={index * 0.02} className="flex cursor-pointer flex-col transition hover:border-brass/35" onClick={() => navigate(`/repertorio/${song.id}`)}>
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <Link to={`/repertorio/${song.id}`} className="text-lg font-bold text-ink hover:text-brass">
+                    <Link to={`/repertorio/${song.id}`} className="text-lg font-bold text-ink hover:text-brass" onClick={(event) => event.stopPropagation()}>
                       {song.title}
                     </Link>
                     <p className="mt-1 text-sm text-ink/55">{song.artistOrSource || "Sin fuente"}</p>
@@ -524,22 +500,22 @@ export function Songs() {
                 <p className="mt-4 rounded-2xl bg-ink/5 p-3 text-sm font-semibold text-ink">{toneSummary(song)}</p>
                 <p className="mt-4 line-clamp-2 text-sm leading-6 text-ink/58">{song.internalNotes || "Sin comentarios."}</p>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  {pdfUrl ? <a className="inline-flex items-center gap-1 rounded-xl bg-brass/12 px-3 py-2 text-xs font-bold text-brass" href={pdfUrl} target="_blank" rel="noreferrer"><FileText className="h-4 w-4" />PDF</a> : null}
-                  {youtubeUrl ? <a className="inline-flex items-center gap-1 rounded-xl bg-ink/5 px-3 py-2 text-xs font-bold text-ink" href={youtubeUrl} target="_blank" rel="noreferrer"><Youtube className="h-4 w-4" />YouTube</a> : null}
-                  {spotifyUrl ? <a className="inline-flex items-center gap-1 rounded-xl bg-ink/5 px-3 py-2 text-xs font-bold text-ink" href={spotifyUrl} target="_blank" rel="noreferrer"><Headphones className="h-4 w-4" />Spotify</a> : null}
+                  {pdfUrl ? <a onClick={(event) => event.stopPropagation()} className="inline-flex items-center gap-1 rounded-xl bg-brass/12 px-3 py-2 text-xs font-bold text-brass" href={pdfUrl} target="_blank" rel="noreferrer"><FileText className="h-4 w-4" />PDF</a> : null}
+                  {youtubeUrl ? <a onClick={(event) => event.stopPropagation()} className="inline-flex items-center gap-1 rounded-xl bg-ink/5 px-3 py-2 text-xs font-bold text-ink" href={youtubeUrl} target="_blank" rel="noreferrer"><Youtube className="h-4 w-4" />YouTube</a> : null}
+                  {spotifyUrl ? <a onClick={(event) => event.stopPropagation()} className="inline-flex items-center gap-1 rounded-xl bg-ink/5 px-3 py-2 text-xs font-bold text-ink" href={spotifyUrl} target="_blank" rel="noreferrer"><Headphones className="h-4 w-4" />Spotify</a> : null}
                 </div>
                 <div className="mt-auto flex items-center justify-between pt-5">
-                  <Link to={`/repertorio/${song.id}`} className="inline-flex items-center gap-1 text-sm font-semibold text-blue-gray">
+                  <Link to={`/repertorio/${song.id}`} className="inline-flex items-center gap-1 text-sm font-semibold text-blue-gray" onClick={(event) => event.stopPropagation()}>
                     Ver detalle <ExternalLink className="h-4 w-4" />
                   </Link>
                   <div className="flex gap-2">
                     {canEdit ? (
-                      <Button variant="subtle" className="h-10 w-10 px-0" onClick={() => setEditingSong(song)} aria-label="Editar">
+                      <Button variant="subtle" className="h-10 w-10 px-0" onClick={(event) => { event.stopPropagation(); setEditingSong(song); }} aria-label="Editar">
                         <Edit3 className="h-4 w-4" />
                       </Button>
                     ) : null}
                     {canDelete ? (
-                      <Button variant="danger" className="h-10 w-10 px-0" onClick={() => handleDelete(song)} aria-label="Eliminar">
+                      <Button variant="danger" className="h-10 w-10 px-0" onClick={(event) => { event.stopPropagation(); handleDelete(song); }} aria-label="Eliminar">
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     ) : null}
@@ -559,10 +535,8 @@ export function Songs() {
           themes={themeOptions}
           keyPreference={settings.keyPreference || "sharps"}
           onCancel={closeModal}
-          onDeleteUploadedPdf={deleteSongPdf}
-          onSubmit={async (song, pdfFile) => {
-            const songId = await saveSong(song);
-            if (pdfFile) await uploadSongPdf(songId || song.id, pdfFile);
+          onSubmit={async (song) => {
+            await saveSong(song);
             closeModal();
           }}
         />

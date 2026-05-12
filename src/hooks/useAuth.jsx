@@ -136,6 +136,22 @@ export function AuthProvider({ children }) {
     setUnauthorized(false);
   };
 
+  const completeOnboarding = async () => {
+    if (!profile?.uid) return;
+    localStorage.setItem(`roca-eterna-onboarding-${profile.uid}`, "true");
+    setProfile((current) => (current ? { ...current, onboardingCompleted: true } : current));
+    if (isFirebaseConfigured && db && profile.uid !== "demo-admin") {
+      try {
+        await updateDoc(doc(db, "users", profile.uid), {
+          onboardingCompleted: true,
+          onboardingCompletedAt: new Date().toISOString()
+        });
+      } catch (onboardingError) {
+        console.warn("No se pudo guardar la guía en Firestore. Se usará respaldo local.", onboardingError);
+      }
+    }
+  };
+
   const permissions = useMemo(
     () => ({
       isAdmin: profile?.role === "admin",
@@ -157,7 +173,8 @@ export function AuthProvider({ children }) {
       ...permissions,
       signInWithGoogle,
       enterDemoMode,
-      signOut
+      signOut,
+      completeOnboarding
     }),
     [user, profile, loading, unauthorized, error, permissions]
   );

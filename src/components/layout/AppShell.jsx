@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
-import { Button } from "../ui/Button";
+import { HelpCircle, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { appLogo, fallbackAppLogo } from "../../assets/logo";
 import { useAuth } from "../../hooks/useAuth";
 import { useMusicData } from "../../hooks/useMusicData";
+import { Button } from "../ui/Button";
 import { BottomNav } from "./BottomNav";
 import { Sidebar } from "./Sidebar";
 
@@ -49,13 +50,23 @@ export function AppShell() {
     return () => media?.removeEventListener?.("change", applyTheme);
   }, [themeMode]);
 
+  const openGuide = () => window.dispatchEvent(new Event("roca-eterna-open-guide"));
+
   return (
     <div className="min-h-screen bg-stonewash text-ink" style={shellStyle}>
       <Sidebar profile={profile} collapsed={sidebarCollapsed} />
-      <main className={`app-main pb-24 transition-all duration-200 lg:pb-0 ${sidebarCollapsed ? "lg:ml-20" : "lg:ml-72"}`}>
-        <header className="app-header sticky top-0 z-30 border-b border-ink/10 bg-stonewash/86 px-4 py-4 backdrop-blur md:px-8">
+      <main className={`app-main pb-32 transition-all duration-200 lg:pb-0 ${sidebarCollapsed ? "lg:ml-20" : "lg:ml-72"}`}>
+        <header className="app-header sticky top-0 z-30 border-b border-ink/10 bg-stonewash/86 px-4 py-3 backdrop-blur md:px-8 md:py-4">
           <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <img
+                src={appLogo}
+                onError={(event) => {
+                  event.currentTarget.src = fallbackAppLogo;
+                }}
+                alt="Roca Eterna Música"
+                className="h-11 w-11 shrink-0 rounded-2xl bg-white object-contain p-1 shadow-soft lg:hidden"
+              />
               <Button
                 variant="subtle"
                 className="hidden h-10 w-10 px-0 lg:inline-flex"
@@ -64,22 +75,27 @@ export function AppShell() {
               >
                 {sidebarCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
               </Button>
-              <div>
+              <div className="min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-wide text-ink/45">
                   {settings.churchName || "Roca Eterna"}
                 </p>
-                <h1 className="text-2xl font-bold tracking-normal text-ink">{pageTitle}</h1>
+                <h1 className="truncate text-xl font-bold tracking-normal text-ink md:text-2xl">{pageTitle}</h1>
               </div>
             </div>
-            {useLocal ? (
-              <span className="rounded-full bg-brass/12 px-3 py-1 text-xs font-semibold text-brass">
-                Modo demo
-              </span>
-            ) : null}
+            <div className="flex items-center gap-2">
+              {useLocal ? (
+                <span className="hidden rounded-full bg-brass/12 px-3 py-1 text-xs font-semibold text-brass sm:inline-flex">
+                  Modo demo
+                </span>
+              ) : null}
+              <Button variant="subtle" className="h-10 w-10 px-0" onClick={openGuide} aria-label="Guía de uso">
+                <HelpCircle className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </header>
 
-        <div className="mx-auto max-w-7xl px-4 py-6 md:px-8">
+        <div className="mx-auto max-w-7xl px-4 py-5 md:px-8 md:py-6">
           <AnimatePresence mode="wait">
             <motion.div
               key={location.pathname}

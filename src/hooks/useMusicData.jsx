@@ -194,6 +194,10 @@ export function MusicDataProvider({ children }) {
       return payload;
     }
 
+    if (!storage) {
+      throw new Error("Firebase Storage no está configurado. Usa links de Drive o Ruta PDF local.");
+    }
+
     const storageRef = ref(storage, storagePath);
     await uploadBytes(storageRef, file, { contentType: "application/pdf" });
     const storagePdfUrl = await getDownloadURL(storageRef);

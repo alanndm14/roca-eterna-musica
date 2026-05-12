@@ -12,12 +12,20 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
-export const isFirebaseConfigured = Object.values(firebaseConfig).every(Boolean);
+const requiredFirebaseConfig = {
+  apiKey: firebaseConfig.apiKey,
+  authDomain: firebaseConfig.authDomain,
+  projectId: firebaseConfig.projectId,
+  messagingSenderId: firebaseConfig.messagingSenderId,
+  appId: firebaseConfig.appId
+};
+
+export const isFirebaseConfigured = Object.values(requiredFirebaseConfig).every(Boolean);
 
 export const firebaseApp = isFirebaseConfigured ? initializeApp(firebaseConfig) : null;
 export const auth = firebaseApp ? getAuth(firebaseApp) : null;
 export const db = firebaseApp ? getFirestore(firebaseApp) : null;
-export const storage = firebaseApp ? getStorage(firebaseApp) : null;
+export const storage = firebaseApp && firebaseConfig.storageBucket ? getStorage(firebaseApp) : null;
 export const googleProvider = new GoogleAuthProvider();
 
 if (googleProvider) {

@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { useCallback, useEffect, useState } from "react";
 import { AppShell } from "./components/layout/AppShell";
 import { LoadingScreen } from "./components/ui/LoadingScreen";
+import { OnboardingGuide } from "./components/ui/OnboardingGuide";
 import { WelcomeSplash } from "./components/ui/WelcomeSplash";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
 import { MusicDataProvider, useMusicData } from "./hooks/useMusicData";
@@ -27,22 +28,53 @@ function ProtectedRoute({ children }) {
 }
 
 function DataReady({ children }) {
-  const { profile } = useAuth();
+  const { profile, completeOnboarding } = useAuth();
   const { loading } = useMusicData();
   const [showWelcome, setShowWelcome] = useState(false);
+  const [welcomeReady, setWelcomeReady] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
+  const [guideChecked, setGuideChecked] = useState(false);
 
   useEffect(() => {
     if (loading || !profile?.active) return;
-    if (sessionStorage.getItem("roca-eterna-welcome-shown") === "true") return;
+    if (sessionStorage.getItem("roca-eterna-welcome-shown") === "true") {
+      setWelcomeReady(true);
+      return;
+    }
     sessionStorage.setItem("roca-eterna-welcome-shown", "true");
     setShowWelcome(true);
   }, [loading, profile?.active]);
 
-  const finishWelcome = useCallback(() => setShowWelcome(false), []);
+  useEffect(() => {
+    const openGuide = () => setShowGuide(true);
+    window.addEventListener("roca-eterna-open-guide", openGuide);
+    return () => window.removeEventListener("roca-eterna-open-guide", openGuide);
+  }, []);
+
+  useEffect(() => {
+    if (loading || !profile?.active || !welcomeReady || guideChecked) return;
+    const completed = profile.onboardingCompleted || localStorage.getItem(`roca-eterna-onboarding-${profile.uid}`) === "true";
+    if (!completed) setShowGuide(true);
+    setGuideChecked(true);
+  }, [guideChecked, loading, profile, welcomeReady]);
+
+  const finishWelcome = useCallback(() => {
+    setShowWelcome(false);
+    setWelcomeReady(true);
+  }, []);
+
+  const finishGuide = useCallback(async () => {
+    await completeOnboarding?.();
+  }, [completeOnboarding]);
 
   if (loading) return <LoadingScreen />;
   if (showWelcome) return <WelcomeSplash profile={profile} onDone={finishWelcome} />;
-  return children;
+  return (
+    <>
+      {children}
+      <OnboardingGuide open={showGuide} onClose={() => setShowGuide(false)} onFinish={finishGuide} />
+    </>
+  );
 }
 
 function LoginRoute() {

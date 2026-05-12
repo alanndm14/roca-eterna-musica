@@ -86,7 +86,13 @@ service cloud.firestore {
           || (hasAuthorizedEmailDoc() && request.resource.data.role == authorizedEmailDoc().data.role)
           || (hasLegacyAllowedEmailDoc() && request.resource.data.role == legacyAllowedEmailDoc().data.role)
         );
-      allow update, delete: if isAdmin();
+      allow update: if isAdmin()
+        || (
+          isAuthorized()
+          && request.auth.uid == userId
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["lastLogin", "onboardingCompleted", "onboardingCompletedAt"])
+        );
+      allow delete: if isAdmin();
     }
 
     match /authorizedEmails/{email} {
