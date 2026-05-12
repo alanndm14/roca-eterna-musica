@@ -53,6 +53,9 @@ export function SongDetail() {
   const usage = schedules
     .filter((schedule) => schedule.songs?.some((item) => item.songId === song.id))
     .sort((a, b) => b.date.localeCompare(a.date));
+  const toneSummary = Number(song.capo || 0) > 0
+    ? `Capo ${song.capo} · Suena en ${song.keyWithCapo || song.mainKey || "--"}`
+    : `Sin capo · Tono ${song.mainKey || song.keyWithCapo || "--"}`;
 
   const copyPdf = async () => {
     if (pdfUrl) await navigator.clipboard?.writeText(pdfUrl);
@@ -159,9 +162,8 @@ export function SongDetail() {
             <dl className="mt-4 space-y-2">
               <InfoRow label="Tema principal" value={song.mainTheme} />
               <InfoRow label="Otros temas" value={(song.otherThemes || []).join(", ")} />
-              <InfoRow label="Tono principal" value={song.mainKey} />
-              <InfoRow label="Capo" value={String(song.capo ?? 0)} />
-              <InfoRow label="Tono con capo" value={song.keyWithCapo} />
+              <InfoRow label="Tono" value={toneSummary} />
+              {Number(song.capo || 0) > 0 ? <InfoRow label="Tono base" value={song.mainKey} /> : null}
               <InfoRow label="Cambio de tono" value={song.hasKeyChange ? "Sí" : "No"} />
               <InfoRow label="Formato" value={song.format} />
               <InfoRow label="Ya se ha cantado" value={song.sungBefore ? "Sí" : "No"} />

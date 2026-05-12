@@ -1,6 +1,6 @@
 # Roca Eterna Música
 
-Web app tipo PWA para organizar el ministerio de música de la iglesia Roca Eterna: repertorio, programación, letras, tonos, responsables, ensayos, historial y estadísticas simples.
+Web app tipo PWA para organizar el ministerio de música de la iglesia Roca Eterna: repertorio, programación, PDFs de letra/acordes, tonos, responsables, ensayos, historial y estadísticas.
 
 ## Stack
 
@@ -8,9 +8,10 @@ Web app tipo PWA para organizar el ministerio de música de la iglesia Roca Eter
 - Tailwind CSS
 - Firebase Authentication con Google Sign-In
 - Cloud Firestore
-- Firebase Storage para PDFs subidos a la app
 - Framer Motion
 - lucide-react
+- Recharts
+- pdf-lib para intentar unir PDFs del servicio
 - PWA con manifest y service worker
 - Preparada para GitHub Pages
 
@@ -32,7 +33,7 @@ npm run build
 1. Crea un proyecto en [Firebase Console](https://console.firebase.google.com/).
 2. En Authentication, habilita el proveedor Google.
 3. En Firestore Database, crea una base en modo producción.
-4. Copia `.env.example` como `.env`.
+4. Copia `.env.example` como `.env` si todavía no existe.
 5. Llena las variables `VITE_FIREBASE_*` con la configuración web de tu app Firebase.
 6. En `VITE_INITIAL_ADMIN_EMAILS`, escribe tu correo de Google.
 7. En `firebase2.rules`, confirma que tu correo admin inicial esté en `bootstrapAdminEmails`.
@@ -40,12 +41,6 @@ npm run build
 
 ```bash
 firebase deploy --only firestore:rules
-```
-
-Si vas a subir PDFs a la app y generar PDFs combinados, habilita Firebase Storage y publica también:
-
-```bash
-firebase deploy --only storage
 ```
 
 Las API keys web de Firebase pueden estar en el frontend. La protección real está en Firebase Authentication y Firestore Security Rules. No agregues service accounts ni claves privadas en esta app.
@@ -67,20 +62,15 @@ users/{uid}
 allowedEmails/{email}
 songs/{songId}
 schedules/{scheduleId}
+themes/{themeId}
 settings/main
 ```
 
 `allowedEmails` permite autorizar correos antes de conocer el `uid` de Firebase Auth. Cuando el usuario autorizado inicia sesión, la app crea su perfil en `users/{uid}`.
 
-## Datos de ejemplo
-
-La app incluye 5 cantos y 2 programaciones de ejemplo. En modo demo local aparecen automáticamente. Con Firebase conectado, un admin puede cargarlos desde Configuración con “Cargar datos de ejemplo”.
-
-Los cantos de ejemplo no incluyen letras protegidas por copyright; solo placeholders editables.
-
 ## PDFs de letra y acordes
 
-El flujo recomendado es guardar cada canto como un PDF separado en Google Drive y pegar el link en el campo **PDF de letra y acordes**.
+El flujo recomendado sin plan Blaze es guardar cada canto como un PDF separado en Google Drive y pegar el link en el campo **PDF de letra y acordes**.
 
 Usa un link compartido de Drive como:
 
@@ -96,29 +86,21 @@ https://drive.google.com/file/d/FILE_ID/preview
 
 Ese link permite usar “Ver dentro de la app”. Si Google Drive bloquea la vista previa, usa “Abrir PDF”.
 
-### Subir PDFs a Firebase Storage
+### Intentar unir PDFs del servicio
 
-Para que la app pueda generar un PDF combinado del servicio, sube cada PDF directamente desde el formulario del canto:
+En Vista para músicos, **Intentar unir PDFs del servicio** usa `pdf-lib` e intenta descargar los PDFs en el orden de la programación.
 
-1. Habilita Firebase Storage en Firebase Console.
-2. Verifica que `.env` tenga `VITE_FIREBASE_STORAGE_BUCKET`.
-3. Publica `storage.rules` con `firebase deploy --only storage`.
-4. En Repertorio, edita un canto.
-5. En **Archivos y enlaces**, usa **Subir PDF a la app** y selecciona un `.pdf`.
-6. Guarda el canto.
+La app intenta:
 
-La app guarda internamente `storagePath`, `storagePdfUrl`, `originalFileName`, `uploadedAt` y `uploadedBy`.
+- detectar links de Google Drive;
+- convertirlos a `https://drive.google.com/uc?export=download&id=FILE_ID`;
+- descargar PDFs directos que terminen en `.pdf`;
+- unir los PDFs que sí se pudieron leer;
+- descargar un PDF completo o parcial.
 
-Los usuarios `viewer` pueden leer PDFs. Solo `admin` y `editor` pueden subir, reemplazar o eliminar PDFs.
+Limitación importante: Google Drive puede bloquear descargas desde el navegador por permisos, CORS o pantallas intermedias. Si eso ocurre, la app no se rompe: muestra incluidos/omitidos y permite usar **Ver PDFs del servicio** o abrir los enlaces individualmente.
 
-### PDF combinado del servicio
-
-En Vista para músicos, **Descargar PDFs del servicio** intenta combinar en orden los PDFs subidos a Firebase Storage usando `pdf-lib`.
-
-- Si todos los cantos tienen PDF subido a la app, descarga un PDF completo.
-- Si algunos cantos solo tienen Drive o no tienen PDF, muestra incluidos/omitidos.
-- Si al menos un PDF se pudo incluir, permite descargar un PDF parcial.
-- Los PDFs de Drive no se fusionan por restricciones normales de permisos/CORS.
+Firebase Storage no es requisito para este flujo. Si más adelante activas Storage, la app conserva campos compatibles para PDFs subidos, pero el uso principal actual puede hacerse solo con Drive.
 
 ## Importar repertorio
 
@@ -140,10 +122,10 @@ Notas:
 
 ## Publicar en GitHub Pages
 
-1. Cambia `base` en `vite.config.js`:
+1. Revisa `base` en `vite.config.js`:
 
 ```js
-base: "/nombre-del-repo/"
+base: "/roca-eterna-musica/"
 ```
 
 2. En Firebase Authentication, agrega tu dominio de GitHub Pages a “Authorized domains”.
@@ -157,7 +139,7 @@ La app usa `HashRouter`, por lo que funciona mejor en GitHub Pages sin configura
 
 ## Seguridad recomendada
 
-- Mantén Firestore cerrado con `firestore.rules`.
+- Mantén Firestore cerrado con `firebase2.rules`.
 - No guardes datos sensibles de miembros; esta app solo debe contener información del ministerio de música.
 - Revisa periódicamente la colección `allowedEmails`.
 - Considera habilitar Firebase App Check antes de producción.
@@ -165,8 +147,7 @@ La app usa `HashRouter`, por lo que funciona mejor en GitHub Pages sin configura
 
 ## Pasos posteriores recomendados
 
-- Reemplazar el logo placeholder por el logo oficial si lo tienes.
-- Crear un proyecto Firebase de producción y otro de pruebas.
+- Probar links reales de Drive con “Ver PDFs del servicio” e “Intentar unir PDFs del servicio”.
 - Revisar roles reales del equipo antes de cargar información.
 - Agregar App Check.
 - Importar el repertorio real sin letras con copyright no autorizadas.

@@ -155,34 +155,39 @@ export function MusicianView() {
       </Card>
 
       <Card>
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h3 className="font-bold text-ink">Documentos del servicio</h3>
             <p className="mt-1 text-sm text-ink/55">Hoja resumida del día y vista rápida de PDFs del repertorio.</p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" onClick={viewServiceSheet}>
-              <Eye className="h-4 w-4" />
-              Ver hoja del servicio
-            </Button>
-            {serviceDocument ? (
-              <PDFDownloadLink document={serviceDocument} fileName={getServiceFileName(selectedSchedule)} className={linkButtonClass}>
-                {({ loading }) => (
-                  <>
-                    <Download className="h-4 w-4" />
-                    {loading ? "Preparando..." : "Descargar hoja del servicio"}
-                  </>
-                )}
-              </PDFDownloadLink>
-            ) : null}
-            <Button onClick={() => { setActivePdfIndex(0); setShowServicePdfs(true); }}>
-              <FileStack className="h-4 w-4" />
-              Ver PDFs del servicio
-            </Button>
-            <Button variant="secondary" isLoading={isMerging} onClick={downloadCombinedPdfs}>
-              <Download className="h-4 w-4" />
-              Descargar PDFs del servicio
-            </Button>
+          <div className="flex flex-col items-start gap-2 sm:items-end">
+            <div className="flex flex-wrap gap-2">
+              <Button variant="secondary" onClick={viewServiceSheet}>
+                <Eye className="h-4 w-4" />
+                Ver hoja del servicio
+              </Button>
+              {serviceDocument ? (
+                <PDFDownloadLink document={serviceDocument} fileName={getServiceFileName(selectedSchedule)} className={linkButtonClass}>
+                  {({ loading }) => (
+                    <>
+                      <Download className="h-4 w-4" />
+                      {loading ? "Preparando..." : "Descargar hoja del servicio"}
+                    </>
+                  )}
+                </PDFDownloadLink>
+              ) : null}
+              <Button onClick={() => { setActivePdfIndex(0); setShowServicePdfs(true); }}>
+                <FileStack className="h-4 w-4" />
+                Ver PDFs del servicio
+              </Button>
+              <Button variant="secondary" isLoading={isMerging} onClick={downloadCombinedPdfs}>
+                <Download className="h-4 w-4" />
+                Intentar unir PDFs del servicio
+              </Button>
+            </div>
+            <p className="max-w-2xl text-xs font-medium text-ink/50">
+              Funciona solo si Drive permite descargar los PDFs desde la app. Si falla, usa Ver PDFs del servicio.
+            </p>
           </div>
         </div>
       </Card>
@@ -211,7 +216,7 @@ export function MusicianView() {
                 <p className="mt-1 text-lg font-bold text-ink">
                   {song.capo > 0 ? `Capo ${song.capo} · Suena en ${song.keyWithCapo || song.mainKey || "sin tono"}` : `Sin capo · Tono ${song.mainKey || song.keyWithCapo || "sin tono"}`}
                 </p>
-                <p className="mt-2 text-sm text-ink/55">Principal: {song.mainKey || "--"} · Tono con capo: {song.keyWithCapo || "--"}</p>
+                {song.capo > 0 && song.mainKey ? <p className="mt-2 text-sm text-ink/55">Tono base: {song.mainKey}</p> : null}
               </div>
             </div>
           </Card>
@@ -249,7 +254,7 @@ export function MusicianView() {
           </div>
           <div className="flex gap-2 overflow-x-auto pb-1">
             {serviceSongs.map((song, index) => {
-              const source = getSongPdfSource(song.full);
+              const source = getSongPdfSource({ ...song.full, pdfUrl: song.pdfUrl, pdfPreviewUrl: song.previewUrl });
               return (
                 <button
                   key={`${song.index}-${song.title}-jump`}
@@ -278,16 +283,21 @@ export function MusicianView() {
         </div>
       </Modal>
 
-      <Modal open={Boolean(mergeResult)} title="No se pudo incluir todo" onClose={() => setMergeResult(null)}>
+      <Modal open={Boolean(mergeResult)} title="No se pudieron unir todos los PDFs." onClose={() => setMergeResult(null)}>
         <div className="space-y-4">
           <p className="text-sm leading-6 text-ink/60">
-            Los PDFs combinados solo pueden incluir archivos subidos a Firebase Storage. Los enlaces de Drive se mantienen para verlos o abrirlos, pero no siempre se pueden fusionar desde el navegador.
+            La app intentó descargar y unir los PDFs desde Drive o enlaces directos. Algunos enlaces pueden fallar por permisos, CORS o porque Drive no entrega el archivo PDF directamente.
           </p>
+          {!mergeResult?.included?.length ? (
+            <p className="rounded-2xl bg-brass/12 px-4 py-3 text-sm font-semibold text-brass">
+              No fue posible generar el PDF combinado desde Drive. Puedes usar Ver PDFs del servicio o abrir los enlaces individualmente.
+            </p>
+          ) : null}
           <div className="grid gap-3 md:grid-cols-2">
             <div className="rounded-2xl bg-ink/5 p-4">
               <h3 className="font-bold text-ink">Incluidos</h3>
               <div className="mt-3 space-y-2 text-sm text-ink/60">
-                {mergeResult?.included?.length ? mergeResult.included.map((item) => <p key={item.title}>{item.title}</p>) : <p>Ningún PDF pudo incluirse.</p>}
+                {mergeResult?.included?.length ? mergeResult.included.map((item) => <p key={item.title}>{item.title} · {item.source}</p>) : <p>Ningún PDF pudo incluirse.</p>}
               </div>
             </div>
             <div className="rounded-2xl bg-ink/5 p-4">

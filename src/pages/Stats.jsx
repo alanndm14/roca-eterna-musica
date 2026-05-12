@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { BarChart3, FileCheck2, Music2, Presentation } from "lucide-react";
 import {
   Bar,
@@ -20,9 +20,9 @@ import { SongNameLink, findSongForNavigation } from "../components/ui/SongNameLi
 import { StatCard } from "../components/ui/StatCard";
 import { useMusicData } from "../hooks/useMusicData";
 import { formatDate } from "../services/dateUtils";
-import { collectSongThemes, getSongPdfUrl, normalizeThemeName } from "../services/songUtils";
+import { collectSongThemes, getSongPdfUrl, normalizeThemeName, stripAccents } from "../services/songUtils";
 
-const chartColors = ["#b6945f", "#60717d", "#8e989f", "#d7c7a7", "#242424", "#b8b0a4"];
+const chartColors = ["#b6945f", "#60717d", "#8e989f", "#d7c7a7", "#6e6251", "#b8b0a4"];
 const reviewColors = { pendiente: "#8e989f", "en revisión": "#d7c7a7", completado: "#b6945f" };
 const percent = (count, total) => (total ? Math.round((count / total) * 100) : 0);
 
@@ -47,6 +47,41 @@ const topWithOthers = (data, limit = 10) => {
   return rest ? [...top, { name: "Otros", value: rest }] : top;
 };
 
+const normalizeReviewValue = (value) => {
+  const normalized = stripAccents(value || "pendiente").trim().toLowerCase();
+  if (["revision", "en revision", "revisando"].includes(normalized)) return "en revisión";
+  if (["completo", "completado", "done", "listo", "terminado"].includes(normalized)) return "completado";
+  return "pendiente";
+};
+
+function useChartTheme() {
+  const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains("dark"));
+
+  useEffect(() => {
+    const update = () => setIsDark(document.documentElement.classList.contains("dark"));
+    update();
+    const observer = new MutationObserver(update);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, []);
+
+  return isDark
+    ? {
+        axis: "#d6d3ca",
+        muted: "rgba(245, 242, 235, 0.16)",
+        tooltipBg: "#242424",
+        tooltipText: "#f5f2eb",
+        tooltipBorder: "rgba(245, 242, 235, 0.18)"
+      }
+    : {
+        axis: "#4b4b4b",
+        muted: "rgba(142, 152, 159, 0.25)",
+        tooltipBg: "#ffffff",
+        tooltipText: "#171717",
+        tooltipBorder: "rgba(142, 152, 159, 0.28)"
+      };
+}
+
 function ChartCard({ title, children, aside }) {
   return (
     <Card>
@@ -59,23 +94,37 @@ function ChartCard({ title, children, aside }) {
   );
 }
 
-function BarGraph({ data, horizontal = false }) {
+function chartTooltip(theme) {
+  return {
+    contentStyle: {
+      borderRadius: 12,
+      border: `1px solid ${theme.tooltipBorder}`,
+      background: theme.tooltipBg,
+      color: theme.tooltipText,
+      boxShadow: "0 20px 50px rgba(0,0,0,.18)"
+    },
+    labelStyle: { color: theme.tooltipText, fontWeight: 700 },
+    itemStyle: { color: theme.tooltipText }
+  };
+}
+
+function BarGraph({ data, horizontal = false, theme }) {
   return (
     <ResponsiveContainer width="100%" height="100%">
       <BarChart data={data} layout={horizontal ? "vertical" : "horizontal"} margin={horizontal ? { left: 42, right: 12, top: 8, bottom: 8 } : { left: 0, right: 12, top: 8, bottom: 8 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="rgba(142,152,159,0.22)" />
+        <CartesianGrid strokeDasharray="3 3" stroke={theme.muted} />
         {horizontal ? (
           <>
-            <XAxis type="number" allowDecimals={false} tick={{ fontSize: 12, fill: "currentColor" }} />
-            <YAxis type="category" dataKey="name" width={118} tick={{ fontSize: 12, fill: "currentColor" }} />
+            <XAxis type="number" allowDecimals={false} tick={{ fontSize: 12, fill: theme.axis }} axisLine={{ stroke: theme.muted }} tickLine={{ stroke: theme.muted }} />
+            <YAxis type="category" dataKey="name" width={118} tick={{ fontSize: 12, fill: theme.axis }} axisLine={{ stroke: theme.muted }} tickLine={{ stroke: theme.muted }} />
           </>
         ) : (
           <>
-            <XAxis dataKey="name" tick={{ fontSize: 12, fill: "currentColor" }} />
-            <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "currentColor" }} />
+            <XAxis dataKey="name" tick={{ fontSize: 12, fill: theme.axis }} axisLine={{ stroke: theme.muted }} tickLine={{ stroke: theme.muted }} />
+            <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: theme.axis }} axisLine={{ stroke: theme.muted }} tickLine={{ stroke: theme.muted }} />
           </>
         )}
-        <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid rgba(142,152,159,.25)", color: "#171717" }} />
+        <Tooltip {...chartTooltip(theme)} />
         <Bar dataKey="value" radius={horizontal ? [0, 8, 8, 0] : [8, 8, 0, 0]}>
           {data.map((_, index) => <Cell key={index} fill={chartColors[index % chartColors.length]} />)}
         </Bar>
@@ -84,29 +133,29 @@ function BarGraph({ data, horizontal = false }) {
   );
 }
 
-function PieGraph({ data }) {
+function PieGraph({ data, theme }) {
   return (
     <ResponsiveContainer width="100%" height="100%">
       <PieChart>
         <Pie data={data} dataKey="value" nameKey="name" innerRadius={58} outerRadius={96} paddingAngle={3}>
           {data.map((_, index) => <Cell key={index} fill={chartColors[index % chartColors.length]} />)}
         </Pie>
-        <Tooltip contentStyle={{ color: "#171717" }} />
-        <Legend />
+        <Tooltip {...chartTooltip(theme)} />
+        <Legend wrapperStyle={{ color: theme.axis }} />
       </PieChart>
     </ResponsiveContainer>
   );
 }
 
-function ReviewGraph({ data }) {
+function ReviewGraph({ data, theme }) {
   return (
     <ResponsiveContainer width="100%" height="100%">
       <BarChart data={data}>
-        <CartesianGrid strokeDasharray="3 3" stroke="rgba(142,152,159,0.22)" />
-        <XAxis dataKey="name" tick={{ fontSize: 12, fill: "currentColor" }} />
-        <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "currentColor" }} />
-        <Tooltip contentStyle={{ color: "#171717" }} />
-        <Legend />
+        <CartesianGrid strokeDasharray="3 3" stroke={theme.muted} />
+        <XAxis dataKey="name" tick={{ fontSize: 12, fill: theme.axis }} axisLine={{ stroke: theme.muted }} tickLine={{ stroke: theme.muted }} />
+        <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: theme.axis }} axisLine={{ stroke: theme.muted }} tickLine={{ stroke: theme.muted }} />
+        <Tooltip {...chartTooltip(theme)} />
+        <Legend wrapperStyle={{ color: theme.axis }} />
         <Bar dataKey="pendiente" stackId="estado" fill={reviewColors.pendiente} radius={[8, 8, 0, 0]} />
         <Bar dataKey="en revisión" stackId="estado" fill={reviewColors["en revisión"]} />
         <Bar dataKey="completado" stackId="estado" fill={reviewColors.completado} />
@@ -117,8 +166,8 @@ function ReviewGraph({ data }) {
 
 function SongTable({ rows, songs, columns }) {
   return (
-    <div className="overflow-auto rounded-2xl border border-ink/10">
-      <table className="min-w-[860px] w-full text-left text-sm">
+    <div className="overflow-auto rounded-2xl border border-ink/10 bg-white">
+      <table className="w-full min-w-[860px] text-left text-sm">
         <thead className="bg-ink/5 text-xs uppercase tracking-wide text-ink/55">
           <tr>{columns.map((column) => <th key={column.key} className="p-3">{column.label}</th>)}</tr>
         </thead>
@@ -142,6 +191,7 @@ function SongTable({ rows, songs, columns }) {
 
 export function Stats() {
   const { songs, schedules, themes } = useMusicData();
+  const chartTheme = useChartTheme();
   const [view, setView] = useState("musicians");
   const [keyMode, setKeyMode] = useState("main");
   const [categoryFilter, setCategoryFilter] = useState("");
@@ -165,9 +215,9 @@ export function Stats() {
       ["Musical", "musicReviewStatus"]
     ].map(([name, field]) => ({
       name,
-      pendiente: filteredSongs.filter((song) => (song[field] || "pendiente") === "pendiente").length,
-      "en revisión": filteredSongs.filter((song) => song[field] === "en revisión").length,
-      completado: filteredSongs.filter((song) => song[field] === "completado").length
+      pendiente: filteredSongs.filter((song) => normalizeReviewValue(song[field]) === "pendiente").length,
+      "en revisión": filteredSongs.filter((song) => normalizeReviewValue(song[field]) === "en revisión").length,
+      completado: filteredSongs.filter((song) => normalizeReviewValue(song[field]) === "completado").length
     }))
   ), [filteredSongs]);
 
@@ -182,9 +232,9 @@ export function Stats() {
     .slice(0, 12);
   const rotationSuggestions = filteredSongs
     .filter((song) =>
-      song.pdfReviewStatus === "completado"
-      && song.keynoteReviewStatus === "completado"
-      && song.musicReviewStatus === "completado"
+      normalizeReviewValue(song.pdfReviewStatus) === "completado"
+      && normalizeReviewValue(song.keynoteReviewStatus) === "completado"
+      && normalizeReviewValue(song.musicReviewStatus) === "completado"
       && song.sungBefore
       && (!song.lastUsedAt || (song.usageCount || 0) <= 1)
     )
@@ -199,8 +249,8 @@ export function Stats() {
   );
   const total = filteredSongs.length;
   const pdfReady = filteredSongs.filter((song) => getSongPdfUrl(song)).length;
-  const keynoteDone = filteredSongs.filter((song) => song.keynoteReviewStatus === "completado").length;
-  const musicDone = filteredSongs.filter((song) => song.musicReviewStatus === "completado").length;
+  const keynoteDone = filteredSongs.filter((song) => normalizeReviewValue(song.keynoteReviewStatus) === "completado").length;
+  const musicDone = filteredSongs.filter((song) => normalizeReviewValue(song.musicReviewStatus) === "completado").length;
   const noCapo = filteredSongs.filter((song) => Number(song.capo || 0) === 0).length;
 
   const leastUsedColumns = [
@@ -263,11 +313,11 @@ export function Stats() {
                 </div>
               }
             >
-              <BarGraph data={byKey} />
+              <BarGraph data={byKey} theme={chartTheme} />
             </ChartCard>
-            <ChartCard title="Cantos por capo"><BarGraph data={byCapo} /></ChartCard>
-            <ChartCard title="Estados de revisión"><ReviewGraph data={reviewData} /></ChartCard>
-            <ChartCard title="PDFs disponibles"><PieGraph data={[{ name: "Con PDF", value: pdfReady }, { name: "Sin PDF", value: total - pdfReady }]} /></ChartCard>
+            <ChartCard title="Cantos por capo"><BarGraph data={byCapo} theme={chartTheme} /></ChartCard>
+            <ChartCard title="Estados de revisión"><ReviewGraph data={reviewData} theme={chartTheme} /></ChartCard>
+            <ChartCard title="PDFs disponibles"><PieGraph data={[{ name: "Con PDF", value: pdfReady }, { name: "Sin PDF", value: total - pdfReady }]} theme={chartTheme} /></ChartCard>
           </div>
           <Card>
             <h2 className="text-lg font-bold text-ink">Cantos con cambio de tono</h2>
@@ -311,13 +361,13 @@ export function Stats() {
               </div>
             </Card>
             <ChartCard title="Rotación por tema en programaciones">
-              <BarGraph data={topWithOthers(programmedThemes, 10)} horizontal />
+              <BarGraph data={topWithOthers(programmedThemes, 10)} horizontal theme={chartTheme} />
             </ChartCard>
             <ChartCard title="Repertorio por categoría">
-              <PieGraph data={byCategory} />
+              <PieGraph data={byCategory} theme={chartTheme} />
             </ChartCard>
             <ChartCard title="Cantos por tema del repertorio">
-              <BarGraph data={byTheme} horizontal />
+              <BarGraph data={byTheme} horizontal theme={chartTheme} />
             </ChartCard>
           </div>
           <Card>

@@ -197,6 +197,7 @@ function MonthCalendar({ schedules, selectedDate, onSelectDate }) {
     acc[schedule.date].push(schedule);
     return acc;
   }, {});
+  const today = todayString();
 
   return (
     <Card>
@@ -216,14 +217,23 @@ function MonthCalendar({ schedules, selectedDate, onSelectDate }) {
           const count = byDate[dateString]?.length || 0;
           const isCurrentMonth = day.getMonth() === month;
           const isSelected = selectedDate === dateString;
+          const isToday = dateString === today && isCurrentMonth;
+          const stateClasses = isSelected
+            ? `border-brass bg-brass/10 ${isToday ? "ring-2 ring-brass/35" : ""}`
+            : isToday
+              ? "border-brass/70 bg-brass/5 hover:border-brass"
+              : "border-ink/10 bg-white hover:border-brass/40";
           return (
             <button
               key={dateString}
               type="button"
               onClick={() => onSelectDate(dateString)}
-              className={`min-h-20 rounded-2xl border p-2 text-left transition ${isSelected ? "border-brass bg-brass/10" : "border-ink/10 bg-white hover:border-brass/40"} ${isCurrentMonth ? "text-ink" : "text-ink/30"}`}
+              className={`min-h-20 rounded-2xl border p-2 text-left transition ${stateClasses} ${isCurrentMonth ? "text-ink" : "text-ink/30"}`}
             >
-              <span className="text-sm font-bold">{day.getDate()}</span>
+              <span className="flex items-center justify-between gap-1">
+                <span className="text-sm font-bold">{day.getDate()}</span>
+                {isToday ? <span className="rounded-full bg-brass/15 px-2 py-0.5 text-[10px] font-bold text-brass">Hoy</span> : null}
+              </span>
               {count ? <span className="mt-2 block rounded-full bg-ink px-2 py-1 text-center text-[11px] font-bold text-white">{count} prog.</span> : null}
             </button>
           );

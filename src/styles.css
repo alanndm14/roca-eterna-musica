@@ -110,6 +110,15 @@ textarea {
   box-shadow: 0 18px 60px rgba(0, 0, 0, 0.32);
 }
 
+.dark .recharts-legend-item-text,
+.dark .recharts-default-legend {
+  color: rgb(245 242 235 / 0.72) !important;
+}
+
+.dark .recharts-text {
+  fill: rgb(245 242 235 / 0.68);
+}
+
 .musician-focus .app-sidebar,
 .musician-focus .app-header,
 .musician-focus .mobile-bottom-nav {

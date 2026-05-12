@@ -165,15 +165,17 @@ export function buildServiceSongs(schedule, songs, keyPreference = "sharps") {
 }
 
 function ServiceSong({ song }) {
+  const toneText = song.capo > 0
+    ? `Capo ${song.capo} · Suena en ${song.keyWithCapo || song.mainKey || "--"}${song.mainKey ? ` · Tono base: ${song.mainKey}` : ""}`
+    : `Sin capo · Tono ${song.mainKey || song.keyWithCapo || "--"}`;
+
   return (
     <View style={styles.song} wrap={false}>
       <View style={styles.songTitleRow}>
         <Text style={styles.songTitle}>{song.index}. {song.title}</Text>
         {song.hasKeyChange ? <Text style={styles.badge}>Cambio de tono</Text> : null}
       </View>
-      <Text style={styles.details}>
-        Tono principal: {song.mainKey || "--"} · Capo: {song.capo || 0} · Tono con capo: {song.keyWithCapo || "--"}
-      </Text>
+      <Text style={styles.details}>{toneText}</Text>
       {song.notes ? <Text style={styles.notes}>Notas: {song.notes}</Text> : null}
       <View style={styles.links}>
         {song.pdfUrl ? <Link src={song.pdfUrl} style={styles.link}>PDF de letra y acordes</Link> : <Text>Sin PDF registrado</Text>}
