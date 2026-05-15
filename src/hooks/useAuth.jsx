@@ -135,7 +135,18 @@ export function AuthProvider({ children }) {
       );
       return;
     }
-    await signInWithPopup(auth, googleProvider);
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (signInError) {
+      const code = signInError?.code || "";
+      if (code === "auth/popup-blocked") {
+        setError("El navegador bloqueó la ventana de Google. Permite ventanas emergentes para iniciar sesión.");
+      } else if (code === "auth/popup-closed-by-user") {
+        setError("Se cerró la ventana de Google antes de completar el inicio de sesión.");
+      } else {
+        setError("No se pudo iniciar sesión con Google. Intenta de nuevo.");
+      }
+    }
   };
 
   const enterDemoMode = () => {
