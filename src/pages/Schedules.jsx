@@ -40,8 +40,24 @@ function ScheduleForm({ initialSchedule, songs, onSubmit, onCancel }) {
     serviceLabel: initialSchedule?.serviceLabel || initialService.label,
     time: initialSchedule?.time || initialService.time
   });
+  const [songSearch, setSongSearch] = useState("");
   const service = getService(schedule.serviceType);
   const wrongDay = schedule.date && service.weekday !== null && dateWeekday(schedule.date) !== service.weekday;
+  const selectedSongIds = new Set((schedule.songs || []).map((song) => song.songId).filter(Boolean));
+  const songResults = useMemo(() => {
+    const term = songSearch.trim().toLowerCase();
+    if (!term) return songs.slice(0, 10);
+    return songs.filter((song) => [
+      song.title,
+      song.artistOrSource,
+      song.category,
+      song.mainTheme,
+      ...(song.otherThemes || []),
+      song.mainKey,
+      song.keyWithCapo,
+      song.internalNotes
+    ].join(" ").toLowerCase().includes(term)).slice(0, 12);
+  }, [songSearch, songs]);
 
   const update = (field, value) => setSchedule((current) => ({ ...current, [field]: value }));
 
@@ -59,6 +75,7 @@ function ScheduleForm({ initialSchedule, songs, onSubmit, onCancel }) {
   const addSong = (songId) => {
     const song = songs.find((item) => item.id === songId);
     if (!song) return;
+    if ((schedule.songs || []).some((item) => item.songId === song.id)) return;
     update("songs", [
       ...(schedule.songs || []),
       {
@@ -69,6 +86,7 @@ function ScheduleForm({ initialSchedule, songs, onSubmit, onCancel }) {
         notes: ""
       }
     ]);
+    setSongSearch("");
   };
 
   const updateSong = (index, field, value) => {
@@ -121,7 +139,7 @@ function ScheduleForm({ initialSchedule, songs, onSubmit, onCancel }) {
             <Field label={schedule.serviceType === "especial" ? "Hora manual" : "Hora automática"}>
               <Input type="time" value={schedule.time || ""} disabled={schedule.serviceType !== "especial"} onChange={(event) => update("time", event.target.value)} />
             </Field>
-            <Field label="Responsable / director">
+            <Field label="Lider de adoracion">
               <Input value={schedule.leader} onChange={(event) => update("leader", event.target.value)} />
             </Field>
             <Field label="Estado">
@@ -142,13 +160,32 @@ function ScheduleForm({ initialSchedule, songs, onSubmit, onCancel }) {
         <section className="rounded-2xl border border-ink/10 bg-white p-4">
           <h3 className="mb-4 text-sm font-bold uppercase tracking-wide text-ink/55">Cantos</h3>
           <Field label="Agregar canto">
-            <Select value="" onChange={(event) => addSong(event.target.value)}>
-              <option value="">Seleccionar del repertorio</option>
-              {songs.map((song) => (
-                <option key={song.id} value={song.id}>{song.title} - {song.keyWithCapo || song.mainKey || "Sin tono"}</option>
-              ))}
-            </Select>
+            <Input value={songSearch} onChange={(event) => setSongSearch(event.target.value)} placeholder="Buscar por nombre, tema, categoria, tono o comentario" />
           </Field>
+          <div className="mt-3 max-h-64 overflow-auto rounded-2xl border border-ink/10 bg-stonewash">
+            {songResults.map((song) => {
+              const alreadyAdded = selectedSongIds.has(song.id);
+              const capoText = Number(song.capo || 0) > 0
+                ? `Capo ${song.capo} · Suena en ${song.keyWithCapo || song.mainKey || "--"}`
+                : `Sin capo · Tono ${song.mainKey || "--"}`;
+              return (
+                <button
+                  key={song.id}
+                  type="button"
+                  disabled={alreadyAdded}
+                  onClick={() => addSong(song.id)}
+                  className="flex w-full items-center justify-between gap-3 border-b border-ink/10 p-3 text-left last:border-b-0 disabled:cursor-not-allowed disabled:opacity-55"
+                >
+                  <span>
+                    <span className="block font-semibold text-ink">{song.title}</span>
+                    <span className="text-xs text-ink/55">{song.mainTheme || "Sin tema"} · {capoText}</span>
+                  </span>
+                  <span className="rounded-full bg-ink/7 px-3 py-1 text-xs font-bold text-ink/55">{alreadyAdded ? "Ya agregado" : "Agregar"}</span>
+                </button>
+              );
+            })}
+            {!songResults.length ? <p className="p-3 text-sm text-ink/55">No se encontraron cantos.</p> : null}
+          </div>
 
           <div className="mt-4 space-y-3">
             {(schedule.songs || []).map((song, index) => (
@@ -253,7 +290,7 @@ function ScheduleCard({ schedule, songs, canEdit, canDelete, onEdit, onDuplicate
             <span className="rounded-full bg-brass/12 px-3 py-1 text-xs font-bold text-brass">{schedule.serviceLabel || schedule.type}</span>
             <span className="rounded-full bg-ink/7 px-3 py-1 text-xs font-bold text-ink/55">{schedule.status || "borrador"}</span>
           </div>
-          <p className="mt-1 text-sm text-ink/55">{schedule.time || "Sin hora"} · {schedule.leader || "Sin responsable"}</p>
+          <p className="mt-1 text-sm text-ink/55">{schedule.time || "Sin hora"} · {schedule.leader || "Sin lider de adoracion"}</p>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-ink/62">{schedule.generalNotes || "Sin notas generales."}</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -348,7 +385,7 @@ export function Schedules() {
             <p className="mt-1 text-sm text-ink/55">Calendario, listas y servicios de la iglesia.</p>
           </div>
           {canEdit ? (
-            <Button onClick={openNewSchedule}>
+            <Button onClick={openNewSchedule} data-tour="schedule-new">
               <Plus className="h-4 w-4" />
               {tab === "calendar" ? "Nueva programación para este día" : "Nueva programación"}
             </Button>
@@ -366,7 +403,7 @@ export function Schedules() {
         </div>
         <div className="relative mt-4">
           <Search className="absolute left-3 top-3 h-4 w-4 text-ink/35" />
-          <Input className="pl-9" placeholder="Buscar por fecha, servicio, canto o responsable" value={query} onChange={(event) => setQuery(event.target.value)} />
+          <Input className="pl-9" placeholder="Buscar por fecha, servicio, canto o lider de adoracion" value={query} onChange={(event) => setQuery(event.target.value)} />
         </div>
       </Card>
 
@@ -382,7 +419,7 @@ export function Schedules() {
               {visibleSchedules.length ? visibleSchedules.map((schedule) => (
                 <div key={schedule.id} className="rounded-2xl bg-ink/5 p-3">
                   <p className="font-semibold text-ink">{schedule.serviceLabel || schedule.type}</p>
-                  <p className="text-sm text-ink/55">{schedule.time} · {schedule.leader || "Sin responsable"}</p>
+                  <p className="text-sm text-ink/55">{schedule.time} · {schedule.leader || "Sin lider de adoracion"}</p>
                   <div className="mt-3 space-y-1">
                     {(schedule.songs || []).map((song, index) => (
                       <p key={`${song.songId || song.titleSnapshot}-${index}`} className="text-sm font-semibold text-ink/70">

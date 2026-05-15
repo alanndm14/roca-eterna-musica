@@ -7,6 +7,8 @@ import { WelcomeSplash } from "./components/ui/WelcomeSplash";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
 import { MusicDataProvider, useMusicData } from "./hooks/useMusicData";
 import { Dashboard } from "./pages/Dashboard";
+import { AuditLogs } from "./pages/AuditLogs";
+import { Changelog } from "./pages/Changelog";
 import { History } from "./pages/History";
 import { Login } from "./pages/Login";
 import { MusicianView } from "./pages/MusicianView";
@@ -107,6 +109,8 @@ export default function App() {
           <Route path="historial" element={<History />} />
           <Route path="estadisticas" element={<Stats />} />
           <Route path="configuracion" element={<Settings />} />
+          <Route path="auditoria" element={<AuditLogs />} />
+          <Route path="actualizaciones" element={<Changelog />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

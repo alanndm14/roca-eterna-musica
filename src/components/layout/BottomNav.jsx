@@ -32,6 +32,7 @@ export function BottomNav() {
                 <NavLink
                   key={item.path}
                   to={item.path}
+                  data-tour={item.tourId}
                   onClick={() => setOpen(false)}
                   className={({ isActive }) =>
                     `flex min-h-12 items-center gap-3 rounded-2xl px-4 text-sm font-semibold transition ${isActive ? "bg-ink text-white" : "bg-ink/5 text-ink"}`
@@ -60,6 +61,7 @@ export function BottomNav() {
               key={item.path}
               to={item.path}
               end={item.path === "/"}
+              data-tour={item.tourId}
               className={({ isActive }) =>
                 `flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl text-[11px] font-semibold transition ${
                   isActive ? "bg-ink text-white" : "text-ink/55"

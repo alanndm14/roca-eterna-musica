@@ -89,9 +89,24 @@ export function resolvePublicPdfPath(path = "") {
   if (!value) return "";
   if (/^https?:\/\//i.test(value)) return value;
   const base = import.meta.env.BASE_URL || "/";
-  const cleanBase = base.endsWith("/") ? base : `${base}/`;
-  const cleanPath = value.startsWith("/") ? value.slice(1) : value;
-  return `${cleanBase}${cleanPath}`;
+  const cleanBase = base === "/" ? "/" : `/${base.replace(/^\/+|\/+$/g, "")}/`;
+  let cleanPath = value.replace(/\\/g, "/").replace(/^\/+/, "");
+  const baseWithoutSlash = cleanBase.replace(/^\/+|\/+$/g, "");
+
+  if (baseWithoutSlash && cleanPath === baseWithoutSlash) return cleanBase;
+  if (baseWithoutSlash && cleanPath.startsWith(`${baseWithoutSlash}/`)) {
+    cleanPath = cleanPath.slice(baseWithoutSlash.length + 1);
+  }
+
+  return `${cleanBase}${cleanPath}`.replace(/\/{2,}/g, "/");
+}
+
+export function resolvePublicAssetPath(path = "") {
+  return resolvePublicPdfPath(path);
+}
+
+export function getInstitutionalLogo(settings = {}, fallback = "") {
+  return settings.logoUrl || resolvePublicAssetPath(settings.logoLocalPath || "") || fallback;
 }
 
 export function getSongPdfUrl(song) {

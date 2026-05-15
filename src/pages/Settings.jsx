@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { Database, HelpCircle, LogOut, Palette, Save, Tags, Upload, UserPlus } from "lucide-react";
+import { Database, FileSearch, HelpCircle, Image as ImageIcon, LogOut, Palette, Save, Tags, Trash2, Upload, UserPlus } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { Field, Input, Select, Textarea } from "../components/ui/Field";
 import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
 import { analyzeImport, parseSongsTable } from "../services/importSongs";
-import { canonicalThemeKey, collectSongThemes, normalizeThemeName } from "../services/songUtils";
+import { canonicalThemeKey, collectSongThemes, getInstitutionalLogo, normalizeThemeName, resolvePublicAssetPath } from "../services/songUtils";
+import { appLogo, fallbackAppLogo } from "../assets/logo";
 
 const defaultColors = {
   accentColor: "#b6945f",
@@ -20,7 +21,7 @@ const formatAccessDate = (value) => {
 };
 
 export function Settings() {
-  const { profile, isAdmin, signOut } = useAuth();
+  const { profile, displayName, isAdmin, signOut, saveUserPreferences } = useAuth();
   const {
     settings,
     songs,
@@ -32,9 +33,17 @@ export function Settings() {
     saveTheme,
     mergeTheme,
     importSongs,
+    removeUserAccess,
+    indexLocalPdfTexts,
     seedExampleData
   } = useMusicData();
   const [localSettings, setLocalSettings] = useState(settings);
+  const [personalSettings, setPersonalSettings] = useState({
+    preferredDisplayName: profile?.preferredDisplayName || "",
+    themeMode: profile?.themeMode || localStorage.getItem("roca-eterna-theme-mode") || "system",
+    accentColor: profile?.accentColor || localStorage.getItem("roca-eterna-accent-color") || defaultColors.accentColor,
+    blueGrayColor: profile?.blueGrayColor || defaultColors.blueGrayColor
+  });
   const [newUser, setNewUser] = useState({ email: "", displayName: "", role: "viewer", active: true });
   const [newTheme, setNewTheme] = useState("");
   const [themeQuery, setThemeQuery] = useState("");
@@ -44,6 +53,8 @@ export function Settings() {
   const [fileName, setFileName] = useState("");
   const [importMode, setImportMode] = useState("skip");
   const [importResult, setImportResult] = useState(null);
+  const [pdfIndexResult, setPdfIndexResult] = useState(null);
+  const [logoTest, setLogoTest] = useState("");
   const parsedImport = useMemo(() => parseSongsTable(importText, localSettings.keyPreference || "sharps"), [importText, localSettings.keyPreference]);
   const importSummary = useMemo(() => analyzeImport(parsedImport.songs, songs), [parsedImport.songs, songs]);
 
@@ -92,9 +103,24 @@ export function Settings() {
     setLocalSettings(settings);
   }, [settings]);
 
+  useEffect(() => {
+    setPersonalSettings({
+      preferredDisplayName: profile?.preferredDisplayName || "",
+      themeMode: profile?.themeMode || localStorage.getItem("roca-eterna-theme-mode") || "system",
+      accentColor: profile?.accentColor || localStorage.getItem("roca-eterna-accent-color") || defaultColors.accentColor,
+      blueGrayColor: profile?.blueGrayColor || defaultColors.blueGrayColor
+    });
+  }, [profile]);
+
   const updateSettings = (field, value) => {
     setLocalSettings((current) => ({ ...current, [field]: value }));
   };
+
+  const updatePersonal = (field, value) => {
+    setPersonalSettings((current) => ({ ...current, [field]: value }));
+  };
+
+  const previewLogo = getInstitutionalLogo(localSettings, appLogo);
 
   const handleFile = async (file) => {
     if (!file) return;
@@ -117,6 +143,20 @@ export function Settings() {
     await saveUser(user);
   };
 
+  const deleteAccessUser = async (user) => {
+    const isSelf = user.email?.toLowerCase() === profile?.email?.toLowerCase();
+    if (isSelf) {
+      alert("No puedes eliminar tu propio acceso.");
+      return;
+    }
+    if (user.role === "admin" && activeAdmins <= 1) {
+      alert("Debe quedar al menos un administrador activo.");
+      return;
+    }
+    if (!confirm("Esta persona perdera el acceso a la app. Esta accion quedara registrada.")) return;
+    await removeUserAccess(user);
+  };
+
   const statusForUser = (user) => {
     if (user.active === false) return "inactivo";
     return users.some((item) => item.email === user.email) ? "activo" : "pendiente de iniciar sesión";
@@ -128,7 +168,40 @@ export function Settings() {
         <Card>
           <div className="flex items-center gap-3">
             <Palette className="h-5 w-5 text-brass" />
-            <h2 className="text-xl font-bold text-ink">Preferencias visuales</h2>
+            <h2 className="text-xl font-bold text-ink">Mis preferencias</h2>
+          </div>
+          <div className="mt-5 grid gap-4 md:grid-cols-2">
+            <Field label="Nombre para mostrar">
+              <Input value={personalSettings.preferredDisplayName || ""} placeholder={profile?.displayName || profile?.email || ""} onChange={(event) => updatePersonal("preferredDisplayName", event.target.value)} />
+            </Field>
+            <Field label="Modo">
+              <Select value={personalSettings.themeMode || "system"} onChange={(event) => updatePersonal("themeMode", event.target.value)}>
+                <option value="light">Claro</option>
+                <option value="dark">Oscuro</option>
+                <option value="system">Sistema</option>
+              </Select>
+            </Field>
+            <Field label="Acento personal">
+              <Input type="color" value={personalSettings.accentColor || defaultColors.accentColor} onChange={(event) => updatePersonal("accentColor", event.target.value)} />
+            </Field>
+            <Field label="Acento secundario personal">
+              <Input type="color" value={personalSettings.blueGrayColor || defaultColors.blueGrayColor} onChange={(event) => updatePersonal("blueGrayColor", event.target.value)} />
+            </Field>
+          </div>
+          <div className="mt-5 flex flex-wrap gap-3">
+            <Button onClick={() => saveUserPreferences(personalSettings)}><Save className="h-4 w-4" />Guardar mis preferencias</Button>
+            <Button variant="secondary" onClick={() => {
+              const next = { ...personalSettings, accentColor: defaultColors.accentColor, blueGrayColor: defaultColors.blueGrayColor };
+              setPersonalSettings(next);
+              saveUserPreferences(next);
+            }}>Restaurar colores por defecto</Button>
+          </div>
+        </Card>
+
+        <Card>
+          <div className="flex items-center gap-3">
+            <ImageIcon className="h-5 w-5 text-brass" />
+            <h2 className="text-xl font-bold text-ink">Configuracion institucional</h2>
           </div>
           <div className="mt-5 grid gap-4 md:grid-cols-2">
             <Field label="Nombre de la iglesia">
@@ -140,18 +213,11 @@ export function Settings() {
             <Field label="Logo URL">
               <Input value={localSettings.logoUrl || ""} disabled={!isAdmin} placeholder="Opcional" onChange={(event) => updateSettings("logoUrl", event.target.value)} />
             </Field>
-            <Field label="Modo">
-              <Select value={localSettings.themeMode || "light"} disabled={!isAdmin} onChange={(event) => updateSettings("themeMode", event.target.value)}>
-                <option value="light">Claro</option>
-                <option value="dark">Oscuro</option>
-                <option value="system">Sistema</option>
-              </Select>
+            <Field label="Ruta local del logo">
+              <Input value={localSettings.logoLocalPath || ""} disabled={!isAdmin} placeholder="/logos/logo-oficial.png" onChange={(event) => updateSettings("logoLocalPath", event.target.value)} />
             </Field>
-            <Field label="Acento principal">
-              <Input type="color" value={localSettings.accentColor || defaultColors.accentColor} disabled={!isAdmin} onChange={(event) => updateSettings("accentColor", event.target.value)} />
-            </Field>
-            <Field label="Acento secundario">
-              <Input type="color" value={localSettings.blueGrayColor || defaultColors.blueGrayColor} disabled={!isAdmin} onChange={(event) => updateSettings("blueGrayColor", event.target.value)} />
+            <Field label="Texto alternativo del logo">
+              <Input value={localSettings.logoAltText || ""} disabled={!isAdmin} placeholder="Roca Eterna Musica" onChange={(event) => updateSettings("logoAltText", event.target.value)} />
             </Field>
             <Field label="Preferencia de tonalidad">
               <Select value={localSettings.keyPreference || "sharps"} disabled={!isAdmin} onChange={(event) => updateSettings("keyPreference", event.target.value)}>
@@ -160,10 +226,26 @@ export function Settings() {
               </Select>
             </Field>
           </div>
+          <div className="mt-5 rounded-2xl border border-ink/10 bg-ink/5 p-4">
+            <p className="text-sm font-semibold text-ink">Vista previa del logo</p>
+            <img
+              src={previewLogo}
+              onError={(event) => {
+                event.currentTarget.src = fallbackAppLogo;
+              }}
+              alt={localSettings.logoAltText || "Roca Eterna Musica"}
+              className="mt-3 h-20 w-40 object-contain"
+            />
+            {logoTest ? <p className="mt-2 text-sm text-ink/60">{logoTest}</p> : null}
+          </div>
           {isAdmin ? (
             <div className="mt-5 flex flex-wrap gap-3">
               <Button onClick={() => saveSettings(localSettings)}><Save className="h-4 w-4" />Guardar ajustes</Button>
-              <Button variant="secondary" onClick={() => setLocalSettings((current) => ({ ...current, ...defaultColors }))}>Restaurar colores por defecto</Button>
+              <Button variant="secondary" onClick={() => {
+                const testPath = localSettings.logoUrl || resolvePublicAssetPath(localSettings.logoLocalPath || "");
+                setLogoTest(testPath ? `Ruta resuelta: ${testPath}` : "Usando logo por defecto.");
+              }}>Probar logo</Button>
+              <Button variant="secondary" onClick={() => setLocalSettings((current) => ({ ...current, logoUrl: "", logoLocalPath: "", logoAltText: "" }))}>Restaurar logo por defecto</Button>
             </div>
           ) : null}
         </Card>
@@ -316,6 +398,25 @@ export function Settings() {
           </div>
         </Card>
 
+        <Card>
+          <div className="flex items-center gap-3">
+            <FileSearch className="h-5 w-5 text-brass" />
+            <h2 className="text-xl font-bold text-ink">Busqueda dentro de PDFs locales</h2>
+          </div>
+          <p className="mt-2 text-sm leading-6 text-ink/60">
+            Indexa solo PDFs accesibles desde public/pdfs. No muestra letras completas; guarda texto normalizado para encontrar cantos por palabras.
+          </p>
+          <Button className="mt-4" variant="secondary" onClick={async () => setPdfIndexResult(await indexLocalPdfTexts())}>
+            <FileSearch className="h-4 w-4" />
+            Indexar textos de PDFs locales
+          </Button>
+          {pdfIndexResult ? (
+            <p className="mt-3 text-sm font-semibold text-ink/60">
+              Indexados {pdfIndexResult.indexed}, sin texto {pdfIndexResult.noText}, no encontrados {pdfIndexResult.missing}, errores {pdfIndexResult.failed}
+            </p>
+          ) : null}
+        </Card>
+
         {isAdmin ? (
           <Card>
             <h2 className="text-xl font-bold text-ink">Correos autorizados</h2>
@@ -340,7 +441,7 @@ export function Settings() {
 
             <div className="mt-5 space-y-3">
               {userRows.map((user) => (
-                <div key={user.id || user.email} className="grid gap-3 rounded-2xl bg-ink/5 p-3 md:grid-cols-[1fr_150px_140px_120px] md:items-center">
+                <div key={user.id || user.email} className="grid gap-3 rounded-2xl bg-ink/5 p-3 md:grid-cols-[1fr_140px_130px_105px_105px] md:items-center">
                   <div>
                     <p className="font-semibold text-ink">{user.displayName || user.email}</p>
                     <p className="text-sm text-ink/55">{user.email}</p>
@@ -354,6 +455,10 @@ export function Settings() {
                   </Select>
                   <Button variant={user.active !== false ? "secondary" : "danger"} onClick={() => saveAccessUser({ ...user, active: user.active === false })}>
                     {user.active !== false ? "Activo" : "Inactivo"}
+                  </Button>
+                  <Button variant="danger" onClick={() => deleteAccessUser(user)}>
+                    <Trash2 className="h-4 w-4" />
+                    Eliminar
                   </Button>
                 </div>
               ))}

@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { Outlet, useLocation } from "react-router-dom";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { HelpCircle, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Bell, CheckCheck, HelpCircle, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { appLogo, fallbackAppLogo } from "../../assets/logo";
 import { useAuth } from "../../hooks/useAuth";
 import { useMusicData } from "../../hooks/useMusicData";
+import { getInstitutionalLogo } from "../../services/songUtils";
 import { Button } from "../ui/Button";
 import { BottomNav } from "./BottomNav";
 import { Sidebar } from "./Sidebar";
@@ -12,25 +13,32 @@ import { Sidebar } from "./Sidebar";
 const pageNames = {
   "/": "Inicio",
   "/repertorio": "Repertorio",
-  "/programacion": "Programación",
-  "/musicos": "Vista para músicos",
+  "/programacion": "Programacion",
+  "/musicos": "Vista para musicos",
   "/historial": "Historial",
-  "/estadisticas": "Estadísticas",
-  "/configuracion": "Configuración"
+  "/estadisticas": "Estadisticas",
+  "/configuracion": "Configuracion",
+  "/auditoria": "Registro de cambios",
+  "/actualizaciones": "Actualizaciones"
 };
 
 const sidebarStorageKey = "roca-eterna-sidebar-collapsed";
 
 export function AppShell() {
   const location = useLocation();
-  const { profile } = useAuth();
-  const { settings, useLocal } = useMusicData();
+  const navigate = useNavigate();
+  const { profile, saveUserPreferences } = useAuth();
+  const { settings, useLocal, notifications, markNotificationRead, markAllNotificationsRead } = useMusicData();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem(sidebarStorageKey) === "true");
-  const pageTitle = pageNames[location.pathname] || "Roca Eterna Música";
-  const themeMode = settings.themeMode || localStorage.getItem("roca-eterna-theme-mode") || "light";
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const pageTitle = pageNames[location.pathname] || "Roca Eterna Musica";
+  const themeMode = profile?.themeMode || localStorage.getItem("roca-eterna-theme-mode") || "system";
+  const logoSrc = getInstitutionalLogo(settings, appLogo);
+  const logoAlt = settings.logoAltText || "Roca Eterna Musica";
+  const unreadNotifications = notifications.filter((item) => !(item.readBy || []).includes(profile?.uid));
   const shellStyle = {
-    "--color-brass": hexToRgb(settings.accentColor || "#b6945f"),
-    "--color-blue-gray": hexToRgb(settings.blueGrayColor || "#60717d")
+    "--color-brass": hexToRgb(profile?.accentColor || localStorage.getItem("roca-eterna-accent-color") || "#b6945f"),
+    "--color-blue-gray": hexToRgb(profile?.blueGrayColor || "#60717d")
   };
 
   useEffect(() => {
@@ -51,26 +59,39 @@ export function AppShell() {
   }, [themeMode]);
 
   const openGuide = () => window.dispatchEvent(new Event("roca-eterna-open-guide"));
+  const toggleSidebar = () => {
+    setSidebarCollapsed((current) => {
+      const next = !current;
+      saveUserPreferences?.({ sidebarCollapsed: next });
+      return next;
+    });
+  };
+
+  const openNotification = async (notification) => {
+    await markNotificationRead(notification.id);
+    setNotificationsOpen(false);
+    if (notification.scheduleId) navigate("/programacion");
+  };
 
   return (
     <div className="min-h-screen bg-stonewash text-ink" style={shellStyle}>
-      <Sidebar profile={profile} collapsed={sidebarCollapsed} />
+      <Sidebar profile={profile} collapsed={sidebarCollapsed} logoSrc={logoSrc} logoAlt={logoAlt} />
       <main className={`app-main pb-32 transition-all duration-200 lg:pb-0 ${sidebarCollapsed ? "lg:ml-20" : "lg:ml-72"}`}>
         <header className="app-header sticky top-0 z-30 border-b border-ink/10 bg-stonewash/86 px-4 py-3 backdrop-blur md:px-8 md:py-4">
           <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
             <div className="flex min-w-0 items-center gap-3">
               <img
-                src={appLogo}
+                src={logoSrc}
                 onError={(event) => {
                   event.currentTarget.src = fallbackAppLogo;
                 }}
-                alt="Roca Eterna Música"
+                alt={logoAlt}
                 className="h-11 w-11 shrink-0 rounded-2xl bg-white object-contain p-1 shadow-soft lg:hidden"
               />
               <Button
                 variant="subtle"
                 className="hidden h-10 w-10 px-0 lg:inline-flex"
-                onClick={() => setSidebarCollapsed((current) => !current)}
+                onClick={toggleSidebar}
                 aria-label={sidebarCollapsed ? "Mostrar barra lateral" : "Ocultar barra lateral"}
               >
                 {sidebarCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
@@ -88,9 +109,46 @@ export function AppShell() {
                   Modo demo
                 </span>
               ) : null}
-              <Button variant="subtle" className="h-10 w-10 px-0" onClick={openGuide} aria-label="Guía de uso">
+              <Button variant="subtle" className="h-10 w-10 px-0" onClick={openGuide} aria-label="Guia de uso">
                 <HelpCircle className="h-4 w-4" />
               </Button>
+              <div className="relative">
+                <Button variant="subtle" className="h-10 w-10 px-0" onClick={() => setNotificationsOpen((current) => !current)} aria-label="Notificaciones">
+                  <Bell className="h-4 w-4" />
+                  {unreadNotifications.length ? (
+                    <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-brass px-1 text-[10px] font-bold text-white">
+                      {unreadNotifications.length}
+                    </span>
+                  ) : null}
+                </Button>
+                {notificationsOpen ? (
+                  <div className="absolute right-0 top-12 z-50 w-[min(360px,calc(100vw-2rem))] rounded-3xl border border-ink/10 bg-white p-3 shadow-2xl dark:border-white/10 dark:bg-zinc-900">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="font-bold text-ink">Notificaciones</p>
+                      <Button variant="subtle" className="h-9 px-3 text-xs" onClick={markAllNotificationsRead}>
+                        <CheckCheck className="h-3.5 w-3.5" />
+                        Marcar todas
+                      </Button>
+                    </div>
+                    <div className="mt-3 max-h-80 space-y-2 overflow-auto">
+                      {notifications.length ? notifications.slice(0, 12).map((item) => {
+                        const unread = !(item.readBy || []).includes(profile?.uid);
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => openNotification(item)}
+                            className={`w-full rounded-2xl p-3 text-left transition ${unread ? "bg-brass/12" : "bg-ink/5 dark:bg-white/7"}`}
+                          >
+                            <p className="text-sm font-bold text-ink">{item.title}</p>
+                            <p className="mt-1 text-xs leading-5 text-ink/60">{item.message}</p>
+                          </button>
+                        );
+                      }) : <p className="rounded-2xl bg-ink/5 p-3 text-sm text-ink/55">No hay notificaciones.</p>}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
             </div>
           </div>
         </header>

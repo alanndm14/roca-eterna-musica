@@ -200,7 +200,7 @@ export function ServiceSheetDocument({ schedule, songs, settings }) {
           <View style={styles.metaGrid}>
             <View style={styles.meta}><Text style={styles.label}>Fecha</Text><Text>{formatDate(schedule?.date)}</Text></View>
             <View style={styles.meta}><Text style={styles.label}>Hora</Text><Text>{schedule?.time || "Sin hora"}</Text></View>
-            <View style={styles.meta}><Text style={styles.label}>Responsable</Text><Text>{schedule?.leader || "Pendiente"}</Text></View>
+            <View style={styles.meta}><Text style={styles.label}>Lider de adoracion</Text><Text>{schedule?.leader || "Pendiente"}</Text></View>
             <View style={styles.meta}><Text style={styles.label}>Cantos</Text><Text>{serviceSongs.length}</Text></View>
           </View>
         </View>

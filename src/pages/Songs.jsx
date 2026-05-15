@@ -359,7 +359,9 @@ export function Songs() {
           ...(song.tags || []),
           song.mainKey,
           song.keyWithCapo,
-          song.internalNotes
+          song.internalNotes,
+          song.pdfSearchText,
+          ...(song.pdfSearchTokens || [])
         ].join(" ").toLowerCase();
         const matchesQuery = !filters.query || searchText.includes(filters.query.toLowerCase());
         const matchesCategory = !filters.category || song.category === filters.category;
@@ -396,7 +398,7 @@ export function Songs() {
             <p className="mt-1 text-sm text-ink/55">Gestor de canciones, PDFs, revisión y programación.</p>
           </div>
           {canEdit ? (
-            <Button onClick={() => setIsAdding(true)}>
+            <Button onClick={() => setIsAdding(true)} data-tour="song-add">
               <Plus className="h-4 w-4" />
               Agregar canto
             </Button>

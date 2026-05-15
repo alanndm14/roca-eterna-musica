@@ -1,6 +1,6 @@
-# Roca Eterna Música
+# Roca Eterna Musica
 
-Web app tipo PWA para organizar el ministerio de música de la iglesia Roca Eterna: repertorio, programación, PDFs de letra/acordes, tonos, responsables, ensayos, historial y estadísticas.
+PWA para organizar el ministerio de musica de Roca Eterna: repertorio, programacion, PDFs de letra/acordes, tonos, lideres de adoracion, historial, estadisticas y preparacion para musicos.
 
 ## Stack
 
@@ -12,8 +12,8 @@ Web app tipo PWA para organizar el ministerio de música de la iglesia Roca Eter
 - lucide-react
 - Recharts
 - pdf-lib para unir PDFs locales en el navegador
-- PWA con manifest y service worker
-- Preparada para GitHub Pages
+- pdfjs-dist para indexar texto de PDFs locales
+- PWA preparada para GitHub Pages
 
 ## Primer uso
 
@@ -28,118 +28,189 @@ Para compilar:
 npm run build
 ```
 
-## Configurar Firebase
+## Firebase
 
-1. Crea un proyecto en [Firebase Console](https://console.firebase.google.com/).
-2. En Authentication, habilita el proveedor Google.
-3. En Firestore Database, crea una base en modo producción.
-4. Copia `.env.example` como `.env` si todavía no existe.
-5. Llena las variables `VITE_FIREBASE_*` con la configuración web de tu app Firebase.
-6. En `VITE_INITIAL_ADMIN_EMAILS`, escribe tu correo de Google.
-7. En `firebase2.rules`, confirma que tu correo admin inicial esté en `bootstrapAdminEmails`.
-8. Publica las reglas:
+1. Crea un proyecto en Firebase Console.
+2. Habilita Google Sign-In en Authentication.
+3. Crea Firestore en modo produccion.
+4. Llena `.env` con las variables `VITE_FIREBASE_*`.
+5. Agrega tu correo en `VITE_INITIAL_ADMIN_EMAILS`.
+6. Confirma el mismo correo en `firebase2.rules`, dentro de `bootstrapAdminEmails`.
+7. Publica las reglas:
 
 ```bash
 firebase deploy --only firestore:rules
 ```
 
-Firebase Storage no es requisito. La app funciona con Authentication, Firestore y links de PDFs.
+Firebase Storage no es requisito para esta version. No uses claves privadas ni service accounts en el frontend.
 
-## Modelo de acceso
+## Accesos y preferencias
 
-- `admin`: crea, edita, borra, configura usuarios y ajustes.
-- `editor`: crea y edita cantos/programaciones.
-- `viewer`: solo ve información.
+La app separa dos cosas:
 
-El primer admin se crea cuando inicia sesión con un correo incluido en `VITE_INITIAL_ADMIN_EMAILS` y en `firebase2.rules`. Después, desde Configuración, el admin puede agregar correos a `allowedEmails` con rol y estado activo.
+- Configuracion institucional: nombre de iglesia, nombre de app, logo, tonalidad preferida global.
+- Preferencias personales: modo claro/oscuro/sistema, color personal, sidebar, onboarding y nombre visible.
 
-## PDFs de letra y acordes
+Cada usuario puede cambiar sus propias preferencias y su nombre visible. El rol solo lo puede asignar un admin.
 
-El flujo recomendado sin plan Blaze es guardar cada canto como un PDF separado en Google Drive y pegar el link en el campo **PDF de letra y acordes**.
+## Auditoria
 
-Usa un link compartido de Drive como:
+La coleccion `auditLogs` registra acciones importantes:
+
+- creacion, edicion y eliminacion de cantos
+- creacion, edicion y eliminacion de programaciones
+- cambios de temas
+- importaciones
+- cambios de accesos y roles
+- cambios de configuracion global
+
+La pagina **Auditoria** permite filtrar y exportar CSV. La restauracion queda preparada como accion manual/proxima version.
+
+## Changelog
+
+El changelog de la app vive en:
+
+```text
+src/data/changelog.js
+```
+
+La pagina **Actualizaciones** muestra version actual, agregados, cambios, correcciones y pendientes. No se debe confundir con `auditLogs`: changelog es codigo/app; auditLogs son acciones de usuarios sobre datos.
+
+## PDFs sin Firebase Storage
+
+### Google Drive
+
+Campo recomendado: **PDF de letra y acordes**.
+
+Pega un link compartido:
 
 ```text
 https://drive.google.com/file/d/FILE_ID/view?usp=sharing
 ```
 
-La app intenta convertirlo automáticamente a:
+La app intenta crear el preview:
 
 ```text
 https://drive.google.com/file/d/FILE_ID/preview
 ```
 
-Ese link permite usar **Ver PDFs del servicio** dentro de la app. Si Google Drive no se desplaza bien o bloquea la vista previa, usa **Abrir PDF**.
+Drive sirve bien para ver o abrir PDFs, pero no es confiable para fusionarlos desde el navegador por permisos/CORS.
 
-## Unir PDFs sin Firebase Storage
+### PDFs locales en GitHub Pages
 
-La app no intenta fusionar PDFs de Drive automáticamente porque Google Drive no lo permite de forma confiable desde el navegador.
-
-Opciones disponibles en Vista para músicos:
-
-- **Ver PDFs del servicio**: abre los PDFs de los cantos en un visor dentro de la app.
-- **Descargar hoja del servicio**: genera un PDF resumen con fecha, servicio, responsable, cantos, tonos, notas y links.
-- **Unir PDFs desde mi computadora**: selecciona varios PDFs locales, los reordena y los une en el navegador. No se suben a la nube.
-- **Unir PDFs del servicio desde la app**: usa solo archivos disponibles en `public/pdfs/` mediante el campo `localPdfPath`.
-
-### PDFs en public/pdfs
-
-Puedes guardar PDFs en:
+Coloca PDFs no privados en:
 
 ```text
 public/pdfs/
 ```
 
-Luego, en el formulario de canto, usa:
+En cada canto puedes escribir cualquiera de estas rutas:
 
 ```text
-/pdfs/nombre-del-canto.pdf
+pdfs/canto.pdf
+/pdfs/canto.pdf
+/roca-eterna-musica/pdfs/canto.pdf
+https://tu-dominio/pdfs/canto.pdf
 ```
 
-Los PDFs guardados en `public/pdfs` se publican junto con GitHub Pages. No uses esta opción para material privado o restringido.
+La app resuelve la ruta usando `import.meta.env.BASE_URL` para que funcione en GitHub Pages y en dominio propio. Si falla, usa **Probar PDF local** desde el detalle del canto. GitHub Pages distingue mayusculas, minusculas, espacios, acentos y extension `.pdf`.
 
-## Importar repertorio
+Advertencia: todo lo que pongas en `public/pdfs` queda publico al publicar GitHub Pages.
 
-En Configuración > Importar repertorio puedes pegar CSV/TSV o cargar archivo `.csv`/`.tsv`.
+### Unir PDFs
 
-Columnas esperadas:
+En Vista para musicos hay dos flujos:
+
+- **Unir PDFs desde mi computadora**: seleccionas varios PDFs locales, los reordenas y se unen solo en tu navegador. No se suben a la nube.
+- **Unir PDFs del servicio desde la app**: solo usa `localPdfPath` que apunte a `public/pdfs`.
+
+Los PDFs de Drive se conservan para vista previa y enlaces, pero no se asumen fusionables.
+
+## Busqueda dentro de PDFs
+
+En Configuracion puedes usar **Indexar textos de PDFs locales**.
+
+Condiciones:
+
+- Solo funciona con PDFs locales accesibles por `localPdfPath`.
+- No depende de Drive.
+- Si el PDF es escaneado como imagen, probablemente no tendra texto extraible sin OCR.
+- La app guarda texto/tokens normalizados para busqueda, no muestra letras completas extraidas.
+
+El buscador del repertorio incluye nombre, tema, tono, comentario y texto indexado del PDF.
+
+## Programacion
+
+Servicios normales:
+
+- Miercoles de oracion: 19:00
+- Domingo manana: 11:00
+- Domingo tarde: 17:00
+- Especial / otro: hora manual
+
+El formulario incluye buscador de cantos. Evita duplicados y muestra tema, tono y capo.
+
+Desde el detalle de un canto puedes usar **Agregar a la siguiente programacion**. Si no existe programacion futura, la app ofrece crear el siguiente servicio normal con ese canto incluido.
+
+## Notificaciones
+
+La app crea notificaciones internas cuando se crea una programacion futura. Los usuarios las ven en la campana del header y pueden marcarlas como leidas.
+
+Push notifications reales quedan como fase futura porque requieren soporte del navegador, service worker y un backend seguro/Cloud Functions para enviar mensajes sin exponer llaves privadas.
+
+## Logo institucional
+
+En Configuracion puedes usar:
+
+- URL publica de imagen
+- ruta local del repo, por ejemplo `/logos/logo-oficial.png`
+- logo por defecto
+
+Para rutas locales, coloca el archivo en:
 
 ```text
-id, nombre, tema, otros_temas, categoria, cantado, tonalidad, capo, tonalidad_con_capo, cambio_de_tono, revision_musical, revision_keynote, revision_pdf, formato, comentario
+public/logos/
 ```
 
-También puedes incluir `ruta_pdf_local` o `localPdfPath` para llenar el campo de PDF local.
+La app usa `object-contain` y fallback si el logo falla. Para iconos PWA/manifest, actualiza los assets del proyecto y vuelve a compilar.
 
-## Publicar en GitHub Pages
+## Guia interactiva
 
-1. Revisa `base` en `vite.config.js`:
+La guia aparece despues de la bienvenida la primera vez que un usuario autorizado entra. Usa overlay y spotlight para resaltar navegacion, repertorio, programacion, Vista para musicos, estadisticas y configuracion.
+
+Se puede abrir otra vez desde:
+
+- icono de ayuda en el header
+- Configuracion > Ayuda
+- menu Mas en movil
+
+El estado se guarda en `users/{uid}.onboardingCompleted` y usa localStorage como respaldo.
+
+## GitHub Pages
+
+Revisa `vite.config.js`:
 
 ```js
 base: "/roca-eterna-musica/"
 ```
 
-2. En Firebase Authentication, agrega tu dominio de GitHub Pages a “Authorized domains”.
-3. Ejecuta:
+En Firebase Authentication agrega tu dominio de GitHub Pages en Authorized domains.
+
+Publicar:
 
 ```bash
 npm run deploy
 ```
 
-La app usa `HashRouter`, por lo que funciona mejor en GitHub Pages sin configuración extra de servidor para rutas internas.
+La app usa `HashRouter`, asi que las rutas internas funcionan en GitHub Pages.
 
-## Seguridad recomendada
+## Seguridad
 
-- Mantén Firestore cerrado con `firebase2.rules`.
-- No guardes datos sensibles de miembros; esta app solo debe contener información del ministerio de música.
-- Revisa periódicamente la colección `allowedEmails`.
-- Considera habilitar Firebase App Check antes de producción.
-- No guardes PDFs privados en `public/pdfs`, porque serán públicos en GitHub Pages.
-
-## Pasos posteriores recomendados
-
-- Probar links reales de Drive con **Ver PDFs del servicio**.
-- Probar **Unir PDFs desde mi computadora** con varios PDFs.
-- Probar `public/pdfs` con uno o dos archivos no privados.
-- Revisar roles reales del equipo antes de cargar información.
-- Importar el repertorio real sin letras con copyright no autorizadas.
-- Activar backups/exportaciones periódicas de Firestore.
+- Mantener Firestore protegido con `firebase2.rules`.
+- No guardar datos sensibles de miembros.
+- `viewer` solo lectura.
+- `editor` puede crear/editar repertorio y programaciones.
+- `admin` administra accesos, roles y configuracion global.
+- Cada usuario solo puede editar sus propias preferencias.
+- No guardar PDFs privados en `public/pdfs`.
+- Considera App Check antes de produccion.

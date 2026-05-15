@@ -30,7 +30,7 @@ export function Dashboard() {
               <div className="mt-5 grid gap-3 text-sm text-white/72 sm:grid-cols-3">
                 <span className="rounded-2xl bg-white/8 p-3">Servicio: {serviceLabel(upcoming)}</span>
                 <span className="rounded-2xl bg-white/8 p-3">Hora: {upcoming.time || "Sin hora"}</span>
-                <span className="rounded-2xl bg-white/8 p-3">Responsable: {upcoming.leader || "Pendiente"}</span>
+                <span className="rounded-2xl bg-white/8 p-3">Lider de adoracion: {upcoming.leader || "Pendiente"}</span>
               </div>
             ) : null}
             <p className="mt-5 max-w-3xl text-sm leading-6 text-white/62">
@@ -81,7 +81,7 @@ export function Dashboard() {
         <StatCard icon={Music2} label="Cantos en repertorio" value={songs.length} detail="Disponibles para programar" />
         <StatCard icon={FileClock} label="PDFs pendientes" value={pdfPending} detail="Revisión PDF no completada" delay={0.05} />
         <StatCard icon={Sparkles} label="Revisión musical pendiente" value={musicPending} detail="Cantos por revisar musicalmente" delay={0.1} />
-        <StatCard icon={RotateCcw} label="Sin historial en la app" value={withoutAppHistory} detail="Sin fecha de último uso registrada" delay={0.15} />
+        <StatCard icon={RotateCcw} label="Sin historial" value={withoutAppHistory} detail="Sin fecha de ultimo uso registrada" delay={0.15} />
       </section>
     </div>
   );

@@ -5,7 +5,7 @@ import { appLogo, fallbackAppLogo } from "../../assets/logo";
 export function WelcomeSplash({ profile, onDone }) {
   const reduceMotion = useReducedMotion();
   const [leaving, setLeaving] = useState(false);
-  const name = profile?.displayName || "";
+  const name = profile?.preferredDisplayName || profile?.displayName || profile?.email || "";
 
   useEffect(() => {
     const fadeTimer = window.setTimeout(() => setLeaving(true), reduceMotion ? 700 : 2850);

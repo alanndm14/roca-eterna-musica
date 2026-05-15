@@ -155,7 +155,7 @@ export function MusicianView() {
             <p className="text-sm font-semibold uppercase tracking-wide text-brass">Vista para músicos</p>
             <h2 className="mt-2 text-3xl font-bold">{getServiceDisplayLabel(selectedSchedule)}</h2>
             <p className="mt-2 text-white/60">
-              {formatDate(selectedSchedule?.date)} · {selectedSchedule?.time || "Sin hora"} · {selectedSchedule?.leader || "Responsable pendiente"}
+              {formatDate(selectedSchedule?.date)} · {selectedSchedule?.time || "Sin hora"} · {selectedSchedule?.leader || "Lider de adoracion pendiente"}
             </p>
           </div>
           <div className="grid gap-3 lg:grid-cols-[minmax(260px,420px)_auto] lg:items-end">
@@ -205,7 +205,7 @@ export function MusicianView() {
                 )}
               </PDFDownloadLink>
             ) : null}
-            <Button onClick={() => { setActivePdfIndex(0); setShowServicePdfs(true); }}>
+            <Button onClick={() => { setActivePdfIndex(0); setShowServicePdfs(true); }} data-tour="service-pdfs">
               <FileStack className="h-4 w-4" />
               Ver PDFs del servicio
             </Button>

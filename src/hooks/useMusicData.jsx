@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import {
   addDoc,
+  arrayUnion,
   collection,
   deleteDoc,
   doc,
@@ -16,6 +17,7 @@ import { deleteObject, getDownloadURL, ref, uploadBytes } from "firebase/storage
 import { db, isFirebaseConfigured, storage } from "../lib/firebase";
 import { sampleSchedules, sampleSettings, sampleSongs, sampleThemes, sampleUsers } from "../data/mockData";
 import { canonicalThemeKey, normalizeSong, normalizeThemeName } from "../services/songUtils";
+import { extractLocalPdfText } from "../services/pdfTextIndex";
 import { useAuth } from "./useAuth";
 
 const MusicDataContext = createContext(null);
@@ -29,6 +31,9 @@ const defaultLocalData = {
   themes: sampleThemes,
   settings: sampleSettings
 };
+
+const sampleAuditLogs = [];
+const sampleNotifications = [];
 
 const loadLocalData = () => {
   try {
@@ -54,6 +59,16 @@ const withId = (snap) => ({
 });
 
 const makeId = (prefix) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+const todayString = () => new Date().toISOString().slice(0, 10);
+const isFutureSchedule = (schedule) => {
+  if (!schedule?.date) return false;
+  return schedule.date >= todayString();
+};
+
+const pickChangedFields = (before = {}, after = {}) => {
+  const keys = new Set([...Object.keys(before || {}), ...Object.keys(after || {})]);
+  return [...keys].filter((key) => JSON.stringify(before?.[key] ?? null) !== JSON.stringify(after?.[key] ?? null));
+};
 
 export function MusicDataProvider({ children }) {
   const { profile, isDemoMode } = useAuth();
@@ -63,6 +78,8 @@ export function MusicDataProvider({ children }) {
   const [authorizedEmails, setAuthorizedEmails] = useState([]);
   const [themes, setThemes] = useState(sampleThemes);
   const [settings, setSettings] = useState(sampleSettings);
+  const [auditLogs, setAuditLogs] = useState(sampleAuditLogs);
+  const [notifications, setNotifications] = useState(sampleNotifications);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -83,6 +100,8 @@ export function MusicDataProvider({ children }) {
       setAuthorizedEmails(localData.authorizedEmails || localData.allowedEmails || []);
       setThemes(localData.themes || sampleThemes);
       setSettings(localData.settings || sampleSettings);
+      setAuditLogs(localData.auditLogs || sampleAuditLogs);
+      setNotifications(localData.notifications || sampleNotifications);
       setLoading(false);
       return undefined;
     }
@@ -118,6 +137,16 @@ export function MusicDataProvider({ children }) {
         doc(db, "settings", "main"),
         (snapshot) => setSettings(snapshot.exists() ? normalizeValue(snapshot.data()) : sampleSettings),
         (snapshotError) => setError(snapshotError.message)
+      ),
+      onSnapshot(
+        query(collection(db, "auditLogs"), orderBy("createdAt", "desc")),
+        (snapshot) => setAuditLogs(snapshot.docs.map(withId)),
+        (snapshotError) => setError(snapshotError.message)
+      ),
+      onSnapshot(
+        query(collection(db, "notifications"), orderBy("createdAt", "desc")),
+        (snapshot) => setNotifications(snapshot.docs.map(withId)),
+        (snapshotError) => setError(snapshotError.message)
       )
     ];
 
@@ -127,10 +156,70 @@ export function MusicDataProvider({ children }) {
 
   useEffect(() => {
     if (!profile || !useLocal) return;
-    localStorage.setItem(storageKey, JSON.stringify({ songs, schedules, users, authorizedEmails, themes, settings }));
-  }, [authorizedEmails, profile, schedules, settings, songs, themes, useLocal, users]);
+    localStorage.setItem(storageKey, JSON.stringify({ songs, schedules, users, authorizedEmails, themes, settings, auditLogs, notifications }));
+  }, [auditLogs, authorizedEmails, notifications, profile, schedules, settings, songs, themes, useLocal, users]);
+
+  const actor = () => ({
+    performedByUid: profile?.uid || "",
+    performedByName: profile?.preferredDisplayName || profile?.displayName || profile?.email || "",
+    performedByEmail: profile?.email || ""
+  });
+
+  const logAuditEvent = async (event) => {
+    const payload = {
+      actionType: event.actionType || "update",
+      entityType: event.entityType || "other",
+      entityId: event.entityId || "",
+      entityName: event.entityName || "",
+      summary: event.summary || "",
+      beforeData: event.beforeData || null,
+      afterData: event.afterData || null,
+      changedFields: event.changedFields || pickChangedFields(event.beforeData, event.afterData),
+      ...actor(),
+      createdAt: useLocal ? new Date().toISOString() : serverTimestamp()
+    };
+    if (useLocal) {
+      setAuditLogs((current) => [{ ...payload, id: makeId("audit") }, ...current].slice(0, 300));
+      return;
+    }
+    await addDoc(collection(db, "auditLogs"), payload);
+  };
+
+  const createNotification = async (notification) => {
+    const payload = {
+      type: notification.type || "other",
+      title: notification.title || "Nueva notificacion",
+      message: notification.message || "",
+      scheduleId: notification.scheduleId || "",
+      targetRoles: notification.targetRoles || ["admin", "editor", "viewer"],
+      targetUsers: notification.targetUsers || [],
+      readBy: [],
+      isFutureSchedule: Boolean(notification.isFutureSchedule),
+      createdBy: profile?.uid || "",
+      createdAt: useLocal ? new Date().toISOString() : serverTimestamp()
+    };
+    if (useLocal) {
+      setNotifications((current) => [{ ...payload, id: makeId("notification") }, ...current]);
+      return;
+    }
+    await addDoc(collection(db, "notifications"), payload);
+  };
+
+  const markNotificationRead = async (notificationId) => {
+    if (!profile?.uid || !notificationId) return;
+    if (useLocal) {
+      setNotifications((current) => current.map((item) => item.id === notificationId ? { ...item, readBy: [...new Set([...(item.readBy || []), profile.uid])] } : item));
+      return;
+    }
+    await updateDoc(doc(db, "notifications", notificationId), { readBy: arrayUnion(profile.uid) });
+  };
+
+  const markAllNotificationsRead = async () => {
+    await Promise.all(notifications.filter((item) => !(item.readBy || []).includes(profile?.uid)).map((item) => markNotificationRead(item.id)));
+  };
 
   const saveSong = async (song) => {
+    const before = song.id ? songs.find((item) => item.id === song.id) : null;
     const normalizedSong = normalizeSong(song, settings.keyPreference);
     const payload = {
       ...normalizedSong,
@@ -142,6 +231,7 @@ export function MusicDataProvider({ children }) {
     if (useLocal) {
       if (song.id) {
         setSongs((current) => current.map((item) => (item.id === song.id ? { ...item, ...payload } : item)));
+        await logAuditEvent({ actionType: "update", entityType: "song", entityId: song.id, entityName: payload.title, summary: `Canto editado: ${payload.title}`, beforeData: before, afterData: payload });
         return song.id;
       } else {
         const id = makeId("song");
@@ -155,6 +245,7 @@ export function MusicDataProvider({ children }) {
             createdBy: profile.uid
           }
         ]);
+        await logAuditEvent({ actionType: "create", entityType: "song", entityId: id, entityName: payload.title, summary: `Canto creado: ${payload.title}`, afterData: payload });
         return id;
       }
     }
@@ -162,6 +253,7 @@ export function MusicDataProvider({ children }) {
     if (song.id) {
       const { id, ...data } = payload;
       await updateDoc(doc(db, "songs", id), data);
+      await logAuditEvent({ actionType: "update", entityType: "song", entityId: id, entityName: data.title, summary: `Canto editado: ${data.title}`, beforeData: before, afterData: data });
       return id;
     } else {
       const created = await addDoc(collection(db, "songs"), {
@@ -170,6 +262,7 @@ export function MusicDataProvider({ children }) {
         createdAt: serverTimestamp(),
         createdBy: profile.uid
       });
+      await logAuditEvent({ actionType: "create", entityType: "song", entityId: created.id, entityName: payload.title, summary: `Canto creado: ${payload.title}`, afterData: payload });
       return created.id;
     }
   };
@@ -245,11 +338,14 @@ export function MusicDataProvider({ children }) {
   };
 
   const deleteSong = async (songId) => {
+    const before = songs.find((song) => song.id === songId);
     if (useLocal) {
       setSongs((current) => current.filter((song) => song.id !== songId));
+      await logAuditEvent({ actionType: "delete", entityType: "song", entityId: songId, entityName: before?.title || "", summary: `Canto eliminado: ${before?.title || songId}`, beforeData: before });
       return;
     }
     await deleteDoc(doc(db, "songs", songId));
+    await logAuditEvent({ actionType: "delete", entityType: "song", entityId: songId, entityName: before?.title || "", summary: `Canto eliminado: ${before?.title || songId}`, beforeData: before });
   };
 
   const duplicateSong = async (song) => {
@@ -263,6 +359,7 @@ export function MusicDataProvider({ children }) {
   };
 
   const saveSchedule = async (schedule) => {
+    const before = schedule.id ? schedules.find((item) => item.id === schedule.id) : null;
     const payload = {
       ...schedule,
       songs: schedule.songs || [],
@@ -272,16 +369,28 @@ export function MusicDataProvider({ children }) {
     if (useLocal) {
       if (schedule.id) {
         setSchedules((current) => current.map((item) => (item.id === schedule.id ? { ...item, ...payload } : item)));
+        await logAuditEvent({ actionType: "update", entityType: "schedule", entityId: schedule.id, entityName: payload.serviceLabel || payload.date, summary: `Programacion editada: ${payload.serviceLabel || payload.date}`, beforeData: before, afterData: payload });
       } else {
+        const id = makeId("schedule");
         setSchedules((current) => [
           ...current,
           {
             ...payload,
-            id: makeId("schedule"),
+            id,
             createdAt: new Date().toISOString().slice(0, 10),
             createdBy: profile.uid
           }
         ]);
+        await logAuditEvent({ actionType: "create", entityType: "schedule", entityId: id, entityName: payload.serviceLabel || payload.date, summary: `Programacion creada: ${payload.serviceLabel || payload.date}`, afterData: payload });
+        if (isFutureSchedule(payload)) {
+          await createNotification({
+            type: "new_schedule",
+            title: "Nueva programacion futura",
+            message: `${payload.serviceLabel || "Servicio"} - ${payload.date} ${payload.time || ""}`.trim(),
+            scheduleId: id,
+            isFutureSchedule: true
+          });
+        }
       }
       return;
     }
@@ -289,21 +398,35 @@ export function MusicDataProvider({ children }) {
     if (schedule.id) {
       const { id, ...data } = payload;
       await updateDoc(doc(db, "schedules", id), data);
+      await logAuditEvent({ actionType: "update", entityType: "schedule", entityId: id, entityName: data.serviceLabel || data.date, summary: `Programacion editada: ${data.serviceLabel || data.date}`, beforeData: before, afterData: data });
     } else {
-      await addDoc(collection(db, "schedules"), {
+      const created = await addDoc(collection(db, "schedules"), {
         ...payload,
         createdAt: serverTimestamp(),
         createdBy: profile.uid
       });
+      await logAuditEvent({ actionType: "create", entityType: "schedule", entityId: created.id, entityName: payload.serviceLabel || payload.date, summary: `Programacion creada: ${payload.serviceLabel || payload.date}`, afterData: payload });
+      if (isFutureSchedule(payload)) {
+        await createNotification({
+          type: "new_schedule",
+          title: "Nueva programacion futura",
+          message: `${payload.serviceLabel || "Servicio"} - ${payload.date} ${payload.time || ""}`.trim(),
+          scheduleId: created.id,
+          isFutureSchedule: true
+        });
+      }
     }
   };
 
   const deleteSchedule = async (scheduleId) => {
+    const before = schedules.find((schedule) => schedule.id === scheduleId);
     if (useLocal) {
       setSchedules((current) => current.filter((schedule) => schedule.id !== scheduleId));
+      await logAuditEvent({ actionType: "delete", entityType: "schedule", entityId: scheduleId, entityName: before?.serviceLabel || before?.date || "", summary: `Programacion eliminada: ${before?.serviceLabel || before?.date || scheduleId}`, beforeData: before });
       return;
     }
     await deleteDoc(doc(db, "schedules", scheduleId));
+    await logAuditEvent({ actionType: "delete", entityType: "schedule", entityId: scheduleId, entityName: before?.serviceLabel || before?.date || "", summary: `Programacion eliminada: ${before?.serviceLabel || before?.date || scheduleId}`, beforeData: before });
   };
 
   const duplicateSchedule = async (schedule) => {
@@ -336,10 +459,12 @@ export function MusicDataProvider({ children }) {
           ? current.map((item) => (item.email === email ? { ...item, ...payload, id: item.id || email } : item))
           : [...current, { ...payload, id: email }];
       });
+      await logAuditEvent({ actionType: user.id ? "role_change" : "access_added", entityType: "authorizedEmail", entityId: email, entityName: email, summary: `Acceso actualizado: ${email}`, afterData: payload });
       return;
     }
 
     await setDoc(doc(db, "authorizedEmails", email), payload, { merge: true });
+    await logAuditEvent({ actionType: user.id ? "role_change" : "access_added", entityType: "authorizedEmail", entityId: email, entityName: email, summary: `Acceso actualizado: ${email}`, afterData: payload });
 
     if (!user.uid && (!user.id || user.id.includes("@"))) return;
 
@@ -354,12 +479,33 @@ export function MusicDataProvider({ children }) {
     );
   };
 
+  const removeUserAccess = async (user) => {
+    const email = user.email?.toLowerCase();
+    if (!email) return;
+    const existingUser = users.find((item) => item.email?.toLowerCase() === email);
+    const before = { ...user, userDoc: existingUser || null };
+    if (useLocal) {
+      setAuthorizedEmails((current) => current.filter((item) => item.email?.toLowerCase() !== email));
+      setUsers((current) => current.map((item) => item.email?.toLowerCase() === email ? { ...item, active: false, revoked: true } : item));
+      await logAuditEvent({ actionType: "access_removed", entityType: "authorizedEmail", entityId: email, entityName: email, summary: `Acceso eliminado: ${email}`, beforeData: before });
+      return;
+    }
+    await deleteDoc(doc(db, "authorizedEmails", email));
+    if (existingUser?.id || existingUser?.uid) {
+      await setDoc(doc(db, "users", existingUser.uid || existingUser.id), { active: false, revoked: true, revokedAt: serverTimestamp() }, { merge: true });
+    }
+    await logAuditEvent({ actionType: "access_removed", entityType: "authorizedEmail", entityId: email, entityName: email, summary: `Acceso eliminado: ${email}`, beforeData: before });
+  };
+
   const saveSettings = async (nextSettings) => {
+    const before = settings;
     if (useLocal) {
       setSettings(nextSettings);
+      await logAuditEvent({ actionType: "update", entityType: "settings", entityId: "main", entityName: "Configuracion global", summary: "Configuracion global actualizada", beforeData: before, afterData: nextSettings });
       return;
     }
     await setDoc(doc(db, "settings", "main"), nextSettings, { merge: true });
+    await logAuditEvent({ actionType: "update", entityType: "settings", entityId: "main", entityName: "Configuracion global", summary: "Configuracion global actualizada", beforeData: before, afterData: nextSettings });
   };
 
   const saveTheme = async (theme) => {
@@ -377,13 +523,16 @@ export function MusicDataProvider({ children }) {
           ? current.map((item) => (item.id === theme.id ? { ...item, ...payload } : item))
           : [...current, { ...payload, id: makeId("theme") }]
       );
+      await logAuditEvent({ actionType: theme.id ? "update" : "create", entityType: "theme", entityId: theme.id || payload.name, entityName: payload.name, summary: `Tema guardado: ${payload.name}`, afterData: payload });
       return;
     }
 
     if (theme.id) {
       await updateDoc(doc(db, "themes", theme.id), payload);
+      await logAuditEvent({ actionType: "update", entityType: "theme", entityId: theme.id, entityName: payload.name, summary: `Tema editado: ${payload.name}`, afterData: payload });
     } else {
-      await addDoc(collection(db, "themes"), payload);
+      const created = await addDoc(collection(db, "themes"), payload);
+      await logAuditEvent({ actionType: "create", entityType: "theme", entityId: created.id, entityName: payload.name, summary: `Tema creado: ${payload.name}`, afterData: payload });
     }
   };
 
@@ -419,6 +568,44 @@ export function MusicDataProvider({ children }) {
       await saveTheme({ name: theme, active: true });
     }
 
+    await logAuditEvent({
+      actionType: "create",
+      entityType: "other",
+      entityId: "import",
+      entityName: "Importacion de repertorio",
+      summary: `Importacion: ${results.created} creados, ${results.updated} actualizados, ${results.skipped} omitidos`,
+      afterData: results
+    });
+
+    return results;
+  };
+
+  const indexLocalPdfTexts = async () => {
+    const results = { indexed: 0, failed: 0, noText: 0, missing: 0 };
+    for (const song of songs.filter((item) => item.localPdfPath)) {
+      const extracted = await extractLocalPdfText(song.localPdfPath);
+      const payload = {
+        ...song,
+        pdfSearchText: extracted.status === "indexed" ? extracted.text : "",
+        pdfSearchTokens: extracted.tokens || [],
+        pdfIndexStatus: extracted.status,
+        pdfIndexMessage: extracted.message,
+        pdfIndexedAt: new Date().toISOString()
+      };
+      await saveSong(payload);
+      if (extracted.status === "indexed") results.indexed += 1;
+      else if (extracted.status === "no_text") results.noText += 1;
+      else if (extracted.status === "missing") results.missing += 1;
+      else results.failed += 1;
+    }
+    await logAuditEvent({
+      actionType: "update",
+      entityType: "pdf",
+      entityId: "local-pdf-index",
+      entityName: "Indice de PDFs locales",
+      summary: `Indexacion PDF: ${results.indexed} indexados, ${results.noText} sin texto, ${results.missing} no encontrados, ${results.failed} con error`,
+      afterData: results
+    });
     return results;
   };
 
@@ -484,9 +671,12 @@ export function MusicDataProvider({ children }) {
       allowedEmails: authorizedEmails,
       themes,
       settings,
+      auditLogs,
+      notifications,
       loading,
       error,
       useLocal,
+      logAuditEvent,
       saveSong,
       uploadSongPdf,
       deleteSongPdf,
@@ -496,13 +686,17 @@ export function MusicDataProvider({ children }) {
       deleteSchedule,
       duplicateSchedule,
       saveUser,
+      removeUserAccess,
       saveSettings,
       saveTheme,
       mergeTheme,
       importSongs,
+      indexLocalPdfTexts,
+      markNotificationRead,
+      markAllNotificationsRead,
       seedExampleData
     }),
-    [authorizedEmails, error, loading, schedules, settings, songs, themes, useLocal, users]
+    [auditLogs, authorizedEmails, error, loading, notifications, schedules, settings, songs, themes, useLocal, users]
   );
 
   return <MusicDataContext.Provider value={value}>{children}</MusicDataContext.Provider>;

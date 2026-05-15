@@ -260,9 +260,9 @@ export function Stats() {
     { key: "mainKey", label: "Tono" },
     { key: "capo", label: "Capo", render: (song) => song.capo ?? 0 },
     { key: "usageCount", label: "Usos", render: (song) => song.usageCount || 0 },
-    { key: "lastUsedAt", label: "Última vez", render: (song) => song.lastUsedAt ? formatDate(song.lastUsedAt) : "Sin historial en la app" },
+    { key: "lastUsedAt", label: "Última vez", render: (song) => song.lastUsedAt ? formatDate(song.lastUsedAt) : "Sin historial" },
     { key: "sungBefore", label: "Histórico", render: (song) => song.sungBefore ? "Ya se ha cantado" : "No cantado históricamente" },
-    { key: "state", label: "Estado", render: (song) => song.lastUsedAt ? "Poco usado en la app" : "Sin historial en la app" }
+    { key: "state", label: "Estado", render: (song) => song.lastUsedAt ? "Poco usado en la app" : "Sin historial" }
   ];
 
   return (
@@ -384,7 +384,7 @@ export function Stats() {
                 { key: "mainTheme", label: "Tema" },
                 { key: "mainKey", label: "Tono" },
                 { key: "usageCount", label: "Usos", render: (song) => song.usageCount || 0 },
-                { key: "lastUsedAt", label: "Última vez", render: (song) => song.lastUsedAt ? formatDate(song.lastUsedAt) : "Sin historial en la app" }
+                { key: "lastUsedAt", label: "Última vez", render: (song) => song.lastUsedAt ? formatDate(song.lastUsedAt) : "Sin historial" }
               ]} />
             </div>
           </Card>

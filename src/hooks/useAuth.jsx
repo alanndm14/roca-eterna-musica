@@ -14,9 +14,16 @@ const demoProfile = {
   uid: "demo-admin",
   email: "admin@rocaeterna.local",
   displayName: "Admin Demo",
+  preferredDisplayName: "Admin Demo",
   role: "admin",
-  active: true
+  active: true,
+  themeMode: localStorage.getItem("roca-eterna-theme-mode") || "light",
+  accentColor: localStorage.getItem("roca-eterna-accent-color") || "#b6945f",
+  sidebarCollapsed: localStorage.getItem("roca-eterna-sidebar-collapsed") === "true",
+  onboardingCompleted: localStorage.getItem("roca-eterna-onboarding-demo-admin") === "true"
 };
+
+const getDisplayName = (profile) => profile?.preferredDisplayName || profile?.displayName || profile?.email || "";
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -70,6 +77,10 @@ export function AuthProvider({ children }) {
             displayName: firebaseUser.displayName || email,
             role: "admin",
             active: true,
+            themeMode: "system",
+            accentColor: "#b6945f",
+            sidebarCollapsed: false,
+            onboardingCompleted: false,
             createdAt: serverTimestamp(),
             lastLogin: serverTimestamp()
           };
@@ -88,6 +99,10 @@ export function AuthProvider({ children }) {
               displayName: firebaseUser.displayName || allowed.displayName || email,
               role: allowed.role || "viewer",
               active: true,
+              themeMode: "system",
+              accentColor: "#b6945f",
+              sidebarCollapsed: false,
+              onboardingCompleted: false,
               createdAt: serverTimestamp(),
               lastLogin: serverTimestamp()
             };
@@ -152,6 +167,44 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const saveUserPreferences = async (updates = {}) => {
+    if (!profile?.uid) return;
+    const allowedFields = [
+      "preferredDisplayName",
+      "themeMode",
+      "accentColor",
+      "blueGrayColor",
+      "sidebarCollapsed",
+      "onboardingCompleted"
+    ];
+    const payload = Object.fromEntries(
+      Object.entries(updates).filter(([key]) => allowedFields.includes(key))
+    );
+    if (!Object.keys(payload).length) return;
+
+    if (payload.themeMode) localStorage.setItem("roca-eterna-theme-mode", payload.themeMode);
+    if (payload.accentColor) localStorage.setItem("roca-eterna-accent-color", payload.accentColor);
+    if (typeof payload.sidebarCollapsed === "boolean") {
+      localStorage.setItem("roca-eterna-sidebar-collapsed", String(payload.sidebarCollapsed));
+    }
+    if (payload.onboardingCompleted) {
+      localStorage.setItem(`roca-eterna-onboarding-${profile.uid}`, "true");
+    }
+
+    setProfile((current) => (current ? { ...current, ...payload } : current));
+
+    if (isFirebaseConfigured && db && profile.uid !== "demo-admin") {
+      try {
+        await updateDoc(doc(db, "users", profile.uid), {
+          ...payload,
+          preferencesUpdatedAt: serverTimestamp()
+        });
+      } catch (preferencesError) {
+        console.warn("No se pudieron guardar las preferencias personales en Firestore.", preferencesError);
+      }
+    }
+  };
+
   const permissions = useMemo(
     () => ({
       isAdmin: profile?.role === "admin",
@@ -171,10 +224,12 @@ export function AuthProvider({ children }) {
       isFirebaseConfigured,
       isDemoMode: user?.uid === "demo-admin",
       ...permissions,
+      displayName: getDisplayName(profile),
       signInWithGoogle,
       enterDemoMode,
       signOut,
-      completeOnboarding
+      completeOnboarding,
+      saveUserPreferences
     }),
     [user, profile, loading, unauthorized, error, permissions]
   );

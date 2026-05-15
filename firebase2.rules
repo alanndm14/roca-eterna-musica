@@ -90,7 +90,17 @@ service cloud.firestore {
         || (
           isAuthorized()
           && request.auth.uid == userId
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["lastLogin", "onboardingCompleted", "onboardingCompletedAt"])
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            "lastLogin",
+            "preferredDisplayName",
+            "themeMode",
+            "accentColor",
+            "blueGrayColor",
+            "sidebarCollapsed",
+            "onboardingCompleted",
+            "onboardingCompletedAt",
+            "preferencesUpdatedAt"
+          ])
         );
       allow delete: if isAdmin();
     }
@@ -126,6 +136,22 @@ service cloud.firestore {
     match /settings/{settingId} {
       allow read: if isAuthorized();
       allow write: if isAdmin();
+    }
+
+    match /auditLogs/{logId} {
+      allow read: if isAdmin() || isEditor();
+      allow create: if isEditor()
+        && request.resource.data.performedByUid == request.auth.uid
+        && request.resource.data.performedByEmail == request.auth.token.email;
+      allow update, delete: if false;
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isAuthorized();
+      allow create: if isEditor();
+      allow update: if isAuthorized()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["readBy"]);
+      allow delete: if isAdmin();
     }
   }
 }

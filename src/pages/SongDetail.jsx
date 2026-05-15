@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, CalendarPlus, Copy, ExternalLink, FileText, Headphones, Youtube } from "lucide-react";
+import { useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft, CalendarPlus, CheckCircle, Copy, ExternalLink, FileText, Headphones, Youtube } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -8,6 +8,7 @@ import { Modal } from "../components/ui/Modal";
 import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
 import { formatDate } from "../services/dateUtils";
+import { testPublicPdfPath } from "../services/publicPdfTools";
 import {
   getSongExternalChordsUrl,
   getSongPdfUrl,
@@ -39,8 +40,9 @@ export function SongDetail() {
   const { songId } = useParams();
   const navigate = useNavigate();
   const { canEdit } = useAuth();
-  const { songs, schedules, duplicateSong, settings } = useMusicData();
+  const { songs, schedules, duplicateSong, saveSchedule, settings, logAuditEvent } = useMusicData();
   const [showPdf, setShowPdf] = useState(false);
+  const [pdfTest, setPdfTest] = useState(null);
   const song = normalizeSong(songs.find((item) => item.id === songId), settings.keyPreference || "sharps");
 
   if (!song?.id) return <EmptyState title="Canto no encontrado" text="Es posible que haya sido eliminado." />;
@@ -59,6 +61,62 @@ export function SongDetail() {
 
   const copyPdf = async () => {
     if (pdfUrl) await navigator.clipboard?.writeText(pdfUrl);
+  };
+
+  const scheduleSongEntry = () => ({
+    songId: song.id,
+    titleSnapshot: song.title,
+    keySnapshot: song.keyWithCapo || song.mainKey || "",
+    pdfUrl,
+    notes: ""
+  });
+
+  const nextNormalService = () => {
+    const options = [];
+    const now = new Date();
+    for (let offset = 0; offset < 14; offset += 1) {
+      const date = new Date(now);
+      date.setDate(now.getDate() + offset);
+      const weekday = date.getDay();
+      const day = date.toISOString().slice(0, 10);
+      if (weekday === 3) options.push({ date: day, serviceType: "miercoles-oracion", serviceLabel: "Miercoles de oracion", time: "19:00" });
+      if (weekday === 0) {
+        options.push({ date: day, serviceType: "domingo-manana", serviceLabel: "Domingo manana", time: "11:00" });
+        options.push({ date: day, serviceType: "domingo-tarde", serviceLabel: "Domingo tarde", time: "17:00" });
+      }
+    }
+    return options.find((option) => new Date(`${option.date}T${option.time}`) > now) || options[0];
+  };
+
+  const addToNextSchedule = async () => {
+    const nowKey = new Date().toISOString().slice(0, 10);
+    const futureSchedules = [...schedules].filter((schedule) => schedule.date >= nowKey).sort((a, b) => `${a.date} ${a.time || ""}`.localeCompare(`${b.date} ${b.time || ""}`));
+    const nextSchedule = futureSchedules[0];
+    if (nextSchedule) {
+      if ((nextSchedule.songs || []).some((item) => item.songId === song.id)) {
+        alert("Este canto ya esta en la siguiente programacion.");
+        return;
+      }
+      const label = `${nextSchedule.serviceLabel || nextSchedule.type || "Servicio"} · ${formatDate(nextSchedule.date)} · ${nextSchedule.time || ""}`;
+      if (!confirm(`Agregar este canto a la siguiente programacion: ${label}`)) return;
+      await saveSchedule({ ...nextSchedule, songs: [...(nextSchedule.songs || []), scheduleSongEntry()] });
+      await logAuditEvent?.({ actionType: "update", entityType: "schedule", entityId: nextSchedule.id, entityName: nextSchedule.serviceLabel || nextSchedule.date, summary: `Canto agregado a programacion: ${song.title}` });
+      alert("Canto agregado a la siguiente programacion.");
+      return;
+    }
+
+    const service = nextNormalService();
+    if (!confirm(`No hay programaciones futuras. Crear ${service.serviceLabel} para ${formatDate(service.date)} con este canto incluido?`)) return;
+    await saveSchedule({
+      ...service,
+      type: service.serviceLabel,
+      leader: "",
+      songs: [scheduleSongEntry()],
+      generalNotes: "",
+      status: "borrador"
+    });
+    alert("Se creo la siguiente programacion normal con este canto incluido.");
+    navigate("/programacion");
   };
 
   return (
@@ -85,12 +143,12 @@ export function SongDetail() {
             <span className="rounded-2xl bg-white px-4 py-3 text-2xl font-bold text-ink">{song.mainKey || "--"}</span>
             {canEdit ? (
               <>
-                <Link to="/programacion">
-                  <Button variant="light">
+                <span>
+                  <Button variant="light" onClick={addToNextSchedule}>
                     <CalendarPlus className="h-4 w-4" />
-                    Agregar a programación
+                    Agregar a la siguiente programacion
                   </Button>
-                </Link>
+                </span>
                 <Button variant="darkSubtle" onClick={() => duplicateSong(song)}>
                   <Copy className="h-4 w-4" />
                   Duplicar
@@ -118,10 +176,24 @@ export function SongDetail() {
                 </a>
                 <Button variant="secondary" onClick={copyPdf}><Copy className="h-4 w-4" />Copiar link</Button>
                 <Button variant="subtle" onClick={() => setShowPdf(true)}>Ver dentro de la app</Button>
+                {song.localPdfPath ? (
+                  <Button variant="secondary" onClick={async () => setPdfTest(await testPublicPdfPath(song.localPdfPath))}>
+                    <CheckCircle className="h-4 w-4" />
+                    Probar PDF local
+                  </Button>
+                ) : null}
               </div>
             ) : (
               <p className="mt-4 rounded-2xl bg-ink/5 p-4 text-sm text-ink/58">Este canto todavía no tiene PDF registrado.</p>
             )}
+            {pdfTest ? (
+              <div className={`mt-4 rounded-2xl p-4 text-sm ${pdfTest.ok ? "bg-brass/10 text-brass" : "bg-red-50 text-red-700"}`}>
+                <p className="font-bold">{pdfTest.message}</p>
+                <p className="mt-1">Ruta guardada: {pdfTest.savedPath}</p>
+                <p>Ruta resuelta: {pdfTest.resolvedPath}</p>
+                <p>Status HTTP: {pdfTest.status}</p>
+              </div>
+            ) : null}
           </Card>
 
           <Card>
@@ -166,6 +238,7 @@ export function SongDetail() {
               <InfoRow label="Formato" value={song.format} />
               <InfoRow label="Ya se ha cantado" value={song.sungBefore ? "Sí" : "No"} />
               <InfoRow label="Última vez en la app" value={song.lastUsedAt ? formatDate(song.lastUsedAt) : "Sin registro"} />
+              <InfoRow label="Indice PDF" value={song.pdfIndexStatus === "indexed" ? "PDF indexado" : song.pdfIndexStatus === "no_text" ? "Sin texto seleccionable" : song.pdfIndexStatus === "failed" ? "Error al indexar" : "PDF no indexado"} />
             </dl>
           </Card>
 
