@@ -3,12 +3,17 @@ import { motion } from "framer-motion";
 import { appLogo, fallbackAppLogo } from "../assets/logo";
 import { Button } from "../components/ui/Button";
 import { useAuth } from "../hooks/useAuth";
+import { firebaseMissingConfigKeys, isDemoModeAllowed } from "../lib/firebase";
 
 export function Login() {
   const { signInWithGoogle, enterDemoMode, error, isFirebaseConfigured } = useAuth();
-  const showDemoMode = !isFirebaseConfigured || import.meta.env.DEV;
+  const showDemoMode = isDemoModeAllowed;
   const logoSrc = localStorage.getItem("roca-eterna-logo-src") || appLogo;
   const logoAlt = localStorage.getItem("roca-eterna-logo-alt") || "Roca Eterna Musica";
+  const firebasePublishWarning =
+    import.meta.env.PROD && !isFirebaseConfigured
+      ? "La app fue publicada sin configuración de Firebase. Revisa GitHub Actions Secrets."
+      : "";
 
   return (
     <div className="grid min-h-screen bg-ink text-white lg:grid-cols-[1.05fr_0.95fr]">
@@ -38,6 +43,16 @@ export function Login() {
               </Button>
             ) : null}
           </div>
+          {firebasePublishWarning ? (
+            <div className="mt-4 rounded-2xl border border-red-300/30 bg-red-500/12 p-4 text-sm leading-6 text-red-100">
+              <p className="font-semibold">{firebasePublishWarning}</p>
+              {firebaseMissingConfigKeys.length ? (
+                <p className="mt-1 text-red-100/80">
+                  Faltan variables de configuración en el build publicado.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
           {error ? <p className="mt-4 rounded-2xl bg-red-500/12 p-3 text-sm text-red-100">{error}</p> : null}
         </motion.div>
       </section>

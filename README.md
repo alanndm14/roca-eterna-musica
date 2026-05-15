@@ -240,13 +240,47 @@ base: "/roca-eterna-musica/"
 
 En Firebase Authentication agrega tu dominio de GitHub Pages en Authorized domains.
 
+### Variables necesarias en GitHub Actions Secrets
+
+Para que el build publicado en GitHub Pages tenga Firebase activo, agrega estos secrets en GitHub:
+
+```text
+Settings > Secrets and variables > Actions > New repository secret
+```
+
+Secrets requeridos:
+
+```text
+VITE_FIREBASE_API_KEY
+VITE_FIREBASE_AUTH_DOMAIN
+VITE_FIREBASE_PROJECT_ID
+VITE_FIREBASE_STORAGE_BUCKET
+VITE_FIREBASE_MESSAGING_SENDER_ID
+VITE_FIREBASE_APP_ID
+VITE_FIREBASE_MEASUREMENT_ID
+```
+
+Secret recomendado para bootstrap de administradores:
+
+```text
+VITE_INITIAL_ADMIN_EMAILS
+```
+
+El workflow revisa estos nombres sin imprimir valores. Solo muestra `presente` o `falta`. Si falta una variable `VITE_FIREBASE_*`, el deploy se detiene para no publicar una app sin Google Sign-In.
+
+El modo demo local queda oculto en produccion. Solo se muestra en desarrollo local o si agregas explicitamente:
+
+```text
+VITE_ENABLE_DEMO_MODE=true
+```
+
 Publicar:
 
 ```bash
 npm run deploy
 ```
 
-El repo tambien incluye un workflow en `.github/workflows/deploy-pages.yml`. En cada push a `main`, GitHub Actions instala dependencias, ejecuta `npm run build`, verifica que `dist/pdfs/Glorificate.pdf` y `dist/icons/cropped-LOGO-IBRE-5-1.png` existan, y publica `dist` en la rama `gh-pages`.
+El repo tambien incluye un workflow en `.github/workflows/deploy-pages.yml`. En cada push a `main`, GitHub Actions instala dependencias, verifica de forma segura que los secrets de Firebase existan, ejecuta `npm run build` con esas variables, verifica que `dist/pdfs/Glorificate.pdf` y `dist/icons/cropped-LOGO-IBRE-5-1.png` existan, y publica `dist` en la rama `gh-pages`.
 
 La app usa `HashRouter`, asi que las rutas internas funcionan en GitHub Pages.
 

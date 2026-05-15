@@ -5,7 +5,7 @@ import {
   signOut as firebaseSignOut
 } from "firebase/auth";
 import { doc, getDoc, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
-import { auth, db, googleProvider, isFirebaseConfigured } from "../lib/firebase";
+import { auth, db, googleProvider, isDemoModeAllowed, isFirebaseConfigured } from "../lib/firebase";
 import { isInitialAdminEmail } from "../config/authorizedEmails";
 
 const AuthContext = createContext(null);
@@ -128,13 +128,21 @@ export function AuthProvider({ children }) {
   const signInWithGoogle = async () => {
     setError("");
     if (!isFirebaseConfigured) {
-      setError("Configura Firebase para usar Google Sign-In.");
+      setError(
+        import.meta.env.PROD
+          ? "La app fue publicada sin configuración de Firebase. Revisa GitHub Actions Secrets."
+          : "Configura Firebase para usar Google Sign-In."
+      );
       return;
     }
     await signInWithPopup(auth, googleProvider);
   };
 
   const enterDemoMode = () => {
+    if (!isDemoModeAllowed) {
+      setError("El modo demo local está deshabilitado en producción.");
+      return;
+    }
     setUser(demoProfile);
     setProfile(demoProfile);
     setUnauthorized(false);
