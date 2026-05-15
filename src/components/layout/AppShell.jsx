@@ -46,6 +46,11 @@ export function AppShell() {
   }, [sidebarCollapsed]);
 
   useEffect(() => {
+    if (logoSrc) localStorage.setItem("roca-eterna-logo-src", logoSrc);
+    if (logoAlt) localStorage.setItem("roca-eterna-logo-alt", logoAlt);
+  }, [logoAlt, logoSrc]);
+
+  useEffect(() => {
     const media = window.matchMedia?.("(prefers-color-scheme: dark)");
     const applyTheme = () => {
       const shouldUseDark = themeMode === "dark" || (themeMode === "system" && media?.matches);

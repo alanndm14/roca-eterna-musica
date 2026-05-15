@@ -4,6 +4,7 @@ import { ArrowLeft, CalendarPlus, CheckCircle, Copy, ExternalLink, FileText, Hea
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
+import { FileDiagnosticPanel } from "../components/ui/FileDiagnosticPanel";
 import { Modal } from "../components/ui/Modal";
 import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
@@ -179,21 +180,14 @@ export function SongDetail() {
                 {song.localPdfPath ? (
                   <Button variant="secondary" onClick={async () => setPdfTest(await testPublicPdfPath(song.localPdfPath))}>
                     <CheckCircle className="h-4 w-4" />
-                    Probar PDF local
+                    Diagnosticar archivo
                   </Button>
                 ) : null}
               </div>
             ) : (
               <p className="mt-4 rounded-2xl bg-ink/5 p-4 text-sm text-ink/58">Este canto todavía no tiene PDF registrado.</p>
             )}
-            {pdfTest ? (
-              <div className={`mt-4 rounded-2xl p-4 text-sm ${pdfTest.ok ? "bg-brass/10 text-brass" : "bg-red-50 text-red-700"}`}>
-                <p className="font-bold">{pdfTest.message}</p>
-                <p className="mt-1">Ruta guardada: {pdfTest.savedPath}</p>
-                <p>Ruta resuelta: {pdfTest.resolvedPath}</p>
-                <p>Status HTTP: {pdfTest.status}</p>
-              </div>
-            ) : null}
+            <FileDiagnosticPanel result={pdfTest} />
           </Card>
 
           <Card>

@@ -48,6 +48,10 @@ textarea {
   background-color: rgb(32 32 32 / var(--tw-bg-opacity, 1)) !important;
 }
 
+.dark .bg-linen {
+  background-color: rgb(32 32 32 / var(--tw-bg-opacity, 1)) !important;
+}
+
 .dark .bg-stonewash {
   background-color: rgb(18 18 18 / var(--tw-bg-opacity, 1)) !important;
 }
@@ -58,6 +62,12 @@ textarea {
 
 .dark .bg-white\/94 {
   background-color: rgb(32 32 32 / 0.94) !important;
+}
+
+.dark .text-black,
+.dark .text-gray-900,
+.dark .text-zinc-900 {
+  color: rgb(245 242 235 / var(--tw-text-opacity, 1)) !important;
 }
 
 .dark .text-ink {
@@ -75,7 +85,9 @@ textarea {
 .dark .text-ink\/50,
 .dark .text-ink\/55,
 .dark .text-ink\/60,
-.dark .text-ink\/62 {
+.dark .text-ink\/62,
+.dark .text-ink\/65,
+.dark .text-ink\/70 {
   color: rgb(245 242 235 / 0.62) !important;
 }
 
@@ -99,6 +111,20 @@ textarea {
   background-color: rgb(32 32 32);
   color: rgb(245 242 235);
   border-color: rgb(245 242 235 / 0.14);
+}
+
+.dark table {
+  color: rgb(245 242 235 / 0.78);
+}
+
+.dark thead {
+  color: rgb(245 242 235 / 0.52);
+}
+
+.dark .recharts-default-tooltip {
+  background: rgb(32 32 32) !important;
+  border-color: rgb(245 242 235 / 0.14) !important;
+  color: rgb(245 242 235) !important;
 }
 
 .dark input::placeholder,

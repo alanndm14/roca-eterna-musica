@@ -7,6 +7,34 @@ import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
 
 const csvEscape = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+const actionLabels = {
+  create: "Creación",
+  update: "Edición",
+  delete: "Eliminación",
+  restore: "Restauración",
+  login: "Inicio de sesión",
+  role_change: "Cambio de rol",
+  access_added: "Acceso agregado",
+  access_removed: "Acceso eliminado",
+  access_disabled: "Acceso desactivado",
+  access_enabled: "Acceso activado",
+  import: "Importación",
+  settings_update: "Configuración actualizada",
+  notification_created: "Notificación creada"
+};
+const entityLabels = {
+  song: "Canto",
+  schedule: "Programación",
+  theme: "Tema",
+  user: "Usuario",
+  authorizedEmail: "Correo autorizado",
+  settings: "Configuración",
+  pdf: "PDF",
+  notification: "Notificación",
+  other: "Otro"
+};
+const translateAuditAction = (value) => actionLabels[value] || value || "";
+const translateEntityType = (value) => entityLabels[value] || value || "";
 
 export function AuditLogs() {
   const { isAdmin, canEdit } = useAuth();
@@ -34,7 +62,7 @@ export function AuditLogs() {
   const exportCsv = () => {
     const rows = [
       ["fecha", "accion", "entidad", "nombre", "usuario", "correo", "resumen"],
-      ...filtered.map((log) => [log.createdAt, log.actionType, log.entityType, log.entityName, log.performedByName, log.performedByEmail, log.summary])
+      ...filtered.map((log) => [log.createdAt, translateAuditAction(log.actionType), translateEntityType(log.entityType), log.entityName, log.performedByName, log.performedByEmail, log.summary])
     ];
     const blob = new Blob([rows.map((row) => row.map(csvEscape).join(",")).join("\n")], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -62,11 +90,11 @@ export function AuditLogs() {
           <Input placeholder="Buscar accion, canto o usuario" value={query} onChange={(event) => setQuery(event.target.value)} />
           <Select value={actionType} onChange={(event) => setActionType(event.target.value)}>
             <option value="all">Todas las acciones</option>
-            {[...new Set(auditLogs.map((log) => log.actionType).filter(Boolean))].map((value) => <option key={value} value={value}>{value}</option>)}
+            {[...new Set(auditLogs.map((log) => log.actionType).filter(Boolean))].map((value) => <option key={value} value={value}>{translateAuditAction(value)}</option>)}
           </Select>
           <Select value={entityType} onChange={(event) => setEntityType(event.target.value)}>
             <option value="all">Todas las entidades</option>
-            {[...new Set(auditLogs.map((log) => log.entityType).filter(Boolean))].map((value) => <option key={value} value={value}>{value}</option>)}
+            {[...new Set(auditLogs.map((log) => log.entityType).filter(Boolean))].map((value) => <option key={value} value={value}>{translateEntityType(value)}</option>)}
           </Select>
           <Select value={userEmail} onChange={(event) => setUserEmail(event.target.value)}>
             <option value="all">Todos los usuarios</option>
@@ -92,8 +120,8 @@ export function AuditLogs() {
               {filtered.map((log) => (
                 <tr key={log.id} className="border-t border-ink/10">
                   <td className="px-3 py-3 text-ink/60">{formatDate(log.createdAt)}</td>
-                  <td className="px-3 py-3 font-semibold text-ink">{log.actionType}</td>
-                  <td className="px-3 py-3 text-ink/60">{log.entityType}</td>
+                  <td className="px-3 py-3 font-semibold text-ink">{translateAuditAction(log.actionType)}</td>
+                  <td className="px-3 py-3 text-ink/60">{translateEntityType(log.entityType)}</td>
                   <td className="px-3 py-3 text-ink">{log.summary || log.entityName}</td>
                   <td className="px-3 py-3 text-ink/60">{log.performedByName || log.performedByEmail}</td>
                   <td className="px-3 py-3"><Button variant="subtle" disabled>Proxima version</Button></td>

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { appLogo, fallbackAppLogo } from "../../assets/logo";
 
-export function WelcomeSplash({ profile, onDone }) {
+export function WelcomeSplash({ profile, onDone, logoSrc = appLogo, logoAlt = "Roca Eterna Musica" }) {
   const reduceMotion = useReducedMotion();
   const [leaving, setLeaving] = useState(false);
   const name = profile?.preferredDisplayName || profile?.displayName || profile?.email || "";
@@ -30,12 +30,12 @@ export function WelcomeSplash({ profile, onDone }) {
         transition={{ duration: 0.65, ease: "easeOut" }}
       >
         <motion.img
-          src={appLogo}
+          src={logoSrc}
           onError={(event) => {
             event.currentTarget.src = fallbackAppLogo;
           }}
-          alt="Roca Eterna Música"
-          className="mx-auto h-24 w-24 rounded-3xl bg-white object-contain p-2 shadow-soft"
+          alt={logoAlt}
+          className="mx-auto h-28 w-28 rounded-3xl bg-white object-contain p-2 shadow-soft"
           initial={reduceMotion ? false : { opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.8, ease: "easeOut" }}

@@ -1,6 +1,7 @@
 import { PDFDocument } from "pdf-lib";
 import { buildServiceSongs, getServiceFileName } from "./serviceSheetPdf";
 import { resolvePublicPdfPath } from "./songUtils";
+import { fetchValidPdfArrayBuffer } from "./publicPdfTools";
 
 export function extractGoogleDriveFileId(url = "") {
   const value = String(url || "").trim();
@@ -81,13 +82,17 @@ export async function mergeServiceLocalPdfs(schedule, songs, keyPreference = "sh
     }
 
     try {
-      const url = resolvePublicPdfPath(localPdfPath);
-      const bytes = await fetchPdfArrayBuffer(url);
+      const { buffer: bytes, diagnosis } = await fetchValidPdfArrayBuffer(localPdfPath);
       await PDFDocument.load(bytes, { ignoreEncryption: true });
       buffers.push(bytes);
-      included.push({ title: serviceSong.title, source: localPdfPath });
-    } catch {
-      omitted.push({ title: serviceSong.title, reason: "archivo no encontrado o no descargable desde public/pdfs" });
+      included.push({ title: serviceSong.title, source: localPdfPath, resolvedUrl: diagnosis.finalUrl });
+    } catch (error) {
+      omitted.push({
+        title: serviceSong.title,
+        source: localPdfPath,
+        resolvedUrl: error.diagnosis?.finalUrl || resolvePublicPdfPath(localPdfPath),
+        reason: error.message || "archivo no publicado o no descargable"
+      });
     }
   }
 

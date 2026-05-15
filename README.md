@@ -117,6 +117,50 @@ La app resuelve la ruta usando `import.meta.env.BASE_URL` para que funcione en G
 
 Advertencia: todo lo que pongas en `public/pdfs` queda publico al publicar GitHub Pages.
 
+## Como comprobar que un archivo publico si esta publicado
+
+Antes de usar un PDF o logo en la app, abre la URL directa en el navegador.
+
+Logo:
+
+```text
+https://alanndm14.github.io/roca-eterna-musica/icons/cropped-LOGO-IBRE-5-1.png
+```
+
+PDF:
+
+```text
+https://alanndm14.github.io/roca-eterna-musica/pdfs/Glorificate.pdf
+```
+
+Si no abre, la app tampoco podra usarlo. Posibles causas:
+
+- el archivo esta en `main/public/...`, pero GitHub Pages aun no publico `dist`
+- el deploy no corrio o fallo
+- GitHub Pages esta publicando otra rama
+- el nombre no coincide exactamente
+- hay diferencia de mayusculas/minusculas
+- la PWA esta sirviendo cache vieja
+- falta volver a ejecutar build/deploy
+
+Los archivos dentro de `public` no se escriben con `public/` en la URL publica. Por ejemplo:
+
+```text
+public/pdfs/Glorificate.pdf -> /pdfs/Glorificate.pdf
+public/icons/logo.png -> /icons/logo.png
+```
+
+GitHub Pages distingue mayusculas y minusculas: `Glorificate.pdf` no es igual que `glorificate.pdf`. Si un archivo tiene espacios, parentesis o acentos, la app intenta codificar la URL, pero para evitar problemas conviene renombrar con guiones:
+
+```text
+glorificate.pdf
+te-alabamos.pdf
+tu-gloria.pdf
+logo-roca-eterna.png
+```
+
+En Configuracion y en Detalle de canto usa **Diagnosticar archivo** para ver ruta guardada, ruta normalizada, URL final, status HTTP, content-type, tamaño y si se recibio HTML en lugar del archivo.
+
 ### Unir PDFs
 
 En Vista para musicos hay dos flujos:
@@ -202,7 +246,11 @@ Publicar:
 npm run deploy
 ```
 
+El repo tambien incluye un workflow en `.github/workflows/deploy-pages.yml`. En cada push a `main`, GitHub Actions instala dependencias, ejecuta `npm run build`, verifica que `dist/pdfs/Glorificate.pdf` y `dist/icons/cropped-LOGO-IBRE-5-1.png` existan, y publica `dist` en la rama `gh-pages`.
+
 La app usa `HashRouter`, asi que las rutas internas funcionan en GitHub Pages.
+
+Si la PWA muestra una version vieja, entra a Configuracion > Ayuda > Actualizar app, prueba en incognito, borra datos del sitio o desregistra el service worker desde DevTools.
 
 ## Seguridad
 

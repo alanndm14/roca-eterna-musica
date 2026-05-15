@@ -221,14 +221,33 @@ export function Stats() {
     }))
   ), [filteredSongs]);
 
-  const programmedSongEntries = schedules.flatMap((schedule) => (schedule.songs || []).map((entry) => ({ ...entry, schedule })));
+  const realSchedules = schedules.filter((schedule) => schedule.status === "realizado" || (schedule.date && schedule.date < new Date().toISOString().slice(0, 10)));
+  const programmedSongEntries = realSchedules.flatMap((schedule) => (schedule.songs || []).map((entry) => ({ ...entry, schedule })));
   const programmedThemes = toChartData(countBy(programmedSongEntries, (entry) => {
     const song = findSongForNavigation({ songId: entry.songId, title: entry.titleSnapshot, songs });
     return song ? [song.mainTheme, ...(song.otherThemes || [])].map(normalizeThemeName) : [];
   }));
-  const mostUsed = [...filteredSongs].sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0)).slice(0, 10);
+  const realUsageBySong = useMemo(() => {
+    const counts = new Map();
+    programmedSongEntries.forEach((entry) => {
+      const song = findSongForNavigation({ songId: entry.songId, title: entry.titleSnapshot, songs });
+      if (!song?.id) return;
+      const current = counts.get(song.id) || { count: 0, lastUsedAt: "" };
+      current.count += 1;
+      current.lastUsedAt = [current.lastUsedAt, entry.schedule?.date].filter(Boolean).sort().at(-1) || "";
+      counts.set(song.id, current);
+    });
+    return counts;
+  }, [programmedSongEntries, songs]);
+  const withRealUsage = filteredSongs.map((song) => ({
+    ...song,
+    realUsageCount: realUsageBySong.get(song.id)?.count || 0,
+    realLastUsedAt: realUsageBySong.get(song.id)?.lastUsedAt || ""
+  }));
+  const mostUsed = [...withRealUsage].sort((a, b) => (b.realUsageCount || 0) - (a.realUsageCount || 0)).filter((song) => song.realUsageCount > 0).slice(0, 10);
   const leastUsed = [...filteredSongs]
-    .sort((a, b) => (a.usageCount || 0) - (b.usageCount || 0) || (a.lastUsedAt || "0000").localeCompare(b.lastUsedAt || "0000"))
+    .map((song) => ({ ...song, realUsageCount: realUsageBySong.get(song.id)?.count || 0, realLastUsedAt: realUsageBySong.get(song.id)?.lastUsedAt || "" }))
+    .sort((a, b) => (a.realUsageCount || 0) - (b.realUsageCount || 0) || (a.realLastUsedAt || "0000").localeCompare(b.realLastUsedAt || "0000"))
     .slice(0, 12);
   const rotationSuggestions = filteredSongs
     .filter((song) =>
@@ -236,7 +255,7 @@ export function Stats() {
       && normalizeReviewValue(song.keynoteReviewStatus) === "completado"
       && normalizeReviewValue(song.musicReviewStatus) === "completado"
       && song.sungBefore
-      && (!song.lastUsedAt || (song.usageCount || 0) <= 1)
+      && ((realUsageBySong.get(song.id)?.count || 0) <= 1)
     )
     .slice(0, 10);
   const changeKeySongs = filteredSongs.filter((song) => song.hasKeyChange);
@@ -259,10 +278,10 @@ export function Stats() {
     { key: "mainTheme", label: "Tema" },
     { key: "mainKey", label: "Tono" },
     { key: "capo", label: "Capo", render: (song) => song.capo ?? 0 },
-    { key: "usageCount", label: "Usos", render: (song) => song.usageCount || 0 },
-    { key: "lastUsedAt", label: "Última vez", render: (song) => song.lastUsedAt ? formatDate(song.lastUsedAt) : "Sin historial" },
+    { key: "realUsageCount", label: "Usos reales", render: (song) => song.realUsageCount || 0 },
+    { key: "realLastUsedAt", label: "Última vez", render: (song) => song.realLastUsedAt ? formatDate(song.realLastUsedAt) : "Sin historial" },
     { key: "sungBefore", label: "Histórico", render: (song) => song.sungBefore ? "Ya se ha cantado" : "No cantado históricamente" },
-    { key: "state", label: "Estado", render: (song) => song.lastUsedAt ? "Poco usado en la app" : "Sin historial" }
+    { key: "state", label: "Estado", render: (song) => song.realUsageCount ? "Poco usado en la app" : "Sin historial" }
   ];
 
   return (
@@ -350,14 +369,15 @@ export function Stats() {
           <div className="grid gap-5 xl:grid-cols-2">
             <Card>
               <h2 className="text-lg font-bold text-ink">Cantos más usados</h2>
+              <p className="mt-1 text-sm text-ink/55">Uso registrado en la app desde programaciones realizadas o pasadas.</p>
               <div className="mt-4">
-                <SongTable rows={mostUsed} songs={songs} columns={[
+                {mostUsed.length ? <SongTable rows={mostUsed} songs={songs} columns={[
                   { key: "title", label: "Canto" },
-                  { key: "usageCount", label: "Uso total", render: (song) => song.usageCount || 0 },
-                  { key: "lastUsedAt", label: "Última vez", render: (song) => song.lastUsedAt ? formatDate(song.lastUsedAt) : "Sin historial" },
+                  { key: "realUsageCount", label: "Uso registrado", render: (song) => song.realUsageCount || 0 },
+                  { key: "realLastUsedAt", label: "Última vez", render: (song) => song.realLastUsedAt ? formatDate(song.realLastUsedAt) : "Sin historial" },
                   { key: "category", label: "Categoría" },
                   { key: "mainTheme", label: "Tema" }
-                ]} />
+                ]} /> : <p className="rounded-2xl bg-ink/5 p-4 text-sm text-ink/55">Esta sección se actualizará conforme registres programaciones.</p>}
               </div>
             </Card>
             <ChartCard title="Rotación por tema en programaciones">
@@ -383,8 +403,8 @@ export function Stats() {
                 { key: "category", label: "Categoría" },
                 { key: "mainTheme", label: "Tema" },
                 { key: "mainKey", label: "Tono" },
-                { key: "usageCount", label: "Usos", render: (song) => song.usageCount || 0 },
-                { key: "lastUsedAt", label: "Última vez", render: (song) => song.lastUsedAt ? formatDate(song.lastUsedAt) : "Sin historial" }
+                { key: "realUsageCount", label: "Usos reales", render: (song) => realUsageBySong.get(song.id)?.count || 0 },
+                { key: "realLastUsedAt", label: "Última vez", render: (song) => realUsageBySong.get(song.id)?.lastUsedAt ? formatDate(realUsageBySong.get(song.id)?.lastUsedAt) : "Sin historial" }
               ]} />
             </div>
           </Card>

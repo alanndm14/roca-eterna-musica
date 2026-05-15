@@ -18,7 +18,7 @@ const steps = [
   { route: "/configuracion", target: null, title: "Listo", text: "Puedes volver a abrir este tour desde Ayuda, Configuracion o el menu Mas en movil." }
 ];
 
-export function OnboardingGuide({ open, onClose, onFinish }) {
+export function OnboardingGuide({ open, onClose, onFinish, logoSrc = appLogo, logoAlt = "Roca Eterna Musica" }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [index, setIndex] = useState(0);
@@ -83,10 +83,19 @@ export function OnboardingGuide({ open, onClose, onFinish }) {
     <AnimatePresence>
       {open ? (
         <motion.div className="fixed inset-0 z-[70]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-          <div className="absolute inset-0 bg-ink/72 backdrop-blur-[2px]" />
+          {rect ? (
+            <>
+              <div className="absolute left-0 right-0 top-0 bg-ink/72" style={{ height: rect.top }} />
+              <div className="absolute left-0 bg-ink/72" style={{ top: rect.top, width: rect.left, height: rect.height }} />
+              <div className="absolute bg-ink/72" style={{ top: rect.top, left: rect.left + rect.width, right: 0, height: rect.height }} />
+              <div className="absolute bottom-0 left-0 right-0 bg-ink/72" style={{ top: rect.top + rect.height }} />
+            </>
+          ) : (
+            <div className="absolute inset-0 bg-ink/72" />
+          )}
           {rect ? (
             <motion.div
-              className="pointer-events-none absolute rounded-3xl border-2 border-brass shadow-[0_0_0_9999px_rgba(0,0,0,0.58)]"
+              className="pointer-events-none absolute rounded-3xl border-2 border-brass shadow-[0_0_26px_rgba(182,148,95,0.45)]"
               animate={rect}
               transition={{ duration: 0.22 }}
             />
@@ -101,11 +110,11 @@ export function OnboardingGuide({ open, onClose, onFinish }) {
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-center gap-3">
                 <img
-                  src={appLogo}
+                  src={logoSrc}
                   onError={(event) => {
                     event.currentTarget.src = fallbackAppLogo;
                   }}
-                  alt="Roca Eterna Musica"
+                  alt={logoAlt}
                   className="h-11 w-11 rounded-2xl bg-white object-contain p-1 shadow-soft"
                 />
                 <div>

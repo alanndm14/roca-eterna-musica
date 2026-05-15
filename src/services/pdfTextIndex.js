@@ -1,3 +1,4 @@
+import { fetchValidPdfArrayBuffer } from "./publicPdfTools";
 import { resolvePublicPdfPath } from "./songUtils";
 
 const normalizeTokenText = (text = "") =>
@@ -22,12 +23,7 @@ export async function extractLocalPdfText(localPdfPath) {
     const worker = await import("pdfjs-dist/build/pdf.worker.min.mjs?url");
     pdfjsLib.GlobalWorkerOptions.workerSrc = worker.default;
 
-    const response = await fetch(url, { cache: "no-store" });
-    if (!response.ok) {
-      return { status: "missing", text: "", tokens: [], message: `No se encontro el PDF local (${response.status}).` };
-    }
-
-    const buffer = await response.arrayBuffer();
+    const { buffer, diagnosis } = await fetchValidPdfArrayBuffer(localPdfPath);
     const document = await pdfjsLib.getDocument({ data: buffer }).promise;
     const pages = [];
 
@@ -42,8 +38,17 @@ export async function extractLocalPdfText(localPdfPath) {
     if (!tokens.length) {
       return { status: "no_text", text: "", tokens: [], message: "Este PDF no tiene texto seleccionable; no puede indexarse sin OCR." };
     }
-    return { status: "indexed", text, tokens, message: "PDF indexado correctamente." };
+    return { status: "indexed", text, tokens, message: "PDF indexado correctamente.", resolvedUrl: diagnosis.finalUrl, statusHttp: diagnosis.status, contentType: diagnosis.contentType };
   } catch (error) {
-    return { status: "failed", text: "", tokens: [], message: "No se pudo indexar este PDF local." };
+    const diagnosis = error.diagnosis;
+    return {
+      status: diagnosis?.status === 404 ? "missing" : "failed",
+      text: "",
+      tokens: [],
+      message: diagnosis?.message || "No se pudo indexar este PDF local.",
+      resolvedUrl: diagnosis?.finalUrl || url,
+      statusHttp: diagnosis?.status || "error",
+      contentType: diagnosis?.contentType || ""
+    };
   }
 }

@@ -6,6 +6,8 @@ import { OnboardingGuide } from "./components/ui/OnboardingGuide";
 import { WelcomeSplash } from "./components/ui/WelcomeSplash";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
 import { MusicDataProvider, useMusicData } from "./hooks/useMusicData";
+import { appLogo } from "./assets/logo";
+import { getInstitutionalLogo } from "./services/songUtils";
 import { Dashboard } from "./pages/Dashboard";
 import { AuditLogs } from "./pages/AuditLogs";
 import { Changelog } from "./pages/Changelog";
@@ -31,7 +33,7 @@ function ProtectedRoute({ children }) {
 
 function DataReady({ children }) {
   const { profile, completeOnboarding } = useAuth();
-  const { loading } = useMusicData();
+  const { loading, settings } = useMusicData();
   const [showWelcome, setShowWelcome] = useState(false);
   const [welcomeReady, setWelcomeReady] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
@@ -70,11 +72,12 @@ function DataReady({ children }) {
   }, [completeOnboarding]);
 
   if (loading) return <LoadingScreen />;
-  if (showWelcome) return <WelcomeSplash profile={profile} onDone={finishWelcome} />;
+  const logoSrc = getInstitutionalLogo(settings, appLogo);
+  if (showWelcome) return <WelcomeSplash profile={profile} onDone={finishWelcome} logoSrc={logoSrc} logoAlt={settings.logoAltText || "Roca Eterna Musica"} />;
   return (
     <>
       {children}
-      <OnboardingGuide open={showGuide} onClose={() => setShowGuide(false)} onFinish={finishGuide} />
+      <OnboardingGuide open={showGuide} onClose={() => setShowGuide(false)} onFinish={finishGuide} logoSrc={logoSrc} logoAlt={settings.logoAltText || "Roca Eterna Musica"} />
     </>
   );
 }

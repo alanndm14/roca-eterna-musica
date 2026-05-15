@@ -581,7 +581,7 @@ export function MusicDataProvider({ children }) {
   };
 
   const indexLocalPdfTexts = async () => {
-    const results = { indexed: 0, failed: 0, noText: 0, missing: 0 };
+    const results = { found: 0, indexed: 0, failed: 0, noText: 0, missing: 0 };
     for (const song of songs.filter((item) => item.localPdfPath)) {
       const extracted = await extractLocalPdfText(song.localPdfPath);
       const payload = {
@@ -590,11 +590,15 @@ export function MusicDataProvider({ children }) {
         pdfSearchTokens: extracted.tokens || [],
         pdfIndexStatus: extracted.status,
         pdfIndexMessage: extracted.message,
+        pdfIndexUrl: extracted.resolvedUrl || "",
+        pdfIndexHttpStatus: extracted.statusHttp || "",
+        pdfIndexContentType: extracted.contentType || "",
+        localPdfStatus: extracted.status === "indexed" || extracted.status === "no_text" ? "found" : extracted.status,
         pdfIndexedAt: new Date().toISOString()
       };
       await saveSong(payload);
-      if (extracted.status === "indexed") results.indexed += 1;
-      else if (extracted.status === "no_text") results.noText += 1;
+      if (extracted.status === "indexed") { results.indexed += 1; results.found += 1; }
+      else if (extracted.status === "no_text") { results.noText += 1; results.found += 1; }
       else if (extracted.status === "missing") results.missing += 1;
       else results.failed += 1;
     }

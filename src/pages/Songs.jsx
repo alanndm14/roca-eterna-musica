@@ -231,6 +231,9 @@ function SongForm({ initialSong, themes, keyPreference, onSubmit, onCancel }) {
             </Field>
             <Field label="Ruta PDF local, opcional">
               <Input value={song.localPdfPath || ""} onChange={(event) => update("localPdfPath", event.target.value)} placeholder="/pdfs/nombre-del-canto.pdf" />
+              <p className="mt-2 text-xs leading-5 text-ink/55">
+                Si el archivo esta en public/pdfs/Glorificate.pdf, escribe /pdfs/Glorificate.pdf. Tambien se aceptan rutas como pdfs/Glorificate.pdf; no es necesario escribir public/.
+              </p>
             </Field>
             <Field label="YouTube">
               <Input value={song.youtubeUrl || ""} onChange={(event) => update("youtubeUrl", event.target.value)} placeholder="https://youtube.com/..." />
@@ -333,7 +336,8 @@ export function Songs() {
     pdf: "",
     sung: "",
     format: "",
-    keyChange: ""
+    keyChange: "",
+    localPdf: ""
   });
   const [editingSong, setEditingSong] = useState(null);
   const [isAdding, setIsAdding] = useState(false);
@@ -345,7 +349,7 @@ export function Songs() {
   const formats = useMemo(() => [...new Set([...SONG_FORMATS, ...songs.map((song) => song.format).filter(Boolean)])], [songs]);
 
   const setFilter = (field, value) => setFilters((current) => ({ ...current, [field]: value }));
-  const clearFilters = () => setFilters({ query: "", category: "", mainTheme: "", otherTheme: "", key: "", capo: "", music: "", keynote: "", pdf: "", sung: "", format: "", keyChange: "" });
+  const clearFilters = () => setFilters({ query: "", category: "", mainTheme: "", otherTheme: "", key: "", capo: "", music: "", keynote: "", pdf: "", sung: "", format: "", keyChange: "", localPdf: "" });
 
   const filteredSongs = useMemo(
     () =>
@@ -375,7 +379,12 @@ export function Songs() {
         const matchesSung = !filters.sung || (filters.sung === "si" ? song.sungBefore : !song.sungBefore);
         const matchesFormat = !filters.format || song.format === filters.format;
         const matchesKeyChange = !filters.keyChange || (filters.keyChange === "si" ? song.hasKeyChange : !song.hasKeyChange);
-        return matchesQuery && matchesCategory && matchesMainTheme && matchesOtherTheme && matchesKey && matchesCapo && matchesMusic && matchesKeynote && matchesPdf && matchesSung && matchesFormat && matchesKeyChange;
+        const hasLocalPdf = Boolean(song.localPdfPath);
+        const matchesLocalPdf = !filters.localPdf
+          || (filters.localPdf === "with" && hasLocalPdf)
+          || (filters.localPdf === "without" && !hasLocalPdf)
+          || (filters.localPdf === "invalid" && ["missing", "failed"].includes(song.pdfIndexStatus || song.localPdfStatus));
+        return matchesQuery && matchesCategory && matchesMainTheme && matchesOtherTheme && matchesKey && matchesCapo && matchesMusic && matchesKeynote && matchesPdf && matchesSung && matchesFormat && matchesKeyChange && matchesLocalPdf;
       }),
     [filters, songs]
   );
@@ -460,6 +469,12 @@ export function Songs() {
               <option value="">Cambio de tono</option>
               <option value="si">Con cambio</option>
               <option value="no">Sin cambio</option>
+            </Select>
+            <Select value={filters.localPdf} onChange={(event) => setFilter("localPdf", event.target.value)}>
+              <option value="">Ruta PDF local</option>
+              <option value="with">Con ruta PDF local</option>
+              <option value="without">Sin ruta PDF local</option>
+              <option value="invalid">Ruta PDF local invalida</option>
             </Select>
           </div>
         </details>

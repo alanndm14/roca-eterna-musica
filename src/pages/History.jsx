@@ -18,9 +18,21 @@ export function History() {
   const [dateFilter, setDateFilter] = useState("");
   const [sort, setSort] = useState("desc");
   const past = getPastSchedules(schedules).filter((schedule) => schedule.status === "realizado" || schedule.date);
-  const mostRepeated = [...songs].sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0)).slice(0, 5);
   const withoutAppHistory = songs.filter((song) => !song.lastUsedAt).slice(0, 8);
   const sungBefore = songs.filter((song) => song.sungBefore).length;
+  const realUsage = useMemo(() => {
+    const counts = new Map();
+    past.forEach((schedule) => {
+      (schedule.songs || []).forEach((entry) => {
+        const key = entry.songId || entry.titleSnapshot;
+        if (!key) return;
+        const existing = counts.get(key) || { id: entry.songId, title: entry.titleSnapshot, count: 0 };
+        existing.count += 1;
+        counts.set(key, existing);
+      });
+    });
+    return [...counts.values()].sort((a, b) => b.count - a.count).slice(0, 5);
+  }, [past]);
 
   const serviceTypes = [...new Set(past.map((schedule) => schedule.serviceType || schedule.serviceLabel || schedule.type).filter(Boolean))];
   const filtered = useMemo(() => {
@@ -151,15 +163,15 @@ export function History() {
           </dl>
         </Card>
         <Card>
-          <h3 className="font-bold text-ink">Cantos mas usados</h3>
-          <p className="mt-1 text-xs text-ink/45">Conteo segun datos registrados en la app.</p>
+          <h3 className="font-bold text-ink">Cantos mas usados en historial</h3>
+          <p className="mt-1 text-xs text-ink/45">Segun programaciones registradas, no valores heredados.</p>
           <div className="mt-4 space-y-3">
-            {mostRepeated.map((song) => (
-              <div key={song.id} className="flex items-center justify-between rounded-2xl bg-ink/5 p-3">
-                <SongNameLink songId={song.id} title={song.title} songs={songs} className="text-sm">{song.title}</SongNameLink>
-                <span className="rounded-xl bg-white px-2 py-1 text-xs font-bold text-ink">{song.usageCount || 0}</span>
+            {realUsage.length ? realUsage.map((entry) => (
+              <div key={entry.id || entry.title} className="flex items-center justify-between rounded-2xl bg-ink/5 p-3">
+                <SongNameLink songId={entry.id} title={entry.title} songs={songs} className="text-sm">{entry.title}</SongNameLink>
+                <span className="rounded-xl bg-white px-2 py-1 text-xs font-bold text-ink">{entry.count}</span>
               </div>
-            ))}
+            )) : <p className="text-sm text-ink/55">Sin historial</p>}
           </div>
         </Card>
         <Card>

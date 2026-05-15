@@ -84,13 +84,24 @@ export function normalizeDrivePdfUrl(url = "") {
   return match?.[1] ? `https://drive.google.com/file/d/${match[1]}/preview` : value;
 }
 
-export function resolvePublicPdfPath(path = "") {
+function encodePublicPath(path = "") {
+  return String(path)
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/")
+    .replace(/%25/g, "%");
+}
+
+export function normalizePublicAssetPath(path = "") {
   const value = String(path || "").trim();
   if (!value) return "";
   if (/^https?:\/\//i.test(value)) return value;
   const base = import.meta.env.BASE_URL || "/";
   const cleanBase = base === "/" ? "/" : `/${base.replace(/^\/+|\/+$/g, "")}/`;
-  let cleanPath = value.replace(/\\/g, "/").replace(/^\/+/, "");
+  let cleanPath = value
+    .replace(/\\/g, "/")
+    .replace(/^\/+/, "")
+    .replace(/^public\//i, "");
   const baseWithoutSlash = cleanBase.replace(/^\/+|\/+$/g, "");
 
   if (baseWithoutSlash && cleanPath === baseWithoutSlash) return cleanBase;
@@ -98,11 +109,24 @@ export function resolvePublicPdfPath(path = "") {
     cleanPath = cleanPath.slice(baseWithoutSlash.length + 1);
   }
 
-  return `${cleanBase}${cleanPath}`.replace(/\/{2,}/g, "/");
+  return `${cleanBase}${encodePublicPath(cleanPath)}`.replace(/\/{2,}/g, "/");
+}
+
+export function resolvePublicAssetUrl(path = "") {
+  const value = String(path || "").trim();
+  if (!value) return "";
+  if (/^https?:\/\//i.test(value)) return value;
+  const normalizedPath = normalizePublicAssetPath(value);
+  const origin = typeof window !== "undefined" && window.location?.origin ? window.location.origin : "";
+  return origin ? `${origin}${normalizedPath}` : normalizedPath;
+}
+
+export function resolvePublicPdfPath(path = "") {
+  return resolvePublicAssetUrl(path);
 }
 
 export function resolvePublicAssetPath(path = "") {
-  return resolvePublicPdfPath(path);
+  return resolvePublicAssetUrl(path);
 }
 
 export function getInstitutionalLogo(settings = {}, fallback = "") {

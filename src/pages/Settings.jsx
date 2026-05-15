@@ -3,10 +3,12 @@ import { Database, FileSearch, HelpCircle, Image as ImageIcon, LogOut, Palette, 
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { Field, Input, Select, Textarea } from "../components/ui/Field";
+import { FileDiagnosticPanel } from "../components/ui/FileDiagnosticPanel";
 import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
 import { analyzeImport, parseSongsTable } from "../services/importSongs";
-import { canonicalThemeKey, collectSongThemes, getInstitutionalLogo, normalizeThemeName, resolvePublicAssetPath } from "../services/songUtils";
+import { canonicalThemeKey, collectSongThemes, getInstitutionalLogo, normalizeThemeName, resolvePublicAssetUrl } from "../services/songUtils";
+import { diagnosePublicAsset } from "../services/publicPdfTools";
 import { appLogo, fallbackAppLogo } from "../assets/logo";
 
 const defaultColors = {
@@ -21,7 +23,7 @@ const formatAccessDate = (value) => {
 };
 
 export function Settings() {
-  const { profile, displayName, isAdmin, signOut, saveUserPreferences } = useAuth();
+  const { profile, isAdmin, signOut, saveUserPreferences } = useAuth();
   const {
     settings,
     songs,
@@ -54,7 +56,7 @@ export function Settings() {
   const [importMode, setImportMode] = useState("skip");
   const [importResult, setImportResult] = useState(null);
   const [pdfIndexResult, setPdfIndexResult] = useState(null);
-  const [logoTest, setLogoTest] = useState("");
+  const [logoTest, setLogoTest] = useState(null);
   const parsedImport = useMemo(() => parseSongsTable(importText, localSettings.keyPreference || "sharps"), [importText, localSettings.keyPreference]);
   const importSummary = useMemo(() => analyzeImport(parsedImport.songs, songs), [parsedImport.songs, songs]);
 
@@ -121,6 +123,7 @@ export function Settings() {
   };
 
   const previewLogo = getInstitutionalLogo(localSettings, appLogo);
+  const logoSource = localSettings.logoUrl || localSettings.logoLocalPath || "";
 
   const handleFile = async (file) => {
     if (!file) return;
@@ -160,6 +163,20 @@ export function Settings() {
   const statusForUser = (user) => {
     if (user.active === false) return "inactivo";
     return users.some((item) => item.email === user.email) ? "activo" : "pendiente de iniciar sesión";
+  };
+
+  const refreshApp = async () => {
+    try {
+      const keys = await caches?.keys?.();
+      await Promise.all((keys || []).map((key) => caches.delete(key)));
+      const registrations = await navigator.serviceWorker?.getRegistrations?.();
+      await Promise.all((registrations || []).map((registration) => registration.update().catch(() => registration.unregister())));
+    } catch {
+      // Algunos navegadores limitan esta limpieza; recargar sigue siendo seguro.
+    }
+    if (confirm("La app intento limpiar cache. Recarga para ver la version mas reciente.")) {
+      window.location.reload();
+    }
   };
 
   return (
@@ -214,7 +231,8 @@ export function Settings() {
               <Input value={localSettings.logoUrl || ""} disabled={!isAdmin} placeholder="Opcional" onChange={(event) => updateSettings("logoUrl", event.target.value)} />
             </Field>
             <Field label="Ruta local del logo">
-              <Input value={localSettings.logoLocalPath || ""} disabled={!isAdmin} placeholder="/logos/logo-oficial.png" onChange={(event) => updateSettings("logoLocalPath", event.target.value)} />
+              <Input value={localSettings.logoLocalPath || ""} disabled={!isAdmin} placeholder="/icons/cropped-LOGO-IBRE-5-1.png" onChange={(event) => updateSettings("logoLocalPath", event.target.value)} />
+              <p className="mt-2 text-xs leading-5 text-ink/55">Si el archivo esta en public/icons/logo.png, escribe /icons/logo.png. No es necesario escribir public/.</p>
             </Field>
             <Field label="Texto alternativo del logo">
               <Input value={localSettings.logoAltText || ""} disabled={!isAdmin} placeholder="Roca Eterna Musica" onChange={(event) => updateSettings("logoAltText", event.target.value)} />
@@ -236,15 +254,18 @@ export function Settings() {
               alt={localSettings.logoAltText || "Roca Eterna Musica"}
               className="mt-3 h-20 w-40 object-contain"
             />
-            {logoTest ? <p className="mt-2 text-sm text-ink/60">{logoTest}</p> : null}
+            <p className="mt-3 text-xs leading-5 text-ink/55">URL final: {logoSource ? resolvePublicAssetUrl(logoSource) : "Logo por defecto"}</p>
+            <FileDiagnosticPanel result={logoTest} />
           </div>
           {isAdmin ? (
             <div className="mt-5 flex flex-wrap gap-3">
               <Button onClick={() => saveSettings(localSettings)}><Save className="h-4 w-4" />Guardar ajustes</Button>
-              <Button variant="secondary" onClick={() => {
-                const testPath = localSettings.logoUrl || resolvePublicAssetPath(localSettings.logoLocalPath || "");
-                setLogoTest(testPath ? `Ruta resuelta: ${testPath}` : "Usando logo por defecto.");
-              }}>Probar logo</Button>
+              <Button variant="secondary" onClick={async () => setLogoTest(await diagnosePublicAsset(logoSource, "image"))}>Diagnosticar archivo</Button>
+              {logoSource ? (
+                <a href={resolvePublicAssetUrl(logoSource)} target="_blank" rel="noreferrer">
+                  <Button variant="secondary">Abrir URL resuelta</Button>
+                </a>
+              ) : null}
               <Button variant="secondary" onClick={() => setLocalSettings((current) => ({ ...current, logoUrl: "", logoLocalPath: "", logoAltText: "" }))}>Restaurar logo por defecto</Button>
             </div>
           ) : null}
@@ -412,7 +433,7 @@ export function Settings() {
           </Button>
           {pdfIndexResult ? (
             <p className="mt-3 text-sm font-semibold text-ink/60">
-              Indexados {pdfIndexResult.indexed}, sin texto {pdfIndexResult.noText}, no encontrados {pdfIndexResult.missing}, errores {pdfIndexResult.failed}
+              Encontrados {pdfIndexResult.found}, indexados {pdfIndexResult.indexed}, sin texto {pdfIndexResult.noText}, no encontrados {pdfIndexResult.missing}, errores {pdfIndexResult.failed}
             </p>
           ) : null}
         </Card>
@@ -508,6 +529,12 @@ export function Settings() {
             <HelpCircle className="h-4 w-4" />
             Ver guía otra vez
           </Button>
+        </Card>
+
+        <Card>
+          <h2 className="text-xl font-bold text-ink">Actualizar app</h2>
+          <p className="mt-3 text-sm leading-6 text-ink/60">Limpia caché local y pide recargar si la PWA muestra una versión vieja.</p>
+          <Button className="mt-4 w-full" variant="secondary" onClick={refreshApp}>Actualizar app</Button>
         </Card>
 
         <Card>

@@ -7,6 +7,8 @@ import { useAuth } from "../hooks/useAuth";
 export function Login() {
   const { signInWithGoogle, enterDemoMode, error, isFirebaseConfigured } = useAuth();
   const showDemoMode = !isFirebaseConfigured || import.meta.env.DEV;
+  const logoSrc = localStorage.getItem("roca-eterna-logo-src") || appLogo;
+  const logoAlt = localStorage.getItem("roca-eterna-logo-alt") || "Roca Eterna Musica";
 
   return (
     <div className="grid min-h-screen bg-ink text-white lg:grid-cols-[1.05fr_0.95fr]">
@@ -18,12 +20,12 @@ export function Login() {
           transition={{ duration: 0.45 }}
           className="relative z-10 max-w-xl"
         >
-          <img src={appLogo} onError={(event) => { event.currentTarget.src = fallbackAppLogo; }} alt="Roca Eterna Música" className="h-28 w-28 rounded-3xl bg-white object-contain p-2 shadow-2xl" />
+          <img src={logoSrc} onError={(event) => { event.currentTarget.src = fallbackAppLogo; }} alt={logoAlt} className="h-32 w-32 rounded-3xl bg-white object-contain p-2 shadow-2xl" />
           <h1 className="mt-8 text-4xl font-bold leading-tight tracking-normal md:text-6xl">
-            Roca Eterna Música
+            Roca Eterna Musica
           </h1>
           <p className="mt-5 max-w-lg text-lg leading-8 text-white/68">
-            Organización del ministerio de música de Roca Eterna.
+            Organizacion del ministerio de musica de Roca Eterna.
           </p>
           <div className="mt-9 flex flex-col gap-3 sm:flex-row">
             <Button variant="light" onClick={signInWithGoogle}>
@@ -59,7 +61,7 @@ export function Login() {
           <div className="space-y-4 text-sm leading-6 text-ink/65">
             <p>La app usa Firebase Authentication con Google Sign-In.</p>
             <p>Los roles se validan contra Firestore y sus reglas de seguridad, no solo desde la interfaz.</p>
-            <p>No se almacenan datos sensibles de miembros; solo repertorio, programación, notas musicales y usuarios autorizados.</p>
+            <p>No se almacenan datos sensibles de miembros; solo repertorio, programacion, notas musicales y usuarios autorizados.</p>
           </div>
         </motion.div>
       </section>
