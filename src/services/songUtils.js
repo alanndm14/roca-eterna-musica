@@ -129,8 +129,26 @@ export function resolvePublicAssetPath(path = "") {
   return resolvePublicAssetUrl(path);
 }
 
-export function getInstitutionalLogo(settings = {}, fallback = "") {
-  return settings.logoUrl || resolvePublicAssetPath(settings.logoLocalPath || "") || fallback;
+export function getEffectiveThemeMode(themeMode = "system") {
+  if (themeMode === "light" || themeMode === "dark") return themeMode;
+  if (typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: dark)")?.matches) return "dark";
+  return "light";
+}
+
+export function getInstitutionalLogo(settings = {}, fallback = "", themeMode = "system") {
+  const effectiveMode = getEffectiveThemeMode(themeMode);
+  const modeLogo = effectiveMode === "dark" ? settings.logoDarkUrl : settings.logoLightUrl;
+  const legacyLogo = settings.logoUrl || settings.logoLocalPath;
+  const source = modeLogo || settings.logoFallbackUrl || legacyLogo || "";
+  return resolvePublicAssetPath(source) || fallback;
+}
+
+export function shouldInvertInstitutionalLogo(settings = {}, themeMode = "system") {
+  if (!settings.logoAutoInvert) return false;
+  const effectiveMode = getEffectiveThemeMode(themeMode);
+  return effectiveMode === "dark"
+    ? Boolean(!settings.logoDarkUrl && settings.logoLightUrl)
+    : Boolean(!settings.logoLightUrl && settings.logoDarkUrl);
 }
 
 export function getSongPdfUrl(song) {

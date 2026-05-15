@@ -12,17 +12,24 @@ import {
 } from "lucide-react";
 
 export const navItems = [
-  { label: "Inicio", path: "/", icon: Home, tourId: "nav-inicio" },
-  { label: "Repertorio", path: "/repertorio", icon: ListMusic, tourId: "nav-repertorio" },
-  { label: "Programacion", path: "/programacion", icon: CalendarDays, tourId: "nav-programacion" },
-  { label: "Musicos", path: "/musicos", icon: Music2, tourId: "nav-musicos" },
-  { label: "Historial", path: "/historial", icon: Clock3, tourId: "nav-historial" },
-  { label: "Estadisticas", path: "/estadisticas", icon: BarChart3, tourId: "nav-estadisticas" },
-  { label: "Configuracion", path: "/configuracion", icon: Settings, tourId: "nav-configuracion" },
-  { label: "Auditoria", path: "/auditoria", icon: FileClock },
-  { label: "Actualizaciones", path: "/actualizaciones", icon: Sparkles }
+  { label: "Inicio", path: "/", icon: Home, tourId: "nav-inicio", roles: ["admin", "editor", "viewer"] },
+  { label: "Repertorio", path: "/repertorio", icon: ListMusic, tourId: "nav-repertorio", roles: ["admin", "editor", "viewer"] },
+  { label: "Programacion", path: "/programacion", icon: CalendarDays, tourId: "nav-programacion", roles: ["admin", "editor", "viewer"] },
+  { label: "Musicos", path: "/musicos", icon: Music2, tourId: "nav-musicos", roles: ["admin", "editor", "viewer"] },
+  { label: "Historial", path: "/historial", icon: Clock3, tourId: "nav-historial", roles: ["admin", "editor", "viewer"] },
+  { label: "Estadisticas", path: "/estadisticas", icon: BarChart3, tourId: "nav-estadisticas", roles: ["admin", "editor", "viewer"] },
+  { label: "Configuracion", path: "/configuracion", icon: Settings, tourId: "nav-configuracion", roles: ["admin", "editor", "viewer"] },
+  { label: "Auditoria", path: "/auditoria", icon: FileClock, tourId: "nav-auditoria", roles: ["admin"] },
+  { label: "Actualizaciones", path: "/actualizaciones", icon: Sparkles, tourId: "nav-actualizaciones", roles: ["admin", "editor"] }
 ];
 
-export const mobilePrimaryItems = [navItems[0], navItems[1], navItems[2], navItems[3]];
-export const mobileExtraItems = [navItems[4], navItems[5], { ...navItems[6], icon: UsersRound }, navItems[7], navItems[8]];
+export const getVisibleNavItems = (role = "viewer") =>
+  navItems.filter((item) => item.roles.includes(role || "viewer"));
+
+export const getMobilePrimaryItems = (role = "viewer") => getVisibleNavItems(role).slice(0, 4);
+export const getMobileExtraItems = (role = "viewer") =>
+  getVisibleNavItems(role).slice(4).map((item) => (item.path === "/configuracion" ? { ...item, icon: UsersRound } : item));
+
+export const mobilePrimaryItems = getMobilePrimaryItems("admin");
+export const mobileExtraItems = getMobileExtraItems("admin");
 export const mobileNavItems = [...mobilePrimaryItems, { ...navItems[6], icon: UsersRound }];

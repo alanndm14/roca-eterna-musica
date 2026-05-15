@@ -1,6 +1,29 @@
-export const appVersion = "0.9.0";
+export const appVersion = "0.9.1";
 
 export const changelog = [
+  {
+    version: "0.9.1",
+    date: "2026-05-15",
+    title: "Pulido de roles, logos y auditoria",
+    added: [
+      "Logos separados para modo claro y modo oscuro",
+      "Restauracion segura desde registros de auditoria para cantos, programaciones y temas",
+      "Ayuda interactiva adaptada al rol del usuario",
+      "Vista compacta de temas del repertorio"
+    ],
+    changed: [
+      "La navegacion y rutas visibles ahora respetan mejor los roles viewer, editor y admin",
+      "La guia movil usa pasos mas cortos y evita desenfocar el elemento resaltado",
+      "La etiqueta dorada de Vista para musicos ahora dice Servicio"
+    ],
+    fixed: [
+      "La configuracion de logos ya prueba y muestra URLs resueltas por modo",
+      "Auditoria muestra acciones restaurables como botones reales cuando hay datos suficientes"
+    ],
+    pending: [
+      "Probar restauraciones con datos reales antes de usarlas como respaldo operativo principal"
+    ]
+  },
   {
     version: "0.9.0",
     date: "2026-05-14",

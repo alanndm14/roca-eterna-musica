@@ -1,9 +1,10 @@
 import { NavLink } from "react-router-dom";
 import { appLogo, fallbackAppLogo } from "../../assets/logo";
-import { navItems } from "./navigation";
+import { getVisibleNavItems } from "./navigation";
 
-export function Sidebar({ profile, collapsed = false, logoSrc = appLogo, logoAlt = "Roca Eterna Musica" }) {
+export function Sidebar({ profile, collapsed = false, logoSrc = appLogo, logoAlt = "Roca Eterna Musica", logoInvert = false }) {
   const visibleName = profile?.preferredDisplayName || profile?.displayName || profile?.email;
+  const navItems = getVisibleNavItems(profile?.role || "viewer");
 
   return (
     <aside className={`app-sidebar fixed left-0 top-0 hidden h-screen flex-col bg-ink p-5 text-white transition-all duration-200 lg:flex ${collapsed ? "w-20" : "w-72"}`}>
@@ -14,7 +15,7 @@ export function Sidebar({ profile, collapsed = false, logoSrc = appLogo, logoAlt
             event.currentTarget.src = fallbackAppLogo;
           }}
           alt={logoAlt}
-          className="h-12 w-12 rounded-2xl bg-white object-contain p-1"
+          className={`h-12 w-12 rounded-2xl bg-white object-contain p-1 ${logoInvert ? "invert" : ""}`}
         />
         {!collapsed ? (
           <div>

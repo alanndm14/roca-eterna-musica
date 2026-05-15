@@ -5,27 +5,43 @@ import { ArrowLeft, ArrowRight, Check, X } from "lucide-react";
 import { appLogo, fallbackAppLogo } from "../../assets/logo";
 import { Button } from "./Button";
 
-const steps = [
-  { route: "/", target: '[data-tour="nav-inicio"]', title: "Inicio", text: "Aqui ves el proximo servicio, pendientes y accesos rapidos." },
-  { route: "/repertorio", target: '[data-tour="nav-repertorio"]', title: "Repertorio", text: "Guarda cantos con tono, capo, temas, revision, PDF, YouTube y Spotify." },
-  { route: "/repertorio", target: '[data-tour="song-add"]', title: "Agregar canto", text: "Desde aqui agregas un canto nuevo sin depender de escribir toda la letra en la base." },
-  { route: "/programacion", target: '[data-tour="nav-programacion"]', title: "Programacion", text: "Usa calendario, servicios reales y buscador de cantos para armar cada reunion." },
-  { route: "/programacion", target: '[data-tour="schedule-new"]', title: "Nueva programacion", text: "Si vienes desde calendario, la fecha seleccionada se carga automaticamente." },
-  { route: "/musicos", target: '[data-tour="nav-musicos"]', title: "Vista para musicos", text: "Elige una programacion, abre PDFs, descarga la hoja del servicio y usa modo enfocado." },
-  { route: "/musicos", target: '[data-tour="service-pdfs"]', title: "PDFs del servicio", text: "Navega los PDFs de los cantos sin salir de la app." },
-  { route: "/estadisticas", target: '[data-tour="nav-estadisticas"]', title: "Estadisticas", text: "Analiza datos para musicos y para programacion usando filtros de categoria y tema." },
-  { route: "/configuracion", target: '[data-tour="nav-configuracion"]', title: "Configuracion", text: "Administra temas, accesos, preferencias personales, importacion y mantenimiento." },
-  { route: "/configuracion", target: null, title: "Listo", text: "Puedes volver a abrir este tour desde Ayuda, Configuracion o el menu Mas en movil." }
+const allSteps = [
+  { route: "/", target: '[data-tour="nav-inicio"]', title: "Inicio", text: "Proximo servicio, pendientes y accesos rapidos.", roles: ["admin", "editor", "viewer"] },
+  { route: "/repertorio", target: '[data-tour="nav-repertorio"]', title: "Repertorio", text: "Consulta cantos, tonos, temas, PDFs y enlaces.", roles: ["admin", "editor", "viewer"] },
+  { route: "/repertorio", target: '[data-tour="song-add"]', title: "Agregar canto", text: "Agrega o edita repertorio del ministerio.", roles: ["admin", "editor"] },
+  { route: "/programacion", target: '[data-tour="nav-programacion"]', title: "Programacion", text: "Calendario, servicios y cantos en orden.", roles: ["admin", "editor", "viewer"] },
+  { route: "/programacion", target: '[data-tour="schedule-new"]', title: "Nueva programacion", text: "Crea servicios usando la fecha seleccionada.", roles: ["admin", "editor"] },
+  { route: "/musicos", target: '[data-tour="nav-musicos"]', title: "Vista para musicos", text: "Ensayo, PDFs y hoja del servicio.", roles: ["admin", "editor", "viewer"] },
+  { route: "/musicos", target: '[data-tour="service-pdfs"]', title: "PDFs del servicio", text: "Abre los PDFs sin salir de la app.", roles: ["admin", "editor", "viewer"] },
+  { route: "/estadisticas", target: '[data-tour="nav-estadisticas"]', title: "Estadisticas", text: "Analiza repertorio por tema, tono y uso.", roles: ["admin", "editor", "viewer"] },
+  { route: "/configuracion", target: '[data-tour="nav-configuracion"]', title: "Configuracion", text: "Preferencias personales y ayuda.", roles: ["admin", "editor", "viewer"] },
+  { route: "/configuracion", target: '[data-tour="settings-access"]', title: "Accesos", text: "Administra correos, roles y permisos.", roles: ["admin"] },
+  { route: "/auditoria", target: '[data-tour="nav-auditoria"]', title: "Auditoria", text: "Revisa cambios y restaura versiones.", roles: ["admin"] },
+  { route: "/actualizaciones", target: '[data-tour="nav-actualizaciones"]', title: "Actualizaciones", text: "Consulta cambios de cada version.", roles: ["admin", "editor"] },
+  { route: "/configuracion", target: null, title: "Listo", text: "Puedes volver a abrir esta guia desde Ayuda.", roles: ["admin", "editor", "viewer"] }
 ];
 
-export function OnboardingGuide({ open, onClose, onFinish, logoSrc = appLogo, logoAlt = "Roca Eterna Musica" }) {
+export function OnboardingGuide({ open, onClose, onFinish, logoSrc = appLogo, logoAlt = "Roca Eterna Musica", logoInvert = false, role = "viewer" }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [index, setIndex] = useState(0);
   const [rect, setRect] = useState(null);
+  const [isMobile, setIsMobile] = useState(false);
+  const steps = useMemo(() => allSteps.filter((item) => item.roles.includes(role || "viewer")), [role]);
   const step = steps[index];
   const isLast = index === steps.length - 1;
   const progress = Math.round(((index + 1) / steps.length) * 100);
+
+  useEffect(() => {
+    const update = () => setIsMobile(window.innerWidth < 640);
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+
+  useEffect(() => {
+    if (index >= steps.length) setIndex(0);
+  }, [index, steps.length]);
 
   useEffect(() => {
     if (!open || !step?.route || location.pathname === step.route) return;
@@ -45,7 +61,7 @@ export function OnboardingGuide({ open, onClose, onFinish, logoSrc = appLogo, lo
         setRect(null);
         return;
       }
-      element.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+      element.scrollIntoView({ behavior: "smooth", block: isMobile ? "nearest" : "center", inline: "center" });
       window.setTimeout(() => {
         if (cancelled) return;
         const box = element.getBoundingClientRect();
@@ -67,11 +83,13 @@ export function OnboardingGuide({ open, onClose, onFinish, logoSrc = appLogo, lo
 
   const tooltipStyle = useMemo(() => {
     if (!rect) return { left: "50%", top: "50%", transform: "translate(-50%, -50%)" };
-    const fitsBelow = rect.top + rect.height + 260 < window.innerHeight;
-    const top = fitsBelow ? rect.top + rect.height + 16 : Math.max(16, rect.top - 244);
-    const left = Math.min(Math.max(16, rect.left), window.innerWidth - 360);
+    const tooltipHeight = isMobile ? 220 : 260;
+    const width = isMobile ? Math.min(window.innerWidth - 24, 320) : 340;
+    const fitsBelow = rect.top + rect.height + tooltipHeight + 24 < window.innerHeight;
+    const top = fitsBelow ? rect.top + rect.height + 12 : Math.max(12, rect.top - tooltipHeight - 12);
+    const left = Math.min(Math.max(12, rect.left), window.innerWidth - width - 12);
     return { left, top };
-  }, [rect]);
+  }, [isMobile, rect]);
 
   const finish = async () => {
     await onFinish?.();
@@ -101,7 +119,7 @@ export function OnboardingGuide({ open, onClose, onFinish, logoSrc = appLogo, lo
             />
           ) : null}
           <motion.div
-            className="absolute w-[min(92vw,340px)] rounded-3xl border border-white/10 bg-stonewash p-5 text-ink shadow-2xl"
+            className="absolute w-[min(92vw,340px)] rounded-3xl border border-white/10 bg-stonewash p-4 text-ink shadow-2xl sm:p-5"
             style={tooltipStyle}
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -115,7 +133,7 @@ export function OnboardingGuide({ open, onClose, onFinish, logoSrc = appLogo, lo
                     event.currentTarget.src = fallbackAppLogo;
                   }}
                   alt={logoAlt}
-                  className="h-11 w-11 rounded-2xl bg-white object-contain p-1 shadow-soft"
+                  className={`h-10 w-10 rounded-2xl bg-white object-contain p-1 shadow-soft sm:h-11 sm:w-11 ${logoInvert ? "invert" : ""}`}
                 />
                 <div>
                   <p className="text-xs font-bold uppercase tracking-wide text-brass">Guia interactiva</p>
@@ -129,8 +147,8 @@ export function OnboardingGuide({ open, onClose, onFinish, logoSrc = appLogo, lo
             <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-ink/7">
               <motion.div className="h-full rounded-full bg-brass" initial={false} animate={{ width: `${progress}%` }} />
             </div>
-            <h2 className="mt-5 text-xl font-bold text-ink">{step.title}</h2>
-            <p className="mt-2 text-sm leading-6 text-ink/65">{step.text}</p>
+            <h2 className="mt-4 text-lg font-bold text-ink sm:mt-5 sm:text-xl">{step.title}</h2>
+            <p className="mt-2 text-sm leading-5 text-ink/65 sm:leading-6">{step.text}</p>
             <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
               <Button variant="subtle" onClick={finish}>Omitir</Button>
               <div className="flex justify-end gap-2">

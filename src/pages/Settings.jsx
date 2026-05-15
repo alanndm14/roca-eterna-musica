@@ -4,10 +4,11 @@ import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { Field, Input, Select, Textarea } from "../components/ui/Field";
 import { FileDiagnosticPanel } from "../components/ui/FileDiagnosticPanel";
+import { Modal } from "../components/ui/Modal";
 import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
 import { analyzeImport, parseSongsTable } from "../services/importSongs";
-import { canonicalThemeKey, collectSongThemes, getInstitutionalLogo, normalizeThemeName, resolvePublicAssetUrl } from "../services/songUtils";
+import { canonicalThemeKey, collectSongThemes, getInstitutionalLogo, normalizeThemeName, resolvePublicAssetUrl, shouldInvertInstitutionalLogo } from "../services/songUtils";
 import { diagnosePublicAsset } from "../services/publicPdfTools";
 import { appLogo, fallbackAppLogo } from "../assets/logo";
 
@@ -49,8 +50,10 @@ export function Settings() {
   const [newUser, setNewUser] = useState({ email: "", displayName: "", role: "viewer", active: true });
   const [newTheme, setNewTheme] = useState("");
   const [themeQuery, setThemeQuery] = useState("");
+  const [themeFilter, setThemeFilter] = useState("all");
   const [editingTheme, setEditingTheme] = useState(null);
-  const [mergeTargets, setMergeTargets] = useState({});
+  const [mergeThemeSource, setMergeThemeSource] = useState(null);
+  const [mergeThemeTarget, setMergeThemeTarget] = useState("");
   const [importText, setImportText] = useState("");
   const [fileName, setFileName] = useState("");
   const [importMode, setImportMode] = useState("skip");
@@ -83,11 +86,27 @@ export function Settings() {
       };
     });
 
+    const duplicateKeys = new Set();
+    const seen = new Map();
+    rows.forEach((theme) => {
+      const key = canonicalThemeKey(theme.name);
+      if (seen.has(key)) duplicateKeys.add(key);
+      seen.set(key, true);
+    });
+
     return rows
       .filter((theme) => !theme.ignored)
       .filter((theme) => !themeQuery || theme.name.toLowerCase().includes(themeQuery.toLowerCase()))
+      .filter((theme) => {
+        if (themeFilter === "official") return !theme.detectedOnly;
+        if (themeFilter === "detected") return theme.detectedOnly;
+        if (themeFilter === "active") return theme.active !== false;
+        if (themeFilter === "inactive") return theme.active === false;
+        if (themeFilter === "duplicates") return duplicateKeys.has(canonicalThemeKey(theme.name));
+        return true;
+      })
       .sort((a, b) => a.name.localeCompare(b.name, "es"));
-  }, [songs, themes, themeQuery]);
+  }, [songs, themes, themeFilter, themeQuery]);
 
   const userRows = useMemo(() => {
     const byEmail = new Map();
@@ -122,8 +141,10 @@ export function Settings() {
     setPersonalSettings((current) => ({ ...current, [field]: value }));
   };
 
-  const previewLogo = getInstitutionalLogo(localSettings, appLogo);
-  const logoSource = localSettings.logoUrl || localSettings.logoLocalPath || "";
+  const lightLogo = getInstitutionalLogo(localSettings, appLogo, "light");
+  const darkLogo = getInstitutionalLogo(localSettings, appLogo, "dark");
+  const lightLogoSource = localSettings.logoLightUrl || localSettings.logoFallbackUrl || localSettings.logoUrl || localSettings.logoLocalPath || "";
+  const darkLogoSource = localSettings.logoDarkUrl || localSettings.logoFallbackUrl || localSettings.logoUrl || localSettings.logoLocalPath || "";
 
   const handleFile = async (file) => {
     if (!file) return;
@@ -162,7 +183,7 @@ export function Settings() {
 
   const statusForUser = (user) => {
     if (user.active === false) return "inactivo";
-    return users.some((item) => item.email === user.email) ? "activo" : "pendiente de iniciar sesión";
+    return users.some((item) => item.email === user.email) ? "activo" : "pendiente de iniciar sesion";
   };
 
   const refreshApp = async () => {
@@ -227,12 +248,15 @@ export function Settings() {
             <Field label="Nombre de la app">
               <Input value={localSettings.appName || ""} disabled={!isAdmin} onChange={(event) => updateSettings("appName", event.target.value)} />
             </Field>
-            <Field label="Logo URL">
-              <Input value={localSettings.logoUrl || ""} disabled={!isAdmin} placeholder="Opcional" onChange={(event) => updateSettings("logoUrl", event.target.value)} />
-            </Field>
-            <Field label="Ruta local del logo">
-              <Input value={localSettings.logoLocalPath || ""} disabled={!isAdmin} placeholder="/icons/cropped-LOGO-IBRE-5-1.png" onChange={(event) => updateSettings("logoLocalPath", event.target.value)} />
+            <Field label="Logo para modo claro">
+              <Input value={localSettings.logoLightUrl || ""} disabled={!isAdmin} placeholder="/icons/logo-roca-negro.png" onChange={(event) => updateSettings("logoLightUrl", event.target.value)} />
               <p className="mt-2 text-xs leading-5 text-ink/55">Si el archivo esta en public/icons/logo.png, escribe /icons/logo.png. No es necesario escribir public/.</p>
+            </Field>
+            <Field label="Logo para modo oscuro">
+              <Input value={localSettings.logoDarkUrl || ""} disabled={!isAdmin} placeholder="/icons/logo-roca-blanco.png" onChange={(event) => updateSettings("logoDarkUrl", event.target.value)} />
+            </Field>
+            <Field label="Logo con fondo, opcional">
+              <Input value={localSettings.logoFallbackUrl || ""} disabled={!isAdmin} placeholder="/icons/logo-roca-fondo.png" onChange={(event) => updateSettings("logoFallbackUrl", event.target.value)} />
             </Field>
             <Field label="Texto alternativo del logo">
               <Input value={localSettings.logoAltText || ""} disabled={!isAdmin} placeholder="Roca Eterna Musica" onChange={(event) => updateSettings("logoAltText", event.target.value)} />
@@ -243,30 +267,38 @@ export function Settings() {
                 <option value="flats">Bemoles (b)</option>
               </Select>
             </Field>
+            <label className="flex items-center gap-3 rounded-2xl border border-ink/10 bg-ink/5 p-3 text-sm font-semibold text-ink">
+              <input type="checkbox" checked={Boolean(localSettings.logoAutoInvert)} disabled={!isAdmin} onChange={(event) => updateSettings("logoAutoInvert", event.target.checked)} />
+              Invertir logo automaticamente si falta una version
+            </label>
           </div>
-          <div className="mt-5 rounded-2xl border border-ink/10 bg-ink/5 p-4">
-            <p className="text-sm font-semibold text-ink">Vista previa del logo</p>
-            <img
-              src={previewLogo}
-              onError={(event) => {
-                event.currentTarget.src = fallbackAppLogo;
-              }}
+          <p className="mt-4 text-xs leading-5 text-ink/55">
+            Si tu logo es blanco/transparente, usa una version oscura para modo claro y una version clara para modo oscuro.
+          </p>
+          <div className="mt-5 grid gap-4 md:grid-cols-2">
+            <LogoPreview
+              title="Vista en modo claro"
+              logo={lightLogo}
+              source={lightLogoSource}
               alt={localSettings.logoAltText || "Roca Eterna Musica"}
-              className="mt-3 h-20 w-40 object-contain"
+              invert={shouldInvertInstitutionalLogo(localSettings, "light")}
+              onDiagnose={async () => setLogoTest(await diagnosePublicAsset(lightLogoSource, "image"))}
             />
-            <p className="mt-3 text-xs leading-5 text-ink/55">URL final: {logoSource ? resolvePublicAssetUrl(logoSource) : "Logo por defecto"}</p>
-            <FileDiagnosticPanel result={logoTest} />
+            <LogoPreview
+              title="Vista en modo oscuro"
+              logo={darkLogo}
+              source={darkLogoSource}
+              alt={localSettings.logoAltText || "Roca Eterna Musica"}
+              dark
+              invert={shouldInvertInstitutionalLogo(localSettings, "dark")}
+              onDiagnose={async () => setLogoTest(await diagnosePublicAsset(darkLogoSource, "image"))}
+            />
           </div>
+          <FileDiagnosticPanel result={logoTest} />
           {isAdmin ? (
             <div className="mt-5 flex flex-wrap gap-3">
               <Button onClick={() => saveSettings(localSettings)}><Save className="h-4 w-4" />Guardar ajustes</Button>
-              <Button variant="secondary" onClick={async () => setLogoTest(await diagnosePublicAsset(logoSource, "image"))}>Diagnosticar archivo</Button>
-              {logoSource ? (
-                <a href={resolvePublicAssetUrl(logoSource)} target="_blank" rel="noreferrer">
-                  <Button variant="secondary">Abrir URL resuelta</Button>
-                </a>
-              ) : null}
-              <Button variant="secondary" onClick={() => setLocalSettings((current) => ({ ...current, logoUrl: "", logoLocalPath: "", logoAltText: "" }))}>Restaurar logo por defecto</Button>
+              <Button variant="secondary" onClick={() => setLocalSettings((current) => ({ ...current, logoLightUrl: "", logoDarkUrl: "", logoFallbackUrl: "", logoAltText: "", logoAutoInvert: false }))}>Restaurar logo por defecto</Button>
             </div>
           ) : null}
         </Card>
@@ -276,9 +308,17 @@ export function Settings() {
             <Tags className="h-5 w-5 text-brass" />
             <h2 className="text-xl font-bold text-ink">Temas del repertorio</h2>
           </div>
-          <p className="mt-1 text-sm text-ink/55">Los filtros también incluyen temas detectados automáticamente en el repertorio.</p>
-          <div className="mt-5 grid gap-3 md:grid-cols-[1fr_220px]">
+          <p className="mt-1 text-sm text-ink/55">Los filtros tambien incluyen temas detectados automaticamente en el repertorio.</p>
+          <div className="mt-5 grid gap-3 lg:grid-cols-[1fr_220px_320px]">
             <Input placeholder="Buscar tema" value={themeQuery} onChange={(event) => setThemeQuery(event.target.value)} />
+            <Select value={themeFilter} onChange={(event) => setThemeFilter(event.target.value)}>
+              <option value="all">Todos</option>
+              <option value="official">Oficiales</option>
+              <option value="detected">Detectados</option>
+              <option value="active">Activos</option>
+              <option value="inactive">Inactivos</option>
+              <option value="duplicates">Posibles duplicados</option>
+            </Select>
             {isAdmin ? (
               <div className="flex gap-2">
                 <Input placeholder="Nuevo tema" value={newTheme} onChange={(event) => setNewTheme(event.target.value)} />
@@ -289,59 +329,105 @@ export function Settings() {
               </div>
             ) : null}
           </div>
-          <div className="mt-5 space-y-3">
-            {themeRows.map((theme) => {
-              const mergeTarget = mergeTargets[theme.id] || "";
-              return (
-                <div key={theme.id || theme.name} className="rounded-2xl bg-ink/5 p-3">
-                  <div className="grid gap-3 md:grid-cols-[1fr_120px] md:items-center">
-                    {editingTheme?.id === theme.id ? (
-                      <Input value={editingTheme.name} onChange={(event) => setEditingTheme((current) => ({ ...current, name: event.target.value }))} />
-                    ) : (
-                      <div>
-                        <p className="font-semibold text-ink">{theme.name}</p>
-                        <p className="text-xs text-ink/45">
-                          {theme.detectedOnly ? "Detectado automáticamente en el repertorio" : theme.active === false ? "Tema oficial inactivo" : "Tema oficial activo"} · {theme.count} cantos
-                        </p>
-                      </div>
-                    )}
-                    {isAdmin ? (
-                      editingTheme?.id === theme.id ? (
-                        <Button onClick={async () => {
-                          await saveTheme(editingTheme);
-                          setEditingTheme(null);
-                        }}>Guardar</Button>
-                      ) : theme.detectedOnly ? (
-                        <div className="flex flex-wrap gap-2">
-                          <Button variant="secondary" onClick={() => saveTheme({ name: theme.name, active: true })}>Convertir</Button>
-                          <Button variant="danger" onClick={() => saveTheme({ name: theme.name, active: false, ignored: true })}>Ignorar</Button>
+          <div className="mt-4 text-sm font-semibold text-ink/55">{themeRows.length} temas visibles</div>
+          <div className="mt-3 overflow-x-auto rounded-2xl border border-ink/10 bg-white dark:border-white/10 dark:bg-white/5">
+            <table className="min-w-[820px] w-full text-left text-sm">
+              <thead className="border-b border-ink/10 bg-ink/5 text-xs uppercase tracking-wide text-ink/45 dark:border-white/10 dark:bg-white/5 dark:text-white/50">
+                <tr>
+                  <th className="px-3 py-3">Tema</th>
+                  <th className="px-3 py-3">Estado</th>
+                  <th className="px-3 py-3">Cantos</th>
+                  <th className="px-3 py-3">Tipo</th>
+                  <th className="px-3 py-3 text-right">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {themeRows.map((theme) => (
+                  <tr key={theme.id || theme.name} className="border-b border-ink/10 last:border-b-0 hover:bg-ink/5 dark:border-white/10 dark:hover:bg-white/5">
+                    <td className="px-3 py-3">
+                      {editingTheme?.id === theme.id ? (
+                        <Input value={editingTheme.name} onChange={(event) => setEditingTheme((current) => ({ ...current, name: event.target.value }))} />
+                      ) : (
+                        <span className="font-semibold text-ink">{theme.name}</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-3">
+                      <span className={`rounded-full px-2 py-1 text-xs font-bold ${theme.active === false ? "bg-ink/10 text-ink/55 dark:bg-white/10 dark:text-white/60" : "bg-brass/15 text-brass"}`}>
+                        {theme.active === false ? "Inactivo" : "Activo"}
+                      </span>
+                    </td>
+                    <td className="px-3 py-3 text-ink/60">{theme.count}</td>
+                    <td className="px-3 py-3 text-ink/60">{theme.detectedOnly ? "Detectado automaticamente" : "Oficial"}</td>
+                    <td className="px-3 py-3">
+                      {isAdmin ? (
+                        <div className="flex flex-wrap justify-end gap-2">
+                          {editingTheme?.id === theme.id ? (
+                            <>
+                              <Button onClick={async () => {
+                                await saveTheme(editingTheme);
+                                setEditingTheme(null);
+                              }}>Guardar</Button>
+                              <Button variant="subtle" onClick={() => setEditingTheme(null)}>Cancelar</Button>
+                            </>
+                          ) : theme.detectedOnly ? (
+                            <>
+                              <Button variant="secondary" onClick={() => saveTheme({ name: theme.name, active: true })}>Convertir</Button>
+                              <Button variant="secondary" onClick={() => {
+                                setMergeThemeSource(theme);
+                                setMergeThemeTarget("");
+                              }}>Fusionar</Button>
+                              <Button variant="danger" onClick={() => saveTheme({ name: theme.name, active: false, ignored: true })}>Ignorar</Button>
+                            </>
+                          ) : (
+                            <>
+                              <Button variant="secondary" onClick={() => setEditingTheme(theme)}>Editar</Button>
+                              <Button variant="secondary" onClick={() => saveTheme({ ...theme, active: theme.active === false })}>
+                                {theme.active !== false ? "Desactivar" : "Activar"}
+                              </Button>
+                              <Button variant="subtle" onClick={() => {
+                                setMergeThemeSource(theme);
+                                setMergeThemeTarget("");
+                              }}>Fusionar</Button>
+                            </>
+                          )}
                         </div>
                       ) : (
-                        <div className="flex flex-wrap gap-2">
-                          <Button variant="secondary" onClick={() => setEditingTheme(theme)}>Editar</Button>
-                          <Button variant={theme.active !== false ? "secondary" : "danger"} onClick={() => saveTheme({ ...theme, active: theme.active === false })}>
-                            {theme.active !== false ? "Activo" : "Inactivo"}
-                          </Button>
-                        </div>
-                      )
-                    ) : null}
-                  </div>
-                  {isAdmin ? (
-                    <div className="mt-3 grid gap-2 md:grid-cols-[1fr_130px]">
-                      <Select value={mergeTarget} onChange={(event) => setMergeTargets((current) => ({ ...current, [theme.id]: event.target.value }))}>
-                        <option value="">Fusionar con otro tema</option>
-                        {themeRows.filter((target) => target.name !== theme.name && !target.detectedOnly).map((target) => (
-                          <option key={target.id} value={target.name}>{target.name}</option>
-                        ))}
-                      </Select>
-                      <Button variant="subtle" disabled={!mergeTarget} onClick={() => mergeTheme(theme.name, mergeTarget)}>Fusionar</Button>
-                    </div>
-                  ) : null}
-                </div>
-              );
-            })}
+                        <span className="text-ink/40">Solo lectura</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {!themeRows.length ? (
+              <div className="p-6 text-center text-sm font-semibold text-ink/50">No hay temas con esos filtros.</div>
+            ) : null}
           </div>
         </Card>
+
+        <Modal open={Boolean(mergeThemeSource)} title="Fusionar tema" onClose={() => setMergeThemeSource(null)}>
+          <div className="space-y-4">
+            <p className="text-sm leading-6 text-ink/60">
+              El tema <strong>{mergeThemeSource?.name}</strong> se reemplazara por el tema oficial que elijas.
+            </p>
+            <Field label="Tema destino">
+              <Select value={mergeThemeTarget} onChange={(event) => setMergeThemeTarget(event.target.value)}>
+                <option value="">Selecciona un tema oficial</option>
+                {themeRows.filter((target) => target.name !== mergeThemeSource?.name && !target.detectedOnly).map((target) => (
+                  <option key={target.id || target.name} value={target.name}>{target.name}</option>
+                ))}
+              </Select>
+            </Field>
+            <div className="flex flex-wrap justify-end gap-3">
+              <Button variant="subtle" onClick={() => setMergeThemeSource(null)}>Cancelar</Button>
+              <Button disabled={!mergeThemeTarget} onClick={async () => {
+                await mergeTheme(mergeThemeSource.name, mergeThemeTarget);
+                setMergeThemeSource(null);
+                setMergeThemeTarget("");
+              }}>Fusionar</Button>
+            </div>
+          </div>
+        </Modal>
 
         <Card>
           <div className="flex items-center gap-3">
@@ -358,11 +444,11 @@ export function Settings() {
                 <label htmlFor="repertoire-file" className="inline-flex min-h-10 cursor-pointer items-center justify-center rounded-xl bg-white px-4 py-2 text-sm font-semibold text-ink shadow-soft ring-1 ring-ink/10 transition hover:ring-ink/25">
                   Seleccionar archivo
                 </label>
-                <span className="text-sm text-ink/55">{fileName || "Ningún archivo seleccionado"}</span>
+                <span className="text-sm text-ink/55">{fileName || "Ningun archivo seleccionado"}</span>
               </div>
             </Field>
             <Field label="Texto CSV / TSV">
-              <Textarea value={importText} onChange={(event) => setImportText(event.target.value)} placeholder="Pega aquí tu tabla..." />
+              <Textarea value={importText} onChange={(event) => setImportText(event.target.value)} placeholder="Pega aqui tu tabla..." />
             </Field>
             <div className="grid gap-3 md:grid-cols-[220px_1fr] md:items-center">
               <Field label="Duplicados por nombre">
@@ -373,10 +459,10 @@ export function Settings() {
               </Field>
               <div className="rounded-2xl bg-ink/5 p-4 text-sm text-ink/62">
                 {!importText.trim() ? (
-                  "Pega tu tabla o sube un archivo para previsualizar la importación."
+                  "Pega tu tabla o sube un archivo para previsualizar la importacion."
                 ) : (
                   <span>
-                    Detectados <strong>{importSummary.detected}</strong> · Nuevos <strong>{importSummary.news}</strong> · Duplicados <strong>{importSummary.duplicates}</strong> · Con errores <strong>{parsedImport.errors.length}</strong>
+                    Detectados <strong>{importSummary.detected}</strong> - Nuevos <strong>{importSummary.news}</strong> - Duplicados <strong>{importSummary.duplicates}</strong> - Con errores <strong>{parsedImport.errors.length}</strong>
                   </span>
                 )}
               </div>
@@ -439,9 +525,9 @@ export function Settings() {
         </Card>
 
         {isAdmin ? (
-          <Card>
+          <Card data-tour="settings-access">
             <h2 className="text-xl font-bold text-ink">Correos autorizados</h2>
-            <p className="mt-1 text-sm text-ink/55">Autoriza correos antes de que entren con Google. Los usuarios reales aparecen después de iniciar sesión.</p>
+            <p className="mt-1 text-sm text-ink/55">Autoriza correos antes de que entren con Google. Los usuarios reales aparecen despues de iniciar sesion.</p>
             <div className="mt-5 grid gap-3 md:grid-cols-[1fr_1fr_140px_120px]">
               <Input placeholder="correo@gmail.com" value={newUser.email} onChange={(event) => setNewUser((current) => ({ ...current, email: event.target.value }))} />
               <Input placeholder="Nombre visible" value={newUser.displayName} onChange={(event) => setNewUser((current) => ({ ...current, displayName: event.target.value }))} />
@@ -466,7 +552,7 @@ export function Settings() {
                   <div>
                     <p className="font-semibold text-ink">{user.displayName || user.email}</p>
                     <p className="text-sm text-ink/55">{user.email}</p>
-                    <p className="text-xs text-ink/45">Último acceso: {formatAccessDate(user.lastLogin)}</p>
+                    <p className="text-xs text-ink/45">Ultimo acceso: {formatAccessDate(user.lastLogin)}</p>
                   </div>
                   <span className="text-sm font-semibold text-ink/60">{statusForUser(user)}</span>
                   <Select value={user.role || "viewer"} onChange={(event) => saveAccessUser({ ...user, role: event.target.value })}>
@@ -499,7 +585,7 @@ export function Settings() {
             <Button
               variant="secondary"
               className="mt-4"
-              onClick={() => confirm("Ya tienes repertorio real. Cargar datos de ejemplo puede duplicar o ensuciar la base. ¿Continuar?") && seedExampleData()}
+              onClick={() => confirm("Ya tienes repertorio real. Cargar datos de ejemplo puede duplicar o ensuciar la base. Continuar?") && seedExampleData()}
             >
               <Database className="h-4 w-4" />
               Cargar datos de ejemplo
@@ -510,7 +596,7 @@ export function Settings() {
 
       <aside className="space-y-5">
         <Card>
-          <h2 className="text-xl font-bold text-ink">Mi sesión</h2>
+          <h2 className="text-xl font-bold text-ink">Mi sesion</h2>
           <dl className="mt-4 space-y-3 text-sm">
             <div className="flex justify-between gap-4"><dt className="text-ink/50">Nombre</dt><dd className="text-right font-semibold text-ink">{profile?.displayName}</dd></div>
             <div className="flex justify-between gap-4"><dt className="text-ink/50">Correo</dt><dd className="text-right font-semibold text-ink">{profile?.email}</dd></div>
@@ -518,32 +604,65 @@ export function Settings() {
           </dl>
           <Button variant="danger" className="mt-6 w-full" onClick={signOut}>
             <LogOut className="h-4 w-4" />
-            Cerrar sesión
+            Cerrar sesion
           </Button>
         </Card>
 
         <Card>
           <h2 className="text-xl font-bold text-ink">Ayuda</h2>
-          <p className="mt-3 text-sm leading-6 text-ink/60">Abre de nuevo la guía interactiva para repasar cómo usar cada sección de la app.</p>
+          <p className="mt-3 text-sm leading-6 text-ink/60">Abre de nuevo la guia interactiva para repasar como usar cada seccion de la app.</p>
           <Button className="mt-4 w-full" variant="secondary" onClick={() => window.dispatchEvent(new Event("roca-eterna-open-guide"))}>
             <HelpCircle className="h-4 w-4" />
-            Ver guía otra vez
+            Ver guia otra vez
           </Button>
         </Card>
 
         <Card>
           <h2 className="text-xl font-bold text-ink">Actualizar app</h2>
-          <p className="mt-3 text-sm leading-6 text-ink/60">Limpia caché local y pide recargar si la PWA muestra una versión vieja.</p>
+          <p className="mt-3 text-sm leading-6 text-ink/60">Limpia cache local y pide recargar si la PWA muestra una version vieja.</p>
           <Button className="mt-4 w-full" variant="secondary" onClick={refreshApp}>Actualizar app</Button>
         </Card>
 
         <Card>
           <h2 className="text-xl font-bold text-ink">Seguridad</h2>
           <p className="mt-3 text-sm leading-6 text-ink/60">
-            La protección real depende de Firebase Authentication y las reglas publicadas en Firestore. Archivo local de referencia: firebase2.rules.
+            La proteccion real depende de Firebase Authentication y las reglas publicadas en Firestore. Archivo local de referencia: firebase2.rules.
           </p>
         </Card>
       </aside>
+    </div>
+  );
+}
+
+function LogoPreview({ title, logo, source, alt, dark = false, invert = false, onDiagnose }) {
+  const resolvedUrl = source ? resolvePublicAssetUrl(source) : "";
+  const previewLabel = resolvedUrl || "Logo por defecto";
+
+  return (
+    <div className={`rounded-2xl border p-4 ${dark ? "border-white/10 bg-ink text-white" : "border-ink/10 bg-white text-ink"}`}>
+      <div className="flex items-center justify-between gap-3">
+        <p className={`text-sm font-bold ${dark ? "text-white" : "text-ink"}`}>{title}</p>
+        <span className={`rounded-full px-2 py-1 text-xs font-bold ${dark ? "bg-white/10 text-white/70" : "bg-ink/5 text-ink/55"}`}>
+          {source ? "Configurado" : "Fallback"}
+        </span>
+      </div>
+      <div className={`mt-3 flex h-28 items-center justify-center rounded-2xl border ${dark ? "border-white/10 bg-black" : "border-ink/10 bg-stonewash"}`}>
+        <img src={logo || fallbackAppLogo} alt={alt} className={`max-h-24 max-w-full object-contain ${invert ? "invert" : ""}`} />
+      </div>
+      <div className={`mt-3 space-y-1 text-xs ${dark ? "text-white/60" : "text-ink/55"}`}>
+        <p className="break-all">Ruta guardada: {source || "Logo por defecto"}</p>
+        <p className="break-all">URL resuelta: {previewLabel}</p>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Button variant="secondary" onClick={onDiagnose} disabled={!source}>Probar logo</Button>
+        <Button
+          variant="subtle"
+          disabled={!resolvedUrl}
+          onClick={() => resolvedUrl && window.open(resolvedUrl, "_blank", "noopener,noreferrer")}
+        >
+          Abrir URL resuelta
+        </Button>
+      </div>
     </div>
   );
 }

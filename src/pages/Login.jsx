@@ -10,6 +10,7 @@ export function Login() {
   const showDemoMode = isDemoModeAllowed;
   const logoSrc = localStorage.getItem("roca-eterna-logo-src") || appLogo;
   const logoAlt = localStorage.getItem("roca-eterna-logo-alt") || "Roca Eterna Musica";
+  const logoInvert = localStorage.getItem("roca-eterna-logo-invert") === "true";
   const firebasePublishWarning =
     import.meta.env.PROD && !isFirebaseConfigured
       ? "La app fue publicada sin configuración de Firebase. Revisa GitHub Actions Secrets."
@@ -25,7 +26,7 @@ export function Login() {
           transition={{ duration: 0.45 }}
           className="relative z-10 max-w-xl"
         >
-          <img src={logoSrc} onError={(event) => { event.currentTarget.src = fallbackAppLogo; }} alt={logoAlt} className="h-32 w-32 rounded-3xl bg-white object-contain p-2 shadow-2xl" />
+          <img src={logoSrc} onError={(event) => { event.currentTarget.src = fallbackAppLogo; }} alt={logoAlt} className={`h-32 w-32 rounded-3xl bg-white object-contain p-2 shadow-2xl ${logoInvert ? "invert" : ""}`} />
           <h1 className="mt-8 text-4xl font-bold leading-tight tracking-normal md:text-6xl">
             Roca Eterna Musica
           </h1>

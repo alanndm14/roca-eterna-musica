@@ -7,7 +7,7 @@ import { WelcomeSplash } from "./components/ui/WelcomeSplash";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
 import { MusicDataProvider, useMusicData } from "./hooks/useMusicData";
 import { appLogo } from "./assets/logo";
-import { getInstitutionalLogo } from "./services/songUtils";
+import { getInstitutionalLogo, shouldInvertInstitutionalLogo } from "./services/songUtils";
 import { Dashboard } from "./pages/Dashboard";
 import { AuditLogs } from "./pages/AuditLogs";
 import { Changelog } from "./pages/Changelog";
@@ -72,12 +72,14 @@ function DataReady({ children }) {
   }, [completeOnboarding]);
 
   if (loading) return <LoadingScreen />;
-  const logoSrc = getInstitutionalLogo(settings, appLogo);
-  if (showWelcome) return <WelcomeSplash profile={profile} onDone={finishWelcome} logoSrc={logoSrc} logoAlt={settings.logoAltText || "Roca Eterna Musica"} />;
+  const themeMode = profile?.themeMode || localStorage.getItem("roca-eterna-theme-mode") || "system";
+  const logoSrc = getInstitutionalLogo(settings, appLogo, themeMode);
+  const logoInvert = shouldInvertInstitutionalLogo(settings, themeMode);
+  if (showWelcome) return <WelcomeSplash profile={profile} onDone={finishWelcome} logoSrc={logoSrc} logoAlt={settings.logoAltText || "Roca Eterna Musica"} logoInvert={logoInvert} />;
   return (
     <>
       {children}
-      <OnboardingGuide open={showGuide} onClose={() => setShowGuide(false)} onFinish={finishGuide} logoSrc={logoSrc} logoAlt={settings.logoAltText || "Roca Eterna Musica"} />
+      <OnboardingGuide open={showGuide} onClose={() => setShowGuide(false)} onFinish={finishGuide} logoSrc={logoSrc} logoAlt={settings.logoAltText || "Roca Eterna Musica"} logoInvert={logoInvert} role={profile?.role || "viewer"} />
     </>
   );
 }
@@ -87,6 +89,11 @@ function LoginRoute() {
   if (loading) return <LoadingScreen />;
   if (user && profile && !unauthorized) return <Navigate to="/" replace />;
   return <Login />;
+}
+
+function RoleRoute({ roles, children }) {
+  const { profile } = useAuth();
+  return roles.includes(profile?.role || "viewer") ? children : <Navigate to="/" replace />;
 }
 
 export default function App() {
@@ -112,8 +119,8 @@ export default function App() {
           <Route path="historial" element={<History />} />
           <Route path="estadisticas" element={<Stats />} />
           <Route path="configuracion" element={<Settings />} />
-          <Route path="auditoria" element={<AuditLogs />} />
-          <Route path="actualizaciones" element={<Changelog />} />
+          <Route path="auditoria" element={<RoleRoute roles={["admin"]}><AuditLogs /></RoleRoute>} />
+          <Route path="actualizaciones" element={<RoleRoute roles={["admin", "editor"]}><Changelog /></RoleRoute>} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

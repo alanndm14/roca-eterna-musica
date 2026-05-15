@@ -429,6 +429,46 @@ export function MusicDataProvider({ children }) {
     await logAuditEvent({ actionType: "delete", entityType: "schedule", entityId: scheduleId, entityName: before?.serviceLabel || before?.date || "", summary: `Programacion eliminada: ${before?.serviceLabel || before?.date || scheduleId}`, beforeData: before });
   };
 
+  const restoreFromAuditLog = async (log) => {
+    const collectionByType = { song: "songs", schedule: "schedules", theme: "themes" };
+    const collectionName = collectionByType[log?.entityType];
+    const restoreData = log?.beforeData;
+    const entityId = log?.entityId || restoreData?.id;
+    if (!collectionName || !restoreData || !entityId) {
+      throw new Error("Este registro no tiene datos suficientes para restaurar.");
+    }
+
+    const restored = {
+      ...restoreData,
+      id: entityId,
+      restoredAt: useLocal ? new Date().toISOString() : serverTimestamp(),
+      restoredBy: profile?.uid || ""
+    };
+    const { id, ...firestoreData } = restored;
+
+    if (useLocal) {
+      if (log.entityType === "song") {
+        setSongs((current) => current.some((item) => item.id === entityId) ? current.map((item) => (item.id === entityId ? restored : item)) : [...current, restored]);
+      } else if (log.entityType === "schedule") {
+        setSchedules((current) => current.some((item) => item.id === entityId) ? current.map((item) => (item.id === entityId ? restored : item)) : [...current, restored]);
+      } else if (log.entityType === "theme") {
+        setThemes((current) => current.some((item) => item.id === entityId) ? current.map((item) => (item.id === entityId ? restored : item)) : [...current, restored]);
+      }
+    } else {
+      await setDoc(doc(db, collectionName, entityId), firestoreData, { merge: false });
+    }
+
+    await logAuditEvent({
+      actionType: "restore",
+      entityType: log.entityType,
+      entityId,
+      entityName: log.entityName || restoreData.title || restoreData.serviceLabel || restoreData.name || entityId,
+      summary: `Restauracion aplicada: ${log.entityName || entityId}`,
+      beforeData: log.afterData || null,
+      afterData: restored
+    });
+  };
+
   const duplicateSchedule = async (schedule) => {
     const { id, ...copy } = schedule;
     await saveSchedule({
@@ -698,6 +738,7 @@ export function MusicDataProvider({ children }) {
       indexLocalPdfTexts,
       markNotificationRead,
       markAllNotificationsRead,
+      restoreFromAuditLog,
       seedExampleData
     }),
     [auditLogs, authorizedEmails, error, loading, notifications, schedules, settings, songs, themes, useLocal, users]

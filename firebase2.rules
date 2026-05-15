@@ -139,7 +139,7 @@ service cloud.firestore {
     }
 
     match /auditLogs/{logId} {
-      allow read: if isAdmin() || isEditor();
+      allow read: if isAdmin();
       allow create: if isEditor()
         && request.resource.data.performedByUid == request.auth.uid
         && request.resource.data.performedByEmail == request.auth.token.email;

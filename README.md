@@ -48,7 +48,7 @@ Firebase Storage no es requisito para esta version. No uses claves privadas ni s
 
 La app separa dos cosas:
 
-- Configuracion institucional: nombre de iglesia, nombre de app, logo, tonalidad preferida global.
+- Configuracion institucional: nombre de iglesia, nombre de app, logos por modo visual, tonalidad preferida global.
 - Preferencias personales: modo claro/oscuro/sistema, color personal, sidebar, onboarding y nombre visible.
 
 Cada usuario puede cambiar sus propias preferencias y su nombre visible. El rol solo lo puede asignar un admin.
@@ -64,7 +64,7 @@ La coleccion `auditLogs` registra acciones importantes:
 - cambios de accesos y roles
 - cambios de configuracion global
 
-La pagina **Auditoria** permite filtrar y exportar CSV. La restauracion queda preparada como accion manual/proxima version.
+La pagina **Auditoria** permite filtrar, exportar CSV y restaurar datos seguros desde `beforeData` para cantos, programaciones y temas. La restauracion queda limitada a administradores y genera un nuevo auditLog.
 
 ## Changelog
 
@@ -202,21 +202,27 @@ La app crea notificaciones internas cuando se crea una programacion futura. Los 
 
 Push notifications reales quedan como fase futura porque requieren soporte del navegador, service worker y un backend seguro/Cloud Functions para enviar mensajes sin exponer llaves privadas.
 
-## Logo institucional
+## Logos por modo claro y oscuro
 
 En Configuracion puedes usar:
 
 - URL publica de imagen
-- ruta local del repo, por ejemplo `/logos/logo-oficial.png`
+- ruta local del repo, por ejemplo `/icons/logo-roca-negro.png`
 - logo por defecto
+
+Puedes configurar:
+
+- Logo para modo claro, idealmente oscuro/negro: `/icons/logo-roca-negro.png`
+- Logo para modo oscuro, idealmente claro/blanco: `/icons/logo-roca-blanco.png`
+- Logo con fondo, opcional: `/icons/logo-roca-fondo.png`
 
 Para rutas locales, coloca el archivo en:
 
 ```text
-public/logos/
+public/icons/
 ```
 
-La app usa `object-contain` y fallback si el logo falla. Para iconos PWA/manifest, actualiza los assets del proyecto y vuelve a compilar.
+Si el archivo esta en `public/icons/logo.png`, escribe `/icons/logo.png`. No es necesario escribir `public/`. La app usa `object-contain`, resuelve rutas con la base de GitHub Pages y usa fallback si el logo falla. Para iconos PWA/manifest, actualiza los assets del proyecto y vuelve a compilar.
 
 ## Guia interactiva
 

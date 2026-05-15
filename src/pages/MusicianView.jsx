@@ -152,7 +152,7 @@ export function MusicianView() {
       <Card className="bg-ink text-white">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
           <div className="min-w-0">
-            <p className="text-sm font-semibold uppercase tracking-wide text-brass">Vista para músicos</p>
+            <p className="text-sm font-semibold uppercase tracking-wide text-brass">Servicio</p>
             <h2 className="mt-2 text-3xl font-bold">{getServiceDisplayLabel(selectedSchedule)}</h2>
             <p className="mt-2 text-white/60">
               {formatDate(selectedSchedule?.date)} · {selectedSchedule?.time || "Sin hora"} · {selectedSchedule?.leader || "Lider de adoracion pendiente"}

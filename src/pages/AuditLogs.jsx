@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
-import { Download, FileClock } from "lucide-react";
+import { Download, FileClock, RotateCcw } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { Input, Select } from "../components/ui/Field";
+import { Modal } from "../components/ui/Modal";
 import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
 
@@ -37,12 +38,14 @@ const translateAuditAction = (value) => actionLabels[value] || value || "";
 const translateEntityType = (value) => entityLabels[value] || value || "";
 
 export function AuditLogs() {
-  const { isAdmin, canEdit } = useAuth();
-  const { auditLogs, users } = useMusicData();
+  const { isAdmin } = useAuth();
+  const { auditLogs, users, songs, schedules, themes, restoreFromAuditLog } = useMusicData();
   const [query, setQuery] = useState("");
   const [actionType, setActionType] = useState("all");
   const [entityType, setEntityType] = useState("all");
   const [userEmail, setUserEmail] = useState("all");
+  const [restoreLog, setRestoreLog] = useState(null);
+  const [restoreError, setRestoreError] = useState("");
 
   const filtered = useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -55,9 +58,36 @@ export function AuditLogs() {
     });
   }, [actionType, auditLogs, entityType, query, userEmail]);
 
-  if (!isAdmin && !canEdit) {
+  if (!isAdmin) {
     return <Card><p className="text-sm text-ink/60">No tienes permiso para ver el registro de cambios.</p></Card>;
   }
+
+  const getCurrentEntity = (log) => {
+    if (log.entityType === "song") return songs.find((item) => item.id === log.entityId);
+    if (log.entityType === "schedule") return schedules.find((item) => item.id === log.entityId);
+    if (log.entityType === "theme") return themes.find((item) => item.id === log.entityId);
+    return null;
+  };
+
+  const isRestorable = (log) => ["song", "schedule", "theme"].includes(log.entityType) && Boolean(log.beforeData && (log.entityId || log.beforeData.id));
+
+  const hasLaterChanges = (log) => {
+    const current = getCurrentEntity(log);
+    if (!current || !log.afterData) return false;
+    const clean = (value) => JSON.stringify(value || {}, Object.keys(value || {}).sort());
+    return clean(current) !== clean({ ...log.afterData, id: log.entityId || log.afterData.id });
+  };
+
+  const confirmRestore = async () => {
+    if (!restoreLog) return;
+    setRestoreError("");
+    try {
+      await restoreFromAuditLog(restoreLog);
+      setRestoreLog(null);
+    } catch (error) {
+      setRestoreError(error.message || "No se pudo restaurar este registro.");
+    }
+  };
 
   const exportCsv = () => {
     const rows = [
@@ -124,7 +154,18 @@ export function AuditLogs() {
                   <td className="px-3 py-3 text-ink/60">{translateEntityType(log.entityType)}</td>
                   <td className="px-3 py-3 text-ink">{log.summary || log.entityName}</td>
                   <td className="px-3 py-3 text-ink/60">{log.performedByName || log.performedByEmail}</td>
-                  <td className="px-3 py-3"><Button variant="subtle" disabled>Proxima version</Button></td>
+                  <td className="px-3 py-3">
+                    {isRestorable(log) ? (
+                      <Button variant="secondary" onClick={() => setRestoreLog(log)}>
+                        <RotateCcw className="h-4 w-4" />
+                        Restaurar
+                      </Button>
+                    ) : ["song", "schedule", "theme"].includes(log.entityType) ? (
+                      <span className="text-xs font-semibold text-ink/45">No disponible</span>
+                    ) : (
+                      <span className="text-xs font-semibold text-ink/45">No restaurable</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -132,6 +173,32 @@ export function AuditLogs() {
           {!filtered.length ? <p className="p-4 text-sm text-ink/55">No hay registros para esos filtros.</p> : null}
         </div>
       </Card>
+
+      <Modal open={Boolean(restoreLog)} title="Restaurar desde auditoria" onClose={() => setRestoreLog(null)}>
+        {restoreLog ? (
+          <div className="space-y-4">
+            <div className="rounded-2xl bg-ink/5 p-4 text-sm leading-6 text-ink/70">
+              <p><strong>Entidad:</strong> {translateEntityType(restoreLog.entityType)}</p>
+              <p><strong>Nombre:</strong> {restoreLog.entityName || restoreLog.beforeData?.title || restoreLog.beforeData?.serviceLabel || restoreLog.beforeData?.name || restoreLog.entityId}</p>
+              <p><strong>Cambio:</strong> {translateAuditAction(restoreLog.actionType)} - {formatDate(restoreLog.createdAt)}</p>
+              <p><strong>Usuario:</strong> {restoreLog.performedByName || restoreLog.performedByEmail || "Sin usuario"}</p>
+            </div>
+            {hasLaterChanges(restoreLog) ? (
+              <p className="rounded-2xl border border-brass/30 bg-brass/10 p-4 text-sm font-semibold text-brass">
+                Este elemento tuvo cambios posteriores. Restaurar podria sobrescribir informacion mas reciente.
+              </p>
+            ) : null}
+            {restoreError ? <p className="rounded-2xl bg-red-50 p-3 text-sm font-semibold text-red-700 dark:bg-red-950/35 dark:text-red-100">{restoreError}</p> : null}
+            <div className="flex justify-end gap-3">
+              <Button variant="secondary" onClick={() => setRestoreLog(null)}>Cancelar</Button>
+              <Button onClick={confirmRestore}>
+                <RotateCcw className="h-4 w-4" />
+                Restaurar
+              </Button>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
     </div>
   );
 }

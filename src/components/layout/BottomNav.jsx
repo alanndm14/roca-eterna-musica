@@ -2,13 +2,15 @@ import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { HelpCircle, LogOut, MoreHorizontal, X } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
-import { mobileExtraItems, mobilePrimaryItems } from "./navigation";
+import { getMobileExtraItems, getMobilePrimaryItems } from "./navigation";
 import { Button } from "../ui/Button";
 
 export function BottomNav() {
   const location = useLocation();
-  const { signOut } = useAuth();
+  const { profile, signOut } = useAuth();
   const [open, setOpen] = useState(false);
+  const mobilePrimaryItems = getMobilePrimaryItems(profile?.role || "viewer");
+  const mobileExtraItems = getMobileExtraItems(profile?.role || "viewer");
   const isMoreActive = mobileExtraItems.some((item) => location.pathname === item.path || location.pathname.startsWith(`${item.path}/`));
 
   const openGuide = () => {
