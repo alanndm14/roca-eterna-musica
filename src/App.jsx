@@ -116,8 +116,8 @@ export default function App() {
           <Route path="repertorio/:songId" element={<SongDetail />} />
           <Route path="programacion" element={<Schedules />} />
           <Route path="musicos" element={<MusicianView />} />
-          <Route path="historial" element={<History />} />
-          <Route path="estadisticas" element={<Stats />} />
+          <Route path="historial" element={<RoleRoute roles={["admin", "editor"]}><History /></RoleRoute>} />
+          <Route path="estadisticas" element={<RoleRoute roles={["admin", "editor"]}><Stats /></RoleRoute>} />
           <Route path="configuracion" element={<Settings />} />
           <Route path="auditoria" element={<RoleRoute roles={["admin"]}><AuditLogs /></RoleRoute>} />
           <Route path="actualizaciones" element={<RoleRoute roles={["admin", "editor"]}><Changelog /></RoleRoute>} />

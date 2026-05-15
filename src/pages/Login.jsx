@@ -17,20 +17,20 @@ export function Login() {
       : "";
 
   return (
-    <div className="grid min-h-screen bg-ink text-white lg:grid-cols-[1.05fr_0.95fr]">
-      <section className="relative flex items-center overflow-hidden px-6 py-12 md:px-12">
+    <div className="grid min-h-screen bg-ink text-white lg:grid-cols-[1.15fr_0.85fr]">
+      <section className="relative flex items-center justify-center overflow-hidden px-6 py-12 text-center md:px-12">
         <div className="absolute inset-x-0 bottom-0 h-44 bg-[radial-gradient(circle_at_28%_20%,rgba(182,148,95,0.22),transparent_34%),linear-gradient(180deg,transparent,rgba(255,255,255,0.06))]" />
         <motion.div
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45 }}
-          className="relative z-10 max-w-xl"
+          className="relative z-10 flex max-w-xl flex-col items-center"
         >
-          <img src={logoSrc} onError={(event) => { event.currentTarget.src = fallbackAppLogo; }} alt={logoAlt} className={`h-32 w-32 rounded-3xl bg-white object-contain p-2 shadow-2xl ${logoInvert ? "invert" : ""}`} />
+          <img src={logoSrc} onError={(event) => { event.currentTarget.src = fallbackAppLogo; }} alt={logoAlt} className={`h-44 w-44 rounded-3xl bg-white object-contain p-3 shadow-2xl md:h-56 md:w-56 ${logoInvert ? "invert" : ""}`} />
           <h1 className="mt-8 text-4xl font-bold leading-tight tracking-normal md:text-6xl">
             Roca Eterna Musica
           </h1>
-          <p className="mt-5 max-w-lg text-lg leading-8 text-white/68">
+          <p className="mt-5 max-w-lg text-lg leading-8 text-white/72">
             Organizacion del ministerio de musica de Roca Eterna.
           </p>
           <div className="mt-9 flex flex-col gap-3 sm:flex-row">
@@ -75,9 +75,8 @@ export function Login() {
             </div>
           </div>
           <div className="space-y-4 text-sm leading-6 text-ink/65">
-            <p>La app usa Firebase Authentication con Google Sign-In.</p>
-            <p>Los roles se validan contra Firestore y sus reglas de seguridad, no solo desde la interfaz.</p>
-            <p>No se almacenan datos sensibles de miembros; solo repertorio, programacion, notas musicales y usuarios autorizados.</p>
+            <p>Solo correos autorizados del ministerio pueden entrar.</p>
+            <p>No se almacenan datos sensibles de miembros; solo informacion necesaria para organizar repertorio, programaciones y preparacion musical.</p>
           </div>
         </motion.div>
       </section>

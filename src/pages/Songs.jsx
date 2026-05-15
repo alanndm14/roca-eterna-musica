@@ -21,6 +21,7 @@ import {
   getSongSpotifyUrl,
   getSongYoutubeUrl,
   normalizeDrivePdfUrl,
+  normalizeSearchText,
   normalizeSong
 } from "../services/songUtils";
 
@@ -337,8 +338,10 @@ export function Songs() {
     sung: "",
     format: "",
     keyChange: "",
-    localPdf: ""
+    localPdf: "",
+    artist: ""
   });
+  const [viewMode, setViewMode] = useState(() => localStorage.getItem("roca-eterna-song-view-mode") || "cards");
   const [editingSong, setEditingSong] = useState(null);
   const [isAdding, setIsAdding] = useState(false);
 
@@ -349,7 +352,7 @@ export function Songs() {
   const formats = useMemo(() => [...new Set([...SONG_FORMATS, ...songs.map((song) => song.format).filter(Boolean)])], [songs]);
 
   const setFilter = (field, value) => setFilters((current) => ({ ...current, [field]: value }));
-  const clearFilters = () => setFilters({ query: "", category: "", mainTheme: "", otherTheme: "", key: "", capo: "", music: "", keynote: "", pdf: "", sung: "", format: "", keyChange: "", localPdf: "" });
+  const clearFilters = () => setFilters({ query: "", category: "", mainTheme: "", otherTheme: "", key: "", capo: "", music: "", keynote: "", pdf: "", sung: "", format: "", keyChange: "", localPdf: "", artist: "" });
 
   const filteredSongs = useMemo(
     () =>
@@ -366,8 +369,8 @@ export function Songs() {
           song.internalNotes,
           song.pdfSearchText,
           ...(song.pdfSearchTokens || [])
-        ].join(" ").toLowerCase();
-        const matchesQuery = !filters.query || searchText.includes(filters.query.toLowerCase());
+        ].join(" ");
+        const matchesQuery = !filters.query || normalizeSearchText(searchText).includes(normalizeSearchText(filters.query));
         const matchesCategory = !filters.category || song.category === filters.category;
         const matchesMainTheme = !filters.mainTheme || song.mainTheme === filters.mainTheme;
         const matchesOtherTheme = !filters.otherTheme || (song.otherThemes || []).includes(filters.otherTheme) || (song.tags || []).includes(filters.otherTheme);
@@ -379,12 +382,13 @@ export function Songs() {
         const matchesSung = !filters.sung || (filters.sung === "si" ? song.sungBefore : !song.sungBefore);
         const matchesFormat = !filters.format || song.format === filters.format;
         const matchesKeyChange = !filters.keyChange || (filters.keyChange === "si" ? song.hasKeyChange : !song.hasKeyChange);
+        const matchesArtist = !filters.artist || normalizeSearchText(song.artistOrSource).includes(normalizeSearchText(filters.artist));
         const hasLocalPdf = Boolean(song.localPdfPath);
         const matchesLocalPdf = !filters.localPdf
           || (filters.localPdf === "with" && hasLocalPdf)
           || (filters.localPdf === "without" && !hasLocalPdf)
           || (filters.localPdf === "invalid" && ["missing", "failed"].includes(song.pdfIndexStatus || song.localPdfStatus));
-        return matchesQuery && matchesCategory && matchesMainTheme && matchesOtherTheme && matchesKey && matchesCapo && matchesMusic && matchesKeynote && matchesPdf && matchesSung && matchesFormat && matchesKeyChange && matchesLocalPdf;
+        return matchesQuery && matchesCategory && matchesMainTheme && matchesOtherTheme && matchesKey && matchesCapo && matchesMusic && matchesKeynote && matchesPdf && matchesSung && matchesFormat && matchesKeyChange && matchesArtist && matchesLocalPdf;
       }),
     [filters, songs]
   );
@@ -476,18 +480,74 @@ export function Songs() {
               <option value="without">Sin ruta PDF local</option>
               <option value="invalid">Ruta PDF local invalida</option>
             </Select>
+            <Input value={filters.artist} onChange={(event) => setFilter("artist", event.target.value)} placeholder="Artista o fuente" />
           </div>
         </details>
 
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm font-semibold text-ink/55">Mostrando {filteredSongs.length} de {songs.length} cantos</p>
           <div className="flex gap-2">
+            <Button variant={viewMode === "cards" ? "primary" : "secondary"} onClick={() => { setViewMode("cards"); localStorage.setItem("roca-eterna-song-view-mode", "cards"); }}>Tarjetas</Button>
+            <Button variant={viewMode === "list" ? "primary" : "secondary"} onClick={() => { setViewMode("list"); localStorage.setItem("roca-eterna-song-view-mode", "list"); }}>Lista</Button>
             <Button variant="secondary" onClick={clearFilters}>Limpiar filtros</Button>
           </div>
         </div>
       </Card>
 
-      {filteredSongs.length ? (
+      {filteredSongs.length && viewMode === "list" ? (
+        <Card className="p-0">
+          <div className="overflow-x-auto">
+            <table className="min-w-[980px] w-full text-left text-sm">
+              <thead className="border-b border-ink/10 bg-ink/5 text-xs uppercase tracking-wide text-ink/45">
+                <tr>
+                  <th className="px-4 py-3">Titulo</th>
+                  <th className="px-4 py-3">Categoria</th>
+                  <th className="px-4 py-3">Tema</th>
+                  <th className="px-4 py-3">Tono</th>
+                  <th className="px-4 py-3">Capo</th>
+                  <th className="px-4 py-3">Enlaces</th>
+                  <th className="px-4 py-3">Revision</th>
+                  <th className="px-4 py-3 text-right">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredSongs.map((song) => {
+                  const pdfUrl = getSongPdfUrl(song);
+                  const youtubeUrl = getSongYoutubeUrl(song);
+                  const spotifyUrl = getSongSpotifyUrl(song);
+                  return (
+                    <tr key={song.id} className="border-b border-ink/10 last:border-b-0 hover:bg-ink/5">
+                      <td className="px-4 py-3">
+                        <Link to={`/repertorio/${song.id}`} className="font-bold text-ink hover:text-brass">{song.title}</Link>
+                        <p className="text-xs text-ink/50">{song.artistOrSource || "Sin fuente"}</p>
+                      </td>
+                      <td className="px-4 py-3 text-ink/60">{song.category || "--"}</td>
+                      <td className="px-4 py-3 text-ink/60">{song.mainTheme || "--"}</td>
+                      <td className="px-4 py-3 font-semibold text-ink">{song.mainKey || "--"} / {song.keyWithCapo || "--"}</td>
+                      <td className="px-4 py-3 text-ink/60">{Number(song.capo || 0) ? `Capo ${song.capo}` : "Sin capo"}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-wrap gap-1">
+                          {pdfUrl ? <a className="rounded-lg bg-brass/12 px-2 py-1 text-xs font-bold text-brass" href={pdfUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>PDF</a> : null}
+                          {youtubeUrl ? <a className="rounded-lg bg-ink/5 px-2 py-1 text-xs font-bold text-ink" href={youtubeUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>YouTube</a> : null}
+                          {spotifyUrl ? <a className="rounded-lg bg-ink/5 px-2 py-1 text-xs font-bold text-ink" href={spotifyUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Spotify</a> : null}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-ink/60">PDF {song.pdfReviewStatus || "pendiente"} · Musica {song.musicReviewStatus || "pendiente"} · Keynote {song.keynoteReviewStatus || "pendiente"}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex justify-end gap-2">
+                          <Button variant="subtle" onClick={() => navigate(`/repertorio/${song.id}`)}>Ver</Button>
+                          {canEdit ? <Button variant="secondary" onClick={() => setEditingSong(song)}>Editar</Button> : null}
+                          {canDelete ? <Button variant="danger" onClick={() => handleDelete(song)}>Eliminar</Button> : null}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      ) : filteredSongs.length ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {filteredSongs.map((song, index) => {
             const pdfUrl = getSongPdfUrl(song);

@@ -10,7 +10,7 @@ import {
   normalizeSong
 } from "./songUtils";
 
-const monthNames = ["ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"];
+const monthNames = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 
 const styles = StyleSheet.create({
   page: {
@@ -128,16 +128,25 @@ export function getServiceDisplayLabel(schedule) {
 export function getServiceFileName(schedule) {
   const date = schedule?.date ? new Date(`${schedule.date}T00:00:00`) : new Date();
   const day = String(date.getDate()).padStart(2, "0");
-  const month = monthNames[date.getMonth()] || "SERVICIO";
-  const service = getServiceDisplayLabel(schedule)
+  const month = monthNames[date.getMonth()] || "servicio";
+  const rawService = schedule?.serviceType === "domingo-manana"
+    ? "domingo-am"
+    : schedule?.serviceType === "domingo-tarde"
+      ? "domingo-pm"
+      : schedule?.serviceType === "miercoles-oracion"
+        ? "miercoles-de-oracion"
+        : getServiceDisplayLabel(schedule);
+  const service = rawService
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .toUpperCase()
-    .replace(/DOMINGO MANANA/g, "DOMINGO-AM")
-    .replace(/DOMINGO TARDE/g, "DOMINGO-PM")
-    .replace(/[^A-Z0-9]+/g, "-")
+    .toLowerCase()
+    .replace(/domingo manana/g, "domingo-am")
+    .replace(/domingo ma ana/g, "domingo-am")
+    .replace(/domingo tarde/g, "domingo-pm")
+    .replace(/miercoles de oraci n/g, "miercoles-de-oracion")
+    .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
-  return `${day}-${month}-${service || "SERVICIO"}.pdf`;
+  return `${day}-${month}-${service || "servicio"}.pdf`;
 }
 
 export function buildServiceSongs(schedule, songs, keyPreference = "sharps") {

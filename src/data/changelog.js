@@ -1,6 +1,30 @@
-export const appVersion = "0.9.1";
+export const appVersion = "0.9.2";
 
 export const changelog = [
+  {
+    version: "0.9.2",
+    date: "2026-05-15",
+    title: "Roles, vista de consulta y flujo de servicio",
+    added: [
+      "Restricciones visuales para observadores",
+      "Sustitucion rapida de cantos para administradores en Vista para musicos",
+      "Vista lista compacta en Repertorio",
+      "Progreso visible al indexar PDFs locales"
+    ],
+    changed: [
+      "La programacion ya no muestra estados al usuario",
+      "Los PDFs generados usan nombres en minusculas",
+      "La guia interactiva evita bloquear clics y se adapta mejor por rol",
+      "El login publico ahora es mas institucional y menos tecnico"
+    ],
+    fixed: [
+      "Viewer ya no ve Historial, Estadisticas, Auditoria ni Actualizaciones",
+      "Busqueda de repertorio normaliza artista/fuente, acentos, signos y mayusculas"
+    ],
+    pending: [
+      "Validar sustitucion rapida con repertorio real y ajustes finos de ranking"
+    ]
+  },
   {
     version: "0.9.1",
     date: "2026-05-15",

@@ -42,6 +42,14 @@ export function stripAccents(value = "") {
     .replace(/[\u0300-\u036f]/g, "");
 }
 
+export function normalizeSearchText(value = "") {
+  return stripAccents(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9#\s]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function canonicalThemeKey(value = "") {
   return stripAccents(value)
     .trim()

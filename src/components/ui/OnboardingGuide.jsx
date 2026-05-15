@@ -12,10 +12,10 @@ const allSteps = [
   { route: "/programacion", target: '[data-tour="nav-programacion"]', title: "Programacion", text: "Calendario, servicios y cantos en orden.", roles: ["admin", "editor", "viewer"] },
   { route: "/programacion", target: '[data-tour="schedule-new"]', title: "Nueva programacion", text: "Crea servicios usando la fecha seleccionada.", roles: ["admin", "editor"] },
   { route: "/musicos", target: '[data-tour="nav-musicos"]', title: "Vista para musicos", text: "Ensayo, PDFs y hoja del servicio.", roles: ["admin", "editor", "viewer"] },
-  { route: "/musicos", target: '[data-tour="service-pdfs"]', title: "PDFs del servicio", text: "Abre los PDFs sin salir de la app.", roles: ["admin", "editor", "viewer"] },
-  { route: "/estadisticas", target: '[data-tour="nav-estadisticas"]', title: "Estadisticas", text: "Analiza repertorio por tema, tono y uso.", roles: ["admin", "editor", "viewer"] },
+  { route: "/musicos", target: '[data-tour="service-local-merge"]', title: "Unir PDFs", text: "Une PDFs locales publicados en la app.", roles: ["admin", "editor"] },
+  { route: "/historial", target: '[data-tour="nav-historial"]', title: "Historial", text: "Consulta servicios pasados registrados.", roles: ["admin", "editor"] },
+  { route: "/estadisticas", target: '[data-tour="nav-estadisticas"]', title: "Estadisticas", text: "Analiza repertorio por tema, tono y uso.", roles: ["admin", "editor"] },
   { route: "/configuracion", target: '[data-tour="nav-configuracion"]', title: "Configuracion", text: "Preferencias personales y ayuda.", roles: ["admin", "editor", "viewer"] },
-  { route: "/configuracion", target: '[data-tour="settings-access"]', title: "Accesos", text: "Administra correos, roles y permisos.", roles: ["admin"] },
   { route: "/auditoria", target: '[data-tour="nav-auditoria"]', title: "Auditoria", text: "Revisa cambios y restaura versiones.", roles: ["admin"] },
   { route: "/actualizaciones", target: '[data-tour="nav-actualizaciones"]', title: "Actualizaciones", text: "Consulta cambios de cada version.", roles: ["admin", "editor"] },
   { route: "/configuracion", target: null, title: "Listo", text: "Puedes volver a abrir esta guia desde Ayuda.", roles: ["admin", "editor", "viewer"] }
@@ -100,7 +100,7 @@ export function OnboardingGuide({ open, onClose, onFinish, logoSrc = appLogo, lo
   return (
     <AnimatePresence>
       {open ? (
-        <motion.div className="fixed inset-0 z-[70]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+        <motion.div className="pointer-events-none fixed inset-0 z-[70]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
           {rect ? (
             <>
               <div className="absolute left-0 right-0 top-0 bg-ink/72" style={{ height: rect.top }} />
@@ -119,7 +119,7 @@ export function OnboardingGuide({ open, onClose, onFinish, logoSrc = appLogo, lo
             />
           ) : null}
           <motion.div
-            className="absolute w-[min(92vw,340px)] rounded-3xl border border-white/10 bg-stonewash p-4 text-ink shadow-2xl sm:p-5"
+            className="pointer-events-auto absolute w-[min(88vw,320px)] rounded-3xl border border-white/10 bg-stonewash p-3 text-ink shadow-2xl sm:w-[min(92vw,340px)] sm:p-5"
             style={tooltipStyle}
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}

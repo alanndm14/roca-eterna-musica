@@ -7,6 +7,7 @@ import { EmptyState } from "../components/ui/EmptyState";
 import { Select } from "../components/ui/Field";
 import { Modal } from "../components/ui/Modal";
 import { SongNameLink } from "../components/ui/SongNameLink";
+import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
 import { formatDate, todayString } from "../services/dateUtils";
 import {
@@ -16,6 +17,7 @@ import {
   getServiceFileName
 } from "../services/serviceSheetPdf";
 import { downloadBlob, getSongPdfSource, mergePdfFiles, mergeServiceLocalPdfs } from "../services/mergeServicePdfs";
+import { getSongPdfUrl } from "../services/songUtils";
 
 const compactDate = (dateString) => {
   if (!dateString) return "Sin fecha";
@@ -27,7 +29,8 @@ const selectorLabel = (schedule) => `${getServiceDisplayLabel(schedule)} · ${co
 const linkButtonClass = "inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-ink shadow-soft ring-1 ring-ink/10 transition hover:bg-linen";
 
 export function MusicianView() {
-  const { schedules, songs, settings } = useMusicData();
+  const { isAdmin } = useAuth();
+  const { schedules, songs, settings, replaceScheduleSong } = useMusicData();
   const [selectedId, setSelectedId] = useState("");
   const [focusMode, setFocusMode] = useState(false);
   const [sheetUrl, setSheetUrl] = useState("");
@@ -37,6 +40,7 @@ export function MusicianView() {
   const [activePdfIndex, setActivePdfIndex] = useState(0);
   const [localFiles, setLocalFiles] = useState([]);
   const [mergeResult, setMergeResult] = useState(null);
+  const [replaceTarget, setReplaceTarget] = useState(null);
   const [isMergingLocalFiles, setIsMergingLocalFiles] = useState(false);
   const [isMergingServiceLocal, setIsMergingServiceLocal] = useState(false);
   const today = todayString();
@@ -74,6 +78,28 @@ export function MusicianView() {
   );
   const activePdfSong = serviceSongs[activePdfIndex] || serviceSongs[0];
   const serviceDocument = selectedSchedule ? <ServiceSheetDocument schedule={selectedSchedule} songs={songs} settings={settings} /> : null;
+  const replacementSuggestions = useMemo(() => {
+    if (!replaceTarget) return [];
+    const current = replaceTarget.full || {};
+    const scheduledIds = new Set((selectedSchedule?.songs || []).map((entry) => entry.songId).filter(Boolean));
+    return songs
+      .filter((song) => song.id !== replaceTarget.entry?.songId && !scheduledIds.has(song.id))
+      .map((song) => {
+        const themeMatches = [song.mainTheme, ...(song.otherThemes || [])].filter(Boolean).filter((theme) => [current.mainTheme, ...(current.otherThemes || [])].includes(theme)).length;
+        const score =
+          themeMatches * 5
+          + (song.category && song.category === current.category ? 3 : 0)
+          + (song.mainKey && song.mainKey === current.mainKey ? 2 : 0)
+          + (getSongPdfUrl(song) ? 2 : 0)
+          + (song.pdfReviewStatus === "completado" ? 2 : 0)
+          + (song.musicReviewStatus === "completado" ? 2 : 0)
+          + (song.keynoteReviewStatus === "completado" ? 2 : 0)
+          + (Number(song.usageCount || 0) <= 1 ? 1 : 0);
+        return { song, score };
+      })
+      .sort((a, b) => b.score - a.score || (a.song.title || "").localeCompare(b.song.title || "", "es"))
+      .slice(0, 8);
+  }, [replaceTarget, selectedSchedule?.songs, songs]);
 
   const enterFocusMode = async () => {
     setFocusMode(true);
@@ -141,6 +167,13 @@ export function MusicianView() {
     } finally {
       setIsMergingServiceLocal(false);
     }
+  };
+
+  const confirmReplacement = async (candidate) => {
+    if (!replaceTarget || !selectedSchedule) return;
+    if (!confirm(`Sustituir "${replaceTarget.title}" por "${candidate.title}" en esta programacion?`)) return;
+    await replaceScheduleSong(selectedSchedule.id, replaceTarget.entry, candidate);
+    setReplaceTarget(null);
   };
 
   if (!scheduleOptions.length) {
@@ -213,7 +246,7 @@ export function MusicianView() {
               <Upload className="h-4 w-4" />
               Unir PDFs desde mi computadora
             </Button>
-            <Button variant="secondary" isLoading={isMergingServiceLocal} onClick={mergeServiceFromPublicPdfs}>
+            <Button variant="secondary" isLoading={isMergingServiceLocal} onClick={mergeServiceFromPublicPdfs} data-tour="service-local-merge">
               <Download className="h-4 w-4" />
               Unir PDFs del servicio desde la app
             </Button>
@@ -238,6 +271,7 @@ export function MusicianView() {
                   {song.pdfUrl ? <a className="inline-flex items-center gap-2 rounded-xl bg-brass/12 px-3 py-2 text-sm font-bold text-brass" href={song.pdfUrl} target="_blank" rel="noreferrer">PDF de letra y acordes <ExternalLink className="h-4 w-4" /></a> : null}
                   {song.youtubeUrl ? <a className="inline-flex items-center gap-2 rounded-xl bg-ink/5 px-3 py-2 text-sm font-bold text-ink" href={song.youtubeUrl} target="_blank" rel="noreferrer">YouTube <ExternalLink className="h-4 w-4" /></a> : null}
                   {song.spotifyUrl ? <a className="inline-flex items-center gap-2 rounded-xl bg-ink/5 px-3 py-2 text-sm font-bold text-ink" href={song.spotifyUrl} target="_blank" rel="noreferrer">Spotify <ExternalLink className="h-4 w-4" /></a> : null}
+                  {isAdmin ? <Button variant="subtle" onClick={() => setReplaceTarget(song)}>Sustituir</Button> : null}
                 </div>
               </div>
               <div className="rounded-3xl bg-brass/12 p-4">
@@ -375,6 +409,24 @@ export function MusicianView() {
               Descargar PDF parcial
             </Button>
           </div>
+        </div>
+      </Modal>
+
+      <Modal open={Boolean(replaceTarget)} title="Sustitucion rapida" onClose={() => setReplaceTarget(null)} wide>
+        <div className="space-y-4">
+          <p className="text-sm text-ink/60">Reemplazar: <strong>{replaceTarget?.title}</strong>. Las sugerencias priorizan tema, categoria, tonalidad y cantos listos.</p>
+          <div className="grid gap-3 md:grid-cols-2">
+            {replacementSuggestions.map(({ song }) => (
+              <button key={song.id} type="button" onClick={() => confirmReplacement(song)} className="rounded-2xl border border-ink/10 bg-white p-4 text-left transition hover:border-brass/50 hover:bg-brass/5">
+                <p className="font-bold text-ink">{song.title}</p>
+                <p className="mt-1 text-sm text-ink/55">{song.mainTheme || "Sin tema"} · {song.category || "sin categoria"}</p>
+                <p className="mt-2 text-sm font-semibold text-ink">{Number(song.capo || 0) > 0 ? `Capo ${song.capo} · Suena en ${song.keyWithCapo || song.mainKey || "--"}` : `Sin capo · Tono ${song.mainKey || "--"}`}</p>
+                <p className="mt-2 text-xs text-ink/55">PDF {song.pdfReviewStatus || "pendiente"} · Musica {song.musicReviewStatus || "pendiente"} · Keynote {song.keynoteReviewStatus || "pendiente"}</p>
+                <p className="mt-1 text-xs text-ink/45">{song.lastUsedAt ? `Ultima vez: ${formatDate(song.lastUsedAt)}` : "Sin historial"}</p>
+              </button>
+            ))}
+          </div>
+          {!replacementSuggestions.length ? <p className="rounded-2xl bg-ink/5 p-4 text-sm text-ink/55">No hay sugerencias disponibles fuera de esta programacion.</p> : null}
         </div>
       </Modal>
     </div>

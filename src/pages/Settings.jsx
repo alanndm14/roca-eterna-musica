@@ -25,6 +25,8 @@ const formatAccessDate = (value) => {
 
 export function Settings() {
   const { profile, isAdmin, signOut, saveUserPreferences } = useAuth();
+  const isEditor = profile?.role === "editor";
+  const isViewer = profile?.role === "viewer";
   const {
     settings,
     songs,
@@ -59,6 +61,8 @@ export function Settings() {
   const [importMode, setImportMode] = useState("skip");
   const [importResult, setImportResult] = useState(null);
   const [pdfIndexResult, setPdfIndexResult] = useState(null);
+  const [isIndexingPdfs, setIsIndexingPdfs] = useState(false);
+  const [pdfIndexProgress, setPdfIndexProgress] = useState(null);
   const [logoTest, setLogoTest] = useState(null);
   const parsedImport = useMemo(() => parseSongsTable(importText, localSettings.keyPreference || "sharps"), [importText, localSettings.keyPreference]);
   const importSummary = useMemo(() => analyzeImport(parsedImport.songs, songs), [parsedImport.songs, songs]);
@@ -200,6 +204,18 @@ export function Settings() {
     }
   };
 
+  const runPdfIndex = async () => {
+    setIsIndexingPdfs(true);
+    setPdfIndexResult(null);
+    setPdfIndexProgress({ current: 0, total: songs.filter((item) => item.localPdfPath).length, songTitle: "", found: 0, indexed: 0, noText: 0, missing: 0, failed: 0 });
+    try {
+      const result = await indexLocalPdfTexts(setPdfIndexProgress);
+      setPdfIndexResult(result);
+    } finally {
+      setIsIndexingPdfs(false);
+    }
+  };
+
   return (
     <div className="grid gap-5 xl:grid-cols-[1fr_420px]">
       <div className="space-y-5">
@@ -236,6 +252,7 @@ export function Settings() {
           </div>
         </Card>
 
+        {isAdmin ? (
         <Card>
           <div className="flex items-center gap-3">
             <ImageIcon className="h-5 w-5 text-brass" />
@@ -302,7 +319,9 @@ export function Settings() {
             </div>
           ) : null}
         </Card>
+        ) : null}
 
+        {isAdmin || isEditor ? (
         <Card>
           <div className="flex items-center gap-3">
             <Tags className="h-5 w-5 text-brass" />
@@ -404,6 +423,7 @@ export function Settings() {
             ) : null}
           </div>
         </Card>
+        ) : null}
 
         <Modal open={Boolean(mergeThemeSource)} title="Fusionar tema" onClose={() => setMergeThemeSource(null)}>
           <div className="space-y-4">
@@ -429,6 +449,7 @@ export function Settings() {
           </div>
         </Modal>
 
+        {isAdmin ? (
         <Card>
           <div className="flex items-center gap-3">
             <Upload className="h-5 w-5 text-brass" />
@@ -504,7 +525,9 @@ export function Settings() {
             ) : null}
           </div>
         </Card>
+        ) : null}
 
+        {isAdmin ? (
         <Card>
           <div className="flex items-center gap-3">
             <FileSearch className="h-5 w-5 text-brass" />
@@ -513,16 +536,32 @@ export function Settings() {
           <p className="mt-2 text-sm leading-6 text-ink/60">
             Indexa solo PDFs accesibles desde public/pdfs. No muestra letras completas; guarda texto normalizado para encontrar cantos por palabras.
           </p>
-          <Button className="mt-4" variant="secondary" onClick={async () => setPdfIndexResult(await indexLocalPdfTexts())}>
+          <Button className="mt-4" variant="secondary" isLoading={isIndexingPdfs} disabled={isIndexingPdfs} onClick={runPdfIndex}>
             <FileSearch className="h-4 w-4" />
-            Indexar textos de PDFs locales
+            {isIndexingPdfs ? "Indexando PDFs..." : "Indexar textos de PDFs locales"}
           </Button>
+          {pdfIndexProgress ? (
+            <div className="mt-4 rounded-2xl border border-ink/10 bg-ink/5 p-4">
+              <div className="flex items-center justify-between gap-3 text-sm font-semibold text-ink/70">
+                <span>{isIndexingPdfs ? "Indexando PDFs..." : "Proceso terminado"}</span>
+                <span>{pdfIndexProgress.current || 0} / {pdfIndexProgress.total || 0}</span>
+              </div>
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-white">
+                <div className="h-full rounded-full bg-brass transition-all" style={{ width: `${pdfIndexProgress.total ? Math.round(((pdfIndexProgress.current || 0) / pdfIndexProgress.total) * 100) : 0}%` }} />
+              </div>
+              <p className="mt-3 text-sm text-ink/55">{pdfIndexProgress.songTitle ? `Procesando: ${pdfIndexProgress.songTitle}` : "Preparando indice..."}</p>
+              <p className="mt-2 text-xs font-semibold text-ink/50">
+                Encontrados {pdfIndexProgress.found || 0} - Indexados {pdfIndexProgress.indexed || 0} - Sin texto {pdfIndexProgress.noText || 0} - No encontrados {pdfIndexProgress.missing || 0} - Errores {pdfIndexProgress.failed || 0}
+              </p>
+            </div>
+          ) : null}
           {pdfIndexResult ? (
             <p className="mt-3 text-sm font-semibold text-ink/60">
               Encontrados {pdfIndexResult.found}, indexados {pdfIndexResult.indexed}, sin texto {pdfIndexResult.noText}, no encontrados {pdfIndexResult.missing}, errores {pdfIndexResult.failed}
             </p>
           ) : null}
         </Card>
+        ) : null}
 
         {isAdmin ? (
           <Card data-tour="settings-access">
@@ -617,18 +656,22 @@ export function Settings() {
           </Button>
         </Card>
 
+        {!isViewer ? (
         <Card>
           <h2 className="text-xl font-bold text-ink">Actualizar app</h2>
           <p className="mt-3 text-sm leading-6 text-ink/60">Limpia cache local y pide recargar si la PWA muestra una version vieja.</p>
           <Button className="mt-4 w-full" variant="secondary" onClick={refreshApp}>Actualizar app</Button>
         </Card>
+        ) : null}
 
+        {!isViewer ? (
         <Card>
           <h2 className="text-xl font-bold text-ink">Seguridad</h2>
           <p className="mt-3 text-sm leading-6 text-ink/60">
             La proteccion real depende de Firebase Authentication y las reglas publicadas en Firestore. Archivo local de referencia: firebase2.rules.
           </p>
         </Card>
+        ) : null}
       </aside>
     </div>
   );

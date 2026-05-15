@@ -362,6 +362,7 @@ export function MusicDataProvider({ children }) {
     const before = schedule.id ? schedules.find((item) => item.id === schedule.id) : null;
     const payload = {
       ...schedule,
+      status: "confirmed",
       songs: schedule.songs || [],
       updatedAt: useLocal ? new Date().toISOString().slice(0, 10) : serverTimestamp()
     };
@@ -467,6 +468,51 @@ export function MusicDataProvider({ children }) {
       beforeData: log.afterData || null,
       afterData: restored
     });
+  };
+
+  const replaceScheduleSong = async (scheduleId, oldSongEntry, newSong) => {
+    const before = schedules.find((item) => item.id === scheduleId);
+    if (!before || !oldSongEntry || !newSong) return;
+    const nextSongs = (before.songs || []).map((entry) => (
+      entry === oldSongEntry || (entry.songId && entry.songId === oldSongEntry.songId && entry.titleSnapshot === oldSongEntry.titleSnapshot)
+        ? {
+            songId: newSong.id,
+            titleSnapshot: newSong.title,
+            keySnapshot: newSong.keyWithCapo || newSong.mainKey || "",
+            pdfUrl: newSong.pdfPreviewUrl || newSong.pdfUrl || newSong.drivePdfUrl || newSong.chordsUrl || "",
+            notes: entry.notes || ""
+          }
+        : entry
+    ));
+    const updated = { ...before, songs: nextSongs, status: "confirmed", updatedAt: useLocal ? new Date().toISOString().slice(0, 10) : serverTimestamp() };
+    const summary = `Canto sustituido en programacion: ${oldSongEntry.titleSnapshot || "canto anterior"} -> ${newSong.title}`;
+
+    if (useLocal) {
+      setSchedules((current) => current.map((item) => (item.id === scheduleId ? updated : item)));
+    } else {
+      const { id, ...data } = updated;
+      await updateDoc(doc(db, "schedules", scheduleId), data);
+    }
+
+    await logAuditEvent({
+      actionType: "update",
+      entityType: "schedule",
+      entityId: scheduleId,
+      entityName: before.serviceLabel || before.date,
+      summary,
+      beforeData: before,
+      afterData: updated
+    });
+
+    if (isFutureSchedule(updated)) {
+      await createNotification({
+        type: "updated_schedule",
+        title: "Programacion actualizada",
+        message: summary,
+        scheduleId,
+        isFutureSchedule: true
+      });
+    }
   };
 
   const duplicateSchedule = async (schedule) => {
@@ -620,9 +666,13 @@ export function MusicDataProvider({ children }) {
     return results;
   };
 
-  const indexLocalPdfTexts = async () => {
+  const indexLocalPdfTexts = async (onProgress) => {
     const results = { found: 0, indexed: 0, failed: 0, noText: 0, missing: 0 };
-    for (const song of songs.filter((item) => item.localPdfPath)) {
+    const candidates = songs.filter((item) => item.localPdfPath);
+    let current = 0;
+    for (const song of candidates) {
+      current += 1;
+      onProgress?.({ current, total: candidates.length, songTitle: song.title, ...results });
       const extracted = await extractLocalPdfText(song.localPdfPath);
       const payload = {
         ...song,
@@ -641,6 +691,7 @@ export function MusicDataProvider({ children }) {
       else if (extracted.status === "no_text") { results.noText += 1; results.found += 1; }
       else if (extracted.status === "missing") results.missing += 1;
       else results.failed += 1;
+      onProgress?.({ current, total: candidates.length, songTitle: song.title, ...results });
     }
     await logAuditEvent({
       actionType: "update",
@@ -727,6 +778,7 @@ export function MusicDataProvider({ children }) {
       deleteSong,
       duplicateSong,
       saveSchedule,
+      replaceScheduleSong,
       deleteSchedule,
       duplicateSchedule,
       saveUser,

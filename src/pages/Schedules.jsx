@@ -25,7 +25,7 @@ const blankSchedule = {
   leader: "",
   songs: [],
   generalNotes: "",
-  status: "borrador"
+  status: "confirmed"
 };
 
 const getService = (value) => serviceOptions.find((item) => item.value === value) || serviceOptions[0];
@@ -141,13 +141,6 @@ function ScheduleForm({ initialSchedule, songs, onSubmit, onCancel }) {
             </Field>
             <Field label="Lider de adoracion">
               <Input value={schedule.leader} onChange={(event) => update("leader", event.target.value)} />
-            </Field>
-            <Field label="Estado">
-              <Select value={schedule.status || "borrador"} onChange={(event) => update("status", event.target.value)}>
-                <option value="borrador">borrador</option>
-                <option value="confirmado">confirmado</option>
-                <option value="realizado">realizado</option>
-              </Select>
             </Field>
           </div>
           {wrongDay ? (
@@ -288,7 +281,6 @@ function ScheduleCard({ schedule, songs, canEdit, canDelete, onEdit, onDuplicate
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-xl font-bold text-ink">{formatDate(schedule.date)}</h3>
             <span className="rounded-full bg-brass/12 px-3 py-1 text-xs font-bold text-brass">{schedule.serviceLabel || schedule.type}</span>
-            <span className="rounded-full bg-ink/7 px-3 py-1 text-xs font-bold text-ink/55">{schedule.status || "borrador"}</span>
           </div>
           <p className="mt-1 text-sm text-ink/55">{schedule.time || "Sin hora"} · {schedule.leader || "Sin lider de adoracion"}</p>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-ink/62">{schedule.generalNotes || "Sin notas generales."}</p>
