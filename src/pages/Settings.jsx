@@ -550,15 +550,14 @@ export function Settings() {
                 <div className="h-full rounded-full bg-brass transition-all" style={{ width: `${pdfIndexProgress.total ? Math.round(((pdfIndexProgress.current || 0) / pdfIndexProgress.total) * 100) : 0}%` }} />
               </div>
               <p className="mt-3 text-sm text-ink/55">{pdfIndexProgress.songTitle ? `Procesando: ${pdfIndexProgress.songTitle}` : "Preparando indice..."}</p>
+              {pdfIndexProgress.pdfPath ? <p className="mt-1 break-all text-xs text-ink/45">PDF: {pdfIndexProgress.pdfPath}</p> : null}
               <p className="mt-2 text-xs font-semibold text-ink/50">
                 Encontrados {pdfIndexProgress.found || 0} - Indexados {pdfIndexProgress.indexed || 0} - Sin texto {pdfIndexProgress.noText || 0} - No encontrados {pdfIndexProgress.missing || 0} - Errores {pdfIndexProgress.failed || 0}
               </p>
             </div>
           ) : null}
           {pdfIndexResult ? (
-            <p className="mt-3 text-sm font-semibold text-ink/60">
-              Encontrados {pdfIndexResult.found}, indexados {pdfIndexResult.indexed}, sin texto {pdfIndexResult.noText}, no encontrados {pdfIndexResult.missing}, errores {pdfIndexResult.failed}
-            </p>
+            <PdfIndexSummary result={pdfIndexResult} />
           ) : null}
         </Card>
         ) : null}
@@ -706,6 +705,46 @@ function LogoPreview({ title, logo, source, alt, dark = false, invert = false, o
           Abrir URL resuelta
         </Button>
       </div>
+    </div>
+  );
+}
+
+function PdfIndexSummary({ result }) {
+  return (
+    <div className="mt-4 space-y-3">
+      <p className="text-sm font-semibold text-ink/60">
+        Encontrados {result.found}, indexados {result.indexed}, sin texto {result.noText}, no encontrados {result.missing}, errores {result.failed}
+      </p>
+      <PdfIndexList title="Indexados correctamente" items={result.indexedItems} />
+      <PdfIndexList title="Sin texto extraible" items={result.noTextItems} fallbackMessage="El PDF existe, pero no tiene texto seleccionable." />
+      <PdfIndexList title="No encontrados" items={result.missingItems} showUrl />
+      <PdfIndexList title="Errores" items={result.errorItems} showUrl />
+    </div>
+  );
+}
+
+function PdfIndexList({ title, items = [], showUrl = false, fallbackMessage = "" }) {
+  return (
+    <div className="rounded-2xl border border-ink/10 bg-white p-3 dark:border-white/10 dark:bg-white/5">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-sm font-bold text-ink">{title}</h3>
+        <span className="rounded-full bg-ink/7 px-2 py-1 text-xs font-bold text-ink/55">{items.length}</span>
+      </div>
+      {items.length ? (
+        <div className="mt-3 max-h-52 space-y-2 overflow-auto">
+          {items.map((item, index) => (
+            <div key={`${item.title}-${item.localPdfPath}-${index}`} className="rounded-xl bg-ink/5 p-3 text-xs text-ink/60 dark:bg-white/5 dark:text-white/65">
+              <p className="font-bold text-ink">{item.title}</p>
+              <p className="break-all">Ruta guardada: {item.localPdfPath || "--"}</p>
+              {showUrl ? <p className="break-all">URL resuelta: {item.resolvedUrl || "--"}</p> : null}
+              {item.statusHttp ? <p>Status HTTP: {item.statusHttp}</p> : null}
+              {(item.message || fallbackMessage) ? <p>{item.message || fallbackMessage}</p> : null}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-3 text-sm text-ink/45">Sin elementos.</p>
+      )}
     </div>
   );
 }

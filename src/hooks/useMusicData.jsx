@@ -667,31 +667,68 @@ export function MusicDataProvider({ children }) {
   };
 
   const indexLocalPdfTexts = async (onProgress) => {
-    const results = { found: 0, indexed: 0, failed: 0, noText: 0, missing: 0 };
+    const results = {
+      found: 0,
+      indexed: 0,
+      failed: 0,
+      noText: 0,
+      missing: 0,
+      indexedItems: [],
+      noTextItems: [],
+      missingItems: [],
+      errorItems: []
+    };
     const candidates = songs.filter((item) => item.localPdfPath);
     let current = 0;
     for (const song of candidates) {
       current += 1;
-      onProgress?.({ current, total: candidates.length, songTitle: song.title, ...results });
+      onProgress?.({ current, total: candidates.length, songTitle: song.title, pdfPath: song.localPdfPath, ...results });
       const extracted = await extractLocalPdfText(song.localPdfPath);
+      const status = extracted.status === "failed" ? "error" : extracted.status;
+      const itemSummary = {
+        title: song.title,
+        localPdfPath: song.localPdfPath,
+        resolvedUrl: extracted.resolvedUrl || "",
+        statusHttp: extracted.statusHttp || "",
+        contentType: extracted.contentType || "",
+        message: extracted.message || ""
+      };
       const payload = {
         ...song,
         pdfSearchText: extracted.status === "indexed" ? extracted.text : "",
         pdfSearchTokens: extracted.tokens || [],
-        pdfIndexStatus: extracted.status,
+        pdfIndexStatus: status,
         pdfIndexMessage: extracted.message,
+        pdfIndexError: status === "error" ? extracted.message : "",
         pdfIndexUrl: extracted.resolvedUrl || "",
         pdfIndexHttpStatus: extracted.statusHttp || "",
         pdfIndexContentType: extracted.contentType || "",
-        localPdfStatus: extracted.status === "indexed" || extracted.status === "no_text" ? "found" : extracted.status,
+        localPdfStatus: extracted.status === "indexed" || extracted.status === "no_text" ? "found" : status,
         pdfIndexedAt: new Date().toISOString()
       };
       await saveSong(payload);
-      if (extracted.status === "indexed") { results.indexed += 1; results.found += 1; }
-      else if (extracted.status === "no_text") { results.noText += 1; results.found += 1; }
-      else if (extracted.status === "missing") results.missing += 1;
-      else results.failed += 1;
-      onProgress?.({ current, total: candidates.length, songTitle: song.title, ...results });
+      if (status === "indexed") {
+        results.indexed += 1;
+        results.found += 1;
+        results.indexedItems.push(itemSummary);
+      } else if (status === "no_text") {
+        results.noText += 1;
+        results.found += 1;
+        results.noTextItems.push({
+          ...itemSummary,
+          message: itemSummary.message || "El PDF existe, pero no tiene texto seleccionable."
+        });
+      } else if (status === "missing") {
+        results.missing += 1;
+        results.missingItems.push(itemSummary);
+      } else {
+        results.failed += 1;
+        results.errorItems.push({
+          ...itemSummary,
+          message: itemSummary.message || "Error al procesar"
+        });
+      }
+      onProgress?.({ current, total: candidates.length, songTitle: song.title, pdfPath: song.localPdfPath, ...results });
     }
     await logAuditEvent({
       actionType: "update",

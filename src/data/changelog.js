@@ -1,6 +1,31 @@
-export const appVersion = "0.9.2";
+export const appVersion = "0.9.3";
 
 export const changelog = [
+  {
+    version: "0.9.3",
+    date: "2026-05-15",
+    title: "Busqueda, exportaciones e indexacion detallada",
+    added: [
+      "Resumen detallado de indexacion con cantos indexados, sin texto, no encontrados y con error",
+      "Exportacion CSV completa del repertorio",
+      "Indicadores de coincidencia en resultados de busqueda",
+      "Exportacion de historial con tonos, capo y notas por canto"
+    ],
+    changed: [
+      "La busqueda del repertorio normaliza acentos, mayusculas, signos y texto indexado de PDFs",
+      "Las sugerencias de rotacion y sustitucion rapida priorizan Keynote, tema, categoria y rotacion",
+      "Las metricas de Inicio ahora muestran Keynote pendiente, links PDF faltantes y mas usados del mes",
+      "El boton de sustitucion rapida queda separado de los enlaces PDF, YouTube y Spotify"
+    ],
+    fixed: [
+      "Textos corruptos en Inicio reemplazados por textos limpios",
+      "Badges del calendario movil ajustados para 375px y 414px",
+      "Exportaciones CSV incluyen BOM para abrir mejor acentos en Excel"
+    ],
+    pending: [
+      "Validar busqueda dentro de PDFs con documentos reales escaneados y seleccionables"
+    ]
+  },
   {
     version: "0.9.2",
     date: "2026-05-15",

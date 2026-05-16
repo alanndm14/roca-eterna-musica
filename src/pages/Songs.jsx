@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Edit3, ExternalLink, FileText, Headphones, Plus, Search, Trash2, Youtube } from "lucide-react";
+import { Download, Edit3, ExternalLink, FileText, Headphones, Plus, Search, Trash2, Youtube } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -78,6 +78,38 @@ const getVisiblePdfInput = (song) => song.pdfUrl || song.drivePdfUrl || (!song.p
 const toneSummary = (song) => {
   if (Number(song.capo || 0) > 0) return `Capo ${song.capo} · Suena en ${song.keyWithCapo || song.mainKey || "--"}`;
   return `Sin capo · Tono ${song.mainKey || song.keyWithCapo || "--"}`;
+};
+
+const csvEscape = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+const todayFile = () => new Date().toISOString().slice(0, 10);
+
+const downloadCsv = (fileName, rows) => {
+  const csv = rows.map((row) => row.map(csvEscape).join(",")).join("\n");
+  const blob = new Blob([`\ufeff${csv}`], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  URL.revokeObjectURL(url);
+};
+
+const getSearchMatches = (song, query) => {
+  const term = normalizeSearchText(query);
+  if (!term) return [];
+  const fields = [
+    { label: "Coincidencia en título", values: [song.title] },
+    { label: "Coincidencia en artista/fuente", values: [song.artistOrSource] },
+    { label: "Coincidencia en tema", values: [song.mainTheme, ...(song.otherThemes || []), ...(song.tags || [])] },
+    { label: "Coincidencia en categoría", values: [song.category] },
+    { label: "Coincidencia en tono", values: [song.mainKey, song.keyWithCapo] },
+    { label: "Coincidencia en comentario", values: [song.internalNotes] },
+    { label: "Coincidencia en PDF", values: [song.pdfSearchText, ...(song.pdfSearchTokens || [])] }
+  ];
+
+  return fields
+    .filter((field) => normalizeSearchText((field.values || []).filter(Boolean).join(" ")).includes(term))
+    .map((field) => field.label);
 };
 
 function SongForm({ initialSong, themes, keyPreference, onSubmit, onCancel }) {
@@ -324,7 +356,7 @@ function SongForm({ initialSong, themes, keyPreference, onSubmit, onCancel }) {
 export function Songs() {
   const { canEdit, canDelete } = useAuth();
   const navigate = useNavigate();
-  const { songs, themes, settings, deleteSong, saveSong } = useMusicData();
+  const { songs, schedules, themes, settings, deleteSong, saveSong } = useMusicData();
   const [filters, setFilters] = useState({
     query: "",
     category: "",
@@ -350,6 +382,18 @@ export function Songs() {
   const capoOptions = useMemo(() => [...new Set(songs.map((song) => song.capo).filter((capo) => capo !== undefined && capo !== ""))].sort((a, b) => Number(a) - Number(b)), [songs]);
   const categories = useMemo(() => [...new Set([...SONG_CATEGORIES, ...songs.map((song) => song.category).filter(Boolean)])], [songs]);
   const formats = useMemo(() => [...new Set([...SONG_FORMATS, ...songs.map((song) => song.format).filter(Boolean)])], [songs]);
+  const realUsageBySong = useMemo(() => {
+    const today = todayFile();
+    const counts = new Map();
+    schedules.forEach((schedule) => {
+      if (schedule.date && schedule.date > today) return;
+      (schedule.songs || []).forEach((entry) => {
+        if (!entry.songId) return;
+        counts.set(entry.songId, (counts.get(entry.songId) || 0) + 1);
+      });
+    });
+    return counts;
+  }, [schedules]);
 
   const setFilter = (field, value) => setFilters((current) => ({ ...current, [field]: value }));
   const clearFilters = () => setFilters({ query: "", category: "", mainTheme: "", otherTheme: "", key: "", capo: "", music: "", keynote: "", pdf: "", sung: "", format: "", keyChange: "", localPdf: "", artist: "" });
@@ -387,7 +431,7 @@ export function Songs() {
         const matchesLocalPdf = !filters.localPdf
           || (filters.localPdf === "with" && hasLocalPdf)
           || (filters.localPdf === "without" && !hasLocalPdf)
-          || (filters.localPdf === "invalid" && ["missing", "failed"].includes(song.pdfIndexStatus || song.localPdfStatus));
+          || (filters.localPdf === "invalid" && ["missing", "failed", "error"].includes(song.pdfIndexStatus || song.localPdfStatus));
         return matchesQuery && matchesCategory && matchesMainTheme && matchesOtherTheme && matchesKey && matchesCapo && matchesMusic && matchesKeynote && matchesPdf && matchesSung && matchesFormat && matchesKeyChange && matchesArtist && matchesLocalPdf;
       }),
     [filters, songs]
@@ -395,6 +439,56 @@ export function Songs() {
 
   const handleDelete = async (song) => {
     if (confirm(`¿Eliminar "${song.title}" del repertorio?`)) await deleteSong(song.id);
+  };
+
+  const exportRepertoire = () => {
+    const rows = [
+      [
+        "titulo",
+        "artista_fuente",
+        "categoria",
+        "tema_principal",
+        "otros_temas",
+        "tono_principal",
+        "capo",
+        "tono_con_capo_suena_en",
+        "cambio_de_tono",
+        "pdf_google_drive",
+        "ruta_pdf_local",
+        "youtube",
+        "spotify",
+        "acordes_externos",
+        "revision_keynote",
+        "pdf_local_indexado",
+        "estado_de_indexacion",
+        "comentario",
+        "ultima_vez_usado",
+        "veces_usado_en_programaciones_reales"
+      ],
+      ...filteredSongs.map((song) => [
+        song.title,
+        song.artistOrSource,
+        song.category,
+        song.mainTheme,
+        (song.otherThemes || []).join("; "),
+        song.mainKey,
+        song.capo ?? 0,
+        song.keyWithCapo,
+        song.hasKeyChange ? "si" : "no",
+        song.drivePdfUrl || song.pdfUrl || "",
+        song.localPdfPath || "",
+        getSongYoutubeUrl(song),
+        getSongSpotifyUrl(song),
+        getSongExternalChordsUrl(song),
+        song.keynoteReviewStatus || "",
+        song.pdfIndexStatus === "indexed" ? "si" : "no",
+        song.pdfIndexStatus || "",
+        song.internalNotes || "",
+        song.lastUsedAt || "",
+        realUsageBySong.get(song.id) || 0
+      ])
+    ];
+    downloadCsv(`repertorio-roca-eterna-${todayFile()}.csv`, rows);
   };
 
   const closeModal = () => {
@@ -411,10 +505,16 @@ export function Songs() {
             <p className="mt-1 text-sm text-ink/55">Gestor de canciones, PDFs, revisión y programación.</p>
           </div>
           {canEdit ? (
-            <Button onClick={() => setIsAdding(true)} data-tour="song-add">
-              <Plus className="h-4 w-4" />
-              Agregar canto
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="secondary" onClick={exportRepertoire}>
+                <Download className="h-4 w-4" />
+                Exportar repertorio
+              </Button>
+              <Button onClick={() => setIsAdding(true)} data-tour="song-add">
+                <Plus className="h-4 w-4" />
+                Agregar canto
+              </Button>
+            </div>
           ) : null}
         </div>
 
@@ -515,11 +615,19 @@ export function Songs() {
                   const pdfUrl = getSongPdfUrl(song);
                   const youtubeUrl = getSongYoutubeUrl(song);
                   const spotifyUrl = getSongSpotifyUrl(song);
+                  const matchLabels = getSearchMatches(song, filters.query);
                   return (
                     <tr key={song.id} className="border-b border-ink/10 last:border-b-0 hover:bg-ink/5">
                       <td className="px-4 py-3">
                         <Link to={`/repertorio/${song.id}`} className="font-bold text-ink hover:text-brass">{song.title}</Link>
                         <p className="text-xs text-ink/50">{song.artistOrSource || "Sin fuente"}</p>
+                        {matchLabels.length ? (
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            {matchLabels.slice(0, 3).map((label) => (
+                              <span key={label} className="rounded-full bg-brass/10 px-2 py-0.5 text-[10px] font-bold text-brass">{label}</span>
+                            ))}
+                          </div>
+                        ) : null}
                       </td>
                       <td className="px-4 py-3 text-ink/60">{song.category || "--"}</td>
                       <td className="px-4 py-3 text-ink/60">{song.mainTheme || "--"}</td>
@@ -553,6 +661,7 @@ export function Songs() {
             const pdfUrl = getSongPdfUrl(song);
             const youtubeUrl = getSongYoutubeUrl(song);
             const spotifyUrl = getSongSpotifyUrl(song);
+            const matchLabels = getSearchMatches(song, filters.query);
             return (
               <Card key={song.id} delay={index * 0.02} className="flex cursor-pointer flex-col transition hover:border-brass/35" onClick={() => navigate(`/repertorio/${song.id}`)}>
                 <div className="flex items-start justify-between gap-4">
@@ -564,6 +673,15 @@ export function Songs() {
                   </div>
                   <span className="rounded-xl bg-ink px-3 py-1 text-sm font-bold text-white">{song.mainKey || "--"}</span>
                 </div>
+                {matchLabels.length ? (
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {matchLabels.slice(0, 4).map((label) => (
+                      <span key={label} className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${label.includes("PDF") ? "bg-brass/15 text-brass" : "bg-ink/7 text-ink/55"}`}>
+                        {label}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
                 <div className="mt-4 flex flex-wrap gap-2">
                   {song.category ? <span className="rounded-full bg-ink/7 px-3 py-1 text-xs font-semibold text-ink/60">{song.category}</span> : null}
                   {song.mainTheme ? <span className="rounded-full bg-brass/10 px-3 py-1 text-xs font-semibold text-brass">{song.mainTheme}</span> : null}

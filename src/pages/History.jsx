@@ -55,23 +55,29 @@ export function History() {
   }, [dateFilter, past, query, serviceType, sort]);
 
   const exportHistory = () => {
+    const songById = new Map(songs.map((song) => [song.id, song]));
     const rows = [
-      ["fecha", "servicio", "hora", "lider_de_adoracion", "cantos_en_orden", "notas_generales", "estado"],
+      ["fecha", "servicio", "hora", "lider_de_adoracion", "cantos_en_orden", "tonos", "capo", "notas_por_canto", "notas_generales", "estado_interno", "creado_por", "actualizado_por"],
       ...filtered.map((schedule) => [
         schedule.date,
         schedule.serviceLabel || schedule.type || "",
         schedule.time || "",
         schedule.leader || "",
         (schedule.songs || []).map((song, index) => `${index + 1}. ${song.titleSnapshot}`).join(" | "),
+        (schedule.songs || []).map((song) => song.keySnapshot || songById.get(song.songId)?.mainKey || "").join(" | "),
+        (schedule.songs || []).map((song) => songById.get(song.songId)?.capo ?? "").join(" | "),
+        (schedule.songs || []).map((song, index) => `${index + 1}. ${song.notes || ""}`).join(" | "),
         schedule.generalNotes || "",
-        schedule.status || ""
+        schedule.status || "",
+        schedule.createdBy || "",
+        schedule.updatedBy || ""
       ])
     ];
-    const blob = new Blob([rows.map((row) => row.map(csvEscape).join(",")).join("\n")], { type: "text/csv;charset=utf-8" });
+    const blob = new Blob([`\ufeff${rows.map((row) => row.map(csvEscape).join(",")).join("\n")}`], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "historial-roca-eterna-musica.csv";
+    link.download = `historial-programaciones-roca-eterna-${new Date().toISOString().slice(0, 10)}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -129,7 +135,6 @@ export function History() {
                     <th className="px-3 py-2">Servicio</th>
                     <th className="px-3 py-2">Lider de adoracion</th>
                     <th className="px-3 py-2">Cantos</th>
-                    <th className="px-3 py-2">Estado</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -139,7 +144,6 @@ export function History() {
                       <td className="px-3 py-3 text-ink/60">{schedule.serviceLabel || schedule.type}</td>
                       <td className="px-3 py-3 text-ink/60">{schedule.leader || "--"}</td>
                       <td className="px-3 py-3 text-ink/70">{(schedule.songs || []).map((song) => song.titleSnapshot).join(", ")}</td>
-                      <td className="px-3 py-3 text-ink/60">{schedule.status || "borrador"}</td>
                     </tr>
                   ))}
                 </tbody>

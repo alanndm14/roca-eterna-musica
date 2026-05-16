@@ -78,6 +78,17 @@ export function MusicianView() {
   );
   const activePdfSong = serviceSongs[activePdfIndex] || serviceSongs[0];
   const serviceDocument = selectedSchedule ? <ServiceSheetDocument schedule={selectedSchedule} songs={songs} settings={settings} /> : null;
+  const realUsageBySong = useMemo(() => {
+    const counts = new Map();
+    schedules.forEach((schedule) => {
+      if (schedule.date > today) return;
+      (schedule.songs || []).forEach((entry) => {
+        if (!entry.songId) return;
+        counts.set(entry.songId, (counts.get(entry.songId) || 0) + 1);
+      });
+    });
+    return counts;
+  }, [schedules, today]);
   const replacementSuggestions = useMemo(() => {
     if (!replaceTarget) return [];
     const current = replaceTarget.full || {};
@@ -90,16 +101,14 @@ export function MusicianView() {
           themeMatches * 5
           + (song.category && song.category === current.category ? 3 : 0)
           + (song.mainKey && song.mainKey === current.mainKey ? 2 : 0)
-          + (getSongPdfUrl(song) ? 2 : 0)
-          + (song.pdfReviewStatus === "completado" ? 2 : 0)
-          + (song.musicReviewStatus === "completado" ? 2 : 0)
-          + (song.keynoteReviewStatus === "completado" ? 2 : 0)
-          + (Number(song.usageCount || 0) <= 1 ? 1 : 0);
+          + (song.keynoteReviewStatus === "completado" ? 3 : 0)
+          + (getSongPdfUrl(song) ? 1 : 0)
+          + ((realUsageBySong.get(song.id) || 0) <= 1 ? 1 : 0);
         return { song, score };
       })
       .sort((a, b) => b.score - a.score || (a.song.title || "").localeCompare(b.song.title || "", "es"))
       .slice(0, 8);
-  }, [replaceTarget, selectedSchedule?.songs, songs]);
+  }, [realUsageBySong, replaceTarget, selectedSchedule?.songs, songs]);
 
   const enterFocusMode = async () => {
     setFocusMode(true);
@@ -171,7 +180,7 @@ export function MusicianView() {
 
   const confirmReplacement = async (candidate) => {
     if (!replaceTarget || !selectedSchedule) return;
-    if (!confirm(`Sustituir "${replaceTarget.title}" por "${candidate.title}" en esta programacion?`)) return;
+    if (!confirm(`Sustituir este canto en la programacion?\n\n${replaceTarget.title} -> ${candidate.title}`)) return;
     await replaceScheduleSong(selectedSchedule.id, replaceTarget.entry, candidate);
     setReplaceTarget(null);
   };
@@ -260,18 +269,24 @@ export function MusicianView() {
             <div className="grid gap-4 md:grid-cols-[72px_1fr_240px] md:items-center">
               <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-ink text-2xl font-bold text-white">{song.index}</div>
               <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="text-2xl font-bold">
-                    <SongNameLink songId={song.entry.songId} title={song.title} songs={songs}>{song.title}</SongNameLink>
-                  </h3>
-                  {song.hasKeyChange ? <span className="rounded-full bg-brass/12 px-3 py-1 text-xs font-bold text-brass">Cambio de tono</span> : null}
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-2xl font-bold">
+                      <SongNameLink songId={song.entry.songId} title={song.title} songs={songs}>{song.title}</SongNameLink>
+                    </h3>
+                    {song.hasKeyChange ? <span className="rounded-full bg-brass/12 px-3 py-1 text-xs font-bold text-brass">Cambio de tono</span> : null}
+                  </div>
+                  {isAdmin ? (
+                    <Button variant="secondary" className="shrink-0" onClick={() => setReplaceTarget(song)}>
+                      Sustituir canto
+                    </Button>
+                  ) : null}
                 </div>
                 <p className="mt-2 text-base text-ink/60">{song.notes || "Sin notas para este canto."}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {song.pdfUrl ? <a className="inline-flex items-center gap-2 rounded-xl bg-brass/12 px-3 py-2 text-sm font-bold text-brass" href={song.pdfUrl} target="_blank" rel="noreferrer">PDF de letra y acordes <ExternalLink className="h-4 w-4" /></a> : null}
                   {song.youtubeUrl ? <a className="inline-flex items-center gap-2 rounded-xl bg-ink/5 px-3 py-2 text-sm font-bold text-ink" href={song.youtubeUrl} target="_blank" rel="noreferrer">YouTube <ExternalLink className="h-4 w-4" /></a> : null}
                   {song.spotifyUrl ? <a className="inline-flex items-center gap-2 rounded-xl bg-ink/5 px-3 py-2 text-sm font-bold text-ink" href={song.spotifyUrl} target="_blank" rel="noreferrer">Spotify <ExternalLink className="h-4 w-4" /></a> : null}
-                  {isAdmin ? <Button variant="subtle" onClick={() => setReplaceTarget(song)}>Sustituir</Button> : null}
                 </div>
               </div>
               <div className="rounded-3xl bg-brass/12 p-4">
@@ -414,14 +429,14 @@ export function MusicianView() {
 
       <Modal open={Boolean(replaceTarget)} title="Sustitucion rapida" onClose={() => setReplaceTarget(null)} wide>
         <div className="space-y-4">
-          <p className="text-sm text-ink/60">Reemplazar: <strong>{replaceTarget?.title}</strong>. Las sugerencias priorizan tema, categoria, tonalidad y cantos listos.</p>
+          <p className="text-sm text-ink/60">Reemplazar: <strong>{replaceTarget?.title}</strong>. Las sugerencias priorizan tema, categoria, tonalidad, Keynote completado y rotacion.</p>
           <div className="grid gap-3 md:grid-cols-2">
             {replacementSuggestions.map(({ song }) => (
               <button key={song.id} type="button" onClick={() => confirmReplacement(song)} className="rounded-2xl border border-ink/10 bg-white p-4 text-left transition hover:border-brass/50 hover:bg-brass/5">
                 <p className="font-bold text-ink">{song.title}</p>
                 <p className="mt-1 text-sm text-ink/55">{song.mainTheme || "Sin tema"} · {song.category || "sin categoria"}</p>
                 <p className="mt-2 text-sm font-semibold text-ink">{Number(song.capo || 0) > 0 ? `Capo ${song.capo} · Suena en ${song.keyWithCapo || song.mainKey || "--"}` : `Sin capo · Tono ${song.mainKey || "--"}`}</p>
-                <p className="mt-2 text-xs text-ink/55">PDF {song.pdfReviewStatus || "pendiente"} · Musica {song.musicReviewStatus || "pendiente"} · Keynote {song.keynoteReviewStatus || "pendiente"}</p>
+                <p className="mt-2 text-xs text-ink/55">Keynote {song.keynoteReviewStatus || "pendiente"} - {getSongPdfUrl(song) ? "PDF disponible" : "Sin PDF registrado"}</p>
                 <p className="mt-1 text-xs text-ink/45">{song.lastUsedAt ? `Ultima vez: ${formatDate(song.lastUsedAt)}` : "Sin historial"}</p>
               </button>
             ))}

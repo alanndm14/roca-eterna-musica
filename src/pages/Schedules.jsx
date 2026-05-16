@@ -9,6 +9,7 @@ import { SongNameLink } from "../components/ui/SongNameLink";
 import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
 import { formatDate, todayString } from "../services/dateUtils";
+import { normalizeSearchText } from "../services/songUtils";
 
 const serviceOptions = [
   { value: "miercoles-oracion", label: "Miércoles de oración", time: "19:00", weekday: 3 },
@@ -45,18 +46,21 @@ function ScheduleForm({ initialSchedule, songs, onSubmit, onCancel }) {
   const wrongDay = schedule.date && service.weekday !== null && dateWeekday(schedule.date) !== service.weekday;
   const selectedSongIds = new Set((schedule.songs || []).map((song) => song.songId).filter(Boolean));
   const songResults = useMemo(() => {
-    const term = songSearch.trim().toLowerCase();
+    const term = normalizeSearchText(songSearch);
     if (!term) return songs.slice(0, 10);
-    return songs.filter((song) => [
-      song.title,
-      song.artistOrSource,
-      song.category,
-      song.mainTheme,
-      ...(song.otherThemes || []),
-      song.mainKey,
-      song.keyWithCapo,
-      song.internalNotes
-    ].join(" ").toLowerCase().includes(term)).slice(0, 12);
+    return songs.filter((song) => {
+      const songText = [
+        song.title,
+        song.artistOrSource,
+        song.category,
+        song.mainTheme,
+        ...(song.otherThemes || []),
+        song.mainKey,
+        song.keyWithCapo,
+        song.internalNotes
+      ].join(" ");
+      return normalizeSearchText(songText).includes(term);
+    }).slice(0, 12);
   }, [songSearch, songs]);
 
   const update = (field, value) => setSchedule((current) => ({ ...current, [field]: value }));
@@ -258,13 +262,18 @@ function MonthCalendar({ schedules, selectedDate, onSelectDate }) {
               key={dateString}
               type="button"
               onClick={() => onSelectDate(dateString)}
-              className={`min-h-20 rounded-2xl border p-2 text-left transition ${stateClasses} ${isCurrentMonth ? "text-ink" : "text-ink/30"}`}
+              className={`min-h-16 rounded-xl border p-1.5 text-left transition sm:min-h-20 sm:rounded-2xl sm:p-2 ${stateClasses} ${isCurrentMonth ? "text-ink" : "text-ink/30"}`}
             >
               <span className="flex items-center justify-between gap-1">
                 <span className="text-sm font-bold">{day.getDate()}</span>
-                {isToday ? <span className="rounded-full bg-brass/15 px-2 py-0.5 text-[10px] font-bold text-brass">Hoy</span> : null}
+                {isToday ? <span className="rounded-full bg-brass/15 px-1 py-0.5 text-[9px] font-bold leading-none text-brass sm:px-2 sm:text-[10px]">Hoy</span> : null}
               </span>
-              {count ? <span className="mt-2 block rounded-full bg-ink px-2 py-1 text-center text-[11px] font-bold text-white">{count} prog.</span> : null}
+              {count ? (
+                <span className="mt-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-ink px-1 text-center text-[10px] font-bold text-white sm:mt-2 sm:block sm:h-auto sm:px-2 sm:py-1 sm:text-[11px]">
+                  <span className="sm:hidden">{count}</span>
+                  <span className="hidden sm:inline">{count} prog.</span>
+                </span>
+              ) : null}
             </button>
           );
         })}

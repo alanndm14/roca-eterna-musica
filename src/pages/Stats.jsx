@@ -251,9 +251,7 @@ export function Stats() {
     .slice(0, 12);
   const rotationSuggestions = filteredSongs
     .filter((song) =>
-      normalizeReviewValue(song.pdfReviewStatus) === "completado"
-      && normalizeReviewValue(song.keynoteReviewStatus) === "completado"
-      && normalizeReviewValue(song.musicReviewStatus) === "completado"
+      normalizeReviewValue(song.keynoteReviewStatus) === "completado"
       && song.sungBefore
       && ((realUsageBySong.get(song.id)?.count || 0) <= 1)
     )
@@ -396,7 +394,7 @@ export function Stats() {
           </Card>
           <Card>
             <h2 className="text-lg font-bold text-ink">Sugerencias de rotación</h2>
-            <p className="mt-1 text-sm text-ink/55">Cantos listos para considerar: PDF, Keynote y revisión musical completados, históricamente cantados y con poco uso o sin historial en la app.</p>
+            <p className="mt-1 text-sm text-ink/55">Cantos listos para considerar: Keynote completado, historicamente cantados y con poco uso o sin historial en la app.</p>
             <div className="mt-4">
               <SongTable rows={rotationSuggestions} songs={songs} columns={[
                 { key: "title", label: "Canto" },
