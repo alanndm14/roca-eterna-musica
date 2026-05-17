@@ -1,5 +1,4 @@
 import logoPng from "./logo-roca-eterna-musica.png";
-import fallbackLogo from "./logo-roca-eterna.svg";
 
-export const appLogo = logoPng || fallbackLogo;
-export const fallbackAppLogo = fallbackLogo;
+export const appLogo = logoPng;
+export const fallbackAppLogo = logoPng;

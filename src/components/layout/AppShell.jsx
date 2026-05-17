@@ -56,7 +56,7 @@ export function AppShell() {
   useEffect(() => {
     if (logoSrc) localStorage.setItem("roca-eterna-logo-src", logoSrc);
     if (logoAlt) localStorage.setItem("roca-eterna-logo-alt", logoAlt);
-    localStorage.setItem("roca-eterna-logo-invert", String(logoInvert));
+    localStorage.removeItem("roca-eterna-logo-invert");
   }, [logoAlt, logoInvert, logoSrc]);
 
   useEffect(() => {

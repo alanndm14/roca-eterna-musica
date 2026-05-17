@@ -1,6 +1,6 @@
 import React from "react";
 import { Document, Link, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
-import { formatDate } from "./dateUtils";
+import { formatDate, getServiceDisplayLabel } from "./dateUtils";
 import {
   getSongExternalChordsUrl,
   getSongPdfUrl,
@@ -9,6 +9,8 @@ import {
   getSongYoutubeUrl,
   normalizeSong
 } from "./songUtils";
+
+export { getServiceDisplayLabel };
 
 const monthNames = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 const titleCase = (value = "") => value ? value.charAt(0).toUpperCase() + value.slice(1) : "";
@@ -117,14 +119,6 @@ const styles = StyleSheet.create({
     color: "#777"
   }
 });
-
-export function getServiceDisplayLabel(schedule) {
-  const label = schedule?.serviceLabel || schedule?.type || "Servicio";
-  if (schedule?.serviceType === "domingo-manana") return "Domingo AM";
-  if (schedule?.serviceType === "domingo-tarde") return "Domingo PM";
-  if (schedule?.serviceType === "miercoles-oracion") return "Miércoles de oración";
-  return label;
-}
 
 function cleanFileName(value = "") {
   return String(value || "servicio")

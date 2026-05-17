@@ -6,26 +6,18 @@ import { Card } from "../components/ui/Card";
 import { StatCard } from "../components/ui/StatCard";
 import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
-import { formatDate, getUpcomingSchedule, todayString } from "../services/dateUtils";
+import { formatDate, getCurrentOrNextSchedule, getEstimatedServiceEndDate, getScheduleStartDate, getServiceDisplayLabel, todayString } from "../services/dateUtils";
 import { getSongPdfUrl } from "../services/songUtils";
 
-const serviceLabel = (schedule) => schedule?.serviceLabel || schedule?.type || "Servicio pendiente";
 const currentMonth = () => todayString().slice(0, 7);
 
-const getScheduleStart = (schedule) => {
-  if (!schedule?.date) return null;
-  const time = schedule.time || "00:00";
-  const date = new Date(`${schedule.date}T${time}:00`);
-  return Number.isNaN(date.getTime()) ? null : date;
-};
-
 const formatRemaining = (schedule, now = new Date()) => {
-  const start = getScheduleStart(schedule);
+  const start = getScheduleStartDate(schedule);
   if (!start) return "--";
   const diff = start.getTime() - now.getTime();
   if (diff <= 0) {
-    const twoHours = 2 * 60 * 60 * 1000;
-    return Math.abs(diff) <= twoHours ? "En curso" : "Finalizado";
+    const end = getEstimatedServiceEndDate(schedule);
+    return end && end.getTime() > now.getTime() ? "En curso" : "Finalizado";
   }
   const dayMs = 24 * 60 * 60 * 1000;
   if (diff >= dayMs) {
@@ -62,7 +54,7 @@ export function Dashboard() {
   const { songs, schedules } = useMusicData();
   const [now, setNow] = useState(() => new Date());
   const isViewer = profile?.role === "viewer";
-  const upcoming = getUpcomingSchedule(schedules);
+  const upcoming = getCurrentOrNextSchedule(schedules, now);
   const missingPdfLinks = songs.filter((song) => !getSongPdfUrl(song)).length;
   const keynotePending = songs.filter((song) => song.keynoteReviewStatus !== "completado").length;
   const monthTopSongs = getMonthlyTopSongs(schedules);
@@ -84,13 +76,13 @@ export function Dashboard() {
         <Card className="relative overflow-hidden bg-ink p-6 text-white">
           <div className="absolute -right-20 -top-20 h-56 w-56 rounded-full border border-white/10" />
           <div className="relative z-10">
-            <p className="text-sm font-semibold uppercase tracking-wide text-brass">Próximo servicio</p>
+            <p className="text-sm font-semibold uppercase tracking-wide text-brass">{upcoming ? getServiceDisplayLabel(upcoming) : "Próximo servicio"}</p>
             <h2 className="mt-3 text-3xl font-bold tracking-normal md:text-4xl">
               {upcoming ? formatDate(upcoming.date) : "Sin próxima programación"}
             </h2>
             {upcoming ? (
               <div className="mt-5 grid gap-3 text-sm text-white/72 sm:grid-cols-3">
-                <span className="rounded-2xl bg-white/8 p-3">Servicio: {serviceLabel(upcoming)}</span>
+                <span className="rounded-2xl bg-white/8 p-3">Servicio: {getServiceDisplayLabel(upcoming)}</span>
                 <span className="rounded-2xl bg-white/8 p-3">Hora: {upcoming.time || "Sin hora"}</span>
                 <span className="rounded-2xl bg-white/8 p-3">Líder de adoración: {upcoming.leader || "Pendiente"}</span>
               </div>

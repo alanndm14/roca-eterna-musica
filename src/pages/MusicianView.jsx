@@ -9,7 +9,7 @@ import { Modal } from "../components/ui/Modal";
 import { SongNameLink } from "../components/ui/SongNameLink";
 import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
-import { formatDate, todayString } from "../services/dateUtils";
+import { formatDate, formatScheduleDateWithService, getCurrentOrNextSchedule, todayString } from "../services/dateUtils";
 import {
   ServiceSheetDocument,
   buildServiceSongs,
@@ -136,8 +136,11 @@ export function MusicianView() {
   }, [schedules, today]);
 
   useEffect(() => {
-    if (!selectedId && scheduleOptions[0]?.id) setSelectedId(scheduleOptions[0].id);
-  }, [scheduleOptions, selectedId]);
+    if (!selectedId) {
+      const preferred = getCurrentOrNextSchedule(schedules) || scheduleOptions[0];
+      if (preferred?.id) setSelectedId(preferred.id);
+    }
+  }, [scheduleOptions, schedules, selectedId]);
 
   useEffect(() => {
     document.documentElement.classList.toggle("musician-focus", focusMode);
@@ -160,7 +163,7 @@ export function MusicianView() {
     () => schedules.filter((schedule) => schedule.date === pickerDate).sort((a, b) => `${a.time || ""}`.localeCompare(`${b.time || ""}`)),
     [pickerDate, schedules]
   );
-  const nextSchedule = scheduleOptions.find((schedule) => schedule.date >= today) || scheduleOptions[0];
+  const nextSchedule = getCurrentOrNextSchedule(schedules) || scheduleOptions[0];
 
   useEffect(() => {
     if (selectedSchedule?.date) setPickerDate(selectedSchedule.date);
@@ -177,7 +180,12 @@ export function MusicianView() {
       if (schedule.date > today) return;
       (schedule.songs || []).forEach((entry) => {
         if (!entry.songId) return;
-        counts.set(entry.songId, (counts.get(entry.songId) || 0) + 1);
+        const current = counts.get(entry.songId) || { count: 0, lastSchedule: null };
+        current.count += 1;
+        if (!current.lastSchedule || `${schedule.date}${schedule.time || ""}` > `${current.lastSchedule.date}${current.lastSchedule.time || ""}`) {
+          current.lastSchedule = schedule;
+        }
+        counts.set(entry.songId, current);
       });
     });
     return counts;
@@ -196,7 +204,7 @@ export function MusicianView() {
           + (song.mainKey && song.mainKey === current.mainKey ? 2 : 0)
           + (song.keynoteReviewStatus === "completado" ? 3 : 0)
           + (getSongPdfUrl(song) ? 1 : 0)
-          + ((realUsageBySong.get(song.id) || 0) <= 1 ? 1 : 0);
+          + ((realUsageBySong.get(song.id)?.count || 0) <= 1 ? 1 : 0);
         return { song, score };
       })
       .sort((a, b) => b.score - a.score || (a.song.title || "").localeCompare(b.song.title || "", "es"))
@@ -273,7 +281,7 @@ export function MusicianView() {
 
   const confirmReplacement = async (candidate) => {
     if (!replaceTarget || !selectedSchedule) return;
-    if (!confirm(`Sustituir este canto en la programación?\n\n${replaceTarget.title} -> ${candidate.title}`)) return;
+    if (!confirm(`¿Sustituir este canto en la programación?\n\n${replaceTarget.title} -> ${candidate.title}`)) return;
     await replaceScheduleSong(selectedSchedule.id, replaceTarget.entry, candidate);
     setReplaceTarget(null);
   };
@@ -333,7 +341,7 @@ export function MusicianView() {
                 className={`w-full rounded-2xl border p-3 text-left transition ${selectedSchedule?.id === schedule.id ? "border-brass bg-brass/10" : "border-ink/10 bg-white hover:border-brass/40 dark:border-white/10 dark:bg-white/5"}`}
               >
                 <p className="font-bold text-ink">{getServiceDisplayLabel(schedule)}</p>
-                <p className="mt-1 text-sm text-ink/55">{schedule.time || "Sin hora"} ? {schedule.leader || "Líder pendiente"} ? {(schedule.songs || []).length} cantos</p>
+                <p className="mt-1 text-sm text-ink/55">{schedule.time || "Sin hora"} · {schedule.leader || "Sin líder de adoración"} · {(schedule.songs || []).length} cantos</p>
               </button>
             )) : (
               <p className="rounded-2xl bg-ink/5 p-4 text-sm text-ink/55">No hay programaciones en este día.</p>
@@ -553,7 +561,7 @@ export function MusicianView() {
                 <p className="mt-1 text-sm text-ink/55">{song.mainTheme || "Sin tema"} · {song.category || "sin categoría"}</p>
                 <p className="mt-2 text-sm font-semibold text-ink">{Number(song.capo || 0) > 0 ? `Capo ${song.capo} · Suena en ${song.keyWithCapo || song.mainKey || "--"}` : `Sin capo · Tono ${song.mainKey || "--"}`}</p>
                 <p className="mt-2 text-xs text-ink/55">Keynote {song.keynoteReviewStatus || "pendiente"} - {getSongPdfUrl(song) ? "PDF disponible" : "Sin PDF registrado"}</p>
-                <p className="mt-1 text-xs text-ink/45">{song.lastUsedAt ? `Última vez: ${formatDate(song.lastUsedAt)}` : "Sin historial"}</p>
+                <p className="mt-1 text-xs text-ink/45">{realUsageBySong.get(song.id)?.lastSchedule ? `Última vez: ${formatScheduleDateWithService(realUsageBySong.get(song.id).lastSchedule)}` : song.lastUsedAt ? `Última vez: ${formatDate(song.lastUsedAt)}` : "Sin historial"}</p>
               </button>
             ))}
           </div>

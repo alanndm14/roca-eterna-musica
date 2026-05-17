@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, CalendarPlus, CheckCircle, Copy, ExternalLink, FileText, Headphones, Youtube } from "lucide-react";
+import { ArrowLeft, CalendarPlus, CheckCircle, Copy, Edit3, ExternalLink, FileText, Headphones, Youtube } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -8,7 +8,7 @@ import { FileDiagnosticPanel } from "../components/ui/FileDiagnosticPanel";
 import { Modal } from "../components/ui/Modal";
 import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
-import { formatDate } from "../services/dateUtils";
+import { formatDate, formatScheduleDateWithService, getCurrentOrNextSchedule, getServiceDisplayLabel } from "../services/dateUtils";
 import { testPublicPdfPath } from "../services/publicPdfTools";
 import {
   getSongExternalChordsUrl,
@@ -17,6 +17,7 @@ import {
   getSongYoutubeUrl,
   normalizeSong
 } from "../services/songUtils";
+import { SongForm } from "./Songs";
 
 function InfoRow({ label, value }) {
   return (
@@ -41,9 +42,10 @@ export function SongDetail() {
   const { songId } = useParams();
   const navigate = useNavigate();
   const { canEdit } = useAuth();
-  const { songs, schedules, duplicateSong, saveSchedule, settings, logAuditEvent } = useMusicData();
+  const { songs, schedules, themes, duplicateSong, saveSchedule, saveSong, settings, logAuditEvent } = useMusicData();
   const [showPdf, setShowPdf] = useState(false);
   const [pdfTest, setPdfTest] = useState(null);
+  const [editingSong, setEditingSong] = useState(null);
   const song = normalizeSong(songs.find((item) => item.id === songId), settings.keyPreference || "sharps");
 
   if (!song?.id) return <EmptyState title="Canto no encontrado" text="Es posible que haya sido eliminado." />;
@@ -55,7 +57,7 @@ export function SongDetail() {
   const lyricsSections = (song.lyricsSections || []).filter((section) => section.text?.trim());
   const usage = schedules
     .filter((schedule) => schedule.songs?.some((item) => item.songId === song.id))
-    .sort((a, b) => b.date.localeCompare(a.date));
+    .sort((a, b) => `${b.date}${b.time || ""}`.localeCompare(`${a.date}${a.time || ""}`));
   const toneSummary = Number(song.capo || 0) > 0
     ? `Capo ${song.capo} · Suena en ${song.keyWithCapo || song.mainKey || "--"}`
     : `Sin capo · Tono ${song.mainKey || song.keyWithCapo || "--"}`;
@@ -80,9 +82,9 @@ export function SongDetail() {
       date.setDate(now.getDate() + offset);
       const weekday = date.getDay();
       const day = date.toISOString().slice(0, 10);
-      if (weekday === 3) options.push({ date: day, serviceType: "miercoles-oracion", serviceLabel: "Miercoles de oracion", time: "19:00" });
+      if (weekday === 3) options.push({ date: day, serviceType: "miercoles-oracion", serviceLabel: "Miércoles de oración", time: "19:00" });
       if (weekday === 0) {
-        options.push({ date: day, serviceType: "domingo-manana", serviceLabel: "Domingo manana", time: "11:00" });
+        options.push({ date: day, serviceType: "domingo-manana", serviceLabel: "Domingo mañana", time: "11:00" });
         options.push({ date: day, serviceType: "domingo-tarde", serviceLabel: "Domingo tarde", time: "17:00" });
       }
     }
@@ -90,19 +92,23 @@ export function SongDetail() {
   };
 
   const addToNextSchedule = async () => {
-    const nowKey = new Date().toISOString().slice(0, 10);
-    const futureSchedules = [...schedules].filter((schedule) => schedule.date >= nowKey).sort((a, b) => `${a.date} ${a.time || ""}`.localeCompare(`${b.date} ${b.time || ""}`));
-    const nextSchedule = futureSchedules[0];
+    const nextSchedule = getCurrentOrNextSchedule(schedules);
     if (nextSchedule) {
       if ((nextSchedule.songs || []).some((item) => item.songId === song.id)) {
-        alert("Este canto ya esta en la siguiente programacion.");
+        alert("Este canto ya está en la siguiente programación.");
         return;
       }
-      const label = `${nextSchedule.serviceLabel || nextSchedule.type || "Servicio"} · ${formatDate(nextSchedule.date)} · ${nextSchedule.time || ""}`;
-      if (!confirm(`Agregar este canto a la siguiente programacion: ${label}`)) return;
+      const label = `${getServiceDisplayLabel(nextSchedule)} · ${formatDate(nextSchedule.date)} · ${nextSchedule.time || ""}`;
+      if (!confirm(`Agregar este canto a la siguiente programación: ${label}`)) return;
       await saveSchedule({ ...nextSchedule, songs: [...(nextSchedule.songs || []), scheduleSongEntry()] });
-      await logAuditEvent?.({ actionType: "update", entityType: "schedule", entityId: nextSchedule.id, entityName: nextSchedule.serviceLabel || nextSchedule.date, summary: `Canto agregado a programacion: ${song.title}` });
-      alert("Canto agregado a la siguiente programacion.");
+      await logAuditEvent?.({
+        actionType: "update",
+        entityType: "schedule",
+        entityId: nextSchedule.id,
+        entityName: nextSchedule.serviceLabel || nextSchedule.date,
+        summary: `Canto agregado a programación: ${song.title}`
+      });
+      alert("Canto agregado a la siguiente programación.");
       return;
     }
 
@@ -114,9 +120,9 @@ export function SongDetail() {
       leader: "",
       songs: [scheduleSongEntry()],
       generalNotes: "",
-      status: "borrador"
+      status: "confirmed"
     });
-    alert("Se creo la siguiente programacion normal con este canto incluido.");
+    alert("Se creó la siguiente programación normal con este canto incluido.");
     navigate("/programacion");
   };
 
@@ -144,12 +150,14 @@ export function SongDetail() {
             <span className="rounded-2xl bg-white px-4 py-3 text-2xl font-bold text-ink">{song.mainKey || "--"}</span>
             {canEdit ? (
               <>
-                <span>
-                  <Button variant="light" onClick={addToNextSchedule}>
-                    <CalendarPlus className="h-4 w-4" />
-                    Agregar a la siguiente programacion
-                  </Button>
-                </span>
+                <Button variant="light" onClick={() => setEditingSong(song)}>
+                  <Edit3 className="h-4 w-4" />
+                  Editar canto
+                </Button>
+                <Button variant="light" onClick={addToNextSchedule}>
+                  <CalendarPlus className="h-4 w-4" />
+                  Agregar a la siguiente programación
+                </Button>
                 <Button variant="darkSubtle" onClick={() => duplicateSong(song)}>
                   <Copy className="h-4 w-4" />
                   Duplicar
@@ -231,8 +239,8 @@ export function SongDetail() {
               <InfoRow label="Cambio de tono" value={song.hasKeyChange ? "Sí" : "No"} />
               <InfoRow label="Formato" value={song.format} />
               <InfoRow label="Ya se ha cantado" value={song.sungBefore ? "Sí" : "No"} />
-              <InfoRow label="Última vez en la app" value={song.lastUsedAt ? formatDate(song.lastUsedAt) : "Sin registro"} />
-              <InfoRow label="Indice PDF" value={song.pdfIndexStatus === "indexed" ? "PDF indexado" : song.pdfIndexStatus === "no_text" ? "Sin texto seleccionable" : song.pdfIndexStatus === "failed" ? "Error al indexar" : "PDF no indexado"} />
+              <InfoRow label="Última vez en la app" value={usage[0] ? formatScheduleDateWithService(usage[0]) : song.lastUsedAt ? formatDate(song.lastUsedAt) : "Sin registro"} />
+              <InfoRow label="Índice PDF" value={song.pdfIndexStatus === "indexed" ? "PDF indexado" : song.pdfIndexStatus === "no_text" ? "Sin texto seleccionable" : song.pdfIndexStatus === "failed" ? "Error al indexar" : "PDF no indexado"} />
             </dl>
           </Card>
 
@@ -250,8 +258,8 @@ export function SongDetail() {
             <div className="mt-4 space-y-2">
               {usage.length ? usage.map((schedule) => (
                 <div key={schedule.id} className="rounded-2xl bg-ink/5 p-3 text-sm">
-                  <p className="font-semibold text-ink">{formatDate(schedule.date)}</p>
-                  <p className="text-ink/55">{schedule.serviceLabel || schedule.type}</p>
+                  <p className="font-semibold text-ink">{formatScheduleDateWithService(schedule)}</p>
+                  <p className="text-ink/55">{schedule.time || "Sin hora"} · {schedule.leader || "Sin líder de adoración"}</p>
                 </div>
               )) : <p className="text-sm text-ink/55">Sin historial de programación.</p>}
             </div>
@@ -268,6 +276,19 @@ export function SongDetail() {
             <p className="text-sm text-ink/55">Si la vista previa no carga, abre el PDF en una pestaña nueva.</p>
           </div>
         ) : null}
+      </Modal>
+
+      <Modal open={Boolean(editingSong)} title="Editar canto" onClose={() => setEditingSong(null)} wide>
+        <SongForm
+          initialSong={editingSong || song}
+          themes={themes}
+          keyPreference={settings.keyPreference || "sharps"}
+          onCancel={() => setEditingSong(null)}
+          onSubmit={async (updatedSong) => {
+            await saveSong({ ...updatedSong, id: song.id });
+            setEditingSong(null);
+          }}
+        />
       </Modal>
     </div>
   );

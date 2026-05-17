@@ -19,7 +19,7 @@ import { Select } from "../components/ui/Field";
 import { SongNameLink, findSongForNavigation } from "../components/ui/SongNameLink";
 import { StatCard } from "../components/ui/StatCard";
 import { useMusicData } from "../hooks/useMusicData";
-import { formatDate } from "../services/dateUtils";
+import { formatDate, formatScheduleDateWithService } from "../services/dateUtils";
 import { collectSongThemes, getSongPdfUrl, normalizeThemeName, stripAccents } from "../services/songUtils";
 
 const chartColors = ["#b6945f", "#60717d", "#8e989f", "#d7c7a7", "#6e6251", "#b8b0a4"];
@@ -232,9 +232,12 @@ export function Stats() {
     programmedSongEntries.forEach((entry) => {
       const song = findSongForNavigation({ songId: entry.songId, title: entry.titleSnapshot, songs });
       if (!song?.id) return;
-      const current = counts.get(song.id) || { count: 0, lastUsedAt: "" };
+      const current = counts.get(song.id) || { count: 0, lastUsedAt: "", lastSchedule: null };
       current.count += 1;
-      current.lastUsedAt = [current.lastUsedAt, entry.schedule?.date].filter(Boolean).sort().at(-1) || "";
+      if (!current.lastUsedAt || (entry.schedule?.date || "") >= current.lastUsedAt) {
+        current.lastUsedAt = entry.schedule?.date || "";
+        current.lastSchedule = entry.schedule || null;
+      }
       counts.set(song.id, current);
     });
     return counts;
@@ -242,11 +245,12 @@ export function Stats() {
   const withRealUsage = filteredSongs.map((song) => ({
     ...song,
     realUsageCount: realUsageBySong.get(song.id)?.count || 0,
-    realLastUsedAt: realUsageBySong.get(song.id)?.lastUsedAt || ""
+    realLastUsedAt: realUsageBySong.get(song.id)?.lastUsedAt || "",
+    realLastSchedule: realUsageBySong.get(song.id)?.lastSchedule || null
   }));
   const mostUsed = [...withRealUsage].sort((a, b) => (b.realUsageCount || 0) - (a.realUsageCount || 0)).filter((song) => song.realUsageCount > 0).slice(0, 10);
   const leastUsed = [...filteredSongs]
-    .map((song) => ({ ...song, realUsageCount: realUsageBySong.get(song.id)?.count || 0, realLastUsedAt: realUsageBySong.get(song.id)?.lastUsedAt || "" }))
+    .map((song) => ({ ...song, realUsageCount: realUsageBySong.get(song.id)?.count || 0, realLastUsedAt: realUsageBySong.get(song.id)?.lastUsedAt || "", realLastSchedule: realUsageBySong.get(song.id)?.lastSchedule || null }))
     .sort((a, b) => (a.realUsageCount || 0) - (b.realUsageCount || 0) || (a.realLastUsedAt || "0000").localeCompare(b.realLastUsedAt || "0000"))
     .slice(0, 12);
   const rotationSuggestions = filteredSongs
@@ -277,7 +281,7 @@ export function Stats() {
     { key: "mainKey", label: "Tono" },
     { key: "capo", label: "Capo", render: (song) => song.capo ?? 0 },
     { key: "realUsageCount", label: "Usos reales", render: (song) => song.realUsageCount || 0 },
-    { key: "realLastUsedAt", label: "Última vez", render: (song) => song.realLastUsedAt ? formatDate(song.realLastUsedAt) : "Sin historial" },
+    { key: "realLastUsedAt", label: "Última vez", render: (song) => song.realLastSchedule ? formatScheduleDateWithService(song.realLastSchedule) : song.realLastUsedAt ? formatDate(song.realLastUsedAt) : "Sin historial" },
     { key: "sungBefore", label: "Histórico", render: (song) => song.sungBefore ? "Ya se ha cantado" : "No cantado históricamente" },
     { key: "state", label: "Estado", render: (song) => song.realUsageCount ? "Poco usado en la app" : "Sin historial" }
   ];
@@ -372,7 +376,7 @@ export function Stats() {
                 {mostUsed.length ? <SongTable rows={mostUsed} songs={songs} columns={[
                   { key: "title", label: "Canto" },
                   { key: "realUsageCount", label: "Uso registrado", render: (song) => song.realUsageCount || 0 },
-                  { key: "realLastUsedAt", label: "Última vez", render: (song) => song.realLastUsedAt ? formatDate(song.realLastUsedAt) : "Sin historial" },
+                  { key: "realLastUsedAt", label: "Última vez", render: (song) => song.realLastSchedule ? formatScheduleDateWithService(song.realLastSchedule) : song.realLastUsedAt ? formatDate(song.realLastUsedAt) : "Sin historial" },
                   { key: "category", label: "Categoría" },
                   { key: "mainTheme", label: "Tema" }
                 ]} /> : <p className="rounded-2xl bg-ink/5 p-4 text-sm text-ink/55">Esta sección se actualizará conforme registres programaciones.</p>}
@@ -402,7 +406,7 @@ export function Stats() {
                 { key: "mainTheme", label: "Tema" },
                 { key: "mainKey", label: "Tono" },
                 { key: "realUsageCount", label: "Usos reales", render: (song) => realUsageBySong.get(song.id)?.count || 0 },
-                { key: "realLastUsedAt", label: "Última vez", render: (song) => realUsageBySong.get(song.id)?.lastUsedAt ? formatDate(realUsageBySong.get(song.id)?.lastUsedAt) : "Sin historial" }
+                { key: "realLastUsedAt", label: "Última vez", render: (song) => realUsageBySong.get(song.id)?.lastSchedule ? formatScheduleDateWithService(realUsageBySong.get(song.id).lastSchedule) : realUsageBySong.get(song.id)?.lastUsedAt ? formatDate(realUsageBySong.get(song.id)?.lastUsedAt) : "Sin historial" }
               ]} />
             </div>
           </Card>

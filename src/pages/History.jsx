@@ -6,7 +6,7 @@ import { EmptyState } from "../components/ui/EmptyState";
 import { Input, Select } from "../components/ui/Field";
 import { SongNameLink } from "../components/ui/SongNameLink";
 import { useMusicData } from "../hooks/useMusicData";
-import { formatDate, getPastSchedules } from "../services/dateUtils";
+import { formatDate, formatScheduleDateWithService, getPastSchedules, getServiceDisplayLabel } from "../services/dateUtils";
 
 const csvEscape = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
 
@@ -34,12 +34,14 @@ export function History() {
     return [...counts.values()].sort((a, b) => b.count - a.count).slice(0, 5);
   }, [past]);
 
-  const serviceTypes = [...new Set(past.map((schedule) => schedule.serviceType || schedule.serviceLabel || schedule.type).filter(Boolean))];
+  const serviceTypes = [...new Set(past.map((schedule) => schedule.serviceType || getServiceDisplayLabel(schedule)).filter(Boolean))];
   const filtered = useMemo(() => {
     const term = query.trim().toLowerCase();
     const list = past.filter((schedule) => {
+      const service = getServiceDisplayLabel(schedule);
       const text = [
         schedule.date,
+        service,
         schedule.serviceLabel,
         schedule.type,
         schedule.leader,
@@ -47,11 +49,15 @@ export function History() {
         ...(schedule.songs || []).map((song) => song.titleSnapshot)
       ].join(" ").toLowerCase();
       const matchesText = !term || text.includes(term);
-      const matchesService = serviceType === "all" || [schedule.serviceType, schedule.serviceLabel, schedule.type].includes(serviceType);
+      const matchesService = serviceType === "all" || [schedule.serviceType, service, schedule.serviceLabel, schedule.type].includes(serviceType);
       const matchesDate = !dateFilter || schedule.date === dateFilter;
       return matchesText && matchesService && matchesDate;
     });
-    return list.sort((a, b) => sort === "asc" ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date));
+    return list.sort((a, b) => {
+      const left = `${a.date}${a.time || ""}`;
+      const right = `${b.date}${b.time || ""}`;
+      return sort === "asc" ? left.localeCompare(right) : right.localeCompare(left);
+    });
   }, [dateFilter, past, query, serviceType, sort]);
 
   const exportHistory = () => {
@@ -60,7 +66,7 @@ export function History() {
       ["fecha", "servicio", "hora", "lider_de_adoracion", "cantos_en_orden", "tonos", "capo", "notas_por_canto", "notas_generales", "estado_interno", "creado_por", "actualizado_por"],
       ...filtered.map((schedule) => [
         schedule.date,
-        schedule.serviceLabel || schedule.type || "",
+        getServiceDisplayLabel(schedule),
         schedule.time || "",
         schedule.leader || "",
         (schedule.songs || []).map((song, index) => `${index + 1}. ${song.titleSnapshot}`).join(" | "),
@@ -98,7 +104,7 @@ export function History() {
             </div>
           </div>
           <div className="mt-5 grid gap-3 md:grid-cols-4">
-            <Input placeholder="Buscar canto, servicio o lider" value={query} onChange={(event) => setQuery(event.target.value)} />
+            <Input placeholder="Buscar canto, servicio o líder" value={query} onChange={(event) => setQuery(event.target.value)} />
             <Input type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} />
             <Select value={serviceType} onChange={(event) => setServiceType(event.target.value)}>
               <option value="all">Todos los servicios</option>
@@ -113,8 +119,8 @@ export function History() {
 
         {filtered.length && view === "cards" ? filtered.map((schedule) => (
           <Card key={schedule.id}>
-            <h2 className="text-xl font-bold text-ink">{formatDate(schedule.date)}</h2>
-            <p className="mt-1 text-sm text-ink/55">{schedule.serviceLabel || schedule.type || "Servicio"} · {schedule.leader || "Sin lider de adoracion"}</p>
+            <h2 className="text-xl font-bold text-ink">{formatScheduleDateWithService(schedule)}</h2>
+            <p className="mt-1 text-sm text-ink/55">{schedule.time || "Sin hora"} · {schedule.leader || "Sin líder de adoración"}</p>
             <div className="mt-4 flex flex-wrap gap-2">
               {(schedule.songs || []).map((song, index) => (
                 <span key={`${song.songId}-${index}`} className="rounded-full bg-ink/5 px-3 py-2 text-sm font-semibold text-ink">
@@ -133,7 +139,7 @@ export function History() {
                   <tr>
                     <th className="px-3 py-2">Fecha</th>
                     <th className="px-3 py-2">Servicio</th>
-                    <th className="px-3 py-2">Lider de adoracion</th>
+                    <th className="px-3 py-2">Líder de adoración</th>
                     <th className="px-3 py-2">Cantos</th>
                   </tr>
                 </thead>
@@ -141,7 +147,7 @@ export function History() {
                   {filtered.map((schedule) => (
                     <tr key={schedule.id} className="border-t border-ink/10">
                       <td className="px-3 py-3 font-semibold text-ink">{formatDate(schedule.date)}</td>
-                      <td className="px-3 py-3 text-ink/60">{schedule.serviceLabel || schedule.type}</td>
+                      <td className="px-3 py-3 text-ink/60">{getServiceDisplayLabel(schedule)}</td>
                       <td className="px-3 py-3 text-ink/60">{schedule.leader || "--"}</td>
                       <td className="px-3 py-3 text-ink/70">{(schedule.songs || []).map((song) => song.titleSnapshot).join(", ")}</td>
                     </tr>
@@ -153,7 +159,7 @@ export function History() {
         ) : null}
 
         {!filtered.length ? (
-          <EmptyState title="Aun no hay programaciones realizadas dentro de la app." text="Cuando marques o registres servicios pasados, apareceran en esta seccion." />
+          <EmptyState title="Aún no hay programaciones realizadas dentro de la app." text="Cuando marques o registres servicios pasados, aparecerán en esta sección." />
         ) : null}
       </div>
 
@@ -167,8 +173,8 @@ export function History() {
           </dl>
         </Card>
         <Card>
-          <h3 className="font-bold text-ink">Cantos mas usados en historial</h3>
-          <p className="mt-1 text-xs text-ink/45">Segun programaciones registradas, no valores heredados.</p>
+          <h3 className="font-bold text-ink">Cantos más usados en historial</h3>
+          <p className="mt-1 text-xs text-ink/45">Según programaciones registradas, no valores heredados.</p>
           <div className="mt-4 space-y-3">
             {realUsage.length ? realUsage.map((entry) => (
               <div key={entry.id || entry.title} className="flex items-center justify-between rounded-2xl bg-ink/5 p-3">
@@ -179,12 +185,12 @@ export function History() {
           </div>
         </Card>
         <Card>
-          <h3 className="font-bold text-ink">Sin fecha de ultimo uso registrada</h3>
+          <h3 className="font-bold text-ink">Sin fecha de último uso registrada</h3>
           <div className="mt-4 space-y-3">
             {withoutAppHistory.map((song) => (
               <div key={song.id} className="rounded-2xl bg-ink/5 p-3">
                 <SongNameLink songId={song.id} title={song.title} songs={songs} className="text-sm">{song.title}</SongNameLink>
-                <p className="text-xs text-ink/55">{song.sungBefore ? "Ya se ha cantado historicamente" : "Sin historial previo marcado"}</p>
+                <p className="text-xs text-ink/55">{song.sungBefore ? "Ya se ha cantado históricamente" : "Sin historial previo marcado"}</p>
               </div>
             ))}
           </div>

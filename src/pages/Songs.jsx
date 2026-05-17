@@ -147,7 +147,7 @@ function SearchMatchStrip({ matches }) {
   );
 }
 
-function SongForm({ initialSong, themes, keyPreference, onSubmit, onCancel }) {
+export function SongForm({ initialSong, themes = [], keyPreference = "sharps", onSubmit, onCancel }) {
   const normalizedInitial = normalizeSong(initialSong || blankSong, keyPreference);
   const [song, setSong] = useState(() => ({
     ...normalizedInitial,

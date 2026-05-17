@@ -1,6 +1,29 @@
-export const appVersion = "0.9.4";
+export const appVersion = "0.9.5";
 
 export const changelog = [
+  {
+    version: "0.9.5",
+    date: "2026-05-17",
+    title: "Servicios múltiples, historial y detalle de cantos",
+    added: [
+      "Inicio ahora avanza servicio por servicio en días con Domingo AM y Domingo PM",
+      "Historial de cantos muestra el servicio específico junto con la fecha",
+      "Botón Editar canto dentro de la vista de detalle"
+    ],
+    changed: [
+      "El contador Tiempo restante usa horarios de fin estimados para detectar servicios en curso",
+      "Vista para músicos muestra programaciones del mismo día con separadores claros",
+      "El fallback de logo interno ya no carga el SVG antiguo recreado"
+    ],
+    fixed: [
+      "Corrección de separadores que aparecían como signos de interrogación",
+      "Limpieza de textos con codificación antigua en detalle e historial",
+      "Domingo AM y Domingo PM ya no se muestran de forma ambigua en Inicio o Historial"
+    ],
+    pending: [
+      "Validar duraciones reales si la iglesia cambia horarios de salida por temporada"
+    ]
+  },
   {
     version: "0.9.4",
     date: "2026-05-17",
