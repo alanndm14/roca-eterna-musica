@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Download, Edit3, ExternalLink, FileText, Headphones, Plus, Search, Trash2, Youtube } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
@@ -147,7 +147,7 @@ function SearchMatchStrip({ matches }) {
   );
 }
 
-export function SongForm({ initialSong, themes = [], keyPreference = "sharps", onSubmit, onCancel }) {
+function SongForm({ initialSong, themes = [], keyPreference = "sharps", onSubmit, onCancel }) {
   const normalizedInitial = normalizeSong(initialSong || blankSong, keyPreference);
   const [song, setSong] = useState(() => ({
     ...normalizedInitial,
@@ -390,6 +390,7 @@ export function SongForm({ initialSong, themes = [], keyPreference = "sharps", o
 
 export function Songs() {
   const { canEdit, canDelete } = useAuth();
+  const location = useLocation();
   const navigate = useNavigate();
   const { songs, schedules, themes, settings, deleteSong, saveSong } = useMusicData();
   const [filters, setFilters] = useState({
@@ -411,6 +412,16 @@ export function Songs() {
   const [viewMode, setViewMode] = useState(() => localStorage.getItem("roca-eterna-song-view-mode") || "cards");
   const [editingSong, setEditingSong] = useState(null);
   const [isAdding, setIsAdding] = useState(false);
+
+  useEffect(() => {
+    const editSongId = location.state?.editSongId;
+    if (!editSongId || !canEdit) return;
+    const target = songs.find((song) => song.id === editSongId);
+    if (target) {
+      setEditingSong(target);
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [canEdit, location.pathname, location.state, navigate, songs]);
 
   const themeOptions = useMemo(() => collectSongThemes(songs, themes), [songs, themes]);
   const keyOptions = useMemo(() => collectSongKeys(songs), [songs]);

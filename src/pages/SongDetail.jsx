@@ -17,7 +17,6 @@ import {
   getSongYoutubeUrl,
   normalizeSong
 } from "../services/songUtils";
-import { SongForm } from "./Songs";
 
 function InfoRow({ label, value }) {
   return (
@@ -42,10 +41,9 @@ export function SongDetail() {
   const { songId } = useParams();
   const navigate = useNavigate();
   const { canEdit } = useAuth();
-  const { songs, schedules, themes, duplicateSong, saveSchedule, saveSong, settings, logAuditEvent } = useMusicData();
+  const { songs, schedules, duplicateSong, saveSchedule, settings, logAuditEvent } = useMusicData();
   const [showPdf, setShowPdf] = useState(false);
   const [pdfTest, setPdfTest] = useState(null);
-  const [editingSong, setEditingSong] = useState(null);
   const song = normalizeSong(songs.find((item) => item.id === songId), settings.keyPreference || "sharps");
 
   if (!song?.id) return <EmptyState title="Canto no encontrado" text="Es posible que haya sido eliminado." />;
@@ -113,7 +111,7 @@ export function SongDetail() {
     }
 
     const service = nextNormalService();
-    if (!confirm(`No hay programaciones futuras. Crear ${service.serviceLabel} para ${formatDate(service.date)} con este canto incluido?`)) return;
+    if (!confirm(`No hay programaciones futuras. ¿Crear ${service.serviceLabel} para ${formatDate(service.date)} con este canto incluido?`)) return;
     await saveSchedule({
       ...service,
       type: service.serviceLabel,
@@ -124,6 +122,10 @@ export function SongDetail() {
     });
     alert("Se creó la siguiente programación normal con este canto incluido.");
     navigate("/programacion");
+  };
+
+  const editSong = () => {
+    navigate("/repertorio", { state: { editSongId: song.id } });
   };
 
   return (
@@ -150,7 +152,7 @@ export function SongDetail() {
             <span className="rounded-2xl bg-white px-4 py-3 text-2xl font-bold text-ink">{song.mainKey || "--"}</span>
             {canEdit ? (
               <>
-                <Button variant="light" onClick={() => setEditingSong(song)}>
+                <Button variant="light" onClick={editSong}>
                   <Edit3 className="h-4 w-4" />
                   Editar canto
                 </Button>
@@ -276,19 +278,6 @@ export function SongDetail() {
             <p className="text-sm text-ink/55">Si la vista previa no carga, abre el PDF en una pestaña nueva.</p>
           </div>
         ) : null}
-      </Modal>
-
-      <Modal open={Boolean(editingSong)} title="Editar canto" onClose={() => setEditingSong(null)} wide>
-        <SongForm
-          initialSong={editingSong || song}
-          themes={themes}
-          keyPreference={settings.keyPreference || "sharps"}
-          onCancel={() => setEditingSong(null)}
-          onSubmit={async (updatedSong) => {
-            await saveSong({ ...updatedSong, id: song.id });
-            setEditingSong(null);
-          }}
-        />
       </Modal>
     </div>
   );

@@ -21,7 +21,7 @@ const allSteps = [
   { route: "/configuracion", target: null, title: "Listo", text: "Puedes volver a abrir esta guia desde Ayuda.", roles: ["admin", "editor", "viewer"] }
 ];
 
-export function OnboardingGuide({ open, onClose, onFinish, logoSrc = appLogo, logoAlt = "Roca Eterna Musica", logoInvert = false, role = "viewer" }) {
+export function OnboardingGuide({ open, onClose, onFinish, logoSrc = appLogo, logoAlt = "Roca Eterna Música", logoMode = "light", role = "viewer" }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [index, setIndex] = useState(0);
@@ -133,7 +133,7 @@ export function OnboardingGuide({ open, onClose, onFinish, logoSrc = appLogo, lo
                     event.currentTarget.src = fallbackAppLogo;
                   }}
                   alt={logoAlt}
-                  className={`h-10 w-10 rounded-2xl bg-white object-contain p-1 shadow-soft sm:h-11 sm:w-11 ${logoInvert ? "invert" : ""}`}
+                  className={`h-10 w-10 rounded-2xl object-contain p-1 shadow-soft sm:h-11 sm:w-11 ${logoMode === "dark" ? "bg-zinc-950" : "bg-white"}`}
                 />
                 <div>
                   <p className="text-xs font-bold uppercase tracking-wide text-brass">Guia interactiva</p>

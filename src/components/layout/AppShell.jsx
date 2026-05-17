@@ -5,7 +5,7 @@ import { Bell, CheckCheck, HelpCircle, PanelLeftClose, PanelLeftOpen } from "luc
 import { appLogo, fallbackAppLogo } from "../../assets/logo";
 import { useAuth } from "../../hooks/useAuth";
 import { useMusicData } from "../../hooks/useMusicData";
-import { getInstitutionalLogo, shouldInvertInstitutionalLogo } from "../../services/songUtils";
+import { getEffectiveThemeMode, getInstitutionalLogo } from "../../services/songUtils";
 import { Button } from "../ui/Button";
 import { BottomNav } from "./BottomNav";
 import { Sidebar } from "./Sidebar";
@@ -33,9 +33,9 @@ export function AppShell() {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const pageTitle = pageNames[location.pathname] || "Roca Eterna Musica";
   const themeMode = profile?.themeMode || localStorage.getItem("roca-eterna-theme-mode") || "system";
+  const effectiveTheme = getEffectiveThemeMode(themeMode);
   const logoSrc = getInstitutionalLogo(settings, appLogo, themeMode);
-  const logoInvert = shouldInvertInstitutionalLogo(settings, themeMode);
-  const logoAlt = settings.logoAltText || "Roca Eterna Musica";
+  const logoAlt = settings.logoAltText || "Roca Eterna Música";
   const visibleNotifications = notifications.filter((item) => {
     const targetUsers = item.targetUsers || [];
     const targetRoles = item.targetRoles || [];
@@ -55,9 +55,11 @@ export function AppShell() {
 
   useEffect(() => {
     if (logoSrc) localStorage.setItem("roca-eterna-logo-src", logoSrc);
+    localStorage.setItem("roca-eterna-logo-light-src", getInstitutionalLogo(settings, appLogo, "light"));
+    localStorage.setItem("roca-eterna-logo-dark-src", getInstitutionalLogo(settings, appLogo, "dark"));
     if (logoAlt) localStorage.setItem("roca-eterna-logo-alt", logoAlt);
     localStorage.removeItem("roca-eterna-logo-invert");
-  }, [logoAlt, logoInvert, logoSrc]);
+  }, [logoAlt, logoSrc, settings]);
 
   useEffect(() => {
     const media = window.matchMedia?.("(prefers-color-scheme: dark)");
@@ -90,7 +92,7 @@ export function AppShell() {
 
   return (
     <div className="min-h-screen bg-stonewash text-ink" style={shellStyle}>
-      <Sidebar profile={profile} collapsed={sidebarCollapsed} logoSrc={logoSrc} logoAlt={logoAlt} logoInvert={logoInvert} />
+      <Sidebar profile={profile} collapsed={sidebarCollapsed} logoSrc={logoSrc} logoAlt={logoAlt} logoMode={effectiveTheme} />
       <main className={`app-main pb-32 transition-all duration-200 lg:pb-0 ${sidebarCollapsed ? "lg:ml-20" : "lg:ml-72"}`}>
         <header className="app-header sticky top-0 z-30 border-b border-ink/10 bg-stonewash/86 px-4 py-3 backdrop-blur md:px-8 md:py-4">
           <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
@@ -101,7 +103,7 @@ export function AppShell() {
                   event.currentTarget.src = fallbackAppLogo;
                 }}
                 alt={logoAlt}
-                className={`h-11 w-11 shrink-0 rounded-2xl bg-white object-contain p-1 shadow-soft lg:hidden ${logoInvert ? "invert" : ""}`}
+                className={`h-11 w-11 shrink-0 rounded-2xl object-contain p-1 shadow-soft lg:hidden ${effectiveTheme === "dark" ? "bg-zinc-950" : "bg-white"}`}
               />
               <Button
                 variant="subtle"

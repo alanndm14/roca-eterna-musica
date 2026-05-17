@@ -4,11 +4,16 @@ import { appLogo, fallbackAppLogo } from "../assets/logo";
 import { Button } from "../components/ui/Button";
 import { useAuth } from "../hooks/useAuth";
 import { firebaseMissingConfigKeys, isDemoModeAllowed } from "../lib/firebase";
+import { getEffectiveThemeMode } from "../services/songUtils";
 
 export function Login() {
   const { signInWithGoogle, enterDemoMode, error, isFirebaseConfigured } = useAuth();
   const showDemoMode = isDemoModeAllowed;
-  const logoSrc = localStorage.getItem("roca-eterna-logo-src") || appLogo;
+  const themeMode = localStorage.getItem("roca-eterna-theme-mode") || "system";
+  const effectiveTheme = getEffectiveThemeMode(themeMode);
+  const logoSrc = (effectiveTheme === "dark"
+    ? localStorage.getItem("roca-eterna-logo-dark-src")
+    : localStorage.getItem("roca-eterna-logo-light-src")) || localStorage.getItem("roca-eterna-logo-src") || appLogo;
   const logoAlt = localStorage.getItem("roca-eterna-logo-alt") || "Roca Eterna Música";
   const firebasePublishWarning =
     import.meta.env.PROD && !isFirebaseConfigured
@@ -25,12 +30,19 @@ export function Login() {
           transition={{ duration: 0.45 }}
           className="relative z-10 flex max-w-xl flex-col items-center"
         >
-          <img src={logoSrc} onError={(event) => { event.currentTarget.src = fallbackAppLogo; }} alt={logoAlt} className="h-44 w-44 rounded-3xl bg-white object-contain p-3 shadow-2xl md:h-56 md:w-56" />
+          <img
+            src={logoSrc}
+            onError={(event) => {
+              event.currentTarget.src = fallbackAppLogo;
+            }}
+            alt={logoAlt}
+            className={`h-44 w-44 rounded-3xl object-contain p-3 shadow-2xl md:h-56 md:w-56 ${effectiveTheme === "dark" ? "bg-zinc-950" : "bg-white"}`}
+          />
           <h1 className="mt-8 text-4xl font-bold leading-tight tracking-normal md:text-6xl">
             Roca Eterna Música
           </h1>
           <p className="mt-5 max-w-lg text-lg leading-8 text-white/72">
-            Organizacion del ministerio de musica de Roca Eterna.
+            Organización del ministerio de música de Roca Eterna.
           </p>
           <div className="mt-9 flex flex-col gap-3 sm:flex-row">
             <Button variant="light" onClick={signInWithGoogle}>
@@ -75,7 +87,7 @@ export function Login() {
           </div>
           <div className="space-y-4 text-sm leading-6 text-ink/65">
             <p>Solo correos autorizados del ministerio pueden entrar.</p>
-            <p>No se almacenan datos sensibles de miembros; solo informacion necesaria para organizar repertorio, programaciones y preparacion musical.</p>
+            <p>No se almacenan datos sensibles de miembros; solo información necesaria para organizar repertorio, programaciones y preparación musical.</p>
           </div>
         </motion.div>
       </section>

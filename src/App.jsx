@@ -7,7 +7,7 @@ import { WelcomeSplash } from "./components/ui/WelcomeSplash";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
 import { MusicDataProvider, useMusicData } from "./hooks/useMusicData";
 import { appLogo } from "./assets/logo";
-import { getInstitutionalLogo, shouldInvertInstitutionalLogo } from "./services/songUtils";
+import { getEffectiveThemeMode, getInstitutionalLogo } from "./services/songUtils";
 import { Dashboard } from "./pages/Dashboard";
 import { AuditLogs } from "./pages/AuditLogs";
 import { Changelog } from "./pages/Changelog";
@@ -73,13 +73,14 @@ function DataReady({ children }) {
 
   if (loading) return <LoadingScreen />;
   const themeMode = profile?.themeMode || localStorage.getItem("roca-eterna-theme-mode") || "system";
+  const effectiveTheme = getEffectiveThemeMode(themeMode);
   const logoSrc = getInstitutionalLogo(settings, appLogo, themeMode);
-  const logoInvert = shouldInvertInstitutionalLogo(settings, themeMode);
-  if (showWelcome) return <WelcomeSplash profile={profile} onDone={finishWelcome} logoSrc={logoSrc} logoAlt={settings.logoAltText || "Roca Eterna Musica"} logoInvert={logoInvert} />;
+  document.documentElement.classList.toggle("dark", effectiveTheme === "dark");
+  if (showWelcome) return <WelcomeSplash profile={profile} onDone={finishWelcome} logoSrc={logoSrc} logoAlt={settings.logoAltText || "Roca Eterna Música"} logoMode={effectiveTheme} />;
   return (
     <>
       {children}
-      <OnboardingGuide open={showGuide} onClose={() => setShowGuide(false)} onFinish={finishGuide} logoSrc={logoSrc} logoAlt={settings.logoAltText || "Roca Eterna Musica"} logoInvert={logoInvert} role={profile?.role || "viewer"} />
+      <OnboardingGuide open={showGuide} onClose={() => setShowGuide(false)} onFinish={finishGuide} logoSrc={logoSrc} logoAlt={settings.logoAltText || "Roca Eterna Música"} logoMode={effectiveTheme} role={profile?.role || "viewer"} />
     </>
   );
 }
