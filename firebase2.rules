@@ -92,6 +92,8 @@ service cloud.firestore {
           && request.auth.uid == userId
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             "lastLogin",
+            "lastLoginAt",
+            "lastSeenAt",
             "preferredDisplayName",
             "themeMode",
             "accentColor",
@@ -103,6 +105,12 @@ service cloud.firestore {
           ])
         );
       allow delete: if isAdmin();
+
+      match /fcmTokens/{tokenId} {
+        allow read: if isAdmin() || (isAuthorized() && request.auth.uid == userId);
+        allow create, update: if isAuthorized() && request.auth.uid == userId;
+        allow delete: if isAuthorized() && request.auth.uid == userId;
+      }
     }
 
     match /authorizedEmails/{email} {

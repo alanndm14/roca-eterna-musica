@@ -1,6 +1,31 @@
-export const appVersion = "0.9.3";
+export const appVersion = "0.9.4";
 
 export const changelog = [
+  {
+    version: "0.9.4",
+    date: "2026-05-17",
+    title: "Notificaciones, logos y seleccion de servicio",
+    added: [
+      "Notificaciones internas para nuevas programaciones futuras y cantos nuevos",
+      "Preparacion de Firebase Cloud Messaging para activar push por dispositivo sin exponer llaves privadas",
+      "Calendario mensual en Vista para musicos para seleccionar la programacion del dia",
+      "Opciones predeterminadas para Lider de adoracion"
+    ],
+    changed: [
+      "Los nombres de hojas y PDFs unidos ahora usan formato natural como Mayo 10 am.pdf o Aniversario 2026.pdf",
+      "El indicador de Coincidencia en PDF/OCR queda separado de badges de revision y enlaces",
+      "El sistema de logos se simplifico a logo claro y logo oscuro",
+      "Inicio muestra Tiempo restante con cuenta regresiva cuando falta menos de un dia"
+    ],
+    fixed: [
+      "Ultima conexion de usuarios ahora muestra fecha y hora",
+      "Se elimino el texto innecesario para crear una nueva programacion desde Inicio",
+      "El workflow acepta VITE_FIREBASE_VAPID_KEY como secret opcional"
+    ],
+    pending: [
+      "Enviar push a todos los usuarios requiere backend seguro o Cloud Functions"
+    ]
+  },
   {
     version: "0.9.3",
     date: "2026-05-15",

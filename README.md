@@ -198,23 +198,22 @@ Desde el detalle de un canto puedes usar **Agregar a la siguiente programacion**
 
 ## Notificaciones
 
-La app crea notificaciones internas cuando se crea una programacion futura. Los usuarios las ven en la campana del header y pueden marcarlas como leidas.
+La app crea notificaciones internas cuando se crea una programacion futura y cuando se agrega un canto nuevo al repertorio. Los usuarios las ven en la campana del header, pueden marcarlas como leidas y abrir desde ahi la programacion o el canto correspondiente.
 
-Push notifications reales quedan como fase futura porque requieren soporte del navegador, service worker y un backend seguro/Cloud Functions para enviar mensajes sin exponer llaves privadas.
+Tambien queda preparada la activacion de notificaciones push del navegador con Firebase Cloud Messaging:
+
+- agrega `VITE_FIREBASE_VAPID_KEY` si vas a pedir permiso push desde el navegador
+- cada usuario puede activar o desactivar el token de su propio dispositivo
+- los tokens se guardan en `users/{uid}/fcmTokens`
+
+El envio push real a todos los usuarios requiere un backend seguro, Cloud Functions o Admin SDK. No pongas server keys, service accounts ni claves privadas en el frontend. Sin ese backend, las notificaciones dentro de la app siguen funcionando.
 
 ## Logos por modo claro y oscuro
 
-En Configuracion puedes usar:
+En Configuracion puedes usar solo dos logos institucionales:
 
-- URL publica de imagen
-- ruta local del repo, por ejemplo `/icons/logo-roca-negro.png`
-- logo por defecto
-
-Puedes configurar:
-
-- Logo para modo claro, idealmente oscuro/negro: `/icons/logo-roca-negro.png`
-- Logo para modo oscuro, idealmente claro/blanco: `/icons/logo-roca-blanco.png`
-- Logo con fondo, opcional: `/icons/logo-roca-fondo.png`
+- Logo para modo claro, idealmente oscuro/negro: `/icons/logo-claro.png`
+- Logo para modo oscuro, idealmente claro/blanco: `/icons/logo-oscuro.png`
 
 Para rutas locales, coloca el archivo en:
 
@@ -222,7 +221,7 @@ Para rutas locales, coloca el archivo en:
 public/icons/
 ```
 
-Si el archivo esta en `public/icons/logo.png`, escribe `/icons/logo.png`. No es necesario escribir `public/`. La app usa `object-contain`, resuelve rutas con la base de GitHub Pages y usa fallback si el logo falla. Para iconos PWA/manifest, actualiza los assets del proyecto y vuelve a compilar.
+Si el archivo esta en `public/icons/logo.png`, escribe `/icons/logo.png`. No es necesario escribir `public/`. La app usa `object-contain`, resuelve rutas con la base de GitHub Pages y, si falta un logo del modo actual, intenta usar el otro logo configurado antes del fallback interno. Para iconos PWA/manifest, actualiza los assets del proyecto y vuelve a compilar.
 
 ## Guia interactiva
 
@@ -266,13 +265,19 @@ VITE_FIREBASE_APP_ID
 VITE_FIREBASE_MEASUREMENT_ID
 ```
 
+Secret opcional para pedir permiso de notificaciones push en navegadores compatibles:
+
+```text
+VITE_FIREBASE_VAPID_KEY
+```
+
 Secret recomendado para bootstrap de administradores:
 
 ```text
 VITE_INITIAL_ADMIN_EMAILS
 ```
 
-El workflow revisa estos nombres sin imprimir valores. Solo muestra `presente` o `falta`. Si falta una variable `VITE_FIREBASE_*`, el deploy se detiene para no publicar una app sin Google Sign-In.
+El workflow revisa estos nombres sin imprimir valores. Solo muestra `presente` o `falta`. Si falta una variable `VITE_FIREBASE_*` requerida, el deploy se detiene para no publicar una app sin Google Sign-In. Si falta `VITE_FIREBASE_VAPID_KEY`, el deploy puede continuar; solo quedan desactivadas las push reales del navegador.
 
 El modo demo local queda oculto en produccion. Solo se muestra en desarrollo local o si agregas explicitamente:
 

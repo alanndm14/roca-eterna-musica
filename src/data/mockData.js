@@ -269,7 +269,9 @@ export const sampleUsers = [
 export const sampleSettings = {
   churchName: "Roca Eterna",
   appName: "Roca Eterna Música",
-  logoUrl: "",
+  logoLightUrl: "",
+  logoDarkUrl: "",
+  logoAltText: "Roca Eterna Música",
   keyPreference: "sharps",
   themeMode: "light",
   accentColor: "#b6945f",

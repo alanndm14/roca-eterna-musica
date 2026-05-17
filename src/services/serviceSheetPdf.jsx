@@ -11,6 +11,7 @@ import {
 } from "./songUtils";
 
 const monthNames = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+const titleCase = (value = "") => value ? value.charAt(0).toUpperCase() + value.slice(1) : "";
 
 const styles = StyleSheet.create({
   page: {
@@ -125,29 +126,29 @@ export function getServiceDisplayLabel(schedule) {
   return label;
 }
 
-export function getServiceFileName(schedule) {
-  const date = schedule?.date ? new Date(`${schedule.date}T00:00:00`) : new Date();
-  const day = String(date.getDate()).padStart(2, "0");
-  const month = monthNames[date.getMonth()] || "servicio";
-  const rawService = schedule?.serviceType === "domingo-manana"
-    ? "domingo-am"
-    : schedule?.serviceType === "domingo-tarde"
-      ? "domingo-pm"
-      : schedule?.serviceType === "miercoles-oracion"
-        ? "miercoles-de-oracion"
-        : getServiceDisplayLabel(schedule);
-  const service = rawService
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/domingo manana/g, "domingo-am")
-    .replace(/domingo ma ana/g, "domingo-am")
-    .replace(/domingo tarde/g, "domingo-pm")
-    .replace(/miercoles de oraci n/g, "miercoles-de-oracion")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  return `${day}-${month}-${service || "servicio"}.pdf`;
+function cleanFileName(value = "") {
+  return String(value || "servicio")
+    .replace(/[\\/:*?"<>|]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
+
+export function getServiceDownloadFileName(schedule) {
+  const date = schedule?.date ? new Date(`${schedule.date}T00:00:00`) : new Date();
+  const day = date.getDate();
+  const month = titleCase(monthNames[date.getMonth()] || "Servicio");
+  const year = date.getFullYear();
+
+  if (schedule?.serviceType === "domingo-manana") return `${month} ${day} am.pdf`;
+  if (schedule?.serviceType === "domingo-tarde") return `${month} ${day} pm.pdf`;
+  if (schedule?.serviceType === "miercoles-oracion") return `${month} ${day}.pdf`;
+
+  const rawLabel = schedule?.serviceLabel || schedule?.type || "Servicio especial";
+  const withYear = /\b20\d{2}\b/.test(rawLabel) ? rawLabel : `${rawLabel} ${year}`;
+  return `${cleanFileName(withYear)}.pdf`;
+}
+
+export const getServiceFileName = getServiceDownloadFileName;
 
 export function buildServiceSongs(schedule, songs, keyPreference = "sharps") {
   return (schedule?.songs || []).map((entry, index) => {
@@ -200,7 +201,7 @@ function ServiceSong({ song }) {
 export function ServiceSheetDocument({ schedule, songs, settings }) {
   const serviceSongs = buildServiceSongs(schedule, songs, settings?.keyPreference || "sharps");
   return (
-    <Document title={getServiceFileName(schedule).replace(".pdf", "")}>
+    <Document title={getServiceDownloadFileName(schedule).replace(".pdf", "")}>
       <Page size="LETTER" style={styles.page}>
         <View style={styles.header}>
           <Text style={styles.church}>{settings?.churchName || "Roca Eterna"}</Text>
@@ -209,7 +210,7 @@ export function ServiceSheetDocument({ schedule, songs, settings }) {
           <View style={styles.metaGrid}>
             <View style={styles.meta}><Text style={styles.label}>Fecha</Text><Text>{formatDate(schedule?.date)}</Text></View>
             <View style={styles.meta}><Text style={styles.label}>Hora</Text><Text>{schedule?.time || "Sin hora"}</Text></View>
-            <View style={styles.meta}><Text style={styles.label}>Lider de adoracion</Text><Text>{schedule?.leader || "Pendiente"}</Text></View>
+            <View style={styles.meta}><Text style={styles.label}>Líder de adoración</Text><Text>{schedule?.leader || "Pendiente"}</Text></View>
             <View style={styles.meta}><Text style={styles.label}>Cantos</Text><Text>{serviceSongs.length}</Text></View>
           </View>
         </View>

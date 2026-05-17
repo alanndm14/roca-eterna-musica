@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { PDFDownloadLink, pdf } from "@react-pdf/renderer";
-import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Download, ExternalLink, Eye, FileStack, Maximize2, Minimize2, Trash2, Upload } from "lucide-react";
+import { ArrowDown, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, Download, ExternalLink, Eye, FileStack, Maximize2, Minimize2, Trash2, Upload } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -28,6 +28,89 @@ const selectorLabel = (schedule) => `${getServiceDisplayLabel(schedule)} · ${co
 
 const linkButtonClass = "inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-ink shadow-soft ring-1 ring-ink/10 transition hover:bg-linen";
 
+const toLocalDateString = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+function MusicianScheduleCalendar({ schedules, selectedDate, onSelectDate }) {
+  const [cursor, setCursor] = useState(() => new Date(`${selectedDate || todayString()}T00:00:00`));
+  const year = cursor.getFullYear();
+  const month = cursor.getMonth();
+  const first = new Date(year, month, 1);
+  const start = new Date(first);
+  start.setDate(1 - first.getDay());
+  const days = Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(start);
+    date.setDate(start.getDate() + index);
+    return date;
+  });
+  const byDate = schedules.reduce((acc, schedule) => {
+    if (!schedule.date) return acc;
+    acc[schedule.date] = acc[schedule.date] || [];
+    acc[schedule.date].push(schedule);
+    return acc;
+  }, {});
+  const today = todayString();
+
+  useEffect(() => {
+    if (selectedDate) setCursor(new Date(`${selectedDate}T00:00:00`));
+  }, [selectedDate]);
+
+  return (
+    <div className="rounded-3xl border border-ink/10 bg-white p-3 dark:border-white/10 dark:bg-white/5 sm:p-4">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <Button variant="secondary" className="px-3" onClick={() => setCursor(new Date(year, month - 1, 1))}>
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <h4 className="text-sm font-bold capitalize text-ink">
+          {new Intl.DateTimeFormat("es-MX", { month: "long", year: "numeric" }).format(cursor)}
+        </h4>
+        <Button variant="secondary" className="px-3" onClick={() => setCursor(new Date(year, month + 1, 1))}>
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+      <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-bold uppercase tracking-wide text-ink/45 sm:gap-2">
+        {["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"].map((day) => <span key={day}>{day}</span>)}
+      </div>
+      <div className="mt-2 grid grid-cols-7 gap-1 sm:gap-2">
+        {days.map((day) => {
+          const dateString = toLocalDateString(day);
+          const count = byDate[dateString]?.length || 0;
+          const isCurrentMonth = day.getMonth() === month;
+          const isSelected = selectedDate === dateString;
+          const isToday = dateString === today && isCurrentMonth;
+          const stateClasses = isSelected
+            ? `border-brass bg-brass/10 ${isToday ? "ring-2 ring-brass/35" : ""}`
+            : isToday
+              ? "border-brass/70 bg-brass/5 hover:border-brass"
+              : "border-ink/10 bg-white hover:border-brass/40 dark:border-white/10 dark:bg-ink/30";
+          return (
+            <button
+              key={dateString}
+              type="button"
+              onClick={() => onSelectDate(dateString)}
+              className={`min-h-14 rounded-xl border p-1 text-left transition sm:min-h-16 sm:p-1.5 ${stateClasses} ${isCurrentMonth ? "text-ink" : "text-ink/30"}`}
+            >
+              <span className="flex items-center justify-between gap-1">
+                <span className="text-xs font-bold sm:text-sm">{day.getDate()}</span>
+                {isToday ? <span className="rounded-full bg-brass/15 px-1 py-0.5 text-[8px] font-bold leading-none text-brass sm:text-[9px]">Hoy</span> : null}
+              </span>
+              {count ? (
+                <span className="mt-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-ink px-1 text-[9px] font-bold text-white dark:bg-white dark:text-ink sm:h-5 sm:min-w-5 sm:text-[10px]">
+                  {count}
+                </span>
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function MusicianView() {
   const { isAdmin } = useAuth();
   const { schedules, songs, settings, replaceScheduleSong } = useMusicData();
@@ -44,6 +127,7 @@ export function MusicianView() {
   const [isMergingLocalFiles, setIsMergingLocalFiles] = useState(false);
   const [isMergingServiceLocal, setIsMergingServiceLocal] = useState(false);
   const today = todayString();
+  const [pickerDate, setPickerDate] = useState(today);
 
   const scheduleOptions = useMemo(() => {
     const upcoming = schedules.filter((schedule) => schedule.date >= today).sort((a, b) => `${a.date}${a.time || ""}`.localeCompare(`${b.date}${b.time || ""}`));
@@ -71,7 +155,16 @@ export function MusicianView() {
     if (sheetUrl) URL.revokeObjectURL(sheetUrl);
   }, [sheetUrl]);
 
-  const selectedSchedule = scheduleOptions.find((schedule) => schedule.id === selectedId) || scheduleOptions[0];
+  const selectedSchedule = schedules.find((schedule) => schedule.id === selectedId) || scheduleOptions[0];
+  const daySchedules = useMemo(
+    () => schedules.filter((schedule) => schedule.date === pickerDate).sort((a, b) => `${a.time || ""}`.localeCompare(`${b.time || ""}`)),
+    [pickerDate, schedules]
+  );
+  const nextSchedule = scheduleOptions.find((schedule) => schedule.date >= today) || scheduleOptions[0];
+
+  useEffect(() => {
+    if (selectedSchedule?.date) setPickerDate(selectedSchedule.date);
+  }, [selectedSchedule?.date]);
   const serviceSongs = useMemo(
     () => buildServiceSongs(selectedSchedule, songs, settings.keyPreference || "sharps"),
     [selectedSchedule, songs, settings.keyPreference]
@@ -180,7 +273,7 @@ export function MusicianView() {
 
   const confirmReplacement = async (candidate) => {
     if (!replaceTarget || !selectedSchedule) return;
-    if (!confirm(`Sustituir este canto en la programacion?\n\n${replaceTarget.title} -> ${candidate.title}`)) return;
+    if (!confirm(`Sustituir este canto en la programación?\n\n${replaceTarget.title} -> ${candidate.title}`)) return;
     await replaceScheduleSong(selectedSchedule.id, replaceTarget.entry, candidate);
     setReplaceTarget(null);
   };
@@ -197,31 +290,54 @@ export function MusicianView() {
             <p className="text-sm font-semibold uppercase tracking-wide text-brass">Servicio</p>
             <h2 className="mt-2 text-3xl font-bold">{getServiceDisplayLabel(selectedSchedule)}</h2>
             <p className="mt-2 text-white/60">
-              {formatDate(selectedSchedule?.date)} · {selectedSchedule?.time || "Sin hora"} · {selectedSchedule?.leader || "Lider de adoracion pendiente"}
+              {formatDate(selectedSchedule?.date)} · {selectedSchedule?.time || "Sin hora"} · {selectedSchedule?.leader || "Líder de adoración pendiente"}
             </p>
           </div>
-          <div className="grid gap-3 lg:grid-cols-[minmax(260px,420px)_auto] lg:items-end">
-            <label className="block">
-              <span className="mb-2 block text-xs font-semibold uppercase tracking-wide text-white/55">Programación</span>
-              <Select value={selectedSchedule?.id || ""} onChange={(event) => setSelectedId(event.target.value)}>
-                {scheduleOptions.map((schedule) => (
-                  <option key={schedule.id} value={schedule.id}>{selectorLabel(schedule)}</option>
-                ))}
-              </Select>
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {focusMode ? (
-                <Button variant="light" onClick={exitFocusMode}>
-                  <Minimize2 className="h-4 w-4" />
-                  Salir
-                </Button>
-              ) : (
-                <Button variant="light" onClick={enterFocusMode}>
-                  <Maximize2 className="h-4 w-4" />
-                  Pantalla completa
-                </Button>
-              )}
-            </div>
+          <div className="flex flex-wrap gap-2">
+            {nextSchedule ? (
+              <Button variant="light" onClick={() => setSelectedId(nextSchedule.id)}>
+                Próxima programación
+              </Button>
+            ) : null}
+            <Button variant="darkSubtle" onClick={() => setPickerDate(today)}>
+              Hoy
+            </Button>
+            {focusMode ? (
+              <Button variant="light" onClick={exitFocusMode}>
+                <Minimize2 className="h-4 w-4" />
+                Salir
+              </Button>
+            ) : (
+              <Button variant="light" onClick={enterFocusMode}>
+                <Maximize2 className="h-4 w-4" />
+                Pantalla completa
+              </Button>
+            )}
+          </div>        </div>
+      </Card>
+
+      <Card>
+        <div className="flex items-center gap-2">
+          <CalendarDays className="h-5 w-5 text-brass" />
+          <h3 className="font-bold text-ink">Seleccionar programación</h3>
+        </div>
+        <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_360px]">
+          <MusicianScheduleCalendar schedules={schedules} selectedDate={pickerDate} onSelectDate={setPickerDate} />
+          <div className="space-y-3">
+            <p className="text-sm font-semibold text-ink/55">{formatDate(pickerDate)}</p>
+            {daySchedules.length ? daySchedules.map((schedule) => (
+              <button
+                key={schedule.id}
+                type="button"
+                onClick={() => setSelectedId(schedule.id)}
+                className={`w-full rounded-2xl border p-3 text-left transition ${selectedSchedule?.id === schedule.id ? "border-brass bg-brass/10" : "border-ink/10 bg-white hover:border-brass/40 dark:border-white/10 dark:bg-white/5"}`}
+              >
+                <p className="font-bold text-ink">{getServiceDisplayLabel(schedule)}</p>
+                <p className="mt-1 text-sm text-ink/55">{schedule.time || "Sin hora"} ? {schedule.leader || "Líder pendiente"} ? {(schedule.songs || []).length} cantos</p>
+              </button>
+            )) : (
+              <p className="rounded-2xl bg-ink/5 p-4 text-sm text-ink/55">No hay programaciones en este día.</p>
+            )}
           </div>
         </div>
       </Card>
@@ -429,19 +545,19 @@ export function MusicianView() {
 
       <Modal open={Boolean(replaceTarget)} title="Sustitucion rapida" onClose={() => setReplaceTarget(null)} wide>
         <div className="space-y-4">
-          <p className="text-sm text-ink/60">Reemplazar: <strong>{replaceTarget?.title}</strong>. Las sugerencias priorizan tema, categoria, tonalidad, Keynote completado y rotacion.</p>
+          <p className="text-sm text-ink/60">Reemplazar: <strong>{replaceTarget?.title}</strong>. Las sugerencias priorizan tema, categoría, tonalidad, Keynote completado y rotación.</p>
           <div className="grid gap-3 md:grid-cols-2">
             {replacementSuggestions.map(({ song }) => (
               <button key={song.id} type="button" onClick={() => confirmReplacement(song)} className="rounded-2xl border border-ink/10 bg-white p-4 text-left transition hover:border-brass/50 hover:bg-brass/5">
                 <p className="font-bold text-ink">{song.title}</p>
-                <p className="mt-1 text-sm text-ink/55">{song.mainTheme || "Sin tema"} · {song.category || "sin categoria"}</p>
+                <p className="mt-1 text-sm text-ink/55">{song.mainTheme || "Sin tema"} · {song.category || "sin categoría"}</p>
                 <p className="mt-2 text-sm font-semibold text-ink">{Number(song.capo || 0) > 0 ? `Capo ${song.capo} · Suena en ${song.keyWithCapo || song.mainKey || "--"}` : `Sin capo · Tono ${song.mainKey || "--"}`}</p>
                 <p className="mt-2 text-xs text-ink/55">Keynote {song.keynoteReviewStatus || "pendiente"} - {getSongPdfUrl(song) ? "PDF disponible" : "Sin PDF registrado"}</p>
-                <p className="mt-1 text-xs text-ink/45">{song.lastUsedAt ? `Ultima vez: ${formatDate(song.lastUsedAt)}` : "Sin historial"}</p>
+                <p className="mt-1 text-xs text-ink/45">{song.lastUsedAt ? `Última vez: ${formatDate(song.lastUsedAt)}` : "Sin historial"}</p>
               </button>
             ))}
           </div>
-          {!replacementSuggestions.length ? <p className="rounded-2xl bg-ink/5 p-4 text-sm text-ink/55">No hay sugerencias disponibles fuera de esta programacion.</p> : null}
+          {!replacementSuggestions.length ? <p className="rounded-2xl bg-ink/5 p-4 text-sm text-ink/55">No hay sugerencias disponibles fuera de esta programación.</p> : null}
         </div>
       </Modal>
     </div>

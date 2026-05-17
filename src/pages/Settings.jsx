@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Database, FileSearch, HelpCircle, Image as ImageIcon, LogOut, Palette, Save, Tags, Trash2, Upload, UserPlus } from "lucide-react";
+import { BellRing, Database, FileSearch, HelpCircle, Image as ImageIcon, LogOut, Palette, Save, Tags, Trash2, Upload, UserPlus } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { Field, Input, Select, Textarea } from "../components/ui/Field";
@@ -8,8 +8,9 @@ import { Modal } from "../components/ui/Modal";
 import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
 import { analyzeImport, parseSongsTable } from "../services/importSongs";
-import { canonicalThemeKey, collectSongThemes, getInstitutionalLogo, normalizeThemeName, resolvePublicAssetUrl, shouldInvertInstitutionalLogo } from "../services/songUtils";
+import { canonicalThemeKey, collectSongThemes, getInstitutionalLogo, normalizeThemeName, resolvePublicAssetUrl } from "../services/songUtils";
 import { diagnosePublicAsset } from "../services/publicPdfTools";
+import { disablePushNotificationsForUser, enablePushNotificationsForUser, getPushSupportStatus } from "../services/pushNotifications";
 import { appLogo, fallbackAppLogo } from "../assets/logo";
 
 const defaultColors = {
@@ -18,9 +19,9 @@ const defaultColors = {
 };
 
 const formatAccessDate = (value) => {
-  if (!value) return "Pendiente";
+  if (!value) return "Sin conexión registrada";
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "Pendiente" : date.toLocaleDateString("es-MX");
+  return Number.isNaN(date.getTime()) ? "Sin conexión registrada" : date.toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" });
 };
 
 export function Settings() {
@@ -64,6 +65,8 @@ export function Settings() {
   const [isIndexingPdfs, setIsIndexingPdfs] = useState(false);
   const [pdfIndexProgress, setPdfIndexProgress] = useState(null);
   const [logoTest, setLogoTest] = useState(null);
+  const [pushStatus, setPushStatus] = useState("");
+  const [isUpdatingPush, setIsUpdatingPush] = useState(false);
   const parsedImport = useMemo(() => parseSongsTable(importText, localSettings.keyPreference || "sharps"), [importText, localSettings.keyPreference]);
   const importSummary = useMemo(() => analyzeImport(parsedImport.songs, songs), [parsedImport.songs, songs]);
 
@@ -147,8 +150,8 @@ export function Settings() {
 
   const lightLogo = getInstitutionalLogo(localSettings, appLogo, "light");
   const darkLogo = getInstitutionalLogo(localSettings, appLogo, "dark");
-  const lightLogoSource = localSettings.logoLightUrl || localSettings.logoFallbackUrl || localSettings.logoUrl || localSettings.logoLocalPath || "";
-  const darkLogoSource = localSettings.logoDarkUrl || localSettings.logoFallbackUrl || localSettings.logoUrl || localSettings.logoLocalPath || "";
+  const lightLogoSource = localSettings.logoLightUrl || "";
+  const darkLogoSource = localSettings.logoDarkUrl || "";
 
   const handleFile = async (file) => {
     if (!file) return;
@@ -216,6 +219,30 @@ export function Settings() {
     }
   };
 
+  const enablePush = async () => {
+    setIsUpdatingPush(true);
+    try {
+      const result = await enablePushNotificationsForUser(profile);
+      setPushStatus(result.supported ? "Notificaciones del navegador activadas para este dispositivo." : result.reason);
+    } catch (error) {
+      setPushStatus(error.message || "No se pudieron activar las notificaciones push.");
+    } finally {
+      setIsUpdatingPush(false);
+    }
+  };
+
+  const disablePush = async () => {
+    setIsUpdatingPush(true);
+    try {
+      await disablePushNotificationsForUser(profile);
+      setPushStatus("Notificaciones del navegador desactivadas para este dispositivo.");
+    } catch (error) {
+      setPushStatus(error.message || "No se pudieron desactivar las notificaciones push.");
+    } finally {
+      setIsUpdatingPush(false);
+    }
+  };
+
   return (
     <div className="grid gap-5 xl:grid-cols-[1fr_420px]">
       <div className="space-y-5">
@@ -272,9 +299,6 @@ export function Settings() {
             <Field label="Logo para modo oscuro">
               <Input value={localSettings.logoDarkUrl || ""} disabled={!isAdmin} placeholder="/icons/logo-roca-blanco.png" onChange={(event) => updateSettings("logoDarkUrl", event.target.value)} />
             </Field>
-            <Field label="Logo con fondo, opcional">
-              <Input value={localSettings.logoFallbackUrl || ""} disabled={!isAdmin} placeholder="/icons/logo-roca-fondo.png" onChange={(event) => updateSettings("logoFallbackUrl", event.target.value)} />
-            </Field>
             <Field label="Texto alternativo del logo">
               <Input value={localSettings.logoAltText || ""} disabled={!isAdmin} placeholder="Roca Eterna Musica" onChange={(event) => updateSettings("logoAltText", event.target.value)} />
             </Field>
@@ -284,10 +308,6 @@ export function Settings() {
                 <option value="flats">Bemoles (b)</option>
               </Select>
             </Field>
-            <label className="flex items-center gap-3 rounded-2xl border border-ink/10 bg-ink/5 p-3 text-sm font-semibold text-ink">
-              <input type="checkbox" checked={Boolean(localSettings.logoAutoInvert)} disabled={!isAdmin} onChange={(event) => updateSettings("logoAutoInvert", event.target.checked)} />
-              Invertir logo automaticamente si falta una version
-            </label>
           </div>
           <p className="mt-4 text-xs leading-5 text-ink/55">
             Si tu logo es blanco/transparente, usa una version oscura para modo claro y una version clara para modo oscuro.
@@ -298,7 +318,6 @@ export function Settings() {
               logo={lightLogo}
               source={lightLogoSource}
               alt={localSettings.logoAltText || "Roca Eterna Musica"}
-              invert={shouldInvertInstitutionalLogo(localSettings, "light")}
               onDiagnose={async () => setLogoTest(await diagnosePublicAsset(lightLogoSource, "image"))}
             />
             <LogoPreview
@@ -307,7 +326,6 @@ export function Settings() {
               source={darkLogoSource}
               alt={localSettings.logoAltText || "Roca Eterna Musica"}
               dark
-              invert={shouldInvertInstitutionalLogo(localSettings, "dark")}
               onDiagnose={async () => setLogoTest(await diagnosePublicAsset(darkLogoSource, "image"))}
             />
           </div>
@@ -315,7 +333,7 @@ export function Settings() {
           {isAdmin ? (
             <div className="mt-5 flex flex-wrap gap-3">
               <Button onClick={() => saveSettings(localSettings)}><Save className="h-4 w-4" />Guardar ajustes</Button>
-              <Button variant="secondary" onClick={() => setLocalSettings((current) => ({ ...current, logoLightUrl: "", logoDarkUrl: "", logoFallbackUrl: "", logoAltText: "", logoAutoInvert: false }))}>Restaurar logo por defecto</Button>
+              <Button variant="secondary" onClick={() => setLocalSettings((current) => ({ ...current, logoLightUrl: "", logoDarkUrl: "", logoAltText: "" }))}>Restaurar logo por defecto</Button>
             </div>
           ) : null}
         </Card>
@@ -590,7 +608,7 @@ export function Settings() {
                   <div>
                     <p className="font-semibold text-ink">{user.displayName || user.email}</p>
                     <p className="text-sm text-ink/55">{user.email}</p>
-                    <p className="text-xs text-ink/45">Ultimo acceso: {formatAccessDate(user.lastLogin)}</p>
+                    <p className="text-xs text-ink/45">Ultima conexion: {formatAccessDate(user.lastSeenAt || user.lastLoginAt || user.lastLogin)}</p>
                   </div>
                   <span className="text-sm font-semibold text-ink/60">{statusForUser(user)}</span>
                   <Select value={user.role || "viewer"} onChange={(event) => saveAccessUser({ ...user, role: event.target.value })}>
@@ -653,6 +671,34 @@ export function Settings() {
             <HelpCircle className="h-4 w-4" />
             Ver guia otra vez
           </Button>
+        </Card>
+
+        <Card>
+          <h2 className="flex items-center gap-2 text-xl font-bold text-ink"><BellRing className="h-5 w-5 text-brass" />Notificaciones</h2>
+          <p className="mt-3 text-sm leading-6 text-ink/60">
+            Las notificaciones dentro de la app ya funcionan. Las push del navegador requieren permiso del dispositivo y una VAPID key configurada.
+          </p>
+          <div className="mt-4 grid gap-2">
+            <Button className="w-full" variant="secondary" isLoading={isUpdatingPush} disabled={isUpdatingPush} onClick={enablePush}>
+              Activar notificaciones
+            </Button>
+            <Button className="w-full" variant="subtle" disabled={isUpdatingPush} onClick={disablePush}>
+              Desactivar en este dispositivo
+            </Button>
+          </div>
+          {pushStatus ? <p className="mt-3 rounded-2xl bg-ink/5 p-3 text-sm text-ink/60">{pushStatus}</p> : null}
+          {isAdmin ? (
+            <Button
+              className="mt-3 w-full"
+              variant="subtle"
+              onClick={async () => {
+                const status = await getPushSupportStatus();
+                setPushStatus(status.supported ? "Push listo para solicitar token en este navegador." : status.reason);
+              }}
+            >
+              Diagnosticar push
+            </Button>
+          ) : null}
         </Card>
 
         {!isViewer ? (

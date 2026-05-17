@@ -191,11 +191,15 @@ export function MusicDataProvider({ children }) {
       title: notification.title || "Nueva notificacion",
       message: notification.message || "",
       scheduleId: notification.scheduleId || "",
+      songId: notification.songId || "",
       targetRoles: notification.targetRoles || ["admin", "editor", "viewer"],
       targetUsers: notification.targetUsers || [],
       readBy: [],
       isFutureSchedule: Boolean(notification.isFutureSchedule),
       createdBy: profile?.uid || "",
+      createdByUid: profile?.uid || "",
+      createdByName: profile?.preferredDisplayName || profile?.displayName || profile?.email || "",
+      createdByEmail: profile?.email || "",
       createdAt: useLocal ? new Date().toISOString() : serverTimestamp()
     };
     if (useLocal) {
@@ -246,6 +250,12 @@ export function MusicDataProvider({ children }) {
           }
         ]);
         await logAuditEvent({ actionType: "create", entityType: "song", entityId: id, entityName: payload.title, summary: `Canto creado: ${payload.title}`, afterData: payload });
+        await createNotification({
+          type: "new_song",
+          title: "Nuevo canto en el repertorio",
+          message: payload.title,
+          songId: id
+        });
         return id;
       }
     }
@@ -263,6 +273,12 @@ export function MusicDataProvider({ children }) {
         createdBy: profile.uid
       });
       await logAuditEvent({ actionType: "create", entityType: "song", entityId: created.id, entityName: payload.title, summary: `Canto creado: ${payload.title}`, afterData: payload });
+      await createNotification({
+        type: "new_song",
+        title: "Nuevo canto en el repertorio",
+        message: payload.title,
+        songId: created.id
+      });
       return created.id;
     }
   };

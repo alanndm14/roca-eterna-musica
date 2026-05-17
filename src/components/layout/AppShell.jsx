@@ -36,7 +36,14 @@ export function AppShell() {
   const logoSrc = getInstitutionalLogo(settings, appLogo, themeMode);
   const logoInvert = shouldInvertInstitutionalLogo(settings, themeMode);
   const logoAlt = settings.logoAltText || "Roca Eterna Musica";
-  const unreadNotifications = notifications.filter((item) => !(item.readBy || []).includes(profile?.uid));
+  const visibleNotifications = notifications.filter((item) => {
+    const targetUsers = item.targetUsers || [];
+    const targetRoles = item.targetRoles || [];
+    if (targetUsers.length) return targetUsers.includes(profile?.uid);
+    if (targetRoles.length) return targetRoles.includes(profile?.role);
+    return true;
+  });
+  const unreadNotifications = visibleNotifications.filter((item) => !(item.readBy || []).includes(profile?.uid));
   const shellStyle = {
     "--color-brass": hexToRgb(profile?.accentColor || localStorage.getItem("roca-eterna-accent-color") || "#b6945f"),
     "--color-blue-gray": hexToRgb(profile?.blueGrayColor || "#60717d")
@@ -78,6 +85,7 @@ export function AppShell() {
     await markNotificationRead(notification.id);
     setNotificationsOpen(false);
     if (notification.scheduleId) navigate("/programacion");
+    if (notification.songId) navigate(`/repertorio/${notification.songId}`);
   };
 
   return (
@@ -138,7 +146,7 @@ export function AppShell() {
                       </Button>
                     </div>
                     <div className="mt-3 max-h-80 space-y-2 overflow-auto">
-                      {notifications.length ? notifications.slice(0, 12).map((item) => {
+                      {visibleNotifications.length ? visibleNotifications.slice(0, 12).map((item) => {
                         const unread = !(item.readBy || []).includes(profile?.uid);
                         return (
                           <button

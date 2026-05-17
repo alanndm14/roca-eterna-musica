@@ -18,6 +18,8 @@ const serviceOptions = [
   { value: "especial", label: "Especial / aniversario / conferencia / otro", time: "", weekday: null }
 ];
 
+const worshipLeaders = ["Ps. José Campos", "Ps. Eduardo", "Adrián", "Esaú", "Otro"];
+
 const blankSchedule = {
   date: "",
   serviceType: "domingo-manana",
@@ -41,6 +43,9 @@ function ScheduleForm({ initialSchedule, songs, onSubmit, onCancel }) {
     serviceLabel: initialSchedule?.serviceLabel || initialService.label,
     time: initialSchedule?.time || initialService.time
   });
+  const initialLeaderChoice = worshipLeaders.includes(initialSchedule?.leader) ? initialSchedule.leader : initialSchedule?.leader ? "Otro" : "";
+  const [leaderChoice, setLeaderChoice] = useState(initialLeaderChoice);
+  const [manualLeader, setManualLeader] = useState(initialLeaderChoice === "Otro" ? initialSchedule?.leader || "" : "");
   const [songSearch, setSongSearch] = useState("");
   const service = getService(schedule.serviceType);
   const wrongDay = schedule.date && service.weekday !== null && dateWeekday(schedule.date) !== service.weekday;
@@ -64,6 +69,16 @@ function ScheduleForm({ initialSchedule, songs, onSubmit, onCancel }) {
   }, [songSearch, songs]);
 
   const update = (field, value) => setSchedule((current) => ({ ...current, [field]: value }));
+
+  const updateLeader = (value) => {
+    setLeaderChoice(value);
+    if (value === "Otro") {
+      setSchedule((current) => ({ ...current, leader: manualLeader }));
+      return;
+    }
+    setManualLeader("");
+    setSchedule((current) => ({ ...current, leader: value }));
+  };
 
   const updateService = (serviceType) => {
     const nextService = getService(serviceType);
@@ -143,9 +158,20 @@ function ScheduleForm({ initialSchedule, songs, onSubmit, onCancel }) {
             <Field label={schedule.serviceType === "especial" ? "Hora manual" : "Hora automática"}>
               <Input type="time" value={schedule.time || ""} disabled={schedule.serviceType !== "especial"} onChange={(event) => update("time", event.target.value)} />
             </Field>
-            <Field label="Lider de adoracion">
-              <Input value={schedule.leader} onChange={(event) => update("leader", event.target.value)} />
+            <Field label="Líder de adoración">
+              <Select value={leaderChoice} onChange={(event) => updateLeader(event.target.value)}>
+                <option value="">Selecciona líder</option>
+                {worshipLeaders.map((leader) => <option key={leader} value={leader}>{leader}</option>)}
+              </Select>
             </Field>
+            {leaderChoice === "Otro" ? (
+              <Field label="Nombre del líder">
+                <Input value={manualLeader} onChange={(event) => {
+                  setManualLeader(event.target.value);
+                  update("leader", event.target.value);
+                }} placeholder="Escribe el nombre" />
+              </Field>
+            ) : null}
           </div>
           {wrongDay ? (
             <p className="mt-4 rounded-2xl bg-brass/12 px-4 py-3 text-sm font-semibold text-brass">
@@ -157,7 +183,7 @@ function ScheduleForm({ initialSchedule, songs, onSubmit, onCancel }) {
         <section className="rounded-2xl border border-ink/10 bg-white p-4">
           <h3 className="mb-4 text-sm font-bold uppercase tracking-wide text-ink/55">Cantos</h3>
           <Field label="Agregar canto">
-            <Input value={songSearch} onChange={(event) => setSongSearch(event.target.value)} placeholder="Buscar por nombre, tema, categoria, tono o comentario" />
+            <Input value={songSearch} onChange={(event) => setSongSearch(event.target.value)} placeholder="Buscar por nombre, tema, categoría, tono o comentario" />
           </Field>
           <div className="mt-3 max-h-64 overflow-auto rounded-2xl border border-ink/10 bg-stonewash">
             {songResults.map((song) => {

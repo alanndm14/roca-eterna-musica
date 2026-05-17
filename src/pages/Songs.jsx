@@ -94,6 +94,15 @@ const downloadCsv = (fileName, rows) => {
   URL.revokeObjectURL(url);
 };
 
+const pdfSnippet = (song, term) => {
+  const text = String(song.pdfSearchText || "");
+  if (!text || !term) return "";
+  const words = text.split(/\s+/).filter(Boolean);
+  const index = words.findIndex((word) => normalizeSearchText(word).includes(term));
+  if (index < 0) return "";
+  return `... ${words.slice(Math.max(0, index - 5), index + 7).join(" ")} ...`;
+};
+
 const getSearchMatches = (song, query) => {
   const term = normalizeSearchText(query);
   if (!term) return [];
@@ -103,14 +112,40 @@ const getSearchMatches = (song, query) => {
     { label: "Coincidencia en tema", values: [song.mainTheme, ...(song.otherThemes || []), ...(song.tags || [])] },
     { label: "Coincidencia en categoría", values: [song.category] },
     { label: "Coincidencia en tono", values: [song.mainKey, song.keyWithCapo] },
-    { label: "Coincidencia en comentario", values: [song.internalNotes] },
-    { label: "Coincidencia en PDF", values: [song.pdfSearchText, ...(song.pdfSearchTokens || [])] }
+    { label: "Coincidencia en comentario", values: [song.internalNotes] }
   ];
 
-  return fields
+  const matches = fields
     .filter((field) => normalizeSearchText((field.values || []).filter(Boolean).join(" ")).includes(term))
-    .map((field) => field.label);
+    .map((field) => ({ label: field.label, type: "normal" }));
+  const pdfText = [song.pdfSearchText, ...(song.pdfSearchTokens || [])].filter(Boolean).join(" ");
+  if (normalizeSearchText(pdfText).includes(term)) {
+    matches.unshift({
+      label: song.pdfIndexMethod === "ocr" ? "Coincidencia en OCR" : "Coincidencia en PDF",
+      type: "pdf",
+      snippet: pdfSnippet(song, term)
+    });
+  }
+  return matches.slice(0, 2);
 };
+
+function SearchMatchStrip({ matches }) {
+  if (!matches?.length) return null;
+  const hasPdfMatch = matches.some((match) => match.type === "pdf");
+  const snippet = matches.find((match) => match.snippet)?.snippet;
+  return (
+    <div className={`mt-3 rounded-2xl border px-3 py-2 text-xs ${hasPdfMatch ? "border-brass/30 bg-brass/12 text-brass" : "border-ink/10 bg-ink/5 text-ink/60 dark:border-white/10 dark:bg-white/5 dark:text-white/65"}`}>
+      <div className="flex flex-wrap gap-1.5">
+        {matches.map((match) => (
+          <span key={match.label} className={`rounded-full px-2 py-0.5 font-bold ${match.type === "pdf" ? "bg-brass text-white" : "bg-white/70 text-ink/65 dark:bg-white/10 dark:text-white/70"}`}>
+            {match.label}
+          </span>
+        ))}
+      </div>
+      {snippet ? <p className="mt-1 line-clamp-1 text-[11px] font-semibold opacity-80">{snippet}</p> : null}
+    </div>
+  );
+}
 
 function SongForm({ initialSong, themes, keyPreference, onSubmit, onCancel }) {
   const normalizedInitial = normalizeSong(initialSong || blankSong, keyPreference);
@@ -446,7 +481,7 @@ export function Songs() {
       [
         "titulo",
         "artista_fuente",
-        "categoria",
+        "categoría",
         "tema_principal",
         "otros_temas",
         "tono_principal",
@@ -621,13 +656,7 @@ export function Songs() {
                       <td className="px-4 py-3">
                         <Link to={`/repertorio/${song.id}`} className="font-bold text-ink hover:text-brass">{song.title}</Link>
                         <p className="text-xs text-ink/50">{song.artistOrSource || "Sin fuente"}</p>
-                        {matchLabels.length ? (
-                          <div className="mt-2 flex flex-wrap gap-1">
-                            {matchLabels.slice(0, 3).map((label) => (
-                              <span key={label} className="rounded-full bg-brass/10 px-2 py-0.5 text-[10px] font-bold text-brass">{label}</span>
-                            ))}
-                          </div>
-                        ) : null}
+                        <SearchMatchStrip matches={matchLabels} />
                       </td>
                       <td className="px-4 py-3 text-ink/60">{song.category || "--"}</td>
                       <td className="px-4 py-3 text-ink/60">{song.mainTheme || "--"}</td>
@@ -673,15 +702,7 @@ export function Songs() {
                   </div>
                   <span className="rounded-xl bg-ink px-3 py-1 text-sm font-bold text-white">{song.mainKey || "--"}</span>
                 </div>
-                {matchLabels.length ? (
-                  <div className="mt-3 flex flex-wrap gap-1.5">
-                    {matchLabels.slice(0, 4).map((label) => (
-                      <span key={label} className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${label.includes("PDF") ? "bg-brass/15 text-brass" : "bg-ink/7 text-ink/55"}`}>
-                        {label}
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
+                <SearchMatchStrip matches={matchLabels} />
                 <div className="mt-4 flex flex-wrap gap-2">
                   {song.category ? <span className="rounded-full bg-ink/7 px-3 py-1 text-xs font-semibold text-ink/60">{song.category}</span> : null}
                   {song.mainTheme ? <span className="rounded-full bg-brass/10 px-3 py-1 text-xs font-semibold text-brass">{song.mainTheme}</span> : null}

@@ -146,17 +146,13 @@ export function getEffectiveThemeMode(themeMode = "system") {
 export function getInstitutionalLogo(settings = {}, fallback = "", themeMode = "system") {
   const effectiveMode = getEffectiveThemeMode(themeMode);
   const modeLogo = effectiveMode === "dark" ? settings.logoDarkUrl : settings.logoLightUrl;
-  const legacyLogo = settings.logoUrl || settings.logoLocalPath;
-  const source = modeLogo || settings.logoFallbackUrl || legacyLogo || "";
+  const oppositeModeLogo = effectiveMode === "dark" ? settings.logoLightUrl : settings.logoDarkUrl;
+  const source = modeLogo || oppositeModeLogo || "";
   return resolvePublicAssetPath(source) || fallback;
 }
 
 export function shouldInvertInstitutionalLogo(settings = {}, themeMode = "system") {
-  if (!settings.logoAutoInvert) return false;
-  const effectiveMode = getEffectiveThemeMode(themeMode);
-  return effectiveMode === "dark"
-    ? Boolean(!settings.logoDarkUrl && settings.logoLightUrl)
-    : Boolean(!settings.logoLightUrl && settings.logoDarkUrl);
+  return false;
 }
 
 export function getSongPdfUrl(song) {

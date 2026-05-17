@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { CalendarPlus, Clock, FileClock, ListPlus, Music2, RotateCcw, Sparkles } from "lucide-react";
 import { Button } from "../components/ui/Button";
@@ -5,11 +6,37 @@ import { Card } from "../components/ui/Card";
 import { StatCard } from "../components/ui/StatCard";
 import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
-import { daysUntil, formatDate, getUpcomingSchedule, todayString } from "../services/dateUtils";
+import { formatDate, getUpcomingSchedule, todayString } from "../services/dateUtils";
 import { getSongPdfUrl } from "../services/songUtils";
 
 const serviceLabel = (schedule) => schedule?.serviceLabel || schedule?.type || "Servicio pendiente";
 const currentMonth = () => todayString().slice(0, 7);
+
+const getScheduleStart = (schedule) => {
+  if (!schedule?.date) return null;
+  const time = schedule.time || "00:00";
+  const date = new Date(`${schedule.date}T${time}:00`);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const formatRemaining = (schedule, now = new Date()) => {
+  const start = getScheduleStart(schedule);
+  if (!start) return "--";
+  const diff = start.getTime() - now.getTime();
+  if (diff <= 0) {
+    const twoHours = 2 * 60 * 60 * 1000;
+    return Math.abs(diff) <= twoHours ? "En curso" : "Finalizado";
+  }
+  const dayMs = 24 * 60 * 60 * 1000;
+  if (diff >= dayMs) {
+    const days = Math.ceil(diff / dayMs);
+    return `${days} ${days === 1 ? "día" : "días"}`;
+  }
+  const hours = Math.floor(diff / (60 * 60 * 1000));
+  const minutes = Math.floor((diff % (60 * 60 * 1000)) / (60 * 1000));
+  const seconds = Math.floor((diff % (60 * 1000)) / 1000);
+  return [hours, minutes, seconds].map((value) => String(value).padStart(2, "0")).join(":");
+};
 
 const getMonthlyTopSongs = (schedules = []) => {
   const month = currentMonth();
@@ -33,15 +60,23 @@ const getMonthlyTopSongs = (schedules = []) => {
 export function Dashboard() {
   const { canEdit, profile } = useAuth();
   const { songs, schedules } = useMusicData();
+  const [now, setNow] = useState(() => new Date());
   const isViewer = profile?.role === "viewer";
   const upcoming = getUpcomingSchedule(schedules);
-  const days = daysUntil(upcoming?.date);
   const missingPdfLinks = songs.filter((song) => !getSongPdfUrl(song)).length;
   const keynotePending = songs.filter((song) => song.keynoteReviewStatus !== "completado").length;
   const monthTopSongs = getMonthlyTopSongs(schedules);
   const topDetail = monthTopSongs.length
     ? monthTopSongs.map((song) => `${song.title} (${song.count})`).join(", ")
     : "Sin datos este mes";
+  const remaining = formatRemaining(upcoming, now);
+  const countdownActive = remaining.includes(":");
+
+  useEffect(() => {
+    if (!countdownActive) return undefined;
+    const timer = window.setInterval(() => setNow(new Date()), 1000);
+    return () => window.clearInterval(timer);
+  }, [countdownActive]);
 
   return (
     <div className="space-y-6">
@@ -51,7 +86,7 @@ export function Dashboard() {
           <div className="relative z-10">
             <p className="text-sm font-semibold uppercase tracking-wide text-brass">Próximo servicio</p>
             <h2 className="mt-3 text-3xl font-bold tracking-normal md:text-4xl">
-              {upcoming ? formatDate(upcoming.date) : "Sin programación cercana"}
+              {upcoming ? formatDate(upcoming.date) : "Sin próxima programación"}
             </h2>
             {upcoming ? (
               <div className="mt-5 grid gap-3 text-sm text-white/72 sm:grid-cols-3">
@@ -60,9 +95,11 @@ export function Dashboard() {
                 <span className="rounded-2xl bg-white/8 p-3">Líder de adoración: {upcoming.leader || "Pendiente"}</span>
               </div>
             ) : null}
-            <p className="mt-5 max-w-3xl text-sm leading-6 text-white/62">
-              {upcoming?.generalNotes || "Crea una programación para que el equipo pueda revisar cantos, tonos, PDFs y notas desde cualquier dispositivo."}
-            </p>
+            {upcoming?.generalNotes ? (
+              <p className="mt-5 max-w-3xl text-sm leading-6 text-white/62">{upcoming.generalNotes}</p>
+            ) : !upcoming ? (
+              <p className="mt-5 max-w-3xl text-sm leading-6 text-white/62">No hay programación próxima registrada.</p>
+            ) : null}
             <div className="mt-6 flex flex-wrap gap-3">
               {canEdit ? (
                 <Link to="/repertorio">
@@ -85,8 +122,8 @@ export function Dashboard() {
         <Card>
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold text-ink/55">Días restantes</p>
-              <p className="mt-2 text-5xl font-bold text-ink">{days === null ? "--" : Math.max(days, 0)}</p>
+              <p className="text-sm font-semibold text-ink/55">Tiempo restante</p>
+              <p className="mt-2 text-5xl font-bold text-ink">{remaining}</p>
             </div>
             <div className="rounded-3xl bg-brass/12 p-4 text-brass">
               <Clock className="h-8 w-8" />

@@ -62,9 +62,13 @@ export function AuthProvider({ children }) {
 
         if (snap.exists()) {
           const data = snap.data();
-          await updateDoc(userRef, { lastLogin: serverTimestamp() });
+          await updateDoc(userRef, {
+            lastLogin: serverTimestamp(),
+            lastLoginAt: serverTimestamp(),
+            lastSeenAt: serverTimestamp()
+          });
           if (data.active && data.email?.toLowerCase() === email) {
-            setProfile({ uid, id: snap.id, ...data });
+            setProfile({ uid, id: snap.id, ...data, lastLoginAt: new Date(), lastSeenAt: new Date() });
             setUnauthorized(false);
           } else {
             setProfile(null);
@@ -82,10 +86,12 @@ export function AuthProvider({ children }) {
             sidebarCollapsed: false,
             onboardingCompleted: false,
             createdAt: serverTimestamp(),
-            lastLogin: serverTimestamp()
+            lastLogin: serverTimestamp(),
+            lastLoginAt: serverTimestamp(),
+            lastSeenAt: serverTimestamp()
           };
           await setDoc(userRef, adminProfile);
-          setProfile({ id: uid, ...adminProfile, createdAt: new Date(), lastLogin: new Date() });
+          setProfile({ id: uid, ...adminProfile, createdAt: new Date(), lastLogin: new Date(), lastLoginAt: new Date(), lastSeenAt: new Date() });
           setUnauthorized(false);
         } else {
           const authorizedSnap = await getDoc(authorizedEmailRef);
@@ -104,10 +110,12 @@ export function AuthProvider({ children }) {
               sidebarCollapsed: false,
               onboardingCompleted: false,
               createdAt: serverTimestamp(),
-              lastLogin: serverTimestamp()
+              lastLogin: serverTimestamp(),
+              lastLoginAt: serverTimestamp(),
+              lastSeenAt: serverTimestamp()
             };
             await setDoc(userRef, allowedProfile);
-            setProfile({ id: uid, ...allowedProfile, createdAt: new Date(), lastLogin: new Date() });
+            setProfile({ id: uid, ...allowedProfile, createdAt: new Date(), lastLogin: new Date(), lastLoginAt: new Date(), lastSeenAt: new Date() });
             setUnauthorized(false);
           } else {
             setProfile(null);
