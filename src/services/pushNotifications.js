@@ -136,6 +136,7 @@ async function getRuntimeDiagnostics() {
     protocol: window.location.protocol,
     hostname: window.location.hostname,
     pathnameBase: import.meta.env.BASE_URL || "/",
+    href: window.location.href,
     notificationPermission: typeof Notification === "undefined" ? "no_soportado" : Notification.permission,
     serviceWorkerSupport: "serviceWorker" in navigator,
     pushManagerSupport: "PushManager" in window,
@@ -148,6 +149,7 @@ async function getRuntimeDiagnostics() {
     foregroundListenerRegistered: false,
     foregroundListenerRegisteredAt: "",
     foregroundListenerError: "",
+    serviceWorkerScopeWarning: "",
     lastForegroundPush: getLastForegroundPush(),
     lastBackgroundPush: getLastBackgroundPush()
   };
@@ -164,6 +166,9 @@ async function getRuntimeDiagnostics() {
     const registration = (registrations || []).find((item) => item.scope.includes(import.meta.env.BASE_URL || "/")) || registrations?.[0];
     diagnostic.serviceWorkerScope = registration?.scope || "";
     diagnostic.serviceWorkerScriptURL = registration?.active?.scriptURL || registration?.installing?.scriptURL || registration?.waiting?.scriptURL || "";
+    if (diagnostic.serviceWorkerScope && !diagnostic.serviceWorkerScope.includes(import.meta.env.BASE_URL || "/")) {
+      diagnostic.serviceWorkerScopeWarning = "El service worker no esta bajo el scope correcto de GitHub Pages.";
+    }
   } catch (error) {
     diagnostic.serviceWorkerScriptURL = error?.message || "";
   }
@@ -208,9 +213,18 @@ export async function subscribeForegroundPushMessages(callback) {
     const unsubscribe = onMessage(messaging, (payload) => {
       const message = normalizePushPayload(payload);
       saveLastForegroundPush(message);
+      console.info("[FCM] foreground payload received", {
+        title: message.title,
+        type: message.type,
+        notificationId: message.notificationId,
+        scheduleId: message.scheduleId,
+        songId: message.songId,
+        receivedAt: message.receivedAt
+      });
       callback?.(message, payload);
     });
     saveForegroundListenerStatus({ registered: true, registeredAt: new Date().toISOString(), error: "" });
+    console.info("[FCM] foreground listener registered");
     return unsubscribe;
   } catch (error) {
     saveForegroundListenerStatus({ registered: false, error: error?.message || String(error) });
@@ -299,6 +313,7 @@ export async function enablePushNotificationsForUser(profile) {
   Object.assign(diagnostic, support);
   diagnostic.browserPermission = permission;
   if (!support.supported) return diagnostic;
+  Object.assign(diagnostic, await getRuntimeDiagnostics());
 
   let registration = null;
   try {
@@ -376,8 +391,10 @@ export async function enablePushNotificationsForUser(profile) {
 
 export async function getCurrentPushTokenForUser(profile) {
   const support = await getPushSupportStatus();
+  const runtime = await getRuntimeDiagnostics();
   const diagnostic = {
     ...support,
+    ...runtime,
     browserPermission: typeof Notification === "undefined" ? "no_soportado" : Notification.permission
   };
 
@@ -429,9 +446,37 @@ export async function getCurrentPushTokenForUser(profile) {
     tokenObtained: true,
     tokenPreview: maskToken(token),
     tokenPath: buildTokenPath(profile.uid, tokenId),
+    tokenId,
     firestoreWrite: "token existente",
     token
   };
+}
+
+export async function requestSiteNotificationPermissionOnly() {
+  const permissionBefore = typeof Notification === "undefined" ? "no_soportado" : Notification.permission;
+  const result = {
+    permissionBefore,
+    permissionAfter: permissionBefore,
+    origin: window.location.origin,
+    href: window.location.href,
+    error: ""
+  };
+
+  if (!("Notification" in window)) {
+    return { ...result, error: "Este navegador no soporta notificaciones." };
+  }
+  if (Notification.permission === "denied") {
+    return { ...result, error: deniedInstructions };
+  }
+
+  const permission = await Notification.requestPermission();
+  result.permissionAfter = permission;
+  if (permission === "default") {
+    result.error = "Chrome no mostro el permiso. Este sitio aun no tiene permiso propio. Abre configuracion del sitio y revisa notificaciones.";
+  } else if (permission !== "granted") {
+    result.error = "El permiso de notificaciones no fue concedido.";
+  }
+  return result;
 }
 
 export async function testLocalNotification() {

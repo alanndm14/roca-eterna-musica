@@ -159,20 +159,21 @@ async function finishNotificationSend(notificationId, result) {
 }
 
 async function readActiveTokens() {
-  const tokensSnap = await admin.firestore().collectionGroup("fcmTokens").where("active", "==", true).get();
+  const usersSnap = await admin.firestore().collection("users").get();
   const entries = [];
+  let tokensFound = 0;
 
-  for (const tokenDoc of tokensSnap.docs) {
-    const userRef = tokenDoc.ref.parent.parent;
-    if (!userRef) continue;
-    const userSnap = await userRef.get();
-    const user = userSnap.data();
+  for (const userDoc of usersSnap.docs) {
+    const user = userDoc.data();
     if (!user?.active) continue;
-    const token = tokenDoc.data().token;
-    if (token) {
+    const tokenSnap = await userDoc.ref.collection("fcmTokens").get();
+    tokensFound += tokenSnap.size;
+    for (const tokenDoc of tokenSnap.docs) {
+      const data = tokenDoc.data();
+      if (data.active !== true || !data.token) continue;
       entries.push({
-        token,
-        tokenPreview: maskToken(token),
+        token: data.token,
+        tokenPreview: maskToken(data.token),
         refPath: tokenDoc.ref.path,
         ref: tokenDoc.ref
       });
@@ -180,22 +181,39 @@ async function readActiveTokens() {
   }
 
   return {
-    tokensFound: tokensSnap.size,
+    tokensFound,
     activeTokens: entries.length,
     entries: entries.slice(0, 500),
     truncated: entries.length > 500
   };
 }
 
-async function readSelfTestToken(uid, token) {
-  const snap = await admin.firestore()
-    .collection(`users/${uid}/fcmTokens`)
-    .where("token", "==", token)
-    .where("active", "==", true)
-    .limit(1)
-    .get();
+async function readSelfTestToken(uid, token, tokenId = "") {
+  if (!token) {
+    const error = new Error("Falta token FCM para probar este dispositivo.");
+    error.status = 400;
+    error.stage = "read_tokens";
+    throw error;
+  }
 
-  if (snap.empty) {
+  let tokenDoc = null;
+  if (tokenId) {
+    const snap = await admin.firestore().doc(`users/${uid}/fcmTokens/${tokenId}`).get();
+    if (snap.exists) tokenDoc = snap;
+  } else {
+    const snap = await admin.firestore().collection(`users/${uid}/fcmTokens`).get();
+    tokenDoc = snap.docs.find((docSnap) => docSnap.data()?.token === token) || null;
+  }
+
+  if (!tokenDoc) {
+    const error = new Error("El token no pertenece al usuario autenticado o esta inactivo.");
+    error.status = 403;
+    error.stage = "read_tokens";
+    throw error;
+  }
+
+  const tokenData = tokenDoc.data();
+  if (tokenData.token !== token || tokenData.active !== true) {
     const error = new Error("El token no pertenece al usuario autenticado o esta inactivo.");
     error.status = 403;
     error.stage = "read_tokens";
@@ -208,8 +226,8 @@ async function readSelfTestToken(uid, token) {
     entries: [{
       token,
       tokenPreview: maskToken(token),
-      refPath: snap.docs[0].ref.path,
-      ref: snap.docs[0].ref
+      refPath: tokenDoc.ref.path,
+      ref: tokenDoc.ref
     }],
     truncated: false
   };
@@ -322,6 +340,7 @@ export default async function handler(request, response) {
       scheduleId,
       songId,
       token,
+      tokenId,
       notificationId: incomingNotificationId
     } = request.body || {};
     notificationId = incomingNotificationId || "";
@@ -345,7 +364,9 @@ export default async function handler(request, response) {
 
     stage = "read_tokens";
     const tokenRead = mode === "self_test"
-      ? await readSelfTestToken(decoded.uid, token)
+      ? await readSelfTestToken(decoded.uid, token, tokenId)
+      : mode === "self_test_data_only"
+        ? await readSelfTestToken(decoded.uid, token, tokenId)
       : await readActiveTokens();
 
     if (!tokenRead.entries.length) {
@@ -419,12 +440,18 @@ export default async function handler(request, response) {
     const body = {
       ok: false,
       stage: error.stage || stage,
+      source: (error.stage || stage) === "read_tokens" ? "firestore" : "backend",
       ...sanitized,
-      message: isQuotaError(error)
+      message: (error.stage || stage) === "read_tokens"
+        ? sanitized.message || "Firestore/Admin SDK fallo al leer tokens."
+        : isQuotaError(error)
         ? "FCM o Firestore reporto cuota excedida. Intenta mas tarde o revisa si hay demasiados tokens/reintentos."
         : isPreconditionError(error)
           ? "FCM reporto FAILED_PRECONDITION. Revisa Cloud Messaging API, VAPID key y service account del mismo proyecto."
           : sanitized.message,
+      hint: (error.stage || stage) === "read_tokens"
+        ? "Fallo al leer tokens desde Firestore/Admin SDK. No es un error de FCM todavia."
+        : "",
       env: stage === "initialize_admin" ? {
         hasProjectId: Boolean(process.env.FIREBASE_PROJECT_ID),
         hasClientEmail: Boolean(process.env.FIREBASE_CLIENT_EMAIL),

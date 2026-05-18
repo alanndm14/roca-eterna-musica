@@ -11,7 +11,7 @@ import { analyzeImport, parseSongsTable } from "../services/importSongs";
 import { canonicalThemeKey, collectSongThemes, getInstitutionalLogo, normalizeThemeName, resolvePublicAssetUrl } from "../services/songUtils";
 import { diagnosePublicAsset } from "../services/publicPdfTools";
 import { getLastPushResult, isPushBackendConfigured, sendExternalPush } from "../services/externalPush";
-import { diagnosePushNotifications, disablePushNotificationsForUser, enablePushNotificationsForUser, getCurrentPushTokenForUser, getLastBackgroundPush, getLastForegroundPush, reinstallMessagingServiceWorker, testLocalNotification } from "../services/pushNotifications";
+import { diagnosePushNotifications, disablePushNotificationsForUser, enablePushNotificationsForUser, getCurrentPushTokenForUser, getLastBackgroundPush, getLastForegroundPush, reinstallMessagingServiceWorker, requestSiteNotificationPermissionOnly, testLocalNotification } from "../services/pushNotifications";
 import { appLogo, fallbackAppLogo } from "../assets/logo";
 
 const defaultColors = {
@@ -24,6 +24,8 @@ const formatAccessDate = (value) => {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "Sin conexión registrada" : date.toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" });
 };
+
+const boolLabel = (value) => (value === true ? "si" : value === false ? "no" : "sin confirmar");
 
 export function Settings() {
   const { profile, isAdmin, signOut, saveUserPreferences } = useAuth();
@@ -284,7 +286,8 @@ export function Settings() {
           title: "Prueba de Roca Eterna Musica",
           body: "Este dispositivo ya puede recibir push.",
           url: "/#/configuracion",
-          token: tokenResult.token
+          token: tokenResult.token,
+          tokenId: tokenResult.tokenId
         },
         { kind: "test" }
       );
@@ -314,6 +317,7 @@ export function Settings() {
           body: "Mensaje data-only para probar onMessage.",
           url: "/#/configuracion",
           token: tokenResult.token,
+          tokenId: tokenResult.tokenId,
           notificationId: `data-only-${Date.now()}`
         },
         { kind: "test" }
@@ -329,6 +333,20 @@ export function Settings() {
     const result = await testLocalNotification();
     setLocalNotificationResult(result);
     setPushStatus(result.shown ? "Notificacion local intentada. Si no aparece, revisa permisos del sistema o Chrome." : result.error || "No se pudo mostrar la notificacion local.");
+  };
+
+  const requestSitePermission = async () => {
+    const result = await requestSiteNotificationPermissionOnly();
+    setLocalNotificationResult({
+      permissionBefore: result.permissionBefore,
+      permissionAfter: result.permissionAfter,
+      attempted: false,
+      shown: false,
+      error: result.error,
+      origin: result.origin,
+      href: result.href
+    });
+    setPushStatus(result.error || `Permiso del sitio: ${result.permissionAfter}`);
   };
 
   const reinstallServiceWorker = async () => {
@@ -781,6 +799,11 @@ export function Settings() {
                 Probar notificacion local
               </Button>
             ) : null}
+            {isAdmin ? (
+              <Button className="w-full" variant="subtle" disabled={isUpdatingPush} onClick={requestSitePermission}>
+                Solicitar permiso del sitio
+              </Button>
+            ) : null}
             <Button className="w-full" variant="secondary" isLoading={isUpdatingPush} disabled={isUpdatingPush} onClick={enablePush}>
               Activar notificaciones
             </Button>
@@ -833,10 +856,14 @@ export function Settings() {
                 <dd className="break-all rounded-xl bg-ink/5 px-2 py-1 font-mono text-[11px] text-ink/70 dark:bg-white/10">{pushDiagnostic.origin || window.location.origin}</dd>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <div><dt>HTTPS seguro</dt><dd className="font-semibold text-ink">{pushDiagnostic.isSecureContext ? "si" : "no"}</dd></div>
-                <div><dt>PushManager</dt><dd className="font-semibold text-ink">{pushDiagnostic.pushManagerSupport ? "si" : "no"}</dd></div>
-                <div><dt>SW soporte</dt><dd className="font-semibold text-ink">{pushDiagnostic.serviceWorkerSupport ? "si" : "no"}</dd></div>
+                <div><dt>HTTPS seguro</dt><dd className="font-semibold text-ink">{boolLabel(pushDiagnostic.isSecureContext)}</dd></div>
+                <div><dt>PushManager</dt><dd className="font-semibold text-ink">{boolLabel(pushDiagnostic.pushManagerSupport)}</dd></div>
+                <div><dt>SW soporte</dt><dd className="font-semibold text-ink">{boolLabel(pushDiagnostic.serviceWorkerSupport)}</dd></div>
                 <div><dt>Foreground listener</dt><dd className="font-semibold text-ink">{pushDiagnostic.foregroundListenerRegistered ? "registrado" : "sin confirmar"}</dd></div>
+              </div>
+              <div className="grid gap-1">
+                <dt>URL completa</dt>
+                <dd className="break-all rounded-xl bg-ink/5 px-2 py-1 font-mono text-[11px] text-ink/70 dark:bg-white/10">{pushDiagnostic.href || window.location.href}</dd>
               </div>
               <div className="grid gap-1">
                 <dt>Service worker URL</dt>
@@ -850,6 +877,9 @@ export function Settings() {
                 <dt>Status SW file</dt>
                 <dd className="text-right font-semibold text-ink">{pushDiagnostic.serviceWorkerFileStatus || "sin revisar"}</dd>
               </div>
+              {pushDiagnostic.serviceWorkerScopeWarning ? (
+                <div className="rounded-xl bg-yellow-100 px-2 py-1 text-yellow-900 dark:bg-yellow-500/15 dark:text-yellow-100">{pushDiagnostic.serviceWorkerScopeWarning}</div>
+              ) : null}
               {pushDiagnostic.error ? (
                 <div className="grid gap-1">
                   <dt>Error exacto</dt>
@@ -883,6 +913,8 @@ export function Settings() {
                     permisoDespues: localNotificationResult.permissionAfter,
                     notificacionLocalIntentada: localNotificationResult.attempted ? "si" : "no",
                     mostrada: localNotificationResult.shown ? "si" : "no",
+                    origin: localNotificationResult.origin,
+                    href: localNotificationResult.href,
                     error: localNotificationResult.error
                   }, null, 2)}</pre>
                 ) : <p>Sin prueba local registrada.</p>}
@@ -898,6 +930,8 @@ export function Settings() {
                     ultimaRecepcionForeground: foregroundPushResult?.receivedAt || "",
                     code: pushTestResult.body?.code,
                     etapa: pushTestResult.body?.stage,
+                    source: pushTestResult.body?.source,
+                    hint: pushTestResult.body?.hint,
                     mensaje: pushTestResult.body?.message || pushTestResult.error
                   }, null, 2)}</pre>
                 ) : <p>Sin prueba registrada.</p>}
