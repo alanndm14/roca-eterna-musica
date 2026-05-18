@@ -109,25 +109,37 @@ function saveForegroundListenerStatus(status) {
 async function getServiceWorkerRegistration() {
   if (!("serviceWorker" in navigator)) return null;
   const baseUrl = import.meta.env.BASE_URL || "/";
-  const params = new URLSearchParams({
-    apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "",
-    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "",
-    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "",
-    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "",
-    appId: import.meta.env.VITE_FIREBASE_APP_ID || ""
-  });
-
-  try {
-    return await navigator.serviceWorker.register(`${baseUrl}firebase-messaging-sw.js?${params.toString()}`);
-  } catch (error) {
-    const readyRegistration = await navigator.serviceWorker.ready.catch(() => null);
-    if (readyRegistration) return readyRegistration;
-    throw error;
-  }
+  const registration = await navigator.serviceWorker.register(`${baseUrl}sw.js`, { scope: baseUrl });
+  await navigator.serviceWorker.ready.catch(() => undefined);
+  return registration;
 }
 
 function serviceWorkerUrl() {
-  return new URL(`${import.meta.env.BASE_URL || "/"}firebase-messaging-sw.js`, window.location.origin).href;
+  return new URL(`${import.meta.env.BASE_URL || "/"}sw.js`, window.location.origin).href;
+}
+
+async function checkActiveServiceWorkerFcmSupport(registration) {
+  const active = registration?.active || navigator.serviceWorker.controller;
+  if (!active) return { supported: false, error: "Sin service worker activo." };
+  try {
+    const channel = new MessageChannel();
+    const responsePromise = new Promise((resolve) => {
+      const timeout = setTimeout(() => resolve({ supported: false, error: "Sin respuesta del service worker." }), 1500);
+      channel.port1.onmessage = (event) => {
+        clearTimeout(timeout);
+        resolve({
+          supported: event.data?.type === "roca-eterna-fcm-pong" && event.data?.hasConfig === true,
+          hasConfig: Boolean(event.data?.hasConfig),
+          scriptURL: event.data?.scriptURL || "",
+          scope: event.data?.scope || ""
+        });
+      };
+    });
+    active.postMessage({ type: "roca-eterna-fcm-ping" }, [channel.port2]);
+    return responsePromise;
+  } catch (error) {
+    return { supported: false, error: error?.message || String(error) };
+  }
 }
 
 async function getRuntimeDiagnostics() {
@@ -146,6 +158,12 @@ async function getRuntimeDiagnostics() {
     serviceWorkerFileStatus: "",
     serviceWorkerScope: "",
     serviceWorkerScriptURL: "",
+    serviceWorkerControllerScriptURL: navigator.serviceWorker?.controller?.scriptURL || "",
+    serviceWorkerUsedForTokenScope: "",
+    serviceWorkerUsedForTokenScriptURL: "",
+    serviceWorkerUsedMatchesActive: false,
+    serviceWorkerHasFcmSupport: false,
+    serviceWorkerFcmSupportError: "",
     foregroundListenerRegistered: false,
     foregroundListenerRegisteredAt: "",
     foregroundListenerError: "",
@@ -166,6 +184,16 @@ async function getRuntimeDiagnostics() {
     const registration = (registrations || []).find((item) => item.scope.includes(import.meta.env.BASE_URL || "/")) || registrations?.[0];
     diagnostic.serviceWorkerScope = registration?.scope || "";
     diagnostic.serviceWorkerScriptURL = registration?.active?.scriptURL || registration?.installing?.scriptURL || registration?.waiting?.scriptURL || "";
+    diagnostic.serviceWorkerControllerScriptURL = navigator.serviceWorker?.controller?.scriptURL || "";
+    diagnostic.serviceWorkerRegistrations = (registrations || []).map((item) => ({
+      scope: item.scope,
+      active: item.active?.scriptURL || "",
+      waiting: item.waiting?.scriptURL || "",
+      installing: item.installing?.scriptURL || ""
+    }));
+    const fcmSupport = await checkActiveServiceWorkerFcmSupport(registration);
+    diagnostic.serviceWorkerHasFcmSupport = Boolean(fcmSupport.supported);
+    diagnostic.serviceWorkerFcmSupportError = fcmSupport.error || "";
     if (diagnostic.serviceWorkerScope && !diagnostic.serviceWorkerScope.includes(import.meta.env.BASE_URL || "/")) {
       diagnostic.serviceWorkerScopeWarning = "El service worker no esta bajo el scope correcto de GitHub Pages.";
     }
@@ -255,6 +283,9 @@ export async function diagnosePushNotifications(profile) {
   try {
     const registration = await getServiceWorkerRegistration();
     diagnostic.serviceWorkerRegistered = Boolean(registration);
+    diagnostic.serviceWorkerUsedForTokenScope = registration?.scope || "";
+    diagnostic.serviceWorkerUsedForTokenScriptURL = registration?.active?.scriptURL || registration?.installing?.scriptURL || registration?.waiting?.scriptURL || "";
+    diagnostic.serviceWorkerUsedMatchesActive = !diagnostic.serviceWorkerScriptURL || diagnostic.serviceWorkerUsedForTokenScriptURL === diagnostic.serviceWorkerScriptURL;
   } catch (error) {
     diagnostic.supported = false;
     diagnostic.reason = "No se pudo registrar el service worker de notificaciones.";
@@ -319,6 +350,9 @@ export async function enablePushNotificationsForUser(profile) {
   try {
     registration = await getServiceWorkerRegistration();
     diagnostic.serviceWorkerRegistered = Boolean(registration);
+    diagnostic.serviceWorkerUsedForTokenScope = registration?.scope || "";
+    diagnostic.serviceWorkerUsedForTokenScriptURL = registration?.active?.scriptURL || registration?.installing?.scriptURL || registration?.waiting?.scriptURL || "";
+    diagnostic.serviceWorkerUsedMatchesActive = !diagnostic.serviceWorkerScriptURL || diagnostic.serviceWorkerUsedForTokenScriptURL === diagnostic.serviceWorkerScriptURL;
   } catch (error) {
     return {
       ...diagnostic,
@@ -359,6 +393,7 @@ export async function enablePushNotificationsForUser(profile) {
   diagnostic.tokenPath = tokenPath;
 
   try {
+    const previousTokenId = localStorage.getItem(TOKEN_STORAGE_KEY);
     await setDoc(
       doc(db, "users", profile.uid, "fcmTokens", tokenId),
       {
@@ -370,6 +405,13 @@ export async function enablePushNotificationsForUser(profile) {
       },
       { merge: true }
     );
+    if (previousTokenId && previousTokenId !== tokenId) {
+      await setDoc(
+        doc(db, "users", profile.uid, "fcmTokens", previousTokenId),
+        { active: false, replacedAt: serverTimestamp() },
+        { merge: true }
+      ).catch(() => undefined);
+    }
     localStorage.setItem(TOKEN_STORAGE_KEY, tokenId);
     return {
       ...diagnostic,
@@ -423,6 +465,8 @@ export async function getCurrentPushTokenForUser(profile) {
   }
 
   const registration = await getServiceWorkerRegistration();
+  diagnostic.serviceWorkerUsedForTokenScope = registration?.scope || "";
+  diagnostic.serviceWorkerUsedForTokenScriptURL = registration?.active?.scriptURL || registration?.installing?.scriptURL || registration?.waiting?.scriptURL || "";
   const messaging = getMessaging(firebaseApp);
   const token = await getToken(messaging, {
     vapidKey: firebaseVapidKey,
@@ -472,20 +516,20 @@ export async function requestSiteNotificationPermissionOnly() {
   const permission = await Notification.requestPermission();
   result.permissionAfter = permission;
   if (permission === "default") {
-    result.error = "Chrome no mostro el permiso. Este sitio aun no tiene permiso propio. Abre configuracion del sitio y revisa notificaciones.";
+    result.error = "Chrome no mostro el permiso. En algunos Android, las push web requieren instalar la app como PWA o abrir el sitio desde Chrome completo, no desde una vista embebida. Abre el sitio en Chrome, menu de tres puntos, Agregar a pantalla principal o Instalar app, abre desde el icono instalado y toca Activar notificaciones.";
   } else if (permission !== "granted") {
     result.error = "El permiso de notificaciones no fue concedido.";
   }
   return result;
 }
 
-export async function testLocalNotification() {
+export async function testLocalNotification(options = {}) {
   const permissionBefore = typeof Notification === "undefined" ? "no_soportado" : Notification.permission;
   const result = {
     permissionBefore,
     permissionAfter: permissionBefore,
     attempted: false,
-    shown: false,
+    executed: false,
     error: "",
     origin: window.location.origin
   };
@@ -511,13 +555,14 @@ export async function testLocalNotification() {
     const notification = new Notification("Prueba local", {
       body: "Chrome puede mostrar notificaciones para Roca Eterna Musica.",
       icon: iconUrl(),
-      tag: "roca-eterna-local-test"
+      tag: "roca-eterna-local-test",
+      requireInteraction: Boolean(options.requireInteraction)
     });
     notification.onclick = () => {
       window.focus();
       notification.close();
     };
-    result.shown = true;
+    result.executed = true;
   } catch (error) {
     result.error = error?.message || String(error);
   }
@@ -538,6 +583,7 @@ export async function reinstallMessagingServiceWorker() {
   localStorage.removeItem(FOREGROUND_LISTENER_KEY);
   localStorage.removeItem(LAST_FOREGROUND_KEY);
   localStorage.removeItem(LAST_BACKGROUND_KEY);
+  localStorage.removeItem(TOKEN_STORAGE_KEY);
   return { removed, serviceWorkerUrl: serviceWorkerUrl() };
 }
 

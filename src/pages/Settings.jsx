@@ -332,7 +332,13 @@ export function Settings() {
   const runLocalNotificationTest = async () => {
     const result = await testLocalNotification();
     setLocalNotificationResult(result);
-    setPushStatus(result.shown ? "Notificacion local intentada. Si no aparece, revisa permisos del sistema o Chrome." : result.error || "No se pudo mostrar la notificacion local.");
+    setPushStatus(result.executed ? "Notification API ejecutada sin error. Si no ves el globo, revisa el centro de notificaciones de Windows, No molestar y permisos de Chrome." : result.error || "No se pudo ejecutar la notificacion local.");
+  };
+
+  const runPersistentLocalNotificationTest = async () => {
+    const result = await testLocalNotification({ requireInteraction: true });
+    setLocalNotificationResult(result);
+    setPushStatus(result.executed ? "Notificacion local persistente ejecutada sin error. Si no aparece, el bloqueo esta en Chrome/Windows/Android." : result.error || "No se pudo ejecutar la notificacion persistente.");
   };
 
   const requestSitePermission = async () => {
@@ -800,6 +806,11 @@ export function Settings() {
               </Button>
             ) : null}
             {isAdmin ? (
+              <Button className="w-full" variant="subtle" disabled={isUpdatingPush} onClick={runPersistentLocalNotificationTest}>
+                Probar notificacion local persistente
+              </Button>
+            ) : null}
+            {isAdmin ? (
               <Button className="w-full" variant="subtle" disabled={isUpdatingPush} onClick={requestSitePermission}>
                 Solicitar permiso del sitio
               </Button>
@@ -873,6 +884,18 @@ export function Settings() {
                 <dt>Scope / script activo</dt>
                 <dd className="break-all rounded-xl bg-ink/5 px-2 py-1 font-mono text-[11px] text-ink/70 dark:bg-white/10">{`${pushDiagnostic.serviceWorkerScope || "sin scope"} | ${pushDiagnostic.serviceWorkerScriptURL || "sin script"}`}</dd>
               </div>
+              <div className="grid gap-1">
+                <dt>Controller</dt>
+                <dd className="break-all rounded-xl bg-ink/5 px-2 py-1 font-mono text-[11px] text-ink/70 dark:bg-white/10">{pushDiagnostic.serviceWorkerControllerScriptURL || "sin controller"}</dd>
+              </div>
+              <div className="grid gap-1">
+                <dt>Registration usado por getToken</dt>
+                <dd className="break-all rounded-xl bg-ink/5 px-2 py-1 font-mono text-[11px] text-ink/70 dark:bg-white/10">{`${pushDiagnostic.serviceWorkerUsedForTokenScope || "sin uso"} | ${pushDiagnostic.serviceWorkerUsedForTokenScriptURL || "sin script"}`}</dd>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div><dt>SW activo con FCM</dt><dd className="font-semibold text-ink">{boolLabel(pushDiagnostic.serviceWorkerHasFcmSupport)}</dd></div>
+                <div><dt>Token usa SW activo</dt><dd className="font-semibold text-ink">{boolLabel(pushDiagnostic.serviceWorkerUsedMatchesActive)}</dd></div>
+              </div>
               <div className="flex justify-between gap-3">
                 <dt>Status SW file</dt>
                 <dd className="text-right font-semibold text-ink">{pushDiagnostic.serviceWorkerFileStatus || "sin revisar"}</dd>
@@ -912,12 +935,13 @@ export function Settings() {
                     permisoAntes: localNotificationResult.permissionBefore,
                     permisoDespues: localNotificationResult.permissionAfter,
                     notificacionLocalIntentada: localNotificationResult.attempted ? "si" : "no",
-                    mostrada: localNotificationResult.shown ? "si" : "no",
+                    notificationApiEjecutadaSinError: localNotificationResult.executed ? "si" : "no",
                     origin: localNotificationResult.origin,
                     href: localNotificationResult.href,
                     error: localNotificationResult.error
                   }, null, 2)}</pre>
                 ) : <p>Sin prueba local registrada.</p>}
+                <p className="rounded-xl bg-brass/10 p-2 text-[11px] leading-5 text-ink/70">Si esta prueba dice ejecutada sin error pero no ves el globo, revisa el centro de notificaciones de Windows, No molestar y permisos de Chrome.</p>
                 <p className="font-semibold text-ink">Ultima prueba push</p>
                 {pushTestResult ? (
                   <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-xl bg-ink/5 p-2 text-[11px] dark:bg-white/10">{JSON.stringify({

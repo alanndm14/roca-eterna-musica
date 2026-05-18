@@ -1,14 +1,21 @@
 /* global firebase */
+import { clientsClaim } from "workbox-core";
+import { cleanupOutdatedCaches, precacheAndRoute } from "workbox-precaching";
+
 importScripts("https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js");
 importScripts("https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js");
 
-const params = new URL(self.location.href).searchParams;
+self.skipWaiting();
+clientsClaim();
+cleanupOutdatedCaches();
+precacheAndRoute(self.__WB_MANIFEST);
+
 const firebaseConfig = {
-  apiKey: params.get("apiKey") || "",
-  authDomain: params.get("authDomain") || "",
-  projectId: params.get("projectId") || "",
-  messagingSenderId: params.get("messagingSenderId") || "",
-  appId: params.get("appId") || ""
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || ""
 };
 
 const baseUrl = new URL(self.registration.scope).pathname || "/";
@@ -43,22 +50,6 @@ function normalizeMessage(payload = {}) {
   };
 }
 
-function showNotificationOnce(payload) {
-  const message = normalizeMessage(payload);
-  notifyClients(message);
-  if (shownTags.has(message.tag)) return Promise.resolve();
-  shownTags.add(message.tag);
-  setTimeout(() => shownTags.delete(message.tag), 60000);
-  return self.registration.showNotification(message.title, {
-    body: message.body,
-    icon: message.icon,
-    badge: message.badge,
-    tag: message.tag,
-    renotify: false,
-    data: message.data
-  });
-}
-
 function notifyClients(message) {
   const payload = {
     type: "roca-eterna-background-push",
@@ -87,10 +78,25 @@ function notifyClients(message) {
   });
 }
 
+function showNotificationOnce(payload) {
+  const message = normalizeMessage(payload);
+  notifyClients(message);
+  if (shownTags.has(message.tag)) return Promise.resolve();
+  shownTags.add(message.tag);
+  setTimeout(() => shownTags.delete(message.tag), 60000);
+  return self.registration.showNotification(message.title, {
+    body: message.body,
+    icon: message.icon,
+    badge: message.badge,
+    tag: message.tag,
+    renotify: false,
+    data: message.data
+  });
+}
+
 if (hasConfig) {
   firebase.initializeApp(firebaseConfig);
   const messaging = firebase.messaging();
-
   messaging.onBackgroundMessage((payload) => showNotificationOnce(payload));
 }
 
@@ -103,6 +109,17 @@ self.addEventListener("push", (event) => {
   }
 
   event.waitUntil(showNotificationOnce(data.data ? { data: data.data, notification: data.notification } : data));
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "roca-eterna-fcm-ping") {
+    event.ports?.[0]?.postMessage({
+      type: "roca-eterna-fcm-pong",
+      hasConfig,
+      scriptURL: self.location.href,
+      scope: self.registration.scope
+    });
+  }
 });
 
 self.addEventListener("notificationclick", (event) => {

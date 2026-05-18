@@ -8,7 +8,13 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
+      strategies: "injectManifest",
+      srcDir: "src",
+      filename: "sw.js",
       registerType: "autoUpdate",
+      injectManifest: {
+        globPatterns: ["**/*.{js,css,html,png,svg,webmanifest,pdf}"]
+      },
       includeAssets: ["icons/icon-192.png", "icons/icon-512.png", "icons/icon-192.svg", "icons/icon-512.svg"],
       manifest: {
         name: "Roca Eterna Música",
