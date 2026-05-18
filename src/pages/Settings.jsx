@@ -11,7 +11,7 @@ import { analyzeImport, parseSongsTable } from "../services/importSongs";
 import { canonicalThemeKey, collectSongThemes, getInstitutionalLogo, normalizeThemeName, resolvePublicAssetUrl } from "../services/songUtils";
 import { diagnosePublicAsset } from "../services/publicPdfTools";
 import { getLastPushResult, isPushBackendConfigured, sendExternalPush } from "../services/externalPush";
-import { diagnosePushNotifications, disablePushNotificationsForUser, enablePushNotificationsForUser, getCurrentPushTokenForUser, getLastForegroundPush } from "../services/pushNotifications";
+import { diagnosePushNotifications, disablePushNotificationsForUser, enablePushNotificationsForUser, getCurrentPushTokenForUser, getLastBackgroundPush, getLastForegroundPush, reinstallMessagingServiceWorker, testLocalNotification } from "../services/pushNotifications";
 import { appLogo, fallbackAppLogo } from "../assets/logo";
 
 const defaultColors = {
@@ -71,6 +71,8 @@ export function Settings() {
   const [pushTestResult, setPushTestResult] = useState(() => getLastPushResult("test"));
   const [pushAutoResult, setPushAutoResult] = useState(() => getLastPushResult("auto"));
   const [foregroundPushResult, setForegroundPushResult] = useState(() => getLastForegroundPush());
+  const [backgroundPushResult, setBackgroundPushResult] = useState(() => getLastBackgroundPush());
+  const [localNotificationResult, setLocalNotificationResult] = useState(null);
   const [isUpdatingPush, setIsUpdatingPush] = useState(false);
   const parsedImport = useMemo(() => parseSongsTable(importText, localSettings.keyPreference || "sharps"), [importText, localSettings.keyPreference]);
   const importSummary = useMemo(() => analyzeImport(parsedImport.songs, songs), [parsedImport.songs, songs]);
@@ -147,8 +149,13 @@ export function Settings() {
 
   useEffect(() => {
     const handleForegroundPush = (event) => setForegroundPushResult(event.detail || getLastForegroundPush());
+    const handleBackgroundPush = (event) => setBackgroundPushResult(event.detail || getLastBackgroundPush());
     window.addEventListener("roca-eterna-foreground-push", handleForegroundPush);
-    return () => window.removeEventListener("roca-eterna-foreground-push", handleForegroundPush);
+    window.addEventListener("roca-eterna-background-push", handleBackgroundPush);
+    return () => {
+      window.removeEventListener("roca-eterna-foreground-push", handleForegroundPush);
+      window.removeEventListener("roca-eterna-background-push", handleBackgroundPush);
+    };
   }, []);
 
   const updateSettings = (field, value) => {
@@ -287,6 +294,47 @@ export function Settings() {
     } finally {
       setIsUpdatingPush(false);
     }
+  };
+
+  const sendSelfTestDataOnlyPush = async () => {
+    setIsUpdatingPush(true);
+    try {
+      setForegroundPushResult(null);
+      const tokenResult = await getCurrentPushTokenForUser(profile);
+      setPushDiagnostic(tokenResult);
+      if (!tokenResult.supported || !tokenResult.token) {
+        setPushStatus(tokenResult.reason || "No se pudo preparar este dispositivo para la prueba data-only.");
+        return;
+      }
+      const result = await sendExternalPush(
+        {
+          mode: "self_test_data_only",
+          type: "self_test_data_only",
+          title: "Prueba data-only",
+          body: "Mensaje data-only para probar onMessage.",
+          url: "/#/configuracion",
+          token: tokenResult.token,
+          notificationId: `data-only-${Date.now()}`
+        },
+        { kind: "test" }
+      );
+      setPushTestResult(result);
+      setPushStatus(result.ok ? "Prueba FCM data-only enviada. Revisa si aparece recepcion foreground." : result.body?.message || result.error || "No se pudo enviar la prueba data-only.");
+    } finally {
+      setIsUpdatingPush(false);
+    }
+  };
+
+  const runLocalNotificationTest = async () => {
+    const result = await testLocalNotification();
+    setLocalNotificationResult(result);
+    setPushStatus(result.shown ? "Notificacion local intentada. Si no aparece, revisa permisos del sistema o Chrome." : result.error || "No se pudo mostrar la notificacion local.");
+  };
+
+  const reinstallServiceWorker = async () => {
+    const result = await reinstallMessagingServiceWorker();
+    setPushDiagnostic({ serviceWorkerRegistered: false, serviceWorkerUrl: result.serviceWorkerUrl, serviceWorkerRemoved: result.removed });
+    setPushStatus("Service worker eliminado para esta app. Recarga la pagina y vuelve a activar notificaciones.");
   };
 
   return (
@@ -728,13 +776,26 @@ export function Settings() {
             Backend push configurado: <span className="font-semibold text-ink">{isPushBackendConfigured() ? "si" : "no"}</span>
           </p>
           <div className="mt-4 grid gap-2">
+            {isAdmin ? (
+              <Button className="w-full" variant="secondary" disabled={isUpdatingPush} onClick={runLocalNotificationTest}>
+                Probar notificacion local
+              </Button>
+            ) : null}
             <Button className="w-full" variant="secondary" isLoading={isUpdatingPush} disabled={isUpdatingPush} onClick={enablePush}>
               Activar notificaciones
             </Button>
             {isAdmin ? (
-              <Button className="w-full" variant="secondary" isLoading={isUpdatingPush} disabled={isUpdatingPush || !isPushBackendConfigured()} onClick={sendSelfTestPush}>
-                Enviar push de prueba a este dispositivo
-              </Button>
+              <>
+                <Button className="w-full" variant="secondary" isLoading={isUpdatingPush} disabled={isUpdatingPush || !isPushBackendConfigured()} onClick={sendSelfTestPush}>
+                  Enviar push de prueba a este dispositivo
+                </Button>
+                <Button className="w-full" variant="subtle" isLoading={isUpdatingPush} disabled={isUpdatingPush || !isPushBackendConfigured()} onClick={sendSelfTestDataOnlyPush}>
+                  Enviar prueba FCM data-only
+                </Button>
+                <Button className="w-full" variant="subtle" disabled={isUpdatingPush} onClick={reinstallServiceWorker}>
+                  Reinstalar service worker
+                </Button>
+              </>
             ) : null}
             <Button className="w-full" variant="subtle" disabled={isUpdatingPush} onClick={disablePush}>
               Desactivar en este dispositivo
@@ -767,6 +828,28 @@ export function Settings() {
                 <dt>Escritura en Firestore</dt>
                 <dd className="text-right font-semibold text-ink">{pushDiagnostic.firestoreWrite || "no intentada"}</dd>
               </div>
+              <div className="grid gap-1">
+                <dt>Origen actual</dt>
+                <dd className="break-all rounded-xl bg-ink/5 px-2 py-1 font-mono text-[11px] text-ink/70 dark:bg-white/10">{pushDiagnostic.origin || window.location.origin}</dd>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div><dt>HTTPS seguro</dt><dd className="font-semibold text-ink">{pushDiagnostic.isSecureContext ? "si" : "no"}</dd></div>
+                <div><dt>PushManager</dt><dd className="font-semibold text-ink">{pushDiagnostic.pushManagerSupport ? "si" : "no"}</dd></div>
+                <div><dt>SW soporte</dt><dd className="font-semibold text-ink">{pushDiagnostic.serviceWorkerSupport ? "si" : "no"}</dd></div>
+                <div><dt>Foreground listener</dt><dd className="font-semibold text-ink">{pushDiagnostic.foregroundListenerRegistered ? "registrado" : "sin confirmar"}</dd></div>
+              </div>
+              <div className="grid gap-1">
+                <dt>Service worker URL</dt>
+                <dd className="break-all rounded-xl bg-ink/5 px-2 py-1 font-mono text-[11px] text-ink/70 dark:bg-white/10">{pushDiagnostic.serviceWorkerUrl || ""}</dd>
+              </div>
+              <div className="grid gap-1">
+                <dt>Scope / script activo</dt>
+                <dd className="break-all rounded-xl bg-ink/5 px-2 py-1 font-mono text-[11px] text-ink/70 dark:bg-white/10">{`${pushDiagnostic.serviceWorkerScope || "sin scope"} | ${pushDiagnostic.serviceWorkerScriptURL || "sin script"}`}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt>Status SW file</dt>
+                <dd className="text-right font-semibold text-ink">{pushDiagnostic.serviceWorkerFileStatus || "sin revisar"}</dd>
+              </div>
               {pushDiagnostic.error ? (
                 <div className="grid gap-1">
                   <dt>Error exacto</dt>
@@ -786,12 +869,23 @@ export function Settings() {
                   setPushTestResult(getLastPushResult("test"));
                   setPushAutoResult(getLastPushResult("auto"));
                   setForegroundPushResult(getLastForegroundPush());
+                  setBackgroundPushResult(getLastBackgroundPush());
                   setPushStatus(status.supported ? "Push listo para solicitar token en este navegador." : status.reason);
                 }}
               >
                 Diagnosticar push
               </Button>
               <div className="mt-3 space-y-2 rounded-2xl border border-ink/10 bg-white/70 p-3 text-xs text-ink/70 dark:bg-white/5">
+                <p className="font-semibold text-ink">Prueba local</p>
+                {localNotificationResult ? (
+                  <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-xl bg-ink/5 p-2 text-[11px] dark:bg-white/10">{JSON.stringify({
+                    permisoAntes: localNotificationResult.permissionBefore,
+                    permisoDespues: localNotificationResult.permissionAfter,
+                    notificacionLocalIntentada: localNotificationResult.attempted ? "si" : "no",
+                    mostrada: localNotificationResult.shown ? "si" : "no",
+                    error: localNotificationResult.error
+                  }, null, 2)}</pre>
+                ) : <p>Sin prueba local registrada.</p>}
                 <p className="font-semibold text-ink">Ultima prueba push</p>
                 {pushTestResult ? (
                   <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-xl bg-ink/5 p-2 text-[11px] dark:bg-white/10">{JSON.stringify({
@@ -810,6 +904,10 @@ export function Settings() {
                 <div className="rounded-xl bg-ink/5 p-2 text-[11px] leading-5 dark:bg-white/10">
                   <p className="font-semibold text-ink">Recepcion foreground</p>
                   <p>{foregroundPushResult ? `Mensaje recibido con la app abierta: ${foregroundPushResult.title}` : "Sin mensaje recibido con la app abierta en este navegador."}</p>
+                </div>
+                <div className="rounded-xl bg-ink/5 p-2 text-[11px] leading-5 dark:bg-white/10">
+                  <p className="font-semibold text-ink">Recepcion background / service worker</p>
+                  <p>{backgroundPushResult ? `Mensaje recibido por service worker: ${backgroundPushResult.title}` : "Sin mensaje background registrado en este navegador."}</p>
                 </div>
                 <p className="pt-2 font-semibold text-ink">Ultimo envio automatico</p>
                 {pushAutoResult ? (

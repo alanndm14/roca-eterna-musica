@@ -1,6 +1,6 @@
 import admin from "firebase-admin";
 
-const allowedTypes = new Set(["new_schedule", "new_song", "updated_schedule", "other"]);
+const allowedTypes = new Set(["new_schedule", "new_song", "updated_schedule", "self_test_data_only", "other"]);
 const invalidTokenCodes = new Set([
   "messaging/registration-token-not-registered",
   "messaging/invalid-registration-token"
@@ -98,6 +98,10 @@ function absoluteAppUrl(url = "") {
 
 function publicIconUrl() {
   return `${appBaseUrl()}/icons/icon-192.png`;
+}
+
+function stringData(payload) {
+  return Object.fromEntries(Object.entries(payload).map(([key, value]) => [key, String(value ?? "")]));
 }
 
 async function verifyRequester(request) {
@@ -225,39 +229,44 @@ async function sendToTokens(entries, payload) {
 
   for (const entry of entries) {
     try {
-      await admin.messaging().send({
+      const data = stringData({
+        type: payload.type || "other",
+        url: payload.url || "/roca-eterna-musica/",
+        title: payload.title,
+        body: payload.body,
+        icon: publicIconUrl(),
+        badge: publicIconUrl(),
+        tag: payload.notificationId || payload.scheduleId || payload.songId || payload.type || "roca-eterna-push",
+        scheduleId: payload.scheduleId || "",
+        songId: payload.songId || "",
+        notificationId: payload.notificationId || "",
+        mode: payload.mode || ""
+      });
+      const message = {
         token: entry.token,
-        notification: {
+        data
+      };
+      if (payload.mode !== "self_test_data_only") {
+        message.notification = {
           title: payload.title,
           body: payload.body
-        },
-        webpush: {
+        };
+        message.webpush = {
           notification: {
             title: payload.title,
             body: payload.body,
             icon: publicIconUrl(),
             badge: publicIconUrl(),
-            tag: payload.notificationId || payload.scheduleId || payload.songId || payload.type || "roca-eterna-push",
-            renotify: false
+            tag: data.tag,
+            renotify: false,
+            requireInteraction: false
           },
           fcmOptions: {
             link: absoluteAppUrl(payload.url)
           }
-        },
-        data: {
-          type: payload.type || "other",
-          url: payload.url || "/roca-eterna-musica/",
-          title: payload.title,
-          body: payload.body,
-          icon: publicIconUrl(),
-          badge: publicIconUrl(),
-          tag: payload.notificationId || payload.scheduleId || payload.songId || payload.type || "roca-eterna-push",
-          scheduleId: payload.scheduleId || "",
-          songId: payload.songId || "",
-          notificationId: payload.notificationId || "",
-          mode: payload.mode || ""
-        }
-      });
+        };
+      }
+      await admin.messaging().send(message);
       result.sent += 1;
     } catch (error) {
       result.failed += 1;

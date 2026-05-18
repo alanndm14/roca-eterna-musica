@@ -6,7 +6,7 @@ import { appLogo, fallbackAppLogo } from "../../assets/logo";
 import { useAuth } from "../../hooks/useAuth";
 import { useMusicData } from "../../hooks/useMusicData";
 import { getEffectiveThemeMode, getInstitutionalLogo } from "../../services/songUtils";
-import { subscribeForegroundPushMessages } from "../../services/pushNotifications";
+import { saveLastBackgroundPush, subscribeForegroundPushMessages } from "../../services/pushNotifications";
 import { Button } from "../ui/Button";
 import { ErrorBoundary } from "../ui/ErrorBoundary";
 import { BottomNav } from "./BottomNav";
@@ -120,6 +120,30 @@ export function AppShell() {
       unsubscribe();
     };
   }, [navigate]);
+
+  useEffect(() => {
+    const handleServiceWorkerMessage = (event) => {
+      if (event.data?.type !== "roca-eterna-background-push") return;
+      const message = {
+        ...(event.data.payload || {}),
+        receivedAt: new Date().toISOString()
+      };
+      saveLastBackgroundPush(message);
+      window.dispatchEvent(new CustomEvent("roca-eterna-background-push", { detail: message }));
+    };
+    let channel = null;
+    try {
+      channel = new BroadcastChannel("roca-eterna-push");
+      channel.onmessage = handleServiceWorkerMessage;
+    } catch {
+      channel = null;
+    }
+    navigator.serviceWorker?.addEventListener?.("message", handleServiceWorkerMessage);
+    return () => {
+      navigator.serviceWorker?.removeEventListener?.("message", handleServiceWorkerMessage);
+      channel?.close?.();
+    };
+  }, []);
 
   useEffect(() => {
     const media = window.matchMedia?.("(prefers-color-scheme: dark)");

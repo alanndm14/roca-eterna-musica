@@ -45,6 +45,7 @@ function normalizeMessage(payload = {}) {
 
 function showNotificationOnce(payload) {
   const message = normalizeMessage(payload);
+  notifyClients(message);
   if (shownTags.has(message.tag)) return Promise.resolve();
   shownTags.add(message.tag);
   setTimeout(() => shownTags.delete(message.tag), 60000);
@@ -55,6 +56,34 @@ function showNotificationOnce(payload) {
     tag: message.tag,
     renotify: false,
     data: message.data
+  });
+}
+
+function notifyClients(message) {
+  const payload = {
+    type: "roca-eterna-background-push",
+    payload: {
+      title: message.title,
+      body: message.body,
+      url: message.url,
+      tag: message.tag,
+      notificationId: message.data?.notificationId || "",
+      scheduleId: message.data?.scheduleId || "",
+      songId: message.data?.songId || "",
+      receivedAt: new Date().toISOString()
+    }
+  };
+
+  try {
+    const channel = new BroadcastChannel("roca-eterna-push");
+    channel.postMessage(payload);
+    channel.close();
+  } catch {
+    // BroadcastChannel no esta disponible en todos los navegadores.
+  }
+
+  self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+    clientList.forEach((client) => client.postMessage(payload));
   });
 }
 
