@@ -6,6 +6,7 @@ import { appLogo, fallbackAppLogo } from "../../assets/logo";
 import { useAuth } from "../../hooks/useAuth";
 import { useMusicData } from "../../hooks/useMusicData";
 import { getEffectiveThemeMode, getInstitutionalLogo } from "../../services/songUtils";
+import { subscribeForegroundPushMessages } from "../../services/pushNotifications";
 import { Button } from "../ui/Button";
 import { ErrorBoundary } from "../ui/ErrorBoundary";
 import { BottomNav } from "./BottomNav";
@@ -32,6 +33,7 @@ export function AppShell() {
   const { settings, useLocal, notifications, markNotificationRead, markAllNotificationsRead } = useMusicData();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem(sidebarStorageKey) === "true");
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [foregroundPush, setForegroundPush] = useState(null);
   const pageTitle = pageNames[location.pathname] || "Roca Eterna Musica";
   const themeMode = profile?.themeMode || localStorage.getItem("roca-eterna-theme-mode") || "system";
   const effectiveTheme = getEffectiveThemeMode(themeMode);
@@ -63,6 +65,63 @@ export function AppShell() {
   }, [logoAlt, logoSrc, settings]);
 
   useEffect(() => {
+    let unsubscribe = () => {};
+    let cancelled = false;
+    const shown = new Set();
+
+    const openUrl = (url) => {
+      if (!url) return;
+      if (url.startsWith("/#/")) {
+        navigate(url.replace("/#", ""));
+        return;
+      }
+      if (url.startsWith("#/")) {
+        navigate(url.replace("#", ""));
+        return;
+      }
+      if (url.startsWith("/")) {
+        window.location.href = url;
+      } else {
+        window.location.href = url;
+      }
+    };
+
+    subscribeForegroundPushMessages((message) => {
+      if (cancelled || shown.has(message.notificationId)) return;
+      shown.add(message.notificationId);
+      setForegroundPush(message);
+      window.dispatchEvent(new CustomEvent("roca-eterna-foreground-push", { detail: message }));
+
+      if ("Notification" in window && Notification.permission === "granted") {
+        try {
+          const notification = new Notification(message.title, {
+            body: message.body,
+            icon: message.icon,
+            badge: message.badge,
+            tag: message.tag,
+            renotify: false,
+            data: { url: message.url }
+          });
+          notification.onclick = () => {
+            window.focus();
+            openUrl(message.url);
+            notification.close();
+          };
+        } catch {
+          // Algunos navegadores bloquean Notification() en foreground; el banner interno queda activo.
+        }
+      }
+    }).then((cleanup) => {
+      unsubscribe = cleanup || (() => {});
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [navigate]);
+
+  useEffect(() => {
     const media = window.matchMedia?.("(prefers-color-scheme: dark)");
     const applyTheme = () => {
       const shouldUseDark = themeMode === "dark" || (themeMode === "system" && media?.matches);
@@ -89,6 +148,21 @@ export function AppShell() {
     setNotificationsOpen(false);
     if (notification.scheduleId) navigate("/programacion");
     if (notification.songId) navigate(`/repertorio/${notification.songId}`);
+  };
+
+  const openForegroundPush = () => {
+    if (!foregroundPush) return;
+    const url = foregroundPush.url || "";
+    setForegroundPush(null);
+    if (foregroundPush.scheduleId) {
+      navigate("/programacion");
+    } else if (foregroundPush.songId) {
+      navigate(`/repertorio/${foregroundPush.songId}`);
+    } else if (url.startsWith("/#/")) {
+      navigate(url.replace("/#", ""));
+    } else if (url.startsWith("#/")) {
+      navigate(url.replace("#", ""));
+    }
   };
 
   return (
@@ -172,6 +246,21 @@ export function AppShell() {
         </header>
 
         <div className="mx-auto max-w-7xl px-4 py-5 md:px-8 md:py-6">
+          {foregroundPush ? (
+            <div className="mb-4 rounded-3xl border border-brass/30 bg-brass/12 p-4 shadow-soft">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-brass">Notificacion recibida con la app abierta</p>
+                  <p className="mt-1 font-bold text-ink">{foregroundPush.title}</p>
+                  {foregroundPush.body ? <p className="mt-1 text-sm text-ink/65">{foregroundPush.body}</p> : null}
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="secondary" className="h-10 px-3 text-sm" onClick={openForegroundPush}>Abrir</Button>
+                  <Button variant="subtle" className="h-10 px-3 text-sm" onClick={() => setForegroundPush(null)}>Cerrar</Button>
+                </div>
+              </div>
+            </div>
+          ) : null}
           <AnimatePresence mode="wait">
             <motion.div
               key={location.pathname}

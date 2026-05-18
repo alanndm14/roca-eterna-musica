@@ -11,7 +11,7 @@ import { analyzeImport, parseSongsTable } from "../services/importSongs";
 import { canonicalThemeKey, collectSongThemes, getInstitutionalLogo, normalizeThemeName, resolvePublicAssetUrl } from "../services/songUtils";
 import { diagnosePublicAsset } from "../services/publicPdfTools";
 import { getLastPushResult, isPushBackendConfigured, sendExternalPush } from "../services/externalPush";
-import { diagnosePushNotifications, disablePushNotificationsForUser, enablePushNotificationsForUser, getCurrentPushTokenForUser } from "../services/pushNotifications";
+import { diagnosePushNotifications, disablePushNotificationsForUser, enablePushNotificationsForUser, getCurrentPushTokenForUser, getLastForegroundPush } from "../services/pushNotifications";
 import { appLogo, fallbackAppLogo } from "../assets/logo";
 
 const defaultColors = {
@@ -70,6 +70,7 @@ export function Settings() {
   const [pushDiagnostic, setPushDiagnostic] = useState(null);
   const [pushTestResult, setPushTestResult] = useState(() => getLastPushResult("test"));
   const [pushAutoResult, setPushAutoResult] = useState(() => getLastPushResult("auto"));
+  const [foregroundPushResult, setForegroundPushResult] = useState(() => getLastForegroundPush());
   const [isUpdatingPush, setIsUpdatingPush] = useState(false);
   const parsedImport = useMemo(() => parseSongsTable(importText, localSettings.keyPreference || "sharps"), [importText, localSettings.keyPreference]);
   const importSummary = useMemo(() => analyzeImport(parsedImport.songs, songs), [parsedImport.songs, songs]);
@@ -143,6 +144,12 @@ export function Settings() {
       blueGrayColor: profile?.blueGrayColor || defaultColors.blueGrayColor
     });
   }, [profile]);
+
+  useEffect(() => {
+    const handleForegroundPush = (event) => setForegroundPushResult(event.detail || getLastForegroundPush());
+    window.addEventListener("roca-eterna-foreground-push", handleForegroundPush);
+    return () => window.removeEventListener("roca-eterna-foreground-push", handleForegroundPush);
+  }, []);
 
   const updateSettings = (field, value) => {
     setLocalSettings((current) => ({ ...current, [field]: value }));
@@ -256,6 +263,7 @@ export function Settings() {
   const sendSelfTestPush = async () => {
     setIsUpdatingPush(true);
     try {
+      setForegroundPushResult(null);
       const tokenResult = await getCurrentPushTokenForUser(profile);
       setPushDiagnostic(tokenResult);
       if (!tokenResult.supported || !tokenResult.token) {
@@ -274,7 +282,8 @@ export function Settings() {
         { kind: "test" }
       );
       setPushTestResult(result);
-      setPushStatus(result.ok ? "Push de prueba enviado a este dispositivo." : result.body?.message || result.error || "No se pudo enviar el push de prueba.");
+      setForegroundPushResult(getLastForegroundPush());
+      setPushStatus(result.ok ? "Push enviado por FCM. Si no aparece en Windows, revisa permisos del navegador/sistema o prueba con la app en segundo plano." : result.body?.message || result.error || "No se pudo enviar el push de prueba.");
     } finally {
       setIsUpdatingPush(false);
     }
@@ -776,6 +785,7 @@ export function Settings() {
                   setPushDiagnostic(status);
                   setPushTestResult(getLastPushResult("test"));
                   setPushAutoResult(getLastPushResult("auto"));
+                  setForegroundPushResult(getLastForegroundPush());
                   setPushStatus(status.supported ? "Push listo para solicitar token en este navegador." : status.reason);
                 }}
               >
@@ -790,11 +800,17 @@ export function Settings() {
                     enviados: pushTestResult.body?.sent,
                     fallidos: pushTestResult.body?.failed,
                     invalidos: pushTestResult.body?.invalidTokens,
+                    avisoForegroundRecibido: foregroundPushResult ? "si" : "no",
+                    ultimaRecepcionForeground: foregroundPushResult?.receivedAt || "",
                     code: pushTestResult.body?.code,
                     etapa: pushTestResult.body?.stage,
                     mensaje: pushTestResult.body?.message || pushTestResult.error
                   }, null, 2)}</pre>
                 ) : <p>Sin prueba registrada.</p>}
+                <div className="rounded-xl bg-ink/5 p-2 text-[11px] leading-5 dark:bg-white/10">
+                  <p className="font-semibold text-ink">Recepcion foreground</p>
+                  <p>{foregroundPushResult ? `Mensaje recibido con la app abierta: ${foregroundPushResult.title}` : "Sin mensaje recibido con la app abierta en este navegador."}</p>
+                </div>
                 <p className="pt-2 font-semibold text-ink">Ultimo envio automatico</p>
                 {pushAutoResult ? (
                   <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-xl bg-ink/5 p-2 text-[11px] dark:bg-white/10">{JSON.stringify({
@@ -811,6 +827,10 @@ export function Settings() {
                     mensaje: pushAutoResult.body?.message || pushAutoResult.error
                   }, null, 2)}</pre>
                 ) : <p>Sin envio automatico registrado en este navegador.</p>}
+                <div className="rounded-xl bg-brass/10 p-2 text-[11px] leading-5 text-ink/70">
+                  <p className="font-semibold text-ink">Si FCM envia pero no ves la notificacion</p>
+                  <p>Revisa que Chrome tenga notificaciones permitidas en Windows, que No molestar/Focus Assist este desactivado, que el sitio tenga permiso en Chrome y prueba con la app en segundo plano.</p>
+                </div>
               </div>
             </>
           ) : null}

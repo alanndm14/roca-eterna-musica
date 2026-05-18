@@ -82,6 +82,24 @@ function logSafe(label, payload) {
   console.log(label, JSON.stringify(payload));
 }
 
+function appBaseUrl() {
+  return (process.env.PUSH_APP_BASE_URL || process.env.PUSH_ALLOWED_ORIGIN || "https://alanndm14.github.io/roca-eterna-musica").replace(/\/$/, "");
+}
+
+function absoluteAppUrl(url = "") {
+  if (/^https?:\/\//i.test(url)) return url;
+  const base = appBaseUrl();
+  if (!url) return `${base}/`;
+  if (url.startsWith("/#/")) return `${base}${url}`;
+  if (url.startsWith("#/")) return `${base}/${url}`;
+  if (url.startsWith("/")) return `${base}${url}`;
+  return `${base}/${url}`;
+}
+
+function publicIconUrl() {
+  return `${appBaseUrl()}/icons/icon-192.png`;
+}
+
 async function verifyRequester(request) {
   const authHeader = request.headers.authorization || "";
   const idToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
@@ -213,9 +231,27 @@ async function sendToTokens(entries, payload) {
           title: payload.title,
           body: payload.body
         },
+        webpush: {
+          notification: {
+            title: payload.title,
+            body: payload.body,
+            icon: publicIconUrl(),
+            badge: publicIconUrl(),
+            tag: payload.notificationId || payload.scheduleId || payload.songId || payload.type || "roca-eterna-push",
+            renotify: false
+          },
+          fcmOptions: {
+            link: absoluteAppUrl(payload.url)
+          }
+        },
         data: {
           type: payload.type || "other",
           url: payload.url || "/roca-eterna-musica/",
+          title: payload.title,
+          body: payload.body,
+          icon: publicIconUrl(),
+          badge: publicIconUrl(),
+          tag: payload.notificationId || payload.scheduleId || payload.songId || payload.type || "roca-eterna-push",
           scheduleId: payload.scheduleId || "",
           songId: payload.songId || "",
           notificationId: payload.notificationId || "",

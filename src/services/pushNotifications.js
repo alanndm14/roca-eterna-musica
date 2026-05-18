@@ -1,8 +1,9 @@
-import { deleteToken, getMessaging, getToken, isSupported } from "firebase/messaging";
+import { deleteToken, getMessaging, getToken, isSupported, onMessage } from "firebase/messaging";
 import { doc, serverTimestamp, setDoc } from "firebase/firestore";
 import { db, firebaseApp, firebaseVapidKey, isFirebaseConfigured } from "../lib/firebase";
 
 const TOKEN_STORAGE_KEY = "roca-eterna-fcm-token-id";
+const LAST_FOREGROUND_KEY = "roca-eterna-last-foreground-push";
 
 const tokenIdFromValue = (token = "") => token.replace(/[^a-zA-Z0-9_-]+/g, "_").slice(0, 120) || `${Date.now()}`;
 
@@ -29,6 +30,43 @@ const pushBaseDiagnostic = (overrides = {}) => ({
 });
 
 const deniedInstructions = "Las notificaciones estan bloqueadas para este sitio. Reactivalas desde Chrome > Configuracion > Configuracion de sitios > Notificaciones, busca alanndm14.github.io y cambia a Permitir. Tambien revisa Ajustes del telefono > Apps > Chrome > Notificaciones.";
+
+const normalizePushPayload = (payload = {}) => {
+  const data = payload.data || {};
+  const notification = payload.notification || {};
+  const url = data.url || payload.fcmOptions?.link || "/";
+  const notificationId = data.notificationId || data.scheduleId || data.songId || payload.messageId || `${Date.now()}`;
+  return {
+    id: notificationId,
+    notificationId,
+    title: notification.title || data.title || "Roca Eterna Musica",
+    body: notification.body || data.body || data.message || "",
+    icon: notification.icon || data.icon || `${import.meta.env.BASE_URL || "/"}icons/icon-192.png`,
+    badge: data.badge || `${import.meta.env.BASE_URL || "/"}icons/icon-192.png`,
+    url,
+    tag: data.tag || notificationId,
+    type: data.type || "other",
+    scheduleId: data.scheduleId || "",
+    songId: data.songId || "",
+    receivedAt: new Date().toISOString()
+  };
+};
+
+export function getLastForegroundPush() {
+  try {
+    return JSON.parse(localStorage.getItem(LAST_FOREGROUND_KEY) || "null");
+  } catch {
+    return null;
+  }
+}
+
+function saveLastForegroundPush(message) {
+  try {
+    localStorage.setItem(LAST_FOREGROUND_KEY, JSON.stringify(message));
+  } catch {
+    // El diagnostico no debe romper la experiencia principal.
+  }
+}
 
 async function getServiceWorkerRegistration() {
   if (!("serviceWorker" in navigator)) return null;
@@ -71,6 +109,17 @@ export async function getPushSupportStatus() {
   return pushBaseDiagnostic({ supported: true, reason: "" });
 }
 
+export async function subscribeForegroundPushMessages(callback) {
+  const support = await getPushSupportStatus();
+  if (!support.supported) return () => {};
+  const messaging = getMessaging(firebaseApp);
+  return onMessage(messaging, (payload) => {
+    const message = normalizePushPayload(payload);
+    saveLastForegroundPush(message);
+    callback?.(message, payload);
+  });
+}
+
 export async function diagnosePushNotifications(profile) {
   const support = await getPushSupportStatus();
   if (!support.supported) return support;
@@ -101,6 +150,7 @@ export async function diagnosePushNotifications(profile) {
   const cachedTokenId = localStorage.getItem(TOKEN_STORAGE_KEY);
   if (profile?.uid && cachedTokenId) {
     diagnostic.tokenPath = buildTokenPath(profile.uid, cachedTokenId);
+    diagnostic.firestoreWrite = "token existente";
   }
 
   return diagnostic;
@@ -271,6 +321,7 @@ export async function getCurrentPushTokenForUser(profile) {
     tokenObtained: true,
     tokenPreview: maskToken(token),
     tokenPath: buildTokenPath(profile.uid, tokenId),
+    firestoreWrite: "token existente",
     token
   };
 }
