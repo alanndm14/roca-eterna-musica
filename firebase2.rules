@@ -73,6 +73,21 @@ service cloud.firestore {
       return isAuthorized() && (role() == "admin" || role() == "editor");
     }
 
+    function canWriteOwnDeviceToken(userId) {
+      return signedIn()
+        && request.auth.uid == userId
+        && (
+          isBootstrapAdmin()
+          || (
+            hasUserDoc()
+            && userDoc().data.active == true
+            && userDoc().data.email == request.auth.token.email
+          )
+          || hasAuthorizedEmailDoc()
+          || hasLegacyAllowedEmailDoc()
+        );
+    }
+
     match /users/{userId} {
       allow read: if isAuthorized();
       allow create: if signedIn()
@@ -107,9 +122,8 @@ service cloud.firestore {
       allow delete: if isAdmin();
 
       match /fcmTokens/{tokenId} {
-        allow read: if isAdmin() || (isAuthorized() && request.auth.uid == userId);
-        allow create, update: if isAuthorized() && request.auth.uid == userId;
-        allow delete: if isAuthorized() && request.auth.uid == userId;
+        allow read: if isAdmin() || canWriteOwnDeviceToken(userId);
+        allow create, update, delete: if canWriteOwnDeviceToken(userId);
       }
     }
 

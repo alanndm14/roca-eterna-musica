@@ -10,7 +10,7 @@ import { useMusicData } from "../hooks/useMusicData";
 import { analyzeImport, parseSongsTable } from "../services/importSongs";
 import { canonicalThemeKey, collectSongThemes, getInstitutionalLogo, normalizeThemeName, resolvePublicAssetUrl } from "../services/songUtils";
 import { diagnosePublicAsset } from "../services/publicPdfTools";
-import { disablePushNotificationsForUser, enablePushNotificationsForUser, getPushSupportStatus } from "../services/pushNotifications";
+import { diagnosePushNotifications, disablePushNotificationsForUser, enablePushNotificationsForUser } from "../services/pushNotifications";
 import { appLogo, fallbackAppLogo } from "../assets/logo";
 
 const defaultColors = {
@@ -66,6 +66,7 @@ export function Settings() {
   const [pdfIndexProgress, setPdfIndexProgress] = useState(null);
   const [logoTest, setLogoTest] = useState(null);
   const [pushStatus, setPushStatus] = useState("");
+  const [pushDiagnostic, setPushDiagnostic] = useState(null);
   const [isUpdatingPush, setIsUpdatingPush] = useState(false);
   const parsedImport = useMemo(() => parseSongsTable(importText, localSettings.keyPreference || "sharps"), [importText, localSettings.keyPreference]);
   const importSummary = useMemo(() => analyzeImport(parsedImport.songs, songs), [parsedImport.songs, songs]);
@@ -223,9 +224,12 @@ export function Settings() {
     setIsUpdatingPush(true);
     try {
       const result = await enablePushNotificationsForUser(profile);
-      setPushStatus(result.supported ? "Notificaciones del navegador activadas para este dispositivo." : result.reason);
+      setPushDiagnostic(result);
+      setPushStatus(result.reason || (result.supported ? "Notificaciones del navegador activadas para este dispositivo." : "No se pudieron activar las notificaciones push."));
     } catch (error) {
-      setPushStatus(error.message || "No se pudieron activar las notificaciones push.");
+      const message = error.message || "No se pudo guardar este dispositivo para notificaciones. Revisa permisos de Firestore.";
+      setPushDiagnostic({ supported: false, firestoreWrite: "rechazada", error: message });
+      setPushStatus(message);
     } finally {
       setIsUpdatingPush(false);
     }
@@ -234,10 +238,13 @@ export function Settings() {
   const disablePush = async () => {
     setIsUpdatingPush(true);
     try {
-      await disablePushNotificationsForUser(profile);
-      setPushStatus("Notificaciones del navegador desactivadas para este dispositivo.");
+      const result = await disablePushNotificationsForUser(profile);
+      setPushDiagnostic(result);
+      setPushStatus(result.reason || "Notificaciones del navegador desactivadas para este dispositivo.");
     } catch (error) {
-      setPushStatus(error.message || "No se pudieron desactivar las notificaciones push.");
+      const message = error.message || "No se pudieron desactivar las notificaciones push.";
+      setPushDiagnostic({ supported: false, firestoreWrite: "rechazada", error: message });
+      setPushStatus(message);
     } finally {
       setIsUpdatingPush(false);
     }
@@ -687,12 +694,47 @@ export function Settings() {
             </Button>
           </div>
           {pushStatus ? <p className="mt-3 rounded-2xl bg-ink/5 p-3 text-sm text-ink/60">{pushStatus}</p> : null}
+          {pushDiagnostic ? (
+            <dl className="mt-3 space-y-2 rounded-2xl border border-ink/10 bg-white/70 p-3 text-xs text-ink/70 dark:bg-white/5">
+              <div className="flex justify-between gap-3">
+                <dt>Permiso del navegador</dt>
+                <dd className="text-right font-semibold text-ink">{pushDiagnostic.browserPermission || "sin revisar"}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt>VAPID key</dt>
+                <dd className="text-right font-semibold text-ink">{pushDiagnostic.hasVapidKey ? "configurada" : "faltante"}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt>Service worker</dt>
+                <dd className="text-right font-semibold text-ink">{pushDiagnostic.serviceWorkerRegistered ? "registrado" : "sin confirmar"}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt>Token FCM</dt>
+                <dd className="text-right font-semibold text-ink">{pushDiagnostic.tokenObtained ? `obtenido (${pushDiagnostic.tokenPreview})` : "sin token"}</dd>
+              </div>
+              <div className="grid gap-1">
+                <dt>Ruta Firestore</dt>
+                <dd className="break-all rounded-xl bg-ink/5 px-2 py-1 font-mono text-[11px] text-ink/70 dark:bg-white/10">{pushDiagnostic.tokenPath || "sin intento de escritura"}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt>Escritura en Firestore</dt>
+                <dd className="text-right font-semibold text-ink">{pushDiagnostic.firestoreWrite || "no intentada"}</dd>
+              </div>
+              {pushDiagnostic.error ? (
+                <div className="grid gap-1">
+                  <dt>Error exacto</dt>
+                  <dd className="break-words rounded-xl bg-red-50 px-2 py-1 text-red-700 dark:bg-red-500/10 dark:text-red-200">{pushDiagnostic.error}</dd>
+                </div>
+              ) : null}
+            </dl>
+          ) : null}
           {isAdmin ? (
             <Button
               className="mt-3 w-full"
               variant="subtle"
               onClick={async () => {
-                const status = await getPushSupportStatus();
+                const status = await diagnosePushNotifications(profile);
+                setPushDiagnostic(status);
                 setPushStatus(status.supported ? "Push listo para solicitar token en este navegador." : status.reason);
               }}
             >

@@ -2,7 +2,31 @@ import { deleteToken, getMessaging, getToken, isSupported } from "firebase/messa
 import { doc, serverTimestamp, setDoc } from "firebase/firestore";
 import { db, firebaseApp, firebaseVapidKey, isFirebaseConfigured } from "../lib/firebase";
 
+const TOKEN_STORAGE_KEY = "roca-eterna-fcm-token-id";
+
 const tokenIdFromValue = (token = "") => token.replace(/[^a-zA-Z0-9_-]+/g, "_").slice(0, 120) || `${Date.now()}`;
+
+const maskToken = (token = "") => {
+  if (!token) return "";
+  if (token.length <= 14) return `${token.slice(0, 4)}...`;
+  return `${token.slice(0, 6)}...${token.slice(-6)}`;
+};
+
+const buildTokenPath = (uid, tokenId) => `users/${uid}/fcmTokens/${tokenId}`;
+
+const pushBaseDiagnostic = (overrides = {}) => ({
+  supported: false,
+  reason: "",
+  browserPermission: typeof Notification === "undefined" ? "no_soportado" : Notification.permission,
+  hasVapidKey: Boolean(firebaseVapidKey),
+  serviceWorkerRegistered: false,
+  tokenObtained: false,
+  tokenPreview: "",
+  tokenPath: "",
+  firestoreWrite: "no_intentado",
+  error: "",
+  ...overrides
+});
 
 async function getServiceWorkerRegistration() {
   if (!("serviceWorker" in navigator)) return null;
@@ -14,66 +38,199 @@ async function getServiceWorkerRegistration() {
     messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "",
     appId: import.meta.env.VITE_FIREBASE_APP_ID || ""
   });
+
   try {
     return await navigator.serviceWorker.register(`${baseUrl}firebase-messaging-sw.js?${params.toString()}`);
-  } catch {
-    return navigator.serviceWorker.ready;
+  } catch (error) {
+    const readyRegistration = await navigator.serviceWorker.ready.catch(() => null);
+    if (readyRegistration) return readyRegistration;
+    throw error;
   }
 }
 
 export async function getPushSupportStatus() {
-  if (!isFirebaseConfigured || !firebaseApp) return { supported: false, reason: "Firebase no está configurado." };
-  if (!firebaseVapidKey) return { supported: false, reason: "Las notificaciones push aún no están configuradas. Las notificaciones dentro de la app siguen activas." };
-  if (!("Notification" in window)) return { supported: false, reason: "Este navegador no soporta notificaciones." };
-  if (!(await isSupported())) return { supported: false, reason: "Firebase Messaging no está disponible en este navegador." };
-  return { supported: true, reason: "" };
+  if (!isFirebaseConfigured || !firebaseApp || !db) {
+    return pushBaseDiagnostic({ reason: "Firebase no esta configurado." });
+  }
+  if (!firebaseVapidKey) {
+    return pushBaseDiagnostic({
+      reason: "Las notificaciones push aun no estan configuradas. Las notificaciones dentro de la app siguen activas."
+    });
+  }
+  if (!("Notification" in window)) {
+    return pushBaseDiagnostic({ reason: "Este navegador no soporta notificaciones." });
+  }
+  if (!("serviceWorker" in navigator)) {
+    return pushBaseDiagnostic({ reason: "Este navegador no soporta service workers." });
+  }
+  if (!(await isSupported())) {
+    return pushBaseDiagnostic({ reason: "Firebase Messaging no esta disponible en este navegador." });
+  }
+  return pushBaseDiagnostic({ supported: true, reason: "" });
+}
+
+export async function diagnosePushNotifications(profile) {
+  const support = await getPushSupportStatus();
+  if (!support.supported) return support;
+
+  const diagnostic = {
+    ...support,
+    browserPermission: Notification.permission,
+    supported: true
+  };
+
+  try {
+    const registration = await getServiceWorkerRegistration();
+    diagnostic.serviceWorkerRegistered = Boolean(registration);
+  } catch (error) {
+    diagnostic.supported = false;
+    diagnostic.reason = "No se pudo registrar el service worker de notificaciones.";
+    diagnostic.error = error?.message || String(error);
+  }
+
+  const cachedTokenId = localStorage.getItem(TOKEN_STORAGE_KEY);
+  if (profile?.uid && cachedTokenId) {
+    diagnostic.tokenPath = buildTokenPath(profile.uid, cachedTokenId);
+  }
+
+  return diagnostic;
 }
 
 export async function enablePushNotificationsForUser(profile) {
   const support = await getPushSupportStatus();
-  if (!support.supported) return support;
+  const diagnostic = {
+    ...support,
+    browserPermission: typeof Notification === "undefined" ? "no_soportado" : Notification.permission
+  };
+
+  if (!profile?.uid) {
+    return {
+      ...diagnostic,
+      supported: false,
+      reason: "No se encontro un usuario autenticado para guardar este dispositivo."
+    };
+  }
+
+  if (!support.supported) return diagnostic;
 
   const permission = await Notification.requestPermission();
-  if (permission !== "granted") return { supported: false, reason: "El permiso de notificaciones no fue concedido." };
+  diagnostic.browserPermission = permission;
+  if (permission !== "granted") {
+    return {
+      ...diagnostic,
+      supported: false,
+      reason: "El permiso de notificaciones no fue concedido."
+    };
+  }
 
-  const registration = await getServiceWorkerRegistration();
-  const messaging = getMessaging(firebaseApp);
-  const token = await getToken(messaging, {
-    vapidKey: firebaseVapidKey,
-    serviceWorkerRegistration: registration || undefined
-  });
+  let registration = null;
+  try {
+    registration = await getServiceWorkerRegistration();
+    diagnostic.serviceWorkerRegistered = Boolean(registration);
+  } catch (error) {
+    return {
+      ...diagnostic,
+      supported: false,
+      reason: "No se pudo registrar el service worker de notificaciones.",
+      error: error?.message || String(error)
+    };
+  }
 
-  if (!token) return { supported: false, reason: "No se pudo obtener token FCM." };
+  let token = "";
+  try {
+    const messaging = getMessaging(firebaseApp);
+    token = await getToken(messaging, {
+      vapidKey: firebaseVapidKey,
+      serviceWorkerRegistration: registration || undefined
+    });
+  } catch (error) {
+    return {
+      ...diagnostic,
+      supported: false,
+      reason: "No se pudo obtener token FCM.",
+      error: error?.message || String(error)
+    };
+  }
+
+  if (!token) {
+    return {
+      ...diagnostic,
+      supported: false,
+      reason: "No se pudo obtener token FCM."
+    };
+  }
 
   const tokenId = tokenIdFromValue(token);
-  await setDoc(
-    doc(db, "users", profile.uid, "fcmTokens", tokenId),
-    {
-      token,
-      userAgent: navigator.userAgent,
-      active: true,
-      createdAt: serverTimestamp(),
-      lastSeenAt: serverTimestamp()
-    },
-    { merge: true }
-  );
+  const tokenPath = buildTokenPath(profile.uid, tokenId);
+  diagnostic.tokenObtained = true;
+  diagnostic.tokenPreview = maskToken(token);
+  diagnostic.tokenPath = tokenPath;
 
-  localStorage.setItem("roca-eterna-fcm-token-id", tokenId);
-  return { supported: true, tokenId };
+  try {
+    await setDoc(
+      doc(db, "users", profile.uid, "fcmTokens", tokenId),
+      {
+        token,
+        userAgent: navigator.userAgent,
+        active: true,
+        createdAt: serverTimestamp(),
+        lastSeenAt: serverTimestamp()
+      },
+      { merge: true }
+    );
+    localStorage.setItem(TOKEN_STORAGE_KEY, tokenId);
+    return {
+      ...diagnostic,
+      supported: true,
+      firestoreWrite: "permitida",
+      reason: "Notificaciones del navegador activadas para este dispositivo.",
+      tokenId
+    };
+  } catch (error) {
+    return {
+      ...diagnostic,
+      supported: false,
+      firestoreWrite: "rechazada",
+      reason: "No se pudo guardar este dispositivo para notificaciones. Revisa permisos de Firestore.",
+      error: error?.message || String(error)
+    };
+  }
 }
 
 export async function disablePushNotificationsForUser(profile) {
-  if (!profile?.uid || !isFirebaseConfigured || !firebaseApp) return;
-  const tokenId = localStorage.getItem("roca-eterna-fcm-token-id");
+  const diagnostic = pushBaseDiagnostic({ supported: true });
+  if (!profile?.uid || !isFirebaseConfigured || !firebaseApp || !db) return diagnostic;
+
+  const tokenId = localStorage.getItem(TOKEN_STORAGE_KEY);
+  diagnostic.tokenPath = tokenId ? buildTokenPath(profile.uid, tokenId) : "";
+
   try {
     if (await isSupported()) {
       const messaging = getMessaging(firebaseApp);
       await deleteToken(messaging).catch(() => undefined);
     }
-  } finally {
+
     if (tokenId) {
-      await setDoc(doc(db, "users", profile.uid, "fcmTokens", tokenId), { active: false, lastSeenAt: serverTimestamp() }, { merge: true });
-      localStorage.removeItem("roca-eterna-fcm-token-id");
+      await setDoc(
+        doc(db, "users", profile.uid, "fcmTokens", tokenId),
+        { active: false, lastSeenAt: serverTimestamp() },
+        { merge: true }
+      );
+      diagnostic.firestoreWrite = "permitida";
+      localStorage.removeItem(TOKEN_STORAGE_KEY);
     }
+
+    return {
+      ...diagnostic,
+      reason: "Notificaciones del navegador desactivadas para este dispositivo."
+    };
+  } catch (error) {
+    return {
+      ...diagnostic,
+      supported: false,
+      firestoreWrite: "rechazada",
+      reason: "No se pudo guardar este dispositivo para notificaciones. Revisa permisos de Firestore.",
+      error: error?.message || String(error)
+    };
   }
 }
