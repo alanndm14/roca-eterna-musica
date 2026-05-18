@@ -11,6 +11,8 @@ const firebaseConfig = {
   appId: params.get("appId") || ""
 };
 
+const baseUrl = new URL(self.registration.scope).pathname || "/";
+const iconPath = `${baseUrl.replace(/\/$/, "")}/icons/icon-192.png`;
 const hasConfig = Object.values(firebaseConfig).every(Boolean);
 
 if (hasConfig) {
@@ -18,11 +20,11 @@ if (hasConfig) {
   const messaging = firebase.messaging();
 
   messaging.onBackgroundMessage((payload) => {
-    const title = payload.notification?.title || payload.data?.title || "Roca Eterna Música";
+    const title = payload.notification?.title || payload.data?.title || "Roca Eterna Musica";
     const options = {
       body: payload.notification?.body || payload.data?.body || payload.data?.message || "",
-      icon: payload.data?.icon || "/roca-eterna-musica/icons/icon-192.png",
-      badge: payload.data?.badge || "/roca-eterna-musica/icons/icon-192.png",
+      icon: payload.data?.icon || iconPath,
+      badge: payload.data?.badge || iconPath,
       data: payload.data || {}
     };
     self.registration.showNotification(title, options);
@@ -34,15 +36,15 @@ self.addEventListener("push", (event) => {
   try {
     data = event.data ? event.data.json() : {};
   } catch {
-    data = { title: "Roca Eterna Música", body: event.data?.text?.() || "Nueva notificación" };
+    data = { title: "Roca Eterna Musica", body: event.data?.text?.() || "Nueva notificacion" };
   }
 
   const notification = data.notification || data;
-  const title = notification.title || data.title || "Roca Eterna Música";
+  const title = notification.title || data.title || "Roca Eterna Musica";
   const options = {
     body: notification.body || notification.message || data.body || "",
-    icon: data.icon || data.data?.icon || "/roca-eterna-musica/icons/icon-192.png",
-    badge: data.badge || data.data?.badge || "/roca-eterna-musica/icons/icon-192.png",
+    icon: data.icon || data.data?.icon || iconPath,
+    badge: data.badge || data.data?.badge || iconPath,
     data: data.data || data || {}
   };
 
@@ -51,10 +53,11 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = event.notification?.data?.url || "/roca-eterna-musica/";
+  const fallbackUrl = self.registration.scope || "/";
+  const url = event.notification?.data?.url || fallbackUrl;
   event.waitUntil((async () => {
     const windows = await clients.matchAll({ type: "window", includeUncontrolled: true });
-    const existing = windows.find((client) => client.url.includes("/roca-eterna-musica/"));
+    const existing = windows.find((client) => client.url.startsWith(self.registration.scope));
     if (existing) {
       await existing.focus();
       return existing.navigate(url);
