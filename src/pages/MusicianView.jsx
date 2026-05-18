@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { PDFDownloadLink, pdf } from "@react-pdf/renderer";
 import { ArrowDown, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, Download, ExternalLink, Eye, FileStack, Maximize2, Minimize2, Trash2, Upload } from "lucide-react";
 import { Button } from "../components/ui/Button";
@@ -126,6 +126,7 @@ export function MusicianView() {
   const [replaceTarget, setReplaceTarget] = useState(null);
   const [isMergingLocalFiles, setIsMergingLocalFiles] = useState(false);
   const [isMergingServiceLocal, setIsMergingServiceLocal] = useState(false);
+  const selectedServiceRef = useRef(null);
   const today = todayString();
   const [pickerDate, setPickerDate] = useState(today);
 
@@ -286,12 +287,24 @@ export function MusicianView() {
     setReplaceTarget(null);
   };
 
+  const selectNextSchedule = () => {
+    const next = getCurrentOrNextSchedule(schedules);
+    if (!next?.id) {
+      alert("No hay próxima programación registrada.");
+      return;
+    }
+    setSelectedId(next.id);
+    if (next.date) setPickerDate(next.date);
+    requestAnimationFrame(() => selectedServiceRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }));
+  };
+
   if (!scheduleOptions.length) {
     return <EmptyState title="No hay programaciones" text="Cuando exista una programación, aparecerá aquí en una vista limpia para ensayo." />;
   }
 
   return (
     <div className={`space-y-5 ${focusMode ? "mx-auto max-w-none" : ""}`}>
+      <div ref={selectedServiceRef}>
       <Card className="bg-ink text-white">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
           <div className="min-w-0">
@@ -303,7 +316,7 @@ export function MusicianView() {
           </div>
           <div className="flex flex-wrap gap-2">
             {nextSchedule ? (
-              <Button variant="light" onClick={() => setSelectedId(nextSchedule.id)}>
+              <Button variant="light" onClick={selectNextSchedule}>
                 Próxima programación
               </Button>
             ) : null}
@@ -323,6 +336,7 @@ export function MusicianView() {
             )}
           </div>        </div>
       </Card>
+      </div>
 
       <Card>
         <div className="flex items-center gap-2">

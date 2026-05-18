@@ -1,6 +1,7 @@
 import { deleteToken, getMessaging, getToken, isSupported, onMessage } from "firebase/messaging";
 import { doc, serverTimestamp, setDoc } from "firebase/firestore";
 import { db, firebaseApp, firebaseVapidKey, isFirebaseConfigured } from "../lib/firebase";
+import { resolvePublicAssetUrl } from "./songUtils";
 
 const TOKEN_STORAGE_KEY = "roca-eterna-fcm-token-id";
 const LAST_FOREGROUND_KEY = "roca-eterna-last-foreground-push";
@@ -31,11 +32,18 @@ const pushBaseDiagnostic = (overrides = {}) => ({
   ...overrides
 });
 
-const deniedInstructions = "Las notificaciones estan bloqueadas para este sitio. Reactivalas desde Chrome > Configuracion > Configuracion de sitios > Notificaciones, busca alanndm14.github.io y cambia a Permitir. Tambien revisa Ajustes del telefono > Apps > Chrome > Notificaciones.";
+const deniedInstructions = "Las notificaciones están bloqueadas para este sitio. Reactívalas desde Chrome > Configuración > Configuración de sitios > Notificaciones, busca alanndm14.github.io y cambia a Permitir. También revisa Ajustes del teléfono > Apps > Chrome > Notificaciones.";
 
 const androidDefaultInstructions = "Este sitio todavia no tiene permiso de notificaciones. Toca Activar notificaciones para solicitarlo. Los permisos generales de Chrome no bastan; este sitio debe tener permiso propio.";
 
-const iconUrl = () => new URL(`${import.meta.env.BASE_URL || "/"}icons/icon-192.png`, window.location.origin).href;
+const iconUrl = () => {
+  const preferred =
+    localStorage.getItem("roca-eterna-logo-light-src")
+    || localStorage.getItem("roca-eterna-logo-dark-src")
+    || localStorage.getItem("roca-eterna-logo-src")
+    || "";
+  return resolvePublicAssetUrl(preferred) || new URL(`${import.meta.env.BASE_URL || "/"}icons/icon-192.png`, window.location.origin).href;
+};
 
 const normalizePushPayload = (payload = {}) => {
   const data = payload.data || {};
@@ -47,11 +55,12 @@ const normalizePushPayload = (payload = {}) => {
     notificationId,
     title: notification.title || data.title || "Roca Eterna Musica",
     body: notification.body || data.body || data.message || "",
-    icon: notification.icon || data.icon || `${import.meta.env.BASE_URL || "/"}icons/icon-192.png`,
-    badge: data.badge || `${import.meta.env.BASE_URL || "/"}icons/icon-192.png`,
+    icon: notification.icon || data.icon || iconUrl(),
+    badge: data.badge || iconUrl(),
     url,
     tag: data.tag || notificationId,
     type: data.type || "other",
+    hasNotificationPayload: Boolean(payload.notification?.title || payload.notification?.body),
     scheduleId: data.scheduleId || "",
     songId: data.songId || "",
     receivedAt: new Date().toISOString()
@@ -335,7 +344,7 @@ export async function enablePushNotificationsForUser(profile) {
       ...diagnostic,
       supported: false,
       reason: permission === "default"
-        ? "Chrome no mostro el permiso. Abre el candado o Configuracion del sitio y permite notificaciones para este sitio."
+        ? "Chrome no mostró el permiso. Abre el candado o Configuración del sitio y permite notificaciones para este sitio."
         : "El permiso de notificaciones no fue concedido."
     };
   }
@@ -626,7 +635,7 @@ export async function testLocalNotification(options = {}) {
   result.permissionAfter = permission;
   if (permission !== "granted") {
     result.error = permission === "default"
-      ? "Chrome no mostro el permiso. Abre el candado o Configuracion del sitio y permite notificaciones para este sitio."
+      ? "Chrome no mostró el permiso. Abre el candado o Configuración del sitio y permite notificaciones para este sitio."
       : "El permiso de notificaciones no fue concedido.";
     return result;
   }

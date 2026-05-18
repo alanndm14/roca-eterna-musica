@@ -16,7 +16,7 @@ import {
 import { deleteObject, getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { db, isFirebaseConfigured, storage } from "../lib/firebase";
 import { sampleSchedules, sampleSettings, sampleSongs, sampleThemes, sampleUsers } from "../data/mockData";
-import { canonicalThemeKey, normalizeSong, normalizeThemeName } from "../services/songUtils";
+import { canonicalThemeKey, normalizeSong, normalizeThemeName, resolveAppLogoForNotification } from "../services/songUtils";
 import { extractLocalPdfText } from "../services/pdfTextIndex";
 import { sendExternalPush } from "../services/externalPush";
 import { useAuth } from "./useAuth";
@@ -35,6 +35,13 @@ const defaultLocalData = {
 
 const sampleAuditLogs = [];
 const sampleNotifications = [];
+
+const formatSchedulePushBody = (schedule = {}) => {
+  const date = schedule.date
+    ? new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "long" }).format(new Date(`${schedule.date}T00:00:00`))
+    : "Sin fecha";
+  return `${schedule.serviceLabel || schedule.type || "Servicio"} · ${date} · ${schedule.time || "Sin hora"}`;
+};
 
 const loadLocalData = () => {
   try {
@@ -189,7 +196,7 @@ export function MusicDataProvider({ children }) {
   const createNotification = async (notification) => {
     const payload = {
       type: notification.type || "other",
-      title: notification.title || "Nueva notificacion",
+      title: notification.title || "Nueva notificación",
       message: notification.message || "",
       scheduleId: notification.scheduleId || "",
       songId: notification.songId || "",
@@ -264,7 +271,9 @@ export function MusicDataProvider({ children }) {
           body: payload.title,
           url: `/#/repertorio/${id}`,
           songId: id,
-          notificationId: notification.id
+          notificationId: notification.id,
+          icon: resolveAppLogoForNotification(settings, "light"),
+          badge: resolveAppLogoForNotification(settings, "light")
         });
         return id;
       }
@@ -295,7 +304,9 @@ export function MusicDataProvider({ children }) {
         body: payload.title,
         url: `/#/repertorio/${created.id}`,
         songId: created.id,
-        notificationId: notification.id
+        notificationId: notification.id,
+        icon: resolveAppLogoForNotification(settings, "light"),
+        badge: resolveAppLogoForNotification(settings, "light")
       });
       return created.id;
     }
@@ -404,7 +415,7 @@ export function MusicDataProvider({ children }) {
     if (useLocal) {
       if (schedule.id) {
         setSchedules((current) => current.map((item) => (item.id === schedule.id ? { ...item, ...payload } : item)));
-        await logAuditEvent({ actionType: "update", entityType: "schedule", entityId: schedule.id, entityName: payload.serviceLabel || payload.date, summary: `Programacion editada: ${payload.serviceLabel || payload.date}`, beforeData: before, afterData: payload });
+        await logAuditEvent({ actionType: "update", entityType: "schedule", entityId: schedule.id, entityName: payload.serviceLabel || payload.date, summary: `Programación editada: ${payload.serviceLabel || payload.date}`, beforeData: before, afterData: payload });
       } else {
         const id = makeId("schedule");
         setSchedules((current) => [
@@ -416,22 +427,24 @@ export function MusicDataProvider({ children }) {
             createdBy: profile.uid
           }
         ]);
-        await logAuditEvent({ actionType: "create", entityType: "schedule", entityId: id, entityName: payload.serviceLabel || payload.date, summary: `Programacion creada: ${payload.serviceLabel || payload.date}`, afterData: payload });
+        await logAuditEvent({ actionType: "create", entityType: "schedule", entityId: id, entityName: payload.serviceLabel || payload.date, summary: `Programación creada: ${payload.serviceLabel || payload.date}`, afterData: payload });
         if (isFutureSchedule(payload)) {
           const notification = await createNotification({
             type: "new_schedule",
-            title: "Nueva programacion futura",
-            message: `${payload.serviceLabel || "Servicio"} - ${payload.date} ${payload.time || ""}`.trim(),
+            title: "Nueva programación",
+            message: formatSchedulePushBody(payload),
             scheduleId: id,
             isFutureSchedule: true
           });
           await sendExternalPush({
             type: "new_schedule",
-            title: "Nueva programación futura",
-            body: `${payload.serviceLabel || "Servicio"} · ${payload.date} ${payload.time || ""}`.trim(),
+            title: "Nueva programación",
+            body: formatSchedulePushBody(payload),
             url: "/#/programacion",
             scheduleId: id,
-            notificationId: notification.id
+            notificationId: notification.id,
+            icon: resolveAppLogoForNotification(settings, "light"),
+            badge: resolveAppLogoForNotification(settings, "light")
           });
         }
       }
@@ -441,29 +454,31 @@ export function MusicDataProvider({ children }) {
     if (schedule.id) {
       const { id, ...data } = payload;
       await updateDoc(doc(db, "schedules", id), data);
-      await logAuditEvent({ actionType: "update", entityType: "schedule", entityId: id, entityName: data.serviceLabel || data.date, summary: `Programacion editada: ${data.serviceLabel || data.date}`, beforeData: before, afterData: data });
+      await logAuditEvent({ actionType: "update", entityType: "schedule", entityId: id, entityName: data.serviceLabel || data.date, summary: `Programación editada: ${data.serviceLabel || data.date}`, beforeData: before, afterData: data });
     } else {
       const created = await addDoc(collection(db, "schedules"), {
         ...payload,
         createdAt: serverTimestamp(),
         createdBy: profile.uid
       });
-      await logAuditEvent({ actionType: "create", entityType: "schedule", entityId: created.id, entityName: payload.serviceLabel || payload.date, summary: `Programacion creada: ${payload.serviceLabel || payload.date}`, afterData: payload });
+      await logAuditEvent({ actionType: "create", entityType: "schedule", entityId: created.id, entityName: payload.serviceLabel || payload.date, summary: `Programación creada: ${payload.serviceLabel || payload.date}`, afterData: payload });
       if (isFutureSchedule(payload)) {
         const notification = await createNotification({
           type: "new_schedule",
-          title: "Nueva programacion futura",
-          message: `${payload.serviceLabel || "Servicio"} - ${payload.date} ${payload.time || ""}`.trim(),
+          title: "Nueva programación",
+          message: formatSchedulePushBody(payload),
           scheduleId: created.id,
           isFutureSchedule: true
         });
         await sendExternalPush({
           type: "new_schedule",
-          title: "Nueva programación futura",
-          body: `${payload.serviceLabel || "Servicio"} · ${payload.date} ${payload.time || ""}`.trim(),
+          title: "Nueva programación",
+          body: formatSchedulePushBody(payload),
           url: "/#/programacion",
           scheduleId: created.id,
-          notificationId: notification.id
+          notificationId: notification.id,
+          icon: resolveAppLogoForNotification(settings, "light"),
+          badge: resolveAppLogoForNotification(settings, "light")
         });
       }
     }
@@ -473,11 +488,11 @@ export function MusicDataProvider({ children }) {
     const before = schedules.find((schedule) => schedule.id === scheduleId);
     if (useLocal) {
       setSchedules((current) => current.filter((schedule) => schedule.id !== scheduleId));
-      await logAuditEvent({ actionType: "delete", entityType: "schedule", entityId: scheduleId, entityName: before?.serviceLabel || before?.date || "", summary: `Programacion eliminada: ${before?.serviceLabel || before?.date || scheduleId}`, beforeData: before });
+      await logAuditEvent({ actionType: "delete", entityType: "schedule", entityId: scheduleId, entityName: before?.serviceLabel || before?.date || "", summary: `Programación eliminada: ${before?.serviceLabel || before?.date || scheduleId}`, beforeData: before });
       return;
     }
     await deleteDoc(doc(db, "schedules", scheduleId));
-    await logAuditEvent({ actionType: "delete", entityType: "schedule", entityId: scheduleId, entityName: before?.serviceLabel || before?.date || "", summary: `Programacion eliminada: ${before?.serviceLabel || before?.date || scheduleId}`, beforeData: before });
+    await logAuditEvent({ actionType: "delete", entityType: "schedule", entityId: scheduleId, entityName: before?.serviceLabel || before?.date || "", summary: `Programación eliminada: ${before?.serviceLabel || before?.date || scheduleId}`, beforeData: before });
   };
 
   const restoreFromAuditLog = async (log) => {
@@ -535,7 +550,7 @@ export function MusicDataProvider({ children }) {
         : entry
     ));
     const updated = { ...before, songs: nextSongs, status: "confirmed", updatedAt: useLocal ? new Date().toISOString().slice(0, 10) : serverTimestamp() };
-    const summary = `Canto sustituido en programacion: ${oldSongEntry.titleSnapshot || "canto anterior"} -> ${newSong.title}`;
+    const summary = `Canto sustituido en programación: ${oldSongEntry.titleSnapshot || "canto anterior"} -> ${newSong.title}`;
 
     if (useLocal) {
       setSchedules((current) => current.map((item) => (item.id === scheduleId ? updated : item)));
@@ -557,7 +572,7 @@ export function MusicDataProvider({ children }) {
     if (isFutureSchedule(updated)) {
       await createNotification({
         type: "updated_schedule",
-        title: "Programacion actualizada",
+        title: "Programación actualizada",
         message: summary,
         scheduleId,
         isFutureSchedule: true
@@ -637,11 +652,11 @@ export function MusicDataProvider({ children }) {
     const before = settings;
     if (useLocal) {
       setSettings(nextSettings);
-      await logAuditEvent({ actionType: "update", entityType: "settings", entityId: "main", entityName: "Configuracion global", summary: "Configuracion global actualizada", beforeData: before, afterData: nextSettings });
+      await logAuditEvent({ actionType: "update", entityType: "settings", entityId: "main", entityName: "Configuración global", summary: "Configuración global actualizada", beforeData: before, afterData: nextSettings });
       return;
     }
     await setDoc(doc(db, "settings", "main"), nextSettings, { merge: true });
-    await logAuditEvent({ actionType: "update", entityType: "settings", entityId: "main", entityName: "Configuracion global", summary: "Configuracion global actualizada", beforeData: before, afterData: nextSettings });
+    await logAuditEvent({ actionType: "update", entityType: "settings", entityId: "main", entityName: "Configuración global", summary: "Configuración global actualizada", beforeData: before, afterData: nextSettings });
   };
 
   const saveTheme = async (theme) => {

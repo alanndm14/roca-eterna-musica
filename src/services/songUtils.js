@@ -151,6 +151,13 @@ export function getInstitutionalLogo(settings = {}, fallback = "", themeMode = "
   return resolvePublicAssetPath(source) || fallback;
 }
 
+export function resolveAppLogoForNotification(settings = {}, themeMode = "light") {
+  const effectiveMode = getEffectiveThemeMode(themeMode);
+  const preferred = effectiveMode === "dark" ? settings.logoDarkUrl : settings.logoLightUrl;
+  const alternate = effectiveMode === "dark" ? settings.logoLightUrl : settings.logoDarkUrl;
+  return resolvePublicAssetUrl(preferred || alternate || "");
+}
+
 export function shouldInvertInstitutionalLogo(settings = {}, themeMode = "system") {
   return false;
 }

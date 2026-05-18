@@ -84,7 +84,17 @@ function showNotificationOnce(payload) {
   if (shownTags.has(message.tag)) return Promise.resolve();
   shownTags.add(message.tag);
   setTimeout(() => shownTags.delete(message.tag), 60000);
-  return self.registration.showNotification(message.title, {
+  return self.registration.getNotifications?.({ tag: message.tag }).then((existing = []) => {
+    if (existing.length) return undefined;
+    return self.registration.showNotification(message.title, {
+      body: message.body,
+      icon: message.icon,
+      badge: message.badge,
+      tag: message.tag,
+      renotify: false,
+      data: message.data
+    });
+  }) || self.registration.showNotification(message.title, {
     body: message.body,
     icon: message.icon,
     badge: message.badge,

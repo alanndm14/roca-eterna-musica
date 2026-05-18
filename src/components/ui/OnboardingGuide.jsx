@@ -9,16 +9,16 @@ const allSteps = [
   { route: "/", target: '[data-tour="nav-inicio"]', title: "Inicio", text: "Proximo servicio, pendientes y accesos rapidos.", roles: ["admin", "editor", "viewer"] },
   { route: "/repertorio", target: '[data-tour="nav-repertorio"]', title: "Repertorio", text: "Consulta cantos, tonos, temas, PDFs y enlaces.", roles: ["admin", "editor", "viewer"] },
   { route: "/repertorio", target: '[data-tour="song-add"]', title: "Agregar canto", text: "Agrega o edita repertorio del ministerio.", roles: ["admin", "editor"] },
-  { route: "/programacion", target: '[data-tour="nav-programacion"]', title: "Programacion", text: "Calendario, servicios y cantos en orden.", roles: ["admin", "editor", "viewer"] },
-  { route: "/programacion", target: '[data-tour="schedule-new"]', title: "Nueva programacion", text: "Crea servicios usando la fecha seleccionada.", roles: ["admin", "editor"] },
+  { route: "/programacion", target: '[data-tour="nav-programacion"]', title: "Programación", text: "Calendario, servicios y cantos en orden.", roles: ["admin", "editor", "viewer"] },
+  { route: "/programacion", target: '[data-tour="schedule-new"]', title: "Nueva programación", text: "Crea servicios usando la fecha seleccionada.", roles: ["admin", "editor"] },
   { route: "/musicos", target: '[data-tour="nav-musicos"]', title: "Vista para musicos", text: "Ensayo, PDFs y hoja del servicio.", roles: ["admin", "editor", "viewer"] },
   { route: "/musicos", target: '[data-tour="service-local-merge"]', title: "Unir PDFs", text: "Une PDFs locales publicados en la app.", roles: ["admin", "editor"] },
   { route: "/historial", target: '[data-tour="nav-historial"]', title: "Historial", text: "Consulta servicios pasados registrados.", roles: ["admin", "editor"] },
-  { route: "/estadisticas", target: '[data-tour="nav-estadisticas"]', title: "Estadisticas", text: "Analiza repertorio por tema, tono y uso.", roles: ["admin", "editor"] },
-  { route: "/configuracion", target: '[data-tour="nav-configuracion"]', title: "Configuracion", text: "Preferencias personales y ayuda.", roles: ["admin", "editor", "viewer"] },
-  { route: "/auditoria", target: '[data-tour="nav-auditoria"]', title: "Auditoria", text: "Revisa cambios y restaura versiones.", roles: ["admin"] },
+  { route: "/estadisticas", target: '[data-tour="nav-estadisticas"]', title: "Estadísticas", text: "Analiza repertorio por tema, tono y uso.", roles: ["admin", "editor"] },
+  { route: "/configuracion", target: '[data-tour="nav-configuracion"]', title: "Configuración", text: "Preferencias personales y ayuda.", roles: ["admin", "editor", "viewer"] },
+  { route: "/auditoria", target: '[data-tour="nav-auditoria"]', title: "Auditoría", text: "Revisa cambios y restaura versiones.", roles: ["admin"] },
   { route: "/actualizaciones", target: '[data-tour="nav-actualizaciones"]', title: "Actualizaciones", text: "Consulta cambios de cada version.", roles: ["admin", "editor"] },
-  { route: "/configuracion", target: null, title: "Listo", text: "Puedes volver a abrir esta guia desde Ayuda.", roles: ["admin", "editor", "viewer"] }
+  { route: "/configuracion", target: null, title: "Listo", text: "Puedes volver a abrir esta guía desde Ayuda.", roles: ["admin", "editor", "viewer"] }
 ];
 
 export function OnboardingGuide({ open, onClose, onFinish, logoSrc = appLogo, logoAlt = "Roca Eterna Música", logoMode = "light", role = "viewer" }) {
@@ -136,11 +136,11 @@ export function OnboardingGuide({ open, onClose, onFinish, logoSrc = appLogo, lo
                   className={`h-10 w-10 rounded-2xl object-contain p-1 shadow-soft sm:h-11 sm:w-11 ${logoMode === "dark" ? "bg-zinc-950" : "bg-white"}`}
                 />
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-wide text-brass">Guia interactiva</p>
+                  <p className="text-xs font-bold uppercase tracking-wide text-brass">Guía interactiva</p>
                   <p className="text-xs font-semibold text-ink/55">Paso {index + 1} de {steps.length}</p>
                 </div>
               </div>
-              <Button variant="subtle" className="h-9 w-9 px-0" onClick={onClose} aria-label="Cerrar guia">
+              <Button variant="subtle" className="h-9 w-9 px-0" onClick={onClose} aria-label="Cerrar guía">
                 <X className="h-4 w-4" />
               </Button>
             </div>

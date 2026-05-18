@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, CalendarPlus, CheckCircle, Copy, Edit3, ExternalLink, FileText, Headphones, Youtube } from "lucide-react";
+import { ArrowLeft, CalendarPlus, CheckCircle, Copy, Edit3, ExternalLink, FileText, Headphones, Trash2, Youtube } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -43,7 +43,7 @@ export function SongDetail() {
   const { songId } = useParams();
   const navigate = useNavigate();
   const { canEdit } = useAuth();
-  const { songs, schedules, themes, duplicateSong, saveSchedule, saveSong, settings, logAuditEvent } = useMusicData();
+  const { songs, schedules, themes, duplicateSong, deleteSong, saveSchedule, saveSong, settings, logAuditEvent } = useMusicData();
   const [showPdf, setShowPdf] = useState(false);
   const [pdfTest, setPdfTest] = useState(null);
   const [editingSong, setEditingSong] = useState(false);
@@ -128,6 +128,17 @@ export function SongDetail() {
     navigate("/programacion");
   };
 
+  const removeCurrentSong = async () => {
+    if (!confirm(`¿Eliminar este canto del repertorio?\n\nEsta acción quitará "${song.title}" del repertorio y de futuras selecciones. El historial de programaciones pasadas conservará el nombre guardado.`)) return;
+    try {
+      await deleteSong(song.id);
+      alert("Canto eliminado del repertorio.");
+      navigate("/repertorio");
+    } catch (error) {
+      alert(error?.message || "No se pudo eliminar el canto.");
+    }
+  };
+
   return (
     <div className="space-y-5">
       <Button variant="subtle" onClick={() => navigate(-1)}>
@@ -163,6 +174,10 @@ export function SongDetail() {
                 <Button variant="darkSubtle" onClick={() => duplicateSong(song)}>
                   <Copy className="h-4 w-4" />
                   Duplicar
+                </Button>
+                <Button variant="danger" onClick={removeCurrentSong}>
+                  <Trash2 className="h-4 w-4" />
+                  Eliminar canto
                 </Button>
               </>
             ) : null}

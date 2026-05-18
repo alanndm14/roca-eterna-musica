@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { Bell, CheckCheck, HelpCircle, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Bell, CalendarDays, CheckCheck, HelpCircle, Music2, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { appLogo, fallbackAppLogo } from "../../assets/logo";
 import { useAuth } from "../../hooks/useAuth";
 import { useMusicData } from "../../hooks/useMusicData";
@@ -15,11 +15,11 @@ import { Sidebar } from "./Sidebar";
 const pageNames = {
   "/": "Inicio",
   "/repertorio": "Repertorio",
-  "/programacion": "Programacion",
-  "/musicos": "Vista para musicos",
+  "/programacion": "Programación",
+  "/musicos": "Vista para músicos",
   "/historial": "Historial",
-  "/estadisticas": "Estadisticas",
-  "/configuracion": "Configuracion",
+  "/estadisticas": "Estadísticas",
+  "/configuracion": "Configuración",
   "/auditoria": "Registro de cambios",
   "/actualizaciones": "Actualizaciones"
 };
@@ -34,7 +34,7 @@ export function AppShell() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem(sidebarStorageKey) === "true");
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [foregroundPush, setForegroundPush] = useState(null);
-  const pageTitle = pageNames[location.pathname] || "Roca Eterna Musica";
+  const pageTitle = pageNames[location.pathname] || "Roca Eterna Música";
   const themeMode = profile?.themeMode || localStorage.getItem("roca-eterna-theme-mode") || "system";
   const effectiveTheme = getEffectiveThemeMode(themeMode);
   const logoSrc = getInstitutionalLogo(settings, appLogo, themeMode);
@@ -67,7 +67,7 @@ export function AppShell() {
   useEffect(() => {
     let unsubscribe = () => {};
     let cancelled = false;
-    const shown = new Set();
+    const shown = new Map();
 
     const openUrl = (url) => {
       if (!url) return;
@@ -87,18 +87,20 @@ export function AppShell() {
     };
 
     subscribeForegroundPushMessages((message) => {
-      if (cancelled || shown.has(message.notificationId)) return;
-      shown.add(message.notificationId);
+      const tag = message.tag || message.notificationId || message.scheduleId || message.songId || `${message.type}-${Math.floor(Date.now() / 10000)}`;
+      if (cancelled || shown.has(tag)) return;
+      shown.set(tag, Date.now());
+      setTimeout(() => shown.delete(tag), 15000);
       setForegroundPush(message);
       window.dispatchEvent(new CustomEvent("roca-eterna-foreground-push", { detail: message }));
 
-      if ("Notification" in window && Notification.permission === "granted") {
+      if (!message.hasNotificationPayload && "Notification" in window && Notification.permission === "granted") {
         try {
           const notification = new Notification(message.title, {
             body: message.body,
             icon: message.icon,
             badge: message.badge,
-            tag: message.tag,
+            tag,
             renotify: false,
             data: { url: message.url }
           });
@@ -225,7 +227,7 @@ export function AppShell() {
                   Modo demo
                 </span>
               ) : null}
-              <Button variant="subtle" className="h-10 w-10 px-0" onClick={openGuide} aria-label="Guia de uso">
+              <Button variant="subtle" className="h-10 w-10 px-0" onClick={openGuide} aria-label="Guía de uso">
                 <HelpCircle className="h-4 w-4" />
               </Button>
               <div className="relative">
@@ -249,15 +251,27 @@ export function AppShell() {
                     <div className="mt-3 max-h-80 space-y-2 overflow-auto">
                       {visibleNotifications.length ? visibleNotifications.slice(0, 12).map((item) => {
                         const unread = !(item.readBy || []).includes(profile?.uid);
+                        const Icon = item.type === "new_song" ? Music2 : item.type === "new_schedule" || item.type === "updated_schedule" ? CalendarDays : Bell;
                         return (
                           <button
                             key={item.id}
                             type="button"
                             onClick={() => openNotification(item)}
-                            className={`w-full rounded-2xl p-3 text-left transition ${unread ? "bg-brass/12" : "bg-ink/5 dark:bg-white/7"}`}
+                            className={`grid w-full grid-cols-[2.5rem_1fr] gap-3 rounded-2xl border p-3 text-left transition hover:border-brass/45 hover:bg-brass/5 ${unread ? "border-brass/30 bg-brass/12" : "border-transparent bg-ink/5 dark:bg-white/7"}`}
                           >
-                            <p className="text-sm font-bold text-ink">{item.title}</p>
-                            <p className="mt-1 text-xs leading-5 text-ink/60">{item.message}</p>
+                            <span className={`grid h-10 w-10 place-items-center rounded-2xl ${unread ? "bg-brass text-white" : "bg-ink/10 text-ink/65 dark:bg-white/10"}`}>
+                              <Icon className="h-4 w-4" />
+                            </span>
+                            <span className="min-w-0">
+                              <span className="flex items-center justify-between gap-2">
+                                <span className="text-sm font-bold text-ink">{item.title}</span>
+                                {unread ? <span className="h-2 w-2 rounded-full bg-brass" aria-label="No leída" /> : null}
+                              </span>
+                              <span className="mt-1 block text-xs leading-5 text-ink/60">{item.message}</span>
+                              <span className="mt-2 block text-[11px] text-ink/40">
+                                {item.createdAt ? new Date(item.createdAt.seconds ? item.createdAt.seconds * 1000 : item.createdAt).toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" }) : ""}
+                              </span>
+                            </span>
                           </button>
                         );
                       }) : <p className="rounded-2xl bg-ink/5 p-3 text-sm text-ink/55">No hay notificaciones.</p>}
@@ -271,19 +285,35 @@ export function AppShell() {
 
         <div className="mx-auto max-w-7xl px-4 py-5 md:px-8 md:py-6">
           {foregroundPush ? (
-            <div className="mb-4 rounded-3xl border border-brass/30 bg-brass/12 p-4 shadow-soft">
+            <motion.div
+              role="button"
+              tabIndex={0}
+              onClick={openForegroundPush}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") openForegroundPush();
+              }}
+              className="mb-4 w-full rounded-3xl border border-brass/35 bg-brass/12 p-4 text-left shadow-[0_0_28px_rgba(182,148,95,0.18)] transition hover:border-brass/60 hover:bg-brass/16"
+              initial={{ opacity: 0, y: -8, scale: 0.99 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.24 }}
+            >
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-brass">Notificacion recibida con la app abierta</p>
-                  <p className="mt-1 font-bold text-ink">{foregroundPush.title}</p>
-                  {foregroundPush.body ? <p className="mt-1 text-sm text-ink/65">{foregroundPush.body}</p> : null}
+                <div className="flex gap-3">
+                  <span className="mt-1 grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-brass text-white shadow-soft">
+                    {foregroundPush.type === "new_song" ? <Music2 className="h-5 w-5" /> : <CalendarDays className="h-5 w-5" />}
+                  </span>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-brass">Novedades</p>
+                    <p className="mt-1 font-bold text-ink">{foregroundPush.title}</p>
+                    {foregroundPush.body ? <p className="mt-1 text-sm text-ink/65">{foregroundPush.body}</p> : null}
+                  </div>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="secondary" className="h-10 px-3 text-sm" onClick={openForegroundPush}>Abrir</Button>
-                  <Button variant="subtle" className="h-10 px-3 text-sm" onClick={() => setForegroundPush(null)}>Cerrar</Button>
+                  <span className="inline-flex h-10 items-center rounded-xl bg-white px-3 text-sm font-semibold text-ink shadow-soft dark:bg-white/10 dark:text-white">Abrir</span>
+                  <Button variant="subtle" className="h-10 px-3 text-sm" onClick={(event) => { event.stopPropagation(); setForegroundPush(null); }}>Cerrar</Button>
                 </div>
               </div>
-            </div>
+            </motion.div>
           ) : null}
           <AnimatePresence mode="wait">
             <motion.div

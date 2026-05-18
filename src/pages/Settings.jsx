@@ -8,7 +8,7 @@ import { Modal } from "../components/ui/Modal";
 import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
 import { analyzeImport, parseSongsTable } from "../services/importSongs";
-import { canonicalThemeKey, collectSongThemes, getInstitutionalLogo, normalizeThemeName, resolvePublicAssetUrl } from "../services/songUtils";
+import { canonicalThemeKey, collectSongThemes, getInstitutionalLogo, normalizeThemeName, resolveAppLogoForNotification, resolvePublicAssetUrl } from "../services/songUtils";
 import { diagnosePublicAsset } from "../services/publicPdfTools";
 import { getLastPushResult, isPushBackendConfigured, sendExternalPush } from "../services/externalPush";
 import { diagnosePushNotifications, disablePushNotificationsForUser, enablePushNotificationsForUser, getCurrentPushTokenForUser, getLastBackgroundPush, getLastForegroundPush, reinstallMessagingServiceWorker, requestSiteNotificationPermissionOnly, testLocalNotification } from "../services/pushNotifications";
@@ -240,7 +240,7 @@ export function Settings() {
 
   const statusForUser = (user) => {
     if (user.active === false) return "inactivo";
-    return users.some((item) => item.email === user.email) ? "activo" : "pendiente de iniciar sesion";
+    return users.some((item) => item.email === user.email) ? "activo" : "pendiente de iniciar sesión";
   };
 
   const refreshApp = async () => {
@@ -317,7 +317,10 @@ export function Settings() {
           body: "Este dispositivo ya puede recibir push.",
           url: "/#/configuracion",
           token: tokenResult.token,
-          tokenId: tokenResult.tokenId
+          tokenId: tokenResult.tokenId,
+          notificationId: `self-test-${Date.now()}`,
+          icon: resolveAppLogoForNotification(settings, personalSettings.themeMode || "light"),
+          badge: resolveAppLogoForNotification(settings, personalSettings.themeMode || "light")
         },
         { kind: "test" }
       );
@@ -348,12 +351,14 @@ export function Settings() {
           url: "/#/configuracion",
           token: tokenResult.token,
           tokenId: tokenResult.tokenId,
-          notificationId: `data-only-${Date.now()}`
+          notificationId: `data-only-${Date.now()}`,
+          icon: resolveAppLogoForNotification(settings, personalSettings.themeMode || "light"),
+          badge: resolveAppLogoForNotification(settings, personalSettings.themeMode || "light")
         },
         { kind: "test" }
       );
       setPushTestResult(result);
-      setPushStatus(result.ok ? "Prueba FCM data-only enviada. Revisa si aparece recepcion foreground." : result.body?.message || result.error || "No se pudo enviar la prueba data-only.");
+      setPushStatus(result.ok ? "Prueba FCM data-only enviada. Revisa si aparece recepción foreground." : result.body?.message || result.error || "No se pudo enviar la prueba data-only.");
     } finally {
       setIsUpdatingPush(false);
     }
@@ -362,13 +367,13 @@ export function Settings() {
   const runLocalNotificationTest = async () => {
     const result = await testLocalNotification();
     setLocalNotificationResult(result);
-    setPushStatus(result.executed ? "Notification API ejecutada sin error. Si no ves el globo, revisa el centro de notificaciones de Windows, No molestar y permisos de Chrome." : result.error || "No se pudo ejecutar la notificacion local.");
+    setPushStatus(result.executed ? "Notification API ejecutada sin error. Si no ves el globo, revisa el centro de notificaciones de Windows, No molestar y permisos de Chrome." : result.error || "No se pudo ejecutar la notificación local.");
   };
 
   const runPersistentLocalNotificationTest = async () => {
     const result = await testLocalNotification({ requireInteraction: true });
     setLocalNotificationResult(result);
-    setPushStatus(result.executed ? "Notificacion local persistente ejecutada sin error. Si no aparece, el bloqueo esta en Chrome/Windows/Android." : result.error || "No se pudo ejecutar la notificacion persistente.");
+    setPushStatus(result.executed ? "Notificación local persistente ejecutada sin error. Si no aparece, el bloqueo esta en Chrome/Windows/Android." : result.error || "No se pudo ejecutar la notificación persistente.");
   };
 
   const requestSitePermission = async () => {
@@ -432,7 +437,7 @@ export function Settings() {
         <Card>
           <div className="flex items-center gap-3">
             <ImageIcon className="h-5 w-5 text-brass" />
-            <h2 className="text-xl font-bold text-ink">Configuracion institucional</h2>
+            <h2 className="text-xl font-bold text-ink">Configuración institucional</h2>
           </div>
           <div className="mt-5 grid gap-4 md:grid-cols-2">
             <Field label="Nombre de la iglesia">
@@ -494,7 +499,7 @@ export function Settings() {
             <Tags className="h-5 w-5 text-brass" />
             <h2 className="text-xl font-bold text-ink">Temas del repertorio</h2>
           </div>
-          <p className="mt-1 text-sm text-ink/55">Los filtros tambien incluyen temas detectados automaticamente en el repertorio.</p>
+          <p className="mt-1 text-sm text-ink/55">Los filtros también incluyen temas detectados automaticamente en el repertorio.</p>
           <div className="mt-5 grid gap-3 lg:grid-cols-[1fr_220px_320px]">
             <Input placeholder="Buscar tema" value={themeQuery} onChange={(event) => setThemeQuery(event.target.value)} />
             <Select value={themeFilter} onChange={(event) => setThemeFilter(event.target.value)}>
@@ -732,7 +737,7 @@ export function Settings() {
         {isAdmin ? (
           <Card data-tour="settings-access">
             <h2 className="text-xl font-bold text-ink">Correos autorizados</h2>
-            <p className="mt-1 text-sm text-ink/55">Autoriza correos antes de que entren con Google. Los usuarios reales aparecen despues de iniciar sesion.</p>
+            <p className="mt-1 text-sm text-ink/55">Autoriza correos antes de que entren con Google. Los usuarios reales aparecen despues de iniciar sesión.</p>
             <div className="mt-5 grid gap-3 md:grid-cols-[1fr_1fr_140px_120px]">
               <Input placeholder="correo@gmail.com" value={newUser.email} onChange={(event) => setNewUser((current) => ({ ...current, email: event.target.value }))} />
               <Input placeholder="Nombre visible" value={newUser.displayName} onChange={(event) => setNewUser((current) => ({ ...current, displayName: event.target.value }))} />
@@ -757,7 +762,7 @@ export function Settings() {
                   <div>
                     <p className="font-semibold text-ink">{user.displayName || user.email}</p>
                     <p className="text-sm text-ink/55">{user.email}</p>
-                    <p className="text-xs text-ink/45">Ultima conexion: {formatAccessDate(user.lastSeenAt || user.lastLoginAt || user.lastLogin)}</p>
+                    <p className="text-xs text-ink/45">Última conexion: {formatAccessDate(user.lastSeenAt || user.lastLoginAt || user.lastLogin)}</p>
                   </div>
                   <span className="text-sm font-semibold text-ink/60">{statusForUser(user)}</span>
                   <Select value={user.role || "viewer"} onChange={(event) => saveAccessUser({ ...user, role: event.target.value })}>
@@ -801,7 +806,7 @@ export function Settings() {
 
       <aside className="space-y-5">
         <Card>
-          <h2 className="text-xl font-bold text-ink">Mi sesion</h2>
+          <h2 className="text-xl font-bold text-ink">Mi sesión</h2>
           <dl className="mt-4 space-y-3 text-sm">
             <div className="flex justify-between gap-4"><dt className="text-ink/50">Nombre</dt><dd className="text-right font-semibold text-ink">{profile?.displayName}</dd></div>
             <div className="flex justify-between gap-4"><dt className="text-ink/50">Correo</dt><dd className="text-right font-semibold text-ink">{profile?.email}</dd></div>
@@ -809,16 +814,16 @@ export function Settings() {
           </dl>
           <Button variant="danger" className="mt-6 w-full" onClick={signOut}>
             <LogOut className="h-4 w-4" />
-            Cerrar sesion
+            Cerrar sesión
           </Button>
         </Card>
 
         <Card>
           <h2 className="text-xl font-bold text-ink">Ayuda</h2>
-          <p className="mt-3 text-sm leading-6 text-ink/60">Abre de nuevo la guia interactiva para repasar como usar cada seccion de la app.</p>
+          <p className="mt-3 text-sm leading-6 text-ink/60">Abre de nuevo la guía interactiva para repasar como usar cada seccion de la app.</p>
           <Button className="mt-4 w-full" variant="secondary" onClick={() => window.dispatchEvent(new Event("roca-eterna-open-guide"))}>
             <HelpCircle className="h-4 w-4" />
-            Ver guia otra vez
+            Ver guía otra vez
           </Button>
         </Card>
 
@@ -861,12 +866,12 @@ export function Settings() {
           <div className="mt-4 grid gap-2">
             {isAdmin ? (
               <Button className="w-full" variant="secondary" disabled={isUpdatingPush} onClick={runLocalNotificationTest}>
-                Probar notificacion local
+                Probar notificación local
               </Button>
             ) : null}
             {isAdmin ? (
               <Button className="w-full" variant="subtle" disabled={isUpdatingPush} onClick={runPersistentLocalNotificationTest}>
-                Probar notificacion local persistente
+                Probar notificación local persistente
               </Button>
             ) : null}
             {isAdmin ? (
@@ -904,7 +909,7 @@ export function Settings() {
               {pushTestResult ? (
                 <p>Prueba FCM: {pushTestResult.ok ? `enviada (${pushTestResult.body?.sent || 0} enviados, ${pushTestResult.body?.failed || 0} fallidos)` : pushTestResult.body?.message || pushTestResult.error || "fallo"}.</p>
               ) : null}
-              <p>Recepcion: app abierta {foregroundPushResult ? "recibida" : "sin confirmar"}; segundo plano {backgroundPushResult ? "recibida" : "sin confirmar"}.</p>
+              <p>Recepción: app abierta {foregroundPushResult ? "recibida" : "sin confirmar"}; segundo plano {backgroundPushResult ? "recibida" : "sin confirmar"}.</p>
             </div>
           ) : null}
           {isAdmin ? (
@@ -1012,7 +1017,7 @@ export function Settings() {
                     permisoAntes: localNotificationResult.permissionBefore,
                     permisoDespues: localNotificationResult.permissionAfter,
                     metodoUsado: localNotificationResult.method || "sin metodo",
-                    notificacionLocalIntentada: localNotificationResult.attempted ? "si" : "no",
+                    notificaciónLocalIntentada: localNotificationResult.attempted ? "si" : "no",
                     notificationApiEjecutadaSinError: localNotificationResult.executed ? "si" : "no",
                     origin: localNotificationResult.origin,
                     href: localNotificationResult.href,
@@ -1020,7 +1025,7 @@ export function Settings() {
                   }, null, 2)}</pre>
                 ) : <p>Sin prueba local registrada.</p>}
                 <p className="rounded-xl bg-brass/10 p-2 text-[11px] leading-5 text-ink/70">Si esta prueba dice ejecutada sin error pero no ves el globo, revisa el centro de notificaciones de Windows, No molestar y permisos de Chrome.</p>
-                <p className="font-semibold text-ink">Ultima prueba push</p>
+                <p className="font-semibold text-ink">Última prueba push</p>
                 {pushTestResult ? (
                   <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-xl bg-ink/5 p-2 text-[11px] dark:bg-white/10">{JSON.stringify({
                     hora: pushTestResult.at,
@@ -1029,7 +1034,7 @@ export function Settings() {
                     fallidos: pushTestResult.body?.failed,
                     invalidos: pushTestResult.body?.invalidTokens,
                     avisoForegroundRecibido: foregroundPushResult ? "si" : "no",
-                    ultimaRecepcionForeground: foregroundPushResult?.receivedAt || "",
+                    ultimaRecepciónForeground: foregroundPushResult?.receivedAt || "",
                     code: pushTestResult.body?.code,
                     etapa: pushTestResult.body?.stage,
                     source: pushTestResult.body?.source,
@@ -1038,11 +1043,11 @@ export function Settings() {
                   }, null, 2)}</pre>
                 ) : <p>Sin prueba registrada.</p>}
                 <div className="rounded-xl bg-ink/5 p-2 text-[11px] leading-5 dark:bg-white/10">
-                  <p className="font-semibold text-ink">Recepcion foreground</p>
+                  <p className="font-semibold text-ink">Recepción foreground</p>
                   <p>{foregroundPushResult ? `Mensaje recibido con la app abierta: ${foregroundPushResult.title}` : "Sin mensaje recibido con la app abierta en este navegador."}</p>
                 </div>
                 <div className="rounded-xl bg-ink/5 p-2 text-[11px] leading-5 dark:bg-white/10">
-                  <p className="font-semibold text-ink">Recepcion background / service worker</p>
+                  <p className="font-semibold text-ink">Recepción background / service worker</p>
                   <p>{backgroundPushResult ? `Mensaje recibido por service worker: ${backgroundPushResult.title}` : "Sin mensaje background registrado en este navegador."}</p>
                 </div>
                 <p className="pt-2 font-semibold text-ink">Ultimo envio automatico</p>
@@ -1062,7 +1067,7 @@ export function Settings() {
                   }, null, 2)}</pre>
                 ) : <p>Sin envio automatico registrado en este navegador.</p>}
                 <div className="rounded-xl bg-brass/10 p-2 text-[11px] leading-5 text-ink/70">
-                  <p className="font-semibold text-ink">Si FCM envia pero no ves la notificacion</p>
+                  <p className="font-semibold text-ink">Si FCM envia pero no ves la notificación</p>
                   <p>Revisa que Chrome tenga notificaciones permitidas en Windows, que No molestar/Focus Assist este desactivado, que el sitio tenga permiso en Chrome y prueba con la app en segundo plano.</p>
                 </div>
               </div>

@@ -247,13 +247,15 @@ async function sendToTokens(entries, payload) {
 
   for (const entry of entries) {
     try {
+      const icon = payload.icon || publicIconUrl();
+      const badge = payload.badge || icon;
       const data = stringData({
         type: payload.type || "other",
         url: payload.url || "/roca-eterna-musica/",
         title: payload.title,
         body: payload.body,
-        icon: publicIconUrl(),
-        badge: publicIconUrl(),
+        icon,
+        badge,
         tag: payload.notificationId || payload.scheduleId || payload.songId || payload.type || "roca-eterna-push",
         scheduleId: payload.scheduleId || "",
         songId: payload.songId || "",
@@ -273,8 +275,8 @@ async function sendToTokens(entries, payload) {
           notification: {
             title: payload.title,
             body: payload.body,
-            icon: publicIconUrl(),
-            badge: publicIconUrl(),
+            icon,
+            badge,
             tag: data.tag,
             renotify: false,
             requireInteraction: false
