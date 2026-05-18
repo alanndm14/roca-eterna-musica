@@ -523,6 +523,85 @@ export async function requestSiteNotificationPermissionOnly() {
   return result;
 }
 
+async function showLocalTestNotification({ title, body, requireInteraction = false }) {
+  if (!("Notification" in window)) {
+    return { ok: false, method: "", error: "Notification API no disponible" };
+  }
+  if (Notification.permission !== "granted") {
+    return { ok: false, method: "", error: "Permiso no concedido" };
+  }
+
+  const options = {
+    body,
+    icon: iconUrl(),
+    badge: iconUrl(),
+    tag: "roca-eterna-local-test",
+    requireInteraction: Boolean(requireInteraction),
+    data: {
+      url: window.location.href,
+      type: "local_test"
+    }
+  };
+
+  let registration = null;
+  let registrationError = "";
+  try {
+    registration = await navigator.serviceWorker?.ready;
+  } catch (error) {
+    registrationError = error?.message || String(error);
+  }
+
+  if (registration && typeof registration.showNotification === "function") {
+    try {
+      await registration.showNotification(title, options);
+      return { ok: true, method: "serviceWorkerRegistration.showNotification", error: "" };
+    } catch (error) {
+      registrationError = error?.message || String(error);
+    }
+  }
+
+  if (typeof Notification === "function") {
+    try {
+      const notification = new Notification(title, {
+        body,
+        icon: iconUrl(),
+        tag: "roca-eterna-local-test",
+        requireInteraction: Boolean(requireInteraction)
+      });
+      notification.onclick = () => {
+        window.focus();
+        notification.close();
+      };
+      return { ok: true, method: "new Notification", error: "" };
+    } catch (error) {
+      const notificationError = error?.message || String(error);
+      if (registration && typeof registration.showNotification === "function") {
+        try {
+          await registration.showNotification(title, options);
+          return { ok: true, method: "serviceWorkerRegistration.showNotification", error: "" };
+        } catch (retryError) {
+          return {
+            ok: false,
+            method: "serviceWorkerRegistration.showNotification",
+            error: retryError?.message || String(retryError)
+          };
+        }
+      }
+      return {
+        ok: false,
+        method: "new Notification",
+        error: registrationError ? `${notificationError} / Service worker: ${registrationError}` : notificationError
+      };
+    }
+  }
+
+  return {
+    ok: false,
+    method: registrationError ? "serviceWorkerRegistration.showNotification" : "",
+    error: registrationError || "Notification API no disponible"
+  };
+}
+
 export async function testLocalNotification(options = {}) {
   const permissionBefore = typeof Notification === "undefined" ? "no_soportado" : Notification.permission;
   const result = {
@@ -530,8 +609,10 @@ export async function testLocalNotification(options = {}) {
     permissionAfter: permissionBefore,
     attempted: false,
     executed: false,
+    method: "",
     error: "",
-    origin: window.location.origin
+    origin: window.location.origin,
+    href: window.location.href
   };
 
   if (!("Notification" in window)) {
@@ -552,17 +633,14 @@ export async function testLocalNotification(options = {}) {
 
   try {
     result.attempted = true;
-    const notification = new Notification("Prueba local", {
+    const localResult = await showLocalTestNotification({
+      title: options.requireInteraction ? "Prueba local persistente" : "Prueba local",
       body: "Chrome puede mostrar notificaciones para Roca Eterna Musica.",
-      icon: iconUrl(),
-      tag: "roca-eterna-local-test",
       requireInteraction: Boolean(options.requireInteraction)
     });
-    notification.onclick = () => {
-      window.focus();
-      notification.close();
-    };
-    result.executed = true;
+    result.method = localResult.method;
+    result.executed = localResult.ok;
+    result.error = localResult.error || "";
   } catch (error) {
     result.error = error?.message || String(error);
   }

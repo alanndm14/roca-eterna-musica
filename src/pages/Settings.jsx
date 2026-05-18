@@ -26,6 +26,13 @@ const formatAccessDate = (value) => {
 };
 
 const boolLabel = (value) => (value === true ? "si" : value === false ? "no" : "sin confirmar");
+const permissionLabel = (value) => {
+  if (value === "granted") return "concedido";
+  if (value === "denied") return "bloqueado";
+  if (value === "default") return "pendiente";
+  return value || "sin revisar";
+};
+const yesNoLabel = (value) => (value ? "si" : "no");
 
 export function Settings() {
   const { profile, isAdmin, signOut, saveUserPreferences } = useAuth();
@@ -76,8 +83,31 @@ export function Settings() {
   const [backgroundPushResult, setBackgroundPushResult] = useState(() => getLastBackgroundPush());
   const [localNotificationResult, setLocalNotificationResult] = useState(null);
   const [isUpdatingPush, setIsUpdatingPush] = useState(false);
+  const [showAdvancedPushDiagnostics, setShowAdvancedPushDiagnostics] = useState(false);
   const parsedImport = useMemo(() => parseSongsTable(importText, localSettings.keyPreference || "sharps"), [importText, localSettings.keyPreference]);
   const importSummary = useMemo(() => analyzeImport(parsedImport.songs, songs), [parsedImport.songs, songs]);
+  const pushSummary = useMemo(() => {
+    const browserPermission = pushDiagnostic?.browserPermission || (typeof Notification !== "undefined" ? Notification.permission : "no_soportado");
+    const deviceRegistered = Boolean(
+      pushDiagnostic?.tokenObtained ||
+      pushDiagnostic?.tokenPath ||
+      pushDiagnostic?.firestoreWrite === "permitida" ||
+      pushDiagnostic?.firestoreWrite === "token existente"
+    );
+    const sentCount = Number(pushTestResult?.body?.sent || pushTestResult?.body?.enviados || 0);
+    const fcmOk = Boolean(pushTestResult?.ok && sentCount > 0);
+    const foregroundOk = Boolean(foregroundPushResult);
+    const backgroundOk = Boolean(backgroundPushResult);
+    return {
+      browserPermission,
+      deviceRegistered,
+      fcmOk,
+      foregroundOk,
+      backgroundOk,
+      allOk: browserPermission === "granted" && deviceRegistered && fcmOk && foregroundOk && backgroundOk,
+      tokenOperational: fcmOk && (foregroundOk || backgroundOk)
+    };
+  }, [pushDiagnostic, pushTestResult, foregroundPushResult, backgroundPushResult]);
 
   const themeRows = useMemo(() => {
     const counts = new Map();
@@ -347,7 +377,8 @@ export function Settings() {
       permissionBefore: result.permissionBefore,
       permissionAfter: result.permissionAfter,
       attempted: false,
-      shown: false,
+      executed: false,
+      method: "",
       error: result.error,
       origin: result.origin,
       href: result.href
@@ -799,6 +830,34 @@ export function Settings() {
           <p className="mt-3 rounded-2xl bg-ink/5 p-3 text-sm text-ink/60 dark:bg-white/5">
             Backend push configurado: <span className="font-semibold text-ink">{isPushBackendConfigured() ? "si" : "no"}</span>
           </p>
+          <div className={`mt-3 rounded-2xl border p-3 text-sm ${pushSummary.allOk ? "border-emerald-500/30 bg-emerald-50 text-emerald-900 dark:bg-emerald-500/10 dark:text-emerald-100" : "border-ink/10 bg-white/70 text-ink/70 dark:bg-white/5"}`}>
+            <p className="font-bold text-ink">Estado de notificaciones</p>
+            <dl className="mt-3 space-y-2 text-xs">
+              <div className="flex justify-between gap-3">
+                <dt>Permiso del navegador</dt>
+                <dd className="font-semibold text-ink">{permissionLabel(pushSummary.browserPermission)}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt>Dispositivo registrado</dt>
+                <dd className="font-semibold text-ink">{yesNoLabel(pushSummary.deviceRegistered)}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt>Push FCM</dt>
+                <dd className="font-semibold text-ink">{pushSummary.fcmOk ? "correcto" : "sin probar"}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt>App abierta</dt>
+                <dd className="font-semibold text-ink">{pushSummary.foregroundOk ? "recibido" : "sin recibir"}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt>App en segundo plano</dt>
+                <dd className="font-semibold text-ink">{pushSummary.backgroundOk ? "recibido" : "sin recibir"}</dd>
+              </div>
+            </dl>
+            {pushSummary.allOk ? (
+              <p className="mt-3 rounded-xl bg-emerald-500/10 p-2 text-xs font-semibold text-emerald-900 dark:text-emerald-100">Push funcionando correctamente en este dispositivo.</p>
+            ) : null}
+          </div>
           <div className="mt-4 grid gap-2">
             {isAdmin ? (
               <Button className="w-full" variant="secondary" disabled={isUpdatingPush} onClick={runLocalNotificationTest}>
@@ -836,7 +895,24 @@ export function Settings() {
             </Button>
           </div>
           {pushStatus ? <p className="mt-3 rounded-2xl bg-ink/5 p-3 text-sm text-ink/60">{pushStatus}</p> : null}
-          {pushDiagnostic ? (
+          {(localNotificationResult || pushTestResult || foregroundPushResult || backgroundPushResult) ? (
+            <div className="mt-3 space-y-2 rounded-2xl border border-ink/10 bg-white/70 p-3 text-xs text-ink/70 dark:bg-white/5">
+              <p className="font-bold text-ink">Ultimos resultados</p>
+              {localNotificationResult ? (
+                <p>Prueba local: {localNotificationResult.executed ? "ejecutada sin error" : "no ejecutada"}{localNotificationResult.method ? ` via ${localNotificationResult.method}` : ""}.</p>
+              ) : null}
+              {pushTestResult ? (
+                <p>Prueba FCM: {pushTestResult.ok ? `enviada (${pushTestResult.body?.sent || 0} enviados, ${pushTestResult.body?.failed || 0} fallidos)` : pushTestResult.body?.message || pushTestResult.error || "fallo"}.</p>
+              ) : null}
+              <p>Recepcion: app abierta {foregroundPushResult ? "recibida" : "sin confirmar"}; segundo plano {backgroundPushResult ? "recibida" : "sin confirmar"}.</p>
+            </div>
+          ) : null}
+          {isAdmin ? (
+            <Button className="mt-3 w-full" variant="subtle" onClick={() => setShowAdvancedPushDiagnostics((value) => !value)}>
+              {showAdvancedPushDiagnostics ? "Ocultar diagnostico avanzado" : "Diagnostico avanzado"}
+            </Button>
+          ) : null}
+          {showAdvancedPushDiagnostics && pushDiagnostic ? (
             <dl className="mt-3 space-y-2 rounded-2xl border border-ink/10 bg-white/70 p-3 text-xs text-ink/70 dark:bg-white/5">
               <div className="flex justify-between gap-3">
                 <dt>Permiso del navegador</dt>
@@ -894,7 +970,7 @@ export function Settings() {
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div><dt>SW activo con FCM</dt><dd className="font-semibold text-ink">{boolLabel(pushDiagnostic.serviceWorkerHasFcmSupport)}</dd></div>
-                <div><dt>Token usa SW activo</dt><dd className="font-semibold text-ink">{boolLabel(pushDiagnostic.serviceWorkerUsedMatchesActive)}</dd></div>
+                <div><dt>Token FCM operativo</dt><dd className="font-semibold text-ink">{pushSummary.tokenOperational ? "si" : boolLabel(pushDiagnostic.serviceWorkerUsedMatchesActive)}</dd></div>
               </div>
               <div className="flex justify-between gap-3">
                 <dt>Status SW file</dt>
@@ -928,12 +1004,14 @@ export function Settings() {
               >
                 Diagnosticar push
               </Button>
+              {showAdvancedPushDiagnostics ? (
               <div className="mt-3 space-y-2 rounded-2xl border border-ink/10 bg-white/70 p-3 text-xs text-ink/70 dark:bg-white/5">
                 <p className="font-semibold text-ink">Prueba local</p>
                 {localNotificationResult ? (
                   <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-xl bg-ink/5 p-2 text-[11px] dark:bg-white/10">{JSON.stringify({
                     permisoAntes: localNotificationResult.permissionBefore,
                     permisoDespues: localNotificationResult.permissionAfter,
+                    metodoUsado: localNotificationResult.method || "sin metodo",
                     notificacionLocalIntentada: localNotificationResult.attempted ? "si" : "no",
                     notificationApiEjecutadaSinError: localNotificationResult.executed ? "si" : "no",
                     origin: localNotificationResult.origin,
@@ -988,6 +1066,7 @@ export function Settings() {
                   <p>Revisa que Chrome tenga notificaciones permitidas en Windows, que No molestar/Focus Assist este desactivado, que el sitio tenga permiso en Chrome y prueba con la app en segundo plano.</p>
                 </div>
               </div>
+              ) : null}
             </>
           ) : null}
         </Card>
