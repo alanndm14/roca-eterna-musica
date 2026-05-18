@@ -14,21 +14,55 @@ const firebaseConfig = {
 const baseUrl = new URL(self.registration.scope).pathname || "/";
 const iconPath = `${baseUrl.replace(/\/$/, "")}/icons/icon-192.png`;
 const hasConfig = Object.values(firebaseConfig).every(Boolean);
+const shownTags = new Set();
+
+function resolveUrl(url = "") {
+  if (/^https?:\/\//i.test(url)) return url;
+  const base = self.registration.scope || "/";
+  if (!url) return base;
+  if (url.startsWith("/#/")) return `${base.replace(/\/$/, "")}${url}`;
+  if (url.startsWith("#/")) return `${base}${url}`;
+  if (url.startsWith("/")) return new URL(url, self.location.origin).href;
+  return new URL(url, base).href;
+}
+
+function normalizeMessage(payload = {}) {
+  const data = payload.data || {};
+  const notification = payload.notification || {};
+  const fcmOptions = payload.fcmOptions || {};
+  const notificationId = data.notificationId || data.scheduleId || data.songId || payload.messageId || `${Date.now()}`;
+  const url = resolveUrl(data.url || fcmOptions.link || self.registration.scope || "/");
+  return {
+    title: notification.title || data.title || "Roca Eterna Musica",
+    body: notification.body || data.body || data.message || "",
+    icon: notification.icon || data.icon || iconPath,
+    badge: data.badge || iconPath,
+    url,
+    tag: data.tag || notificationId,
+    data: { ...data, url, notificationId }
+  };
+}
+
+function showNotificationOnce(payload) {
+  const message = normalizeMessage(payload);
+  if (shownTags.has(message.tag)) return Promise.resolve();
+  shownTags.add(message.tag);
+  setTimeout(() => shownTags.delete(message.tag), 60000);
+  return self.registration.showNotification(message.title, {
+    body: message.body,
+    icon: message.icon,
+    badge: message.badge,
+    tag: message.tag,
+    renotify: false,
+    data: message.data
+  });
+}
 
 if (hasConfig) {
   firebase.initializeApp(firebaseConfig);
   const messaging = firebase.messaging();
 
-  messaging.onBackgroundMessage((payload) => {
-    const title = payload.notification?.title || payload.data?.title || "Roca Eterna Musica";
-    const options = {
-      body: payload.notification?.body || payload.data?.body || payload.data?.message || "",
-      icon: payload.data?.icon || iconPath,
-      badge: payload.data?.badge || iconPath,
-      data: payload.data || {}
-    };
-    self.registration.showNotification(title, options);
-  });
+  messaging.onBackgroundMessage((payload) => showNotificationOnce(payload));
 }
 
 self.addEventListener("push", (event) => {
@@ -39,16 +73,7 @@ self.addEventListener("push", (event) => {
     data = { title: "Roca Eterna Musica", body: event.data?.text?.() || "Nueva notificacion" };
   }
 
-  const notification = data.notification || data;
-  const title = notification.title || data.title || "Roca Eterna Musica";
-  const options = {
-    body: notification.body || notification.message || data.body || "",
-    icon: data.icon || data.data?.icon || iconPath,
-    badge: data.badge || data.data?.badge || iconPath,
-    data: data.data || data || {}
-  };
-
-  event.waitUntil(self.registration.showNotification(title, options));
+  event.waitUntil(showNotificationOnce(data.data ? { data: data.data, notification: data.notification } : data));
 });
 
 self.addEventListener("notificationclick", (event) => {
