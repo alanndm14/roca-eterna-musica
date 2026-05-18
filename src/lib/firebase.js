@@ -28,6 +28,7 @@ export const firebaseMissingConfigKeys = Object.entries(requiredFirebaseConfig)
 export const isDemoModeAllowed =
   import.meta.env.DEV || import.meta.env.VITE_ENABLE_DEMO_MODE === "true";
 export const firebaseVapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY || "";
+export const pushServerUrl = import.meta.env.VITE_PUSH_SERVER_URL || "";
 
 export const firebaseApp = isFirebaseConfigured ? initializeApp(firebaseConfig) : null;
 export const auth = firebaseApp ? getAuth(firebaseApp) : null;

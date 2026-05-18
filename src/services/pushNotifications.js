@@ -7,8 +7,15 @@ const tokenIdFromValue = (token = "") => token.replace(/[^a-zA-Z0-9_-]+/g, "_").
 async function getServiceWorkerRegistration() {
   if (!("serviceWorker" in navigator)) return null;
   const baseUrl = import.meta.env.BASE_URL || "/";
+  const params = new URLSearchParams({
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "",
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "",
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "",
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "",
+    appId: import.meta.env.VITE_FIREBASE_APP_ID || ""
+  });
   try {
-    return await navigator.serviceWorker.register(`${baseUrl}firebase-messaging-sw.js`);
+    return await navigator.serviceWorker.register(`${baseUrl}firebase-messaging-sw.js?${params.toString()}`);
   } catch {
     return navigator.serviceWorker.ready;
   }

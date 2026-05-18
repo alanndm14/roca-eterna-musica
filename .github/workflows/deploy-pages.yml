@@ -36,6 +36,7 @@ jobs:
           VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
           VITE_FIREBASE_MEASUREMENT_ID: ${{ secrets.VITE_FIREBASE_MEASUREMENT_ID }}
           VITE_FIREBASE_VAPID_KEY: ${{ secrets.VITE_FIREBASE_VAPID_KEY }}
+          VITE_PUSH_SERVER_URL: ${{ secrets.VITE_PUSH_SERVER_URL }}
           VITE_INITIAL_ADMIN_EMAILS: ${{ secrets.VITE_INITIAL_ADMIN_EMAILS }}
         run: |
           missing_required=0
@@ -67,6 +68,12 @@ jobs:
             echo "::notice::VITE_FIREBASE_VAPID_KEY falta; las notificaciones dentro de la app siguen funcionando."
           fi
 
+          if [ -n "${VITE_PUSH_SERVER_URL:-}" ]; then
+            echo "VITE_PUSH_SERVER_URL: presente"
+          else
+            echo "::notice::VITE_PUSH_SERVER_URL falta; push externo queda desactivado."
+          fi
+
           if [ -n "${VITE_INITIAL_ADMIN_EMAILS:-}" ]; then
             echo "VITE_INITIAL_ADMIN_EMAILS: presente"
           else
@@ -88,6 +95,7 @@ jobs:
           VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
           VITE_FIREBASE_MEASUREMENT_ID: ${{ secrets.VITE_FIREBASE_MEASUREMENT_ID }}
           VITE_FIREBASE_VAPID_KEY: ${{ secrets.VITE_FIREBASE_VAPID_KEY }}
+          VITE_PUSH_SERVER_URL: ${{ secrets.VITE_PUSH_SERVER_URL }}
           VITE_INITIAL_ADMIN_EMAILS: ${{ secrets.VITE_INITIAL_ADMIN_EMAILS }}
           VITE_ENABLE_DEMO_MODE: ${{ secrets.VITE_ENABLE_DEMO_MODE }}
         run: npm run build

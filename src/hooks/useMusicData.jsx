@@ -18,6 +18,7 @@ import { db, isFirebaseConfigured, storage } from "../lib/firebase";
 import { sampleSchedules, sampleSettings, sampleSongs, sampleThemes, sampleUsers } from "../data/mockData";
 import { canonicalThemeKey, normalizeSong, normalizeThemeName } from "../services/songUtils";
 import { extractLocalPdfText } from "../services/pdfTextIndex";
+import { sendExternalPush } from "../services/externalPush";
 import { useAuth } from "./useAuth";
 
 const MusicDataContext = createContext(null);
@@ -204,9 +205,10 @@ export function MusicDataProvider({ children }) {
     };
     if (useLocal) {
       setNotifications((current) => [{ ...payload, id: makeId("notification") }, ...current]);
-      return;
+      return payload;
     }
-    await addDoc(collection(db, "notifications"), payload);
+    const created = await addDoc(collection(db, "notifications"), payload);
+    return { ...payload, id: created.id };
   };
 
   const markNotificationRead = async (notificationId) => {
@@ -256,6 +258,13 @@ export function MusicDataProvider({ children }) {
           message: payload.title,
           songId: id
         });
+        await sendExternalPush({
+          type: "new_song",
+          title: "Nuevo canto en el repertorio",
+          body: payload.title,
+          url: `/#/repertorio/${id}`,
+          songId: id
+        });
         return id;
       }
     }
@@ -277,6 +286,13 @@ export function MusicDataProvider({ children }) {
         type: "new_song",
         title: "Nuevo canto en el repertorio",
         message: payload.title,
+        songId: created.id
+      });
+      await sendExternalPush({
+        type: "new_song",
+        title: "Nuevo canto en el repertorio",
+        body: payload.title,
+        url: `/#/repertorio/${created.id}`,
         songId: created.id
       });
       return created.id;
@@ -407,6 +423,13 @@ export function MusicDataProvider({ children }) {
             scheduleId: id,
             isFutureSchedule: true
           });
+          await sendExternalPush({
+            type: "new_schedule",
+            title: "Nueva programación futura",
+            body: `${payload.serviceLabel || "Servicio"} · ${payload.date} ${payload.time || ""}`.trim(),
+            url: "/#/programacion",
+            scheduleId: id
+          });
         }
       }
       return;
@@ -430,6 +453,13 @@ export function MusicDataProvider({ children }) {
           message: `${payload.serviceLabel || "Servicio"} - ${payload.date} ${payload.time || ""}`.trim(),
           scheduleId: created.id,
           isFutureSchedule: true
+        });
+        await sendExternalPush({
+          type: "new_schedule",
+          title: "Nueva programación futura",
+          body: `${payload.serviceLabel || "Servicio"} · ${payload.date} ${payload.time || ""}`.trim(),
+          url: "/#/programacion",
+          scheduleId: created.id
         });
       }
     }

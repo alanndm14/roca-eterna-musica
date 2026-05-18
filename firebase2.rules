@@ -160,6 +160,12 @@ service cloud.firestore {
       allow update: if isAuthorized()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["readBy"]);
       allow delete: if isAdmin();
+
+      match /reads/{userId} {
+        allow read: if isAdmin() || (isAuthorized() && request.auth.uid == userId);
+        allow create, update: if isAuthorized() && request.auth.uid == userId;
+        allow delete: if isAdmin();
+      }
     }
   }
 }

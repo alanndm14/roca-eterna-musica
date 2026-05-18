@@ -71,11 +71,15 @@ function DataReady({ children }) {
     await completeOnboarding?.();
   }, [completeOnboarding]);
 
-  if (loading) return <LoadingScreen />;
   const themeMode = profile?.themeMode || localStorage.getItem("roca-eterna-theme-mode") || "system";
   const effectiveTheme = getEffectiveThemeMode(themeMode);
   const logoSrc = getInstitutionalLogo(settings, appLogo, themeMode);
-  document.documentElement.classList.toggle("dark", effectiveTheme === "dark");
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", effectiveTheme === "dark");
+  }, [effectiveTheme]);
+
+  if (loading) return <LoadingScreen />;
   if (showWelcome) return <WelcomeSplash profile={profile} onDone={finishWelcome} logoSrc={logoSrc} logoAlt={settings.logoAltText || "Roca Eterna Música"} logoMode={effectiveTheme} />;
   return (
     <>

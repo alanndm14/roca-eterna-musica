@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { CalendarPlus, Clock, FileClock, ListPlus, Music2, RotateCcw, Sparkles } from "lucide-react";
 import { Button } from "../components/ui/Button";
@@ -34,8 +34,8 @@ const getMonthlyTopSongs = (schedules = []) => {
   const month = currentMonth();
   const today = todayString();
   const counts = new Map();
-  schedules
-    .filter((schedule) => schedule.date?.startsWith(month) && schedule.date <= today)
+  (Array.isArray(schedules) ? schedules : [])
+    .filter((schedule) => schedule?.date?.startsWith(month) && schedule.date <= today)
     .forEach((schedule) => {
       (schedule.songs || []).forEach((entry) => {
         const key = entry.songId || entry.titleSnapshot;
@@ -51,10 +51,10 @@ const getMonthlyTopSongs = (schedules = []) => {
 
 export function Dashboard() {
   const { canEdit, profile } = useAuth();
-  const { songs, schedules } = useMusicData();
+  const { songs = [], schedules = [] } = useMusicData();
   const [now, setNow] = useState(() => new Date());
   const isViewer = profile?.role === "viewer";
-  const upcoming = getCurrentOrNextSchedule(schedules, now);
+  const upcoming = useMemo(() => getCurrentOrNextSchedule(schedules, now), [schedules, now]);
   const missingPdfLinks = songs.filter((song) => !getSongPdfUrl(song)).length;
   const keynotePending = songs.filter((song) => song.keynoteReviewStatus !== "completado").length;
   const monthTopSongs = getMonthlyTopSongs(schedules);
@@ -62,11 +62,11 @@ export function Dashboard() {
     ? monthTopSongs.map((song) => `${song.title} (${song.count})`).join(", ")
     : "Sin datos este mes";
   const remaining = formatRemaining(upcoming, now);
-  const countdownActive = remaining.includes(":");
+  const countdownActive = typeof remaining === "string" && remaining.includes(":");
 
   useEffect(() => {
-    if (!countdownActive) return undefined;
-    const timer = window.setInterval(() => setNow(new Date()), 1000);
+    const intervalMs = countdownActive ? 1000 : 60000;
+    const timer = window.setInterval(() => setNow(new Date()), intervalMs);
     return () => window.clearInterval(timer);
   }, [countdownActive]);
 
@@ -78,7 +78,7 @@ export function Dashboard() {
           <div className="relative z-10">
             <p className="text-sm font-semibold uppercase tracking-wide text-brass">{upcoming ? getServiceDisplayLabel(upcoming) : "Próximo servicio"}</p>
             <h2 className="mt-3 text-3xl font-bold tracking-normal md:text-4xl">
-              {upcoming ? formatDate(upcoming.date) : "Sin próxima programación"}
+              {upcoming ? formatDate(upcoming.date) : "Sin próxima programación."}
             </h2>
             {upcoming ? (
               <div className="mt-5 grid gap-3 text-sm text-white/72 sm:grid-cols-3">
@@ -123,12 +123,12 @@ export function Dashboard() {
           </div>
           <div className="mt-6 space-y-3">
             {(upcoming?.songs || []).map((song, index) => (
-              <div key={`${song.songId}-${index}`} className="flex items-center justify-between rounded-2xl bg-ink/5 p-3">
+              <div key={`${song.songId || song.titleSnapshot}-${index}`} className="flex items-center justify-between rounded-2xl bg-ink/5 p-3">
                 <div>
-                  <p className="font-semibold text-ink">{index + 1}. {song.titleSnapshot}</p>
+                  <p className="font-semibold text-ink">{index + 1}. {song.titleSnapshot || "Canto sin título"}</p>
                   <p className="text-sm text-ink/55">{song.notes || "Sin notas"}</p>
                 </div>
-                <span className="rounded-xl bg-white px-3 py-1 text-sm font-bold text-ink dark:bg-white/10 dark:text-white">{song.keySnapshot}</span>
+                <span className="rounded-xl bg-white px-3 py-1 text-sm font-bold text-ink dark:bg-white/10 dark:text-white">{song.keySnapshot || "--"}</span>
               </div>
             ))}
           </div>

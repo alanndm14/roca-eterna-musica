@@ -15,8 +15,10 @@ import {
   getSongPdfUrl,
   getSongSpotifyUrl,
   getSongYoutubeUrl,
+  collectSongThemes,
   normalizeSong
 } from "../services/songUtils";
+import { SongForm } from "./Songs";
 
 function InfoRow({ label, value }) {
   return (
@@ -41,9 +43,10 @@ export function SongDetail() {
   const { songId } = useParams();
   const navigate = useNavigate();
   const { canEdit } = useAuth();
-  const { songs, schedules, duplicateSong, saveSchedule, settings, logAuditEvent } = useMusicData();
+  const { songs, schedules, themes, duplicateSong, saveSchedule, saveSong, settings, logAuditEvent } = useMusicData();
   const [showPdf, setShowPdf] = useState(false);
   const [pdfTest, setPdfTest] = useState(null);
+  const [editingSong, setEditingSong] = useState(false);
   const song = normalizeSong(songs.find((item) => item.id === songId), settings.keyPreference || "sharps");
 
   if (!song?.id) return <EmptyState title="Canto no encontrado" text="Es posible que haya sido eliminado." />;
@@ -53,6 +56,7 @@ export function SongDetail() {
   const spotifyUrl = getSongSpotifyUrl(song);
   const externalChordsUrl = getSongExternalChordsUrl(song);
   const lyricsSections = (song.lyricsSections || []).filter((section) => section.text?.trim());
+  const themeOptions = collectSongThemes(songs, themes);
   const usage = schedules
     .filter((schedule) => schedule.songs?.some((item) => item.songId === song.id))
     .sort((a, b) => `${b.date}${b.time || ""}`.localeCompare(`${a.date}${a.time || ""}`));
@@ -124,10 +128,6 @@ export function SongDetail() {
     navigate("/programacion");
   };
 
-  const editSong = () => {
-    navigate("/repertorio", { state: { editSongId: song.id } });
-  };
-
   return (
     <div className="space-y-5">
       <Button variant="subtle" onClick={() => navigate(-1)}>
@@ -152,7 +152,7 @@ export function SongDetail() {
             <span className="rounded-2xl bg-white px-4 py-3 text-2xl font-bold text-ink">{song.mainKey || "--"}</span>
             {canEdit ? (
               <>
-                <Button variant="light" onClick={editSong}>
+                <Button variant="light" onClick={() => setEditingSong(true)}>
                   <Edit3 className="h-4 w-4" />
                   Editar canto
                 </Button>
@@ -278,6 +278,19 @@ export function SongDetail() {
             <p className="text-sm text-ink/55">Si la vista previa no carga, abre el PDF en una pestaña nueva.</p>
           </div>
         ) : null}
+      </Modal>
+
+      <Modal open={editingSong} title="Editar canto" onClose={() => setEditingSong(false)} wide>
+        <SongForm
+          initialSong={song}
+          themes={themeOptions}
+          keyPreference={settings.keyPreference || "sharps"}
+          onCancel={() => setEditingSong(false)}
+          onSubmit={async (updatedSong) => {
+            await saveSong({ ...updatedSong, id: song.id });
+            setEditingSong(false);
+          }}
+        />
       </Modal>
     </div>
   );

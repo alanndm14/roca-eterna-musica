@@ -1,6 +1,29 @@
-export const appVersion = "0.9.5";
+export const appVersion = "0.9.6";
 
 export const changelog = [
+  {
+    version: "0.9.6",
+    date: "2026-05-17",
+    title: "Hotfix de Inicio y notificaciones por fases",
+    added: [
+      "ErrorBoundary para evitar pantallas completamente en blanco",
+      "Preparación de backend serverless externo para push real sin Firebase Blaze",
+      "Service worker de FCM Web con apertura de la app al tocar una notificación"
+    ],
+    changed: [
+      "Duración de Miércoles de oración ajustada a 19:00-20:00",
+      "Duración de Domingo PM ajustada a 17:00-18:30",
+      "Editar canto desde detalle vuelve a abrir el formulario en la misma vista"
+    ],
+    fixed: [
+      "Inicio ya no truena con programaciones vacías o incompletas",
+      "Textos corruptos de Inicio y helpers de fechas reemplazados por UTF-8 limpio",
+      "Las notificaciones push muestran mensaje claro si falta VAPID key"
+    ],
+    pending: [
+      "Configurar Vercel o Netlify si se desea push real fuera de la app"
+    ]
+  },
   {
     version: "0.9.5",
     date: "2026-05-17",

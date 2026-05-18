@@ -271,6 +271,12 @@ Secret opcional para pedir permiso de notificaciones push en navegadores compati
 VITE_FIREBASE_VAPID_KEY
 ```
 
+Secret opcional para conectar un backend externo de push real:
+
+```text
+VITE_PUSH_SERVER_URL
+```
+
 Secret recomendado para bootstrap de administradores:
 
 ```text
@@ -296,6 +302,47 @@ El repo tambien incluye un workflow en `.github/workflows/deploy-pages.yml`. En 
 La app usa `HashRouter`, asi que las rutas internas funcionan en GitHub Pages.
 
 Si la PWA muestra una version vieja, entra a Configuracion > Ayuda > Actualizar app, prueba en incognito, borra datos del sitio o desregistra el service worker desde DevTools.
+
+## Notificaciones sin Firebase Blaze
+
+La app trabaja en tres fases:
+
+1. Notificaciones dentro de la app: ya funcionan con Firestore usando la colección `notifications`. Al crear una programación futura o un canto nuevo se crea una notificación interna para usuarios autorizados.
+2. FCM Web en el cliente: el usuario puede pulsar `Activar notificaciones`. Si `VITE_FIREBASE_VAPID_KEY` no existe, la app muestra que las push aún no están configuradas y las notificaciones internas siguen activas.
+3. Push real externo: para enviar avisos aunque la app esté cerrada necesitas un backend seguro. El repo incluye `api/sendPushNotification.js`, compatible con Vercel/Netlify, para usar Firebase Admin SDK sin exponer claves privadas en el frontend.
+
+Para FCM Web:
+
+- En Firebase Console, entra a Cloud Messaging y crea una Web Push certificate / VAPID key.
+- Agrega `VITE_FIREBASE_VAPID_KEY` en GitHub Actions Secrets.
+- El token se guarda en `users/{uid}/fcmTokens/{tokenId}` con `active`, `userAgent`, `createdAt` y `lastSeenAt`.
+
+Para push real con Vercel o Netlify:
+
+- Despliega la carpeta `api/` o adapta `api/sendPushNotification.js` a la plataforma.
+- Agrega estas variables en Vercel/Netlify, no en el frontend:
+
+```text
+FIREBASE_PROJECT_ID
+FIREBASE_CLIENT_EMAIL
+FIREBASE_PRIVATE_KEY
+PUSH_ALLOWED_ORIGIN
+```
+
+- `FIREBASE_PRIVATE_KEY` debe conservar saltos de línea o usar `\n`; la función los convierte con `replace(/\\n/g, "\n")`.
+- Agrega en GitHub Actions Secrets la URL pública de esa función:
+
+```text
+VITE_PUSH_SERVER_URL
+```
+
+Limitaciones:
+
+- Sin backend externo configurado, solo funcionan notificaciones dentro de la app.
+- No pongas service accounts, server keys ni private keys en React/Vite.
+- iOS puede requerir instalar la PWA en pantalla de inicio.
+- El usuario debe aceptar permisos del navegador.
+- Un backend gratuito puede tener cold starts o límites de uso.
 
 ## Seguridad
 

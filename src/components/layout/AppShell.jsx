@@ -7,6 +7,7 @@ import { useAuth } from "../../hooks/useAuth";
 import { useMusicData } from "../../hooks/useMusicData";
 import { getEffectiveThemeMode, getInstitutionalLogo } from "../../services/songUtils";
 import { Button } from "../ui/Button";
+import { ErrorBoundary } from "../ui/ErrorBoundary";
 import { BottomNav } from "./BottomNav";
 import { Sidebar } from "./Sidebar";
 
@@ -179,7 +180,9 @@ export function AppShell() {
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.22 }}
             >
-              <Outlet />
+              <ErrorBoundary resetKey={location.pathname}>
+                <Outlet />
+              </ErrorBoundary>
             </motion.div>
           </AnimatePresence>
         </div>
