@@ -28,6 +28,8 @@ const pushBaseDiagnostic = (overrides = {}) => ({
   ...overrides
 });
 
+const deniedInstructions = "Las notificaciones estan bloqueadas para este sitio. Reactivalas desde Chrome > Configuracion > Configuracion de sitios > Notificaciones, busca alanndm14.github.io y cambia a Permitir. Tambien revisa Ajustes del telefono > Apps > Chrome > Notificaciones.";
+
 async function getServiceWorkerRegistration() {
   if (!("serviceWorker" in navigator)) return null;
   const baseUrl = import.meta.env.BASE_URL || "/";
@@ -79,6 +81,14 @@ export async function diagnosePushNotifications(profile) {
     supported: true
   };
 
+  if (Notification.permission === "denied") {
+    return {
+      ...diagnostic,
+      supported: false,
+      reason: deniedInstructions
+    };
+  }
+
   try {
     const registration = await getServiceWorkerRegistration();
     diagnostic.serviceWorkerRegistered = Boolean(registration);
@@ -112,6 +122,15 @@ export async function enablePushNotificationsForUser(profile) {
   }
 
   if (!support.supported) return diagnostic;
+
+  if (Notification.permission === "denied") {
+    return {
+      ...diagnostic,
+      supported: false,
+      browserPermission: "denied",
+      reason: deniedInstructions
+    };
+  }
 
   const permission = await Notification.requestPermission();
   diagnostic.browserPermission = permission;
@@ -195,6 +214,65 @@ export async function enablePushNotificationsForUser(profile) {
       error: error?.message || String(error)
     };
   }
+}
+
+export async function getCurrentPushTokenForUser(profile) {
+  const support = await getPushSupportStatus();
+  const diagnostic = {
+    ...support,
+    browserPermission: typeof Notification === "undefined" ? "no_soportado" : Notification.permission
+  };
+
+  if (!profile?.uid) {
+    return {
+      ...diagnostic,
+      supported: false,
+      reason: "No se encontro un usuario autenticado para probar este dispositivo."
+    };
+  }
+  if (!support.supported) return diagnostic;
+  if (Notification.permission === "denied") {
+    return {
+      ...diagnostic,
+      supported: false,
+      browserPermission: "denied",
+      reason: deniedInstructions
+    };
+  }
+  if (Notification.permission !== "granted") {
+    return {
+      ...diagnostic,
+      supported: false,
+      reason: "Primero activa las notificaciones en este dispositivo."
+    };
+  }
+
+  const registration = await getServiceWorkerRegistration();
+  const messaging = getMessaging(firebaseApp);
+  const token = await getToken(messaging, {
+    vapidKey: firebaseVapidKey,
+    serviceWorkerRegistration: registration || undefined
+  });
+
+  if (!token) {
+    return {
+      ...diagnostic,
+      serviceWorkerRegistered: Boolean(registration),
+      supported: false,
+      reason: "No se pudo obtener token FCM."
+    };
+  }
+
+  const tokenId = tokenIdFromValue(token);
+  return {
+    ...diagnostic,
+    supported: true,
+    serviceWorkerRegistered: Boolean(registration),
+    tokenObtained: true,
+    tokenPreview: maskToken(token),
+    tokenPath: buildTokenPath(profile.uid, tokenId),
+    token
+  };
 }
 
 export async function disablePushNotificationsForUser(profile) {

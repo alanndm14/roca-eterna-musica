@@ -252,7 +252,7 @@ export function MusicDataProvider({ children }) {
           }
         ]);
         await logAuditEvent({ actionType: "create", entityType: "song", entityId: id, entityName: payload.title, summary: `Canto creado: ${payload.title}`, afterData: payload });
-        await createNotification({
+        const notification = await createNotification({
           type: "new_song",
           title: "Nuevo canto en el repertorio",
           message: payload.title,
@@ -263,7 +263,8 @@ export function MusicDataProvider({ children }) {
           title: "Nuevo canto en el repertorio",
           body: payload.title,
           url: `/#/repertorio/${id}`,
-          songId: id
+          songId: id,
+          notificationId: notification.id
         });
         return id;
       }
@@ -282,7 +283,7 @@ export function MusicDataProvider({ children }) {
         createdBy: profile.uid
       });
       await logAuditEvent({ actionType: "create", entityType: "song", entityId: created.id, entityName: payload.title, summary: `Canto creado: ${payload.title}`, afterData: payload });
-      await createNotification({
+      const notification = await createNotification({
         type: "new_song",
         title: "Nuevo canto en el repertorio",
         message: payload.title,
@@ -293,7 +294,8 @@ export function MusicDataProvider({ children }) {
         title: "Nuevo canto en el repertorio",
         body: payload.title,
         url: `/#/repertorio/${created.id}`,
-        songId: created.id
+        songId: created.id,
+        notificationId: notification.id
       });
       return created.id;
     }
@@ -416,7 +418,7 @@ export function MusicDataProvider({ children }) {
         ]);
         await logAuditEvent({ actionType: "create", entityType: "schedule", entityId: id, entityName: payload.serviceLabel || payload.date, summary: `Programacion creada: ${payload.serviceLabel || payload.date}`, afterData: payload });
         if (isFutureSchedule(payload)) {
-          await createNotification({
+          const notification = await createNotification({
             type: "new_schedule",
             title: "Nueva programacion futura",
             message: `${payload.serviceLabel || "Servicio"} - ${payload.date} ${payload.time || ""}`.trim(),
@@ -428,7 +430,8 @@ export function MusicDataProvider({ children }) {
             title: "Nueva programación futura",
             body: `${payload.serviceLabel || "Servicio"} · ${payload.date} ${payload.time || ""}`.trim(),
             url: "/#/programacion",
-            scheduleId: id
+            scheduleId: id,
+            notificationId: notification.id
           });
         }
       }
@@ -447,7 +450,7 @@ export function MusicDataProvider({ children }) {
       });
       await logAuditEvent({ actionType: "create", entityType: "schedule", entityId: created.id, entityName: payload.serviceLabel || payload.date, summary: `Programacion creada: ${payload.serviceLabel || payload.date}`, afterData: payload });
       if (isFutureSchedule(payload)) {
-        await createNotification({
+        const notification = await createNotification({
           type: "new_schedule",
           title: "Nueva programacion futura",
           message: `${payload.serviceLabel || "Servicio"} - ${payload.date} ${payload.time || ""}`.trim(),
@@ -459,7 +462,8 @@ export function MusicDataProvider({ children }) {
           title: "Nueva programación futura",
           body: `${payload.serviceLabel || "Servicio"} · ${payload.date} ${payload.time || ""}`.trim(),
           url: "/#/programacion",
-          scheduleId: created.id
+          scheduleId: created.id,
+          notificationId: notification.id
         });
       }
     }

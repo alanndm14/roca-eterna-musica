@@ -1,6 +1,39 @@
 import { auth, pushServerUrl } from "../lib/firebase";
 
-export async function sendExternalPush(payload = {}) {
+const LAST_AUTO_KEY = "roca-eterna-last-auto-push";
+const LAST_TEST_KEY = "roca-eterna-last-test-push";
+
+const parseJsonSafely = async (response) => {
+  const text = await response.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { raw: text };
+  }
+};
+
+const saveLastPushResult = (key, value) => {
+  try {
+    localStorage.setItem(key, JSON.stringify({ ...value, at: new Date().toISOString() }));
+  } catch {
+    // El diagnostico no debe romper el flujo principal.
+  }
+};
+
+export function getLastPushResult(type = "auto") {
+  try {
+    return JSON.parse(localStorage.getItem(type === "test" ? LAST_TEST_KEY : LAST_AUTO_KEY) || "null");
+  } catch {
+    return null;
+  }
+}
+
+export function isPushBackendConfigured() {
+  return Boolean(pushServerUrl);
+}
+
+export async function sendExternalPush(payload = {}, options = {}) {
   if (!pushServerUrl || !auth?.currentUser) {
     return { skipped: true, reason: "Push externo no configurado." };
   }
@@ -15,14 +48,24 @@ export async function sendExternalPush(payload = {}) {
       },
       body: JSON.stringify(payload)
     });
-
-    if (!response.ok) {
-      return { skipped: false, ok: false, status: response.status };
-    }
-
-    return await response.json().catch(() => ({ ok: true }));
+    const body = await parseJsonSafely(response);
+    const result = {
+      skipped: false,
+      ok: response.ok && body.ok !== false,
+      status: response.status,
+      body
+    };
+    saveLastPushResult(options.kind === "test" ? LAST_TEST_KEY : LAST_AUTO_KEY, {
+      notificationId: payload.notificationId || "",
+      scheduleId: payload.scheduleId || "",
+      songId: payload.songId || "",
+      mode: payload.mode || "broadcast",
+      ...result
+    });
+    return result;
   } catch (error) {
-    console.warn("No se pudo enviar push externo. La notificación interna sigue activa.", error);
-    return { skipped: false, ok: false, error: error.message };
+    const result = { skipped: false, ok: false, error: error.message };
+    saveLastPushResult(options.kind === "test" ? LAST_TEST_KEY : LAST_AUTO_KEY, result);
+    return result;
   }
 }

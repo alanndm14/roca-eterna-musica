@@ -320,6 +320,9 @@ Para FCM Web:
 Para push real con Vercel o Netlify:
 
 - Despliega la carpeta `api/` o adapta `api/sendPushNotification.js` a la plataforma.
+- La funcion responde JSON con etapa (`verify_id_token`, `check_role`, `read_tokens`, `send_fcm`, `cleanup_invalid_tokens`), conteos de tokens y errores sanitizados. No imprime claves privadas ni tokens completos.
+- El modo `self_test` permite probar solo el dispositivo actual desde Configuracion > Notificaciones > Enviar push de prueba a este dispositivo.
+- Los envios automaticos incluyen `notificationId` para evitar duplicados si la app o el navegador repiten la llamada.
 - Agrega estas variables en Vercel/Netlify, no en el frontend:
 
 ```text
@@ -342,6 +345,9 @@ Limitaciones:
 - No pongas service accounts, server keys ni private keys en React/Vite.
 - iOS puede requerir instalar la PWA en pantalla de inicio.
 - El usuario debe aceptar permisos del navegador.
+- Si aparece `FAILED_PRECONDITION`, revisa que Firebase Cloud Messaging API este habilitada en Google Cloud, que la VAPID key sea del mismo proyecto y que el service account pertenezca al mismo `FIREBASE_PROJECT_ID`.
+- Si aparece `RESOURCE_EXHAUSTED`, FCM o Firestore reporto cuota excedida. Espera, revisa limites del backend gratuito y confirma que no haya demasiados tokens activos o reintentos duplicados.
+- Si el celular muestra permiso `denied`, reactivalo en Chrome > Configuracion > Configuracion de sitios > Notificaciones, busca `alanndm14.github.io` y cambia a Permitir. Tambien revisa Ajustes del telefono > Apps > Chrome > Notificaciones.
 - Un backend gratuito puede tener cold starts o límites de uso.
 
 ## Seguridad

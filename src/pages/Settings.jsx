@@ -10,7 +10,8 @@ import { useMusicData } from "../hooks/useMusicData";
 import { analyzeImport, parseSongsTable } from "../services/importSongs";
 import { canonicalThemeKey, collectSongThemes, getInstitutionalLogo, normalizeThemeName, resolvePublicAssetUrl } from "../services/songUtils";
 import { diagnosePublicAsset } from "../services/publicPdfTools";
-import { diagnosePushNotifications, disablePushNotificationsForUser, enablePushNotificationsForUser } from "../services/pushNotifications";
+import { getLastPushResult, isPushBackendConfigured, sendExternalPush } from "../services/externalPush";
+import { diagnosePushNotifications, disablePushNotificationsForUser, enablePushNotificationsForUser, getCurrentPushTokenForUser } from "../services/pushNotifications";
 import { appLogo, fallbackAppLogo } from "../assets/logo";
 
 const defaultColors = {
@@ -67,6 +68,8 @@ export function Settings() {
   const [logoTest, setLogoTest] = useState(null);
   const [pushStatus, setPushStatus] = useState("");
   const [pushDiagnostic, setPushDiagnostic] = useState(null);
+  const [pushTestResult, setPushTestResult] = useState(() => getLastPushResult("test"));
+  const [pushAutoResult, setPushAutoResult] = useState(() => getLastPushResult("auto"));
   const [isUpdatingPush, setIsUpdatingPush] = useState(false);
   const parsedImport = useMemo(() => parseSongsTable(importText, localSettings.keyPreference || "sharps"), [importText, localSettings.keyPreference]);
   const importSummary = useMemo(() => analyzeImport(parsedImport.songs, songs), [parsedImport.songs, songs]);
@@ -245,6 +248,33 @@ export function Settings() {
       const message = error.message || "No se pudieron desactivar las notificaciones push.";
       setPushDiagnostic({ supported: false, firestoreWrite: "rechazada", error: message });
       setPushStatus(message);
+    } finally {
+      setIsUpdatingPush(false);
+    }
+  };
+
+  const sendSelfTestPush = async () => {
+    setIsUpdatingPush(true);
+    try {
+      const tokenResult = await getCurrentPushTokenForUser(profile);
+      setPushDiagnostic(tokenResult);
+      if (!tokenResult.supported || !tokenResult.token) {
+        setPushStatus(tokenResult.reason || "No se pudo preparar este dispositivo para la prueba push.");
+        return;
+      }
+      const result = await sendExternalPush(
+        {
+          mode: "self_test",
+          type: "other",
+          title: "Prueba de Roca Eterna Musica",
+          body: "Este dispositivo ya puede recibir push.",
+          url: "/#/configuracion",
+          token: tokenResult.token
+        },
+        { kind: "test" }
+      );
+      setPushTestResult(result);
+      setPushStatus(result.ok ? "Push de prueba enviado a este dispositivo." : result.body?.message || result.error || "No se pudo enviar el push de prueba.");
     } finally {
       setIsUpdatingPush(false);
     }
@@ -685,10 +715,18 @@ export function Settings() {
           <p className="mt-3 text-sm leading-6 text-ink/60">
             Las notificaciones dentro de la app ya funcionan. Las push del navegador requieren permiso del dispositivo y una VAPID key configurada.
           </p>
+          <p className="mt-3 rounded-2xl bg-ink/5 p-3 text-sm text-ink/60 dark:bg-white/5">
+            Backend push configurado: <span className="font-semibold text-ink">{isPushBackendConfigured() ? "si" : "no"}</span>
+          </p>
           <div className="mt-4 grid gap-2">
             <Button className="w-full" variant="secondary" isLoading={isUpdatingPush} disabled={isUpdatingPush} onClick={enablePush}>
               Activar notificaciones
             </Button>
+            {isAdmin ? (
+              <Button className="w-full" variant="secondary" isLoading={isUpdatingPush} disabled={isUpdatingPush || !isPushBackendConfigured()} onClick={sendSelfTestPush}>
+                Enviar push de prueba a este dispositivo
+              </Button>
+            ) : null}
             <Button className="w-full" variant="subtle" disabled={isUpdatingPush} onClick={disablePush}>
               Desactivar en este dispositivo
             </Button>
@@ -729,17 +767,52 @@ export function Settings() {
             </dl>
           ) : null}
           {isAdmin ? (
-            <Button
-              className="mt-3 w-full"
-              variant="subtle"
-              onClick={async () => {
-                const status = await diagnosePushNotifications(profile);
-                setPushDiagnostic(status);
-                setPushStatus(status.supported ? "Push listo para solicitar token en este navegador." : status.reason);
-              }}
-            >
-              Diagnosticar push
-            </Button>
+            <>
+              <Button
+                className="mt-3 w-full"
+                variant="subtle"
+                onClick={async () => {
+                  const status = await diagnosePushNotifications(profile);
+                  setPushDiagnostic(status);
+                  setPushTestResult(getLastPushResult("test"));
+                  setPushAutoResult(getLastPushResult("auto"));
+                  setPushStatus(status.supported ? "Push listo para solicitar token en este navegador." : status.reason);
+                }}
+              >
+                Diagnosticar push
+              </Button>
+              <div className="mt-3 space-y-2 rounded-2xl border border-ink/10 bg-white/70 p-3 text-xs text-ink/70 dark:bg-white/5">
+                <p className="font-semibold text-ink">Ultima prueba push</p>
+                {pushTestResult ? (
+                  <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-xl bg-ink/5 p-2 text-[11px] dark:bg-white/10">{JSON.stringify({
+                    hora: pushTestResult.at,
+                    statusHttp: pushTestResult.status,
+                    enviados: pushTestResult.body?.sent,
+                    fallidos: pushTestResult.body?.failed,
+                    invalidos: pushTestResult.body?.invalidTokens,
+                    code: pushTestResult.body?.code,
+                    etapa: pushTestResult.body?.stage,
+                    mensaje: pushTestResult.body?.message || pushTestResult.error
+                  }, null, 2)}</pre>
+                ) : <p>Sin prueba registrada.</p>}
+                <p className="pt-2 font-semibold text-ink">Ultimo envio automatico</p>
+                {pushAutoResult ? (
+                  <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-xl bg-ink/5 p-2 text-[11px] dark:bg-white/10">{JSON.stringify({
+                    hora: pushAutoResult.at,
+                    notificationId: pushAutoResult.notificationId,
+                    scheduleId: pushAutoResult.scheduleId,
+                    songId: pushAutoResult.songId,
+                    statusHttp: pushAutoResult.status,
+                    enviados: pushAutoResult.body?.sent,
+                    fallidos: pushAutoResult.body?.failed,
+                    invalidos: pushAutoResult.body?.invalidTokens,
+                    code: pushAutoResult.body?.code,
+                    etapa: pushAutoResult.body?.stage,
+                    mensaje: pushAutoResult.body?.message || pushAutoResult.error
+                  }, null, 2)}</pre>
+                ) : <p>Sin envio automatico registrado en este navegador.</p>}
+              </div>
+            </>
           ) : null}
         </Card>
 
