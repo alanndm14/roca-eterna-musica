@@ -1,5 +1,5 @@
 import { deleteToken, getMessaging, getToken, isSupported, onMessage } from "firebase/messaging";
-import { doc, serverTimestamp, setDoc } from "firebase/firestore";
+import { collection, getDocs, serverTimestamp, setDoc } from "firebase/firestore";
 import { db, firebaseApp, firebaseVapidKey, isFirebaseConfigured } from "../lib/firebase";
 import { resolvePublicAssetUrl } from "./songUtils";
 
@@ -503,6 +503,57 @@ export async function getCurrentPushTokenForUser(profile) {
     firestoreWrite: "token existente",
     token
   };
+}
+
+export async function cleanupCurrentUserFcmTokens(profile) {
+  if (!profile?.uid || !db) {
+    return { ok: false, error: "No hay usuario autenticado.", total: 0, active: 0, unique: 0, duplicatesDeactivated: 0, inactive: 0 };
+  }
+
+  const snapshot = await getDocs(collection(db, "users", profile.uid, "fcmTokens"));
+  const seen = new Map();
+  const result = {
+    ok: true,
+    total: snapshot.size,
+    active: 0,
+    unique: 0,
+    duplicatesDeactivated: 0,
+    inactive: 0,
+    invalidDeactivated: 0,
+    error: ""
+  };
+
+  await Promise.all(snapshot.docs.map(async (tokenDoc) => {
+    const data = tokenDoc.data();
+    if (!data?.token) {
+      result.invalidDeactivated += 1;
+      await setDoc(tokenDoc.ref, {
+        active: false,
+        deactivatedAt: serverTimestamp(),
+        inactiveReason: "token_vacio"
+      }, { merge: true });
+      return;
+    }
+    if (data.active !== true) {
+      result.inactive += 1;
+      return;
+    }
+    result.active += 1;
+    if (seen.has(data.token)) {
+      result.duplicatesDeactivated += 1;
+      await setDoc(tokenDoc.ref, {
+        active: false,
+        duplicateOf: seen.get(data.token),
+        deactivatedAt: serverTimestamp(),
+        inactiveReason: "token_duplicado"
+      }, { merge: true });
+      return;
+    }
+    seen.set(data.token, tokenDoc.id);
+    result.unique += 1;
+  }));
+
+  return result;
 }
 
 export async function requestSiteNotificationPermissionOnly() {

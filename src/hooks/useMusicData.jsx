@@ -193,11 +193,37 @@ export function MusicDataProvider({ children }) {
     await addDoc(collection(db, "auditLogs"), payload);
   };
 
+  const dispatchInternalNotification = (notification) => {
+    if (typeof window === "undefined" || !notification?.id) return;
+    window.dispatchEvent(new CustomEvent("roca-eterna-internal-notification", { detail: notification }));
+  };
+
+  const sendPushBestEffort = (payload) => {
+    Promise.resolve()
+      .then(async () => {
+        const result = await sendExternalPush(payload);
+        if (result?.ok === false) {
+          console.warn("[Push] No se pudo enviar push externo.", {
+            notificationId: payload.notificationId || "",
+            stage: result.body?.stage || "",
+            message: result.body?.message || result.error || ""
+          });
+        }
+      })
+      .catch((error) => {
+        console.warn("[Push] Error no bloqueante al enviar push externo.", {
+          notificationId: payload.notificationId || "",
+          message: error?.message || String(error)
+        });
+      });
+  };
+
   const createNotification = async (notification) => {
     const payload = {
       type: notification.type || "other",
       title: notification.title || "Nueva notificación",
       message: notification.message || "",
+      pushNotificationId: notification.pushNotificationId || "",
       scheduleId: notification.scheduleId || "",
       songId: notification.songId || "",
       targetRoles: notification.targetRoles || ["admin", "editor", "viewer"],
@@ -211,11 +237,15 @@ export function MusicDataProvider({ children }) {
       createdAt: useLocal ? new Date().toISOString() : serverTimestamp()
     };
     if (useLocal) {
-      setNotifications((current) => [{ ...payload, id: makeId("notification") }, ...current]);
-      return payload;
+      const createdNotification = { ...payload, id: makeId("notification") };
+      setNotifications((current) => [createdNotification, ...current]);
+      dispatchInternalNotification(createdNotification);
+      return createdNotification;
     }
     const created = await addDoc(collection(db, "notifications"), payload);
-    return { ...payload, id: created.id };
+    const createdNotification = { ...payload, id: created.id };
+    dispatchInternalNotification(createdNotification);
+    return createdNotification;
   };
 
   const markNotificationRead = async (notificationId) => {
@@ -259,19 +289,21 @@ export function MusicDataProvider({ children }) {
           }
         ]);
         await logAuditEvent({ actionType: "create", entityType: "song", entityId: id, entityName: payload.title, summary: `Canto creado: ${payload.title}`, afterData: payload });
-        const notification = await createNotification({
+        const pushNotificationId = `song-created-${id}`;
+        await createNotification({
           type: "new_song",
           title: "Nuevo canto en el repertorio",
           message: payload.title,
-          songId: id
+          songId: id,
+          pushNotificationId
         });
-        await sendExternalPush({
+        sendPushBestEffort({
           type: "new_song",
           title: "Nuevo canto en el repertorio",
           body: payload.title,
           url: `/#/repertorio/${id}`,
           songId: id,
-          notificationId: notification.id,
+          notificationId: pushNotificationId,
           icon: resolveAppLogoForNotification(settings, "light"),
           badge: resolveAppLogoForNotification(settings, "light")
         });
@@ -292,19 +324,21 @@ export function MusicDataProvider({ children }) {
         createdBy: profile.uid
       });
       await logAuditEvent({ actionType: "create", entityType: "song", entityId: created.id, entityName: payload.title, summary: `Canto creado: ${payload.title}`, afterData: payload });
-      const notification = await createNotification({
+      const pushNotificationId = `song-created-${created.id}`;
+      await createNotification({
         type: "new_song",
         title: "Nuevo canto en el repertorio",
         message: payload.title,
-        songId: created.id
+        songId: created.id,
+        pushNotificationId
       });
-      await sendExternalPush({
+      sendPushBestEffort({
         type: "new_song",
         title: "Nuevo canto en el repertorio",
         body: payload.title,
         url: `/#/repertorio/${created.id}`,
         songId: created.id,
-        notificationId: notification.id,
+        notificationId: pushNotificationId,
         icon: resolveAppLogoForNotification(settings, "light"),
         badge: resolveAppLogoForNotification(settings, "light")
       });
@@ -429,20 +463,22 @@ export function MusicDataProvider({ children }) {
         ]);
         await logAuditEvent({ actionType: "create", entityType: "schedule", entityId: id, entityName: payload.serviceLabel || payload.date, summary: `Programación creada: ${payload.serviceLabel || payload.date}`, afterData: payload });
         if (isFutureSchedule(payload)) {
-          const notification = await createNotification({
+          const pushNotificationId = `schedule-created-${id}`;
+          await createNotification({
             type: "new_schedule",
             title: "Nueva programación",
             message: formatSchedulePushBody(payload),
             scheduleId: id,
-            isFutureSchedule: true
+            isFutureSchedule: true,
+            pushNotificationId
           });
-          await sendExternalPush({
+          sendPushBestEffort({
             type: "new_schedule",
             title: "Nueva programación",
             body: formatSchedulePushBody(payload),
             url: "/#/programacion",
             scheduleId: id,
-            notificationId: notification.id,
+            notificationId: pushNotificationId,
             icon: resolveAppLogoForNotification(settings, "light"),
             badge: resolveAppLogoForNotification(settings, "light")
           });
@@ -463,20 +499,22 @@ export function MusicDataProvider({ children }) {
       });
       await logAuditEvent({ actionType: "create", entityType: "schedule", entityId: created.id, entityName: payload.serviceLabel || payload.date, summary: `Programación creada: ${payload.serviceLabel || payload.date}`, afterData: payload });
       if (isFutureSchedule(payload)) {
-        const notification = await createNotification({
+        const pushNotificationId = `schedule-created-${created.id}`;
+        await createNotification({
           type: "new_schedule",
           title: "Nueva programación",
           message: formatSchedulePushBody(payload),
           scheduleId: created.id,
-          isFutureSchedule: true
+          isFutureSchedule: true,
+          pushNotificationId
         });
-        await sendExternalPush({
+        sendPushBestEffort({
           type: "new_schedule",
           title: "Nueva programación",
           body: formatSchedulePushBody(payload),
           url: "/#/programacion",
           scheduleId: created.id,
-          notificationId: notification.id,
+          notificationId: pushNotificationId,
           icon: resolveAppLogoForNotification(settings, "light"),
           badge: resolveAppLogoForNotification(settings, "light")
         });

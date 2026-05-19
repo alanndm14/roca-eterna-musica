@@ -11,7 +11,7 @@ import { analyzeImport, parseSongsTable } from "../services/importSongs";
 import { canonicalThemeKey, collectSongThemes, getInstitutionalLogo, normalizeThemeName, resolveAppLogoForNotification, resolvePublicAssetUrl } from "../services/songUtils";
 import { diagnosePublicAsset } from "../services/publicPdfTools";
 import { getLastPushResult, isPushBackendConfigured, sendExternalPush } from "../services/externalPush";
-import { diagnosePushNotifications, disablePushNotificationsForUser, enablePushNotificationsForUser, getCurrentPushTokenForUser, getLastBackgroundPush, getLastForegroundPush, reinstallMessagingServiceWorker, requestSiteNotificationPermissionOnly, testLocalNotification } from "../services/pushNotifications";
+import { cleanupCurrentUserFcmTokens, diagnosePushNotifications, disablePushNotificationsForUser, enablePushNotificationsForUser, getCurrentPushTokenForUser, getLastBackgroundPush, getLastForegroundPush, reinstallMessagingServiceWorker, requestSiteNotificationPermissionOnly, testLocalNotification } from "../services/pushNotifications";
 import { appLogo, fallbackAppLogo } from "../assets/logo";
 
 const defaultColors = {
@@ -84,6 +84,9 @@ export function Settings() {
   const [localNotificationResult, setLocalNotificationResult] = useState(null);
   const [isUpdatingPush, setIsUpdatingPush] = useState(false);
   const [showAdvancedPushDiagnostics, setShowAdvancedPushDiagnostics] = useState(false);
+  const [pushCooldownUntil, setPushCooldownUntil] = useState(0);
+  const [pushCooldownNow, setPushCooldownNow] = useState(Date.now());
+  const [tokenCleanupResult, setTokenCleanupResult] = useState(null);
   const parsedImport = useMemo(() => parseSongsTable(importText, localSettings.keyPreference || "sharps"), [importText, localSettings.keyPreference]);
   const importSummary = useMemo(() => analyzeImport(parsedImport.songs, songs), [parsedImport.songs, songs]);
   const pushSummary = useMemo(() => {
@@ -108,6 +111,21 @@ export function Settings() {
       tokenOperational: fcmOk && (foregroundOk || backgroundOk)
     };
   }, [pushDiagnostic, pushTestResult, foregroundPushResult, backgroundPushResult]);
+  const pushCooldownActive = pushCooldownNow < pushCooldownUntil;
+  const pushCooldownSeconds = Math.max(0, Math.ceil((pushCooldownUntil - pushCooldownNow) / 1000));
+  const applyPushCooldownIfNeeded = (result) => {
+    const body = result?.body || {};
+    const message = `${body.message || result?.error || ""}`.toLowerCase();
+    if (body.quotaExceeded || message.includes("cuota") || message.includes("quota")) {
+      setPushCooldownUntil(Date.now() + 60000);
+    }
+  };
+
+  useEffect(() => {
+    if (!pushCooldownUntil) return undefined;
+    const interval = window.setInterval(() => setPushCooldownNow(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, [pushCooldownUntil]);
 
   const themeRows = useMemo(() => {
     const counts = new Map();
@@ -300,6 +318,10 @@ export function Settings() {
   };
 
   const sendSelfTestPush = async () => {
+    if (pushCooldownActive) {
+      setPushStatus(`Espera ${pushCooldownSeconds} segundos antes de volver a probar push.`);
+      return;
+    }
     setIsUpdatingPush(true);
     try {
       setForegroundPushResult(null);
@@ -325,6 +347,7 @@ export function Settings() {
         { kind: "test" }
       );
       setPushTestResult(result);
+      applyPushCooldownIfNeeded(result);
       setForegroundPushResult(getLastForegroundPush());
       setPushStatus(result.ok ? "Push enviado por FCM. Si no aparece en Windows, revisa permisos del navegador/sistema o prueba con la app en segundo plano." : result.body?.message || result.error || "No se pudo enviar el push de prueba.");
     } finally {
@@ -333,6 +356,10 @@ export function Settings() {
   };
 
   const sendSelfTestDataOnlyPush = async () => {
+    if (pushCooldownActive) {
+      setPushStatus(`Espera ${pushCooldownSeconds} segundos antes de volver a probar push.`);
+      return;
+    }
     setIsUpdatingPush(true);
     try {
       setForegroundPushResult(null);
@@ -358,6 +385,7 @@ export function Settings() {
         { kind: "test" }
       );
       setPushTestResult(result);
+      applyPushCooldownIfNeeded(result);
       setPushStatus(result.ok ? "Prueba FCM data-only enviada. Revisa si aparece recepción foreground." : result.body?.message || result.error || "No se pudo enviar la prueba data-only.");
     } finally {
       setIsUpdatingPush(false);
@@ -389,6 +417,22 @@ export function Settings() {
       href: result.href
     });
     setPushStatus(result.error || `Permiso del sitio: ${result.permissionAfter}`);
+  };
+
+  const cleanupInactiveTokens = async () => {
+    setIsUpdatingPush(true);
+    try {
+      const result = await cleanupCurrentUserFcmTokens(profile);
+      setTokenCleanupResult(result);
+      setPushStatus(result.ok
+        ? `Limpieza lista: ${result.unique} token(es) activos unicos, ${result.duplicatesDeactivated} duplicado(s) desactivado(s), ${result.inactive} inactivo(s).`
+        : result.error || "No se pudieron limpiar tokens.");
+    } catch (error) {
+      setTokenCleanupResult({ ok: false, error: error?.message || String(error) });
+      setPushStatus(error?.message || "No se pudieron limpiar tokens.");
+    } finally {
+      setIsUpdatingPush(false);
+    }
   };
 
   const reinstallServiceWorker = async () => {
@@ -884,15 +928,20 @@ export function Settings() {
             </Button>
             {isAdmin ? (
               <>
-                <Button className="w-full" variant="secondary" isLoading={isUpdatingPush} disabled={isUpdatingPush || !isPushBackendConfigured()} onClick={sendSelfTestPush}>
-                  Enviar push de prueba a este dispositivo
+                <Button className="w-full" variant="secondary" isLoading={isUpdatingPush} disabled={isUpdatingPush || pushCooldownActive || !isPushBackendConfigured()} onClick={sendSelfTestPush}>
+                  {pushCooldownActive ? `Espera ${pushCooldownSeconds}s` : "Enviar push de prueba a este dispositivo"}
                 </Button>
-                <Button className="w-full" variant="subtle" isLoading={isUpdatingPush} disabled={isUpdatingPush || !isPushBackendConfigured()} onClick={sendSelfTestDataOnlyPush}>
-                  Enviar prueba FCM data-only
+                <Button className="w-full" variant="subtle" isLoading={isUpdatingPush} disabled={isUpdatingPush || pushCooldownActive || !isPushBackendConfigured()} onClick={sendSelfTestDataOnlyPush}>
+                  {pushCooldownActive ? `Espera ${pushCooldownSeconds}s` : "Enviar prueba FCM data-only"}
                 </Button>
                 <Button className="w-full" variant="subtle" disabled={isUpdatingPush} onClick={reinstallServiceWorker}>
                   Reinstalar service worker
                 </Button>
+                {showAdvancedPushDiagnostics ? (
+                  <Button className="w-full" variant="subtle" disabled={isUpdatingPush} onClick={cleanupInactiveTokens}>
+                    Limpiar tokens inactivos
+                  </Button>
+                ) : null}
               </>
             ) : null}
             <Button className="w-full" variant="subtle" disabled={isUpdatingPush} onClick={disablePush}>
@@ -907,8 +956,9 @@ export function Settings() {
                 <p>Prueba local: {localNotificationResult.executed ? "ejecutada sin error" : "no ejecutada"}{localNotificationResult.method ? ` via ${localNotificationResult.method}` : ""}.</p>
               ) : null}
               {pushTestResult ? (
-                <p>Prueba FCM: {pushTestResult.ok ? `enviada (${pushTestResult.body?.sent || 0} enviados, ${pushTestResult.body?.failed || 0} fallidos)` : pushTestResult.body?.message || pushTestResult.error || "fallo"}.</p>
+                <p>Prueba FCM: {pushTestResult.ok ? `enviada (${pushTestResult.body?.sent || 0} enviados, ${pushTestResult.body?.failed || 0} fallidos, etapa ${pushTestResult.body?.stage || "sin etapa"})` : pushTestResult.body?.message || pushTestResult.error || "fallo"}.</p>
               ) : null}
+              {pushCooldownActive ? <p className="font-semibold text-brass">Pausa temporal por cuota: espera {pushCooldownSeconds}s antes de volver a probar.</p> : null}
               <p>Recepción: app abierta {foregroundPushResult ? "recibida" : "sin confirmar"}; segundo plano {backgroundPushResult ? "recibida" : "sin confirmar"}.</p>
             </div>
           ) : null}
@@ -1030,6 +1080,13 @@ export function Settings() {
                   <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-xl bg-ink/5 p-2 text-[11px] dark:bg-white/10">{JSON.stringify({
                     hora: pushTestResult.at,
                     statusHttp: pushTestResult.status,
+                    notificationId: pushTestResult.body?.notificationId || pushTestResult.notificationId,
+                    deduplicado: pushTestResult.body?.deduplicated || pushTestResult.body?.duplicate || false,
+                    tokensEncontrados: pushTestResult.body?.tokensFound,
+                    tokensActivos: pushTestResult.body?.activeTokens,
+                    tokensUnicos: pushTestResult.body?.uniqueTokens,
+                    tokensDuplicados: pushTestResult.body?.duplicateTokens,
+                    tokensIntentados: pushTestResult.body?.tokensAttempted,
                     enviados: pushTestResult.body?.sent,
                     fallidos: pushTestResult.body?.failed,
                     invalidos: pushTestResult.body?.invalidTokens,
@@ -1058,6 +1115,12 @@ export function Settings() {
                     scheduleId: pushAutoResult.scheduleId,
                     songId: pushAutoResult.songId,
                     statusHttp: pushAutoResult.status,
+                    deduplicado: pushAutoResult.body?.deduplicated || pushAutoResult.body?.duplicate || false,
+                    tokensEncontrados: pushAutoResult.body?.tokensFound,
+                    tokensActivos: pushAutoResult.body?.activeTokens,
+                    tokensUnicos: pushAutoResult.body?.uniqueTokens,
+                    tokensDuplicados: pushAutoResult.body?.duplicateTokens,
+                    tokensIntentados: pushAutoResult.body?.tokensAttempted,
                     enviados: pushAutoResult.body?.sent,
                     fallidos: pushAutoResult.body?.failed,
                     invalidos: pushAutoResult.body?.invalidTokens,
@@ -1066,6 +1129,12 @@ export function Settings() {
                     mensaje: pushAutoResult.body?.message || pushAutoResult.error
                   }, null, 2)}</pre>
                 ) : <p>Sin envio automatico registrado en este navegador.</p>}
+                {tokenCleanupResult ? (
+                  <div className="rounded-xl bg-ink/5 p-2 text-[11px] leading-5 dark:bg-white/10">
+                    <p className="font-semibold text-ink">Limpieza de tokens</p>
+                    <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap rounded-lg bg-white/60 p-2 dark:bg-white/10">{JSON.stringify(tokenCleanupResult, null, 2)}</pre>
+                  </div>
+                ) : null}
                 <div className="rounded-xl bg-brass/10 p-2 text-[11px] leading-5 text-ink/70">
                   <p className="font-semibold text-ink">Si FCM envia pero no ves la notificación</p>
                   <p>Revisa que Chrome tenga notificaciones permitidas en Windows, que No molestar/Focus Assist este desactivado, que el sitio tenga permiso en Chrome y prueba con la app en segundo plano.</p>

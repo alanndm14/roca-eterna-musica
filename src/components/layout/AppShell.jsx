@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { Bell, CalendarDays, CheckCheck, HelpCircle, Music2, PanelLeftClose, PanelLeftOpen } from "lucide-react";
@@ -25,6 +25,20 @@ const pageNames = {
 };
 
 const sidebarStorageKey = "roca-eterna-sidebar-collapsed";
+const noveltyTypes = new Set(["new_song", "new_schedule", "updated_schedule"]);
+
+const notificationToNovelty = (notification = {}) => ({
+  id: notification.id || notification.pushNotificationId || "",
+  notificationId: notification.pushNotificationId || notification.id || "",
+  title: notification.title || "Novedad",
+  body: notification.message || notification.body || "",
+  type: notification.type || "other",
+  scheduleId: notification.scheduleId || "",
+  songId: notification.songId || "",
+  url: notification.songId ? `/#/repertorio/${notification.songId}` : notification.scheduleId ? "/#/programacion" : "",
+  source: "internal",
+  receivedAt: new Date().toISOString()
+});
 
 export function AppShell() {
   const location = useLocation();
@@ -34,18 +48,20 @@ export function AppShell() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem(sidebarStorageKey) === "true");
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [foregroundPush, setForegroundPush] = useState(null);
+  const seenInternalNotifications = useRef(new Set());
+  const initializedInternalNotifications = useRef(false);
   const pageTitle = pageNames[location.pathname] || "Roca Eterna Música";
   const themeMode = profile?.themeMode || localStorage.getItem("roca-eterna-theme-mode") || "system";
   const effectiveTheme = getEffectiveThemeMode(themeMode);
   const logoSrc = getInstitutionalLogo(settings, appLogo, themeMode);
   const logoAlt = settings.logoAltText || "Roca Eterna Música";
-  const visibleNotifications = notifications.filter((item) => {
+  const visibleNotifications = useMemo(() => notifications.filter((item) => {
     const targetUsers = item.targetUsers || [];
     const targetRoles = item.targetRoles || [];
     if (targetUsers.length) return targetUsers.includes(profile?.uid);
     if (targetRoles.length) return targetRoles.includes(profile?.role);
     return true;
-  });
+  }), [notifications, profile?.role, profile?.uid]);
   const unreadNotifications = visibleNotifications.filter((item) => !(item.readBy || []).includes(profile?.uid));
   const shellStyle = {
     "--color-brass": hexToRgb(profile?.accentColor || localStorage.getItem("roca-eterna-accent-color") || "#b6945f"),
@@ -88,8 +104,9 @@ export function AppShell() {
 
     subscribeForegroundPushMessages((message) => {
       const tag = message.tag || message.notificationId || message.scheduleId || message.songId || `${message.type}-${Math.floor(Date.now() / 10000)}`;
-      if (cancelled || shown.has(tag)) return;
+      if (cancelled || shown.has(tag) || (message.notificationId && seenInternalNotifications.current.has(message.notificationId))) return;
       shown.set(tag, Date.now());
+      if (message.notificationId) seenInternalNotifications.current.add(message.notificationId);
       setTimeout(() => shown.delete(tag), 15000);
       setForegroundPush(message);
       window.dispatchEvent(new CustomEvent("roca-eterna-foreground-push", { detail: message }));
@@ -122,6 +139,41 @@ export function AppShell() {
       unsubscribe();
     };
   }, [navigate]);
+
+  useEffect(() => {
+    const handleInternalNotification = (event) => {
+      const notification = event.detail;
+      const id = notification?.id || notification?.pushNotificationId;
+      if (!id || !noveltyTypes.has(notification?.type) || seenInternalNotifications.current.has(id)) return;
+      seenInternalNotifications.current.add(id);
+      if (notification?.pushNotificationId) seenInternalNotifications.current.add(notification.pushNotificationId);
+      setForegroundPush(notificationToNovelty(notification));
+    };
+    window.addEventListener("roca-eterna-internal-notification", handleInternalNotification);
+    return () => window.removeEventListener("roca-eterna-internal-notification", handleInternalNotification);
+  }, []);
+
+  useEffect(() => {
+    const visibleIds = visibleNotifications.map((item) => item.id).filter(Boolean);
+    if (!initializedInternalNotifications.current) {
+      visibleIds.forEach((id) => seenInternalNotifications.current.add(id));
+      initializedInternalNotifications.current = true;
+      return;
+    }
+
+    const nextNotification = visibleNotifications.find((item) => {
+      if (!item?.id || seenInternalNotifications.current.has(item.id) || (item.pushNotificationId && seenInternalNotifications.current.has(item.pushNotificationId))) return false;
+      if (!noveltyTypes.has(item.type)) return false;
+      if ((item.readBy || []).includes(profile?.uid)) return false;
+      return true;
+    });
+
+    if (nextNotification) {
+      seenInternalNotifications.current.add(nextNotification.id);
+      if (nextNotification.pushNotificationId) seenInternalNotifications.current.add(nextNotification.pushNotificationId);
+      setForegroundPush(notificationToNovelty(nextNotification));
+    }
+  }, [profile?.uid, visibleNotifications]);
 
   useEffect(() => {
     const handleServiceWorkerMessage = (event) => {
@@ -180,6 +232,9 @@ export function AppShell() {
     if (!foregroundPush) return;
     const url = foregroundPush.url || "";
     setForegroundPush(null);
+    if (foregroundPush.source === "internal" && foregroundPush.id) {
+      markNotificationRead(foregroundPush.id).catch(() => undefined);
+    }
     if (foregroundPush.scheduleId) {
       navigate("/programacion");
     } else if (foregroundPush.songId) {

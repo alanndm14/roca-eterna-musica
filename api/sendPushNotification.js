@@ -161,7 +161,10 @@ async function finishNotificationSend(notificationId, result) {
 async function readActiveTokens() {
   const usersSnap = await admin.firestore().collection("users").get();
   const entries = [];
+  const seenTokens = new Set();
   let tokensFound = 0;
+  let activeTokens = 0;
+  let duplicateTokens = 0;
 
   for (const userDoc of usersSnap.docs) {
     const user = userDoc.data();
@@ -171,6 +174,12 @@ async function readActiveTokens() {
     for (const tokenDoc of tokenSnap.docs) {
       const data = tokenDoc.data();
       if (data.active !== true || !data.token) continue;
+      activeTokens += 1;
+      if (seenTokens.has(data.token)) {
+        duplicateTokens += 1;
+        continue;
+      }
+      seenTokens.add(data.token);
       entries.push({
         token: data.token,
         tokenPreview: maskToken(data.token),
@@ -182,7 +191,9 @@ async function readActiveTokens() {
 
   return {
     tokensFound,
-    activeTokens: entries.length,
+    activeTokens,
+    uniqueTokens: entries.length,
+    duplicateTokens,
     entries: entries.slice(0, 500),
     truncated: entries.length > 500
   };
@@ -223,6 +234,8 @@ async function readSelfTestToken(uid, token, tokenId = "") {
   return {
     tokensFound: 1,
     activeTokens: 1,
+    uniqueTokens: 1,
+    duplicateTokens: 0,
     entries: [{
       token,
       tokenPreview: maskToken(token),
@@ -343,7 +356,9 @@ export default async function handler(request, response) {
       songId,
       token,
       tokenId,
-      notificationId: incomingNotificationId
+      notificationId: incomingNotificationId,
+      icon,
+      badge
     } = request.body || {};
     notificationId = incomingNotificationId || "";
 
@@ -357,7 +372,9 @@ export default async function handler(request, response) {
         return sendJson(response, 200, {
           ok: true,
           duplicate: true,
+          deduplicated: true,
           stage: "dedupe",
+          notificationId,
           message: "Este envio push ya fue procesado o esta en proceso.",
           previous: reservation.data || null
         });
@@ -376,8 +393,11 @@ export default async function handler(request, response) {
         ok: true,
         stage: "read_tokens",
         message: "No hay dispositivos activos para enviar push.",
+        notificationId,
         tokensFound: tokenRead.tokensFound,
         activeTokens: tokenRead.activeTokens,
+        uniqueTokens: tokenRead.uniqueTokens,
+        duplicateTokens: tokenRead.duplicateTokens,
         tokensAttempted: 0,
         sent: 0,
         failed: 0,
@@ -389,11 +409,11 @@ export default async function handler(request, response) {
     }
 
     stage = "send_fcm";
-    const sendResult = await sendToTokens(tokenRead.entries, { mode, type, title, body, url, scheduleId, songId, notificationId });
+    const sendResult = await sendToTokens(tokenRead.entries, { mode, type, title, body, url, scheduleId, songId, notificationId, icon, badge });
     const partial = sendResult.failed > 0 && sendResult.sent > 0;
     const ok = sendResult.sent > 0 || sendResult.failed === 0;
     const message = sendResult.quotaExceeded
-      ? "FCM o Firestore reporto cuota excedida. Intenta mas tarde o revisa si hay demasiados tokens/reintentos."
+      ? "FCM reporto cuota excedida. Se pausaron los reintentos."
       : sendResult.failedPrecondition
         ? "FCM reporto FAILED_PRECONDITION. Revisa Cloud Messaging API, VAPID key y service account del mismo proyecto."
         : partial
@@ -407,9 +427,13 @@ export default async function handler(request, response) {
       partial,
       stage: "send_fcm",
       mode,
+      notificationId,
+      deduplicated: false,
       message,
       tokensFound: tokenRead.tokensFound,
       activeTokens: tokenRead.activeTokens,
+      uniqueTokens: tokenRead.uniqueTokens,
+      duplicateTokens: tokenRead.duplicateTokens,
       tokensAttempted: sendResult.tokensAttempted,
       sent: sendResult.sent,
       failed: sendResult.failed,
@@ -428,6 +452,8 @@ export default async function handler(request, response) {
       notificationId,
       tokensFound: result.tokensFound,
       activeTokens: result.activeTokens,
+      uniqueTokens: result.uniqueTokens,
+      duplicateTokens: result.duplicateTokens,
       tokensAttempted: result.tokensAttempted,
       sent: result.sent,
       failed: result.failed,
@@ -445,9 +471,11 @@ export default async function handler(request, response) {
       source: (error.stage || stage) === "read_tokens" ? "firestore" : "backend",
       ...sanitized,
       message: (error.stage || stage) === "read_tokens"
-        ? sanitized.message || "Firestore/Admin SDK fallo al leer tokens."
+        ? isQuotaError(error)
+          ? "Firestore reporto cuota excedida al leer tokens."
+          : sanitized.message || "Firestore/Admin SDK fallo al leer tokens."
         : isQuotaError(error)
-        ? "FCM o Firestore reporto cuota excedida. Intenta mas tarde o revisa si hay demasiados tokens/reintentos."
+        ? "FCM reporto cuota excedida. Se pausaron los reintentos."
         : isPreconditionError(error)
           ? "FCM reporto FAILED_PRECONDITION. Revisa Cloud Messaging API, VAPID key y service account del mismo proyecto."
           : sanitized.message,
