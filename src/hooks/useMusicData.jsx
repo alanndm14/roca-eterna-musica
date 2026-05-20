@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   addDoc,
   arrayUnion,
@@ -90,6 +90,7 @@ export function MusicDataProvider({ children }) {
   const [notifications, setNotifications] = useState(sampleNotifications);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const automaticPushRequests = useRef(new Set());
 
   const useLocal = !isFirebaseConfigured || isDemoMode;
 
@@ -198,10 +199,48 @@ export function MusicDataProvider({ children }) {
     window.dispatchEvent(new CustomEvent("roca-eterna-internal-notification", { detail: notification }));
   };
 
-  const sendPushBestEffort = (payload) => {
+  const showInAppNovelty = (notification) => {
+    dispatchInternalNotification({
+      ...notification,
+      id: notification.id || notification.pushNotificationId || makeId("novelty")
+    });
+  };
+
+  const createNotificationBestEffort = (notification) => {
+    Promise.resolve()
+      .then(() => createNotification(notification))
+      .catch((error) => {
+        console.warn("[Push] No se pudo crear la notificacion interna persistente.", {
+          notificationId: notification.pushNotificationId || "",
+          message: error?.message || String(error)
+        });
+      });
+  };
+
+  const sendPushBestEffort = (payload, meta = {}) => {
+    const notificationId = payload.notificationId || "";
+    if (notificationId && automaticPushRequests.current.has(notificationId)) {
+      console.info("[push] skipped duplicate", { notificationId });
+      return;
+    }
+    if (notificationId) automaticPushRequests.current.add(notificationId);
+    console.info("[push] automatic send requested", {
+      notificationId,
+      type: payload.type || "",
+      entityId: payload.scheduleId || payload.songId || ""
+    });
     Promise.resolve()
       .then(async () => {
-        const result = await sendExternalPush(payload);
+        const result = await sendExternalPush(payload, {
+          kind: "auto",
+          meta: {
+            eventoGuardado: true,
+            novedadInternaCreada: true,
+            pushIntentado: true,
+            pushEnviado: false,
+            ...meta
+          }
+        });
         if (result?.ok === false) {
           console.warn("[Push] No se pudo enviar push externo.", {
             notificationId: payload.notificationId || "",
@@ -290,13 +329,15 @@ export function MusicDataProvider({ children }) {
         ]);
         await logAuditEvent({ actionType: "create", entityType: "song", entityId: id, entityName: payload.title, summary: `Canto creado: ${payload.title}`, afterData: payload });
         const pushNotificationId = `song-created-${id}`;
-        await createNotification({
+        const notificationPayload = {
           type: "new_song",
           title: "Nuevo canto en el repertorio",
           message: payload.title,
           songId: id,
           pushNotificationId
-        });
+        };
+        showInAppNovelty(notificationPayload);
+        createNotificationBestEffort(notificationPayload);
         sendPushBestEffort({
           type: "new_song",
           title: "Nuevo canto en el repertorio",
@@ -306,7 +347,7 @@ export function MusicDataProvider({ children }) {
           notificationId: pushNotificationId,
           icon: resolveAppLogoForNotification(settings, "light"),
           badge: resolveAppLogoForNotification(settings, "light")
-        });
+        }, { tipoEvento: "song_created", eventoGuardado: true, novedadInternaCreada: true });
         return id;
       }
     }
@@ -325,13 +366,15 @@ export function MusicDataProvider({ children }) {
       });
       await logAuditEvent({ actionType: "create", entityType: "song", entityId: created.id, entityName: payload.title, summary: `Canto creado: ${payload.title}`, afterData: payload });
       const pushNotificationId = `song-created-${created.id}`;
-      await createNotification({
+      const notificationPayload = {
         type: "new_song",
         title: "Nuevo canto en el repertorio",
         message: payload.title,
         songId: created.id,
         pushNotificationId
-      });
+      };
+      showInAppNovelty(notificationPayload);
+      createNotificationBestEffort(notificationPayload);
       sendPushBestEffort({
         type: "new_song",
         title: "Nuevo canto en el repertorio",
@@ -341,7 +384,7 @@ export function MusicDataProvider({ children }) {
         notificationId: pushNotificationId,
         icon: resolveAppLogoForNotification(settings, "light"),
         badge: resolveAppLogoForNotification(settings, "light")
-      });
+      }, { tipoEvento: "song_created", eventoGuardado: true, novedadInternaCreada: true });
       return created.id;
     }
   };
@@ -464,14 +507,16 @@ export function MusicDataProvider({ children }) {
         await logAuditEvent({ actionType: "create", entityType: "schedule", entityId: id, entityName: payload.serviceLabel || payload.date, summary: `Programación creada: ${payload.serviceLabel || payload.date}`, afterData: payload });
         if (isFutureSchedule(payload)) {
           const pushNotificationId = `schedule-created-${id}`;
-          await createNotification({
+          const notificationPayload = {
             type: "new_schedule",
             title: "Nueva programación",
             message: formatSchedulePushBody(payload),
             scheduleId: id,
             isFutureSchedule: true,
             pushNotificationId
-          });
+          };
+          showInAppNovelty(notificationPayload);
+          createNotificationBestEffort(notificationPayload);
           sendPushBestEffort({
             type: "new_schedule",
             title: "Nueva programación",
@@ -481,7 +526,7 @@ export function MusicDataProvider({ children }) {
             notificationId: pushNotificationId,
             icon: resolveAppLogoForNotification(settings, "light"),
             badge: resolveAppLogoForNotification(settings, "light")
-          });
+          }, { tipoEvento: "schedule_created", eventoGuardado: true, novedadInternaCreada: true });
         }
       }
       return;
@@ -500,14 +545,16 @@ export function MusicDataProvider({ children }) {
       await logAuditEvent({ actionType: "create", entityType: "schedule", entityId: created.id, entityName: payload.serviceLabel || payload.date, summary: `Programación creada: ${payload.serviceLabel || payload.date}`, afterData: payload });
       if (isFutureSchedule(payload)) {
         const pushNotificationId = `schedule-created-${created.id}`;
-        await createNotification({
+        const notificationPayload = {
           type: "new_schedule",
           title: "Nueva programación",
           message: formatSchedulePushBody(payload),
           scheduleId: created.id,
           isFutureSchedule: true,
           pushNotificationId
-        });
+        };
+        showInAppNovelty(notificationPayload);
+        createNotificationBestEffort(notificationPayload);
         sendPushBestEffort({
           type: "new_schedule",
           title: "Nueva programación",
@@ -517,7 +564,7 @@ export function MusicDataProvider({ children }) {
           notificationId: pushNotificationId,
           icon: resolveAppLogoForNotification(settings, "light"),
           badge: resolveAppLogoForNotification(settings, "light")
-        });
+        }, { tipoEvento: "schedule_created", eventoGuardado: true, novedadInternaCreada: true });
       }
     }
   };

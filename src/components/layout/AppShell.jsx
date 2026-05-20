@@ -144,7 +144,12 @@ export function AppShell() {
     const handleInternalNotification = (event) => {
       const notification = event.detail;
       const id = notification?.id || notification?.pushNotificationId;
-      if (!id || !noveltyTypes.has(notification?.type) || seenInternalNotifications.current.has(id)) return;
+      if (
+        !id
+        || !noveltyTypes.has(notification?.type)
+        || seenInternalNotifications.current.has(id)
+        || (notification?.pushNotificationId && seenInternalNotifications.current.has(notification.pushNotificationId))
+      ) return;
       seenInternalNotifications.current.add(id);
       if (notification?.pushNotificationId) seenInternalNotifications.current.add(notification.pushNotificationId);
       setForegroundPush(notificationToNovelty(notification));

@@ -97,18 +97,23 @@ export function Settings() {
       pushDiagnostic?.firestoreWrite === "permitida" ||
       pushDiagnostic?.firestoreWrite === "token existente"
     );
-    const sentCount = Number(pushTestResult?.body?.sent || pushTestResult?.body?.enviados || 0);
-    const fcmOk = Boolean(pushTestResult?.ok && sentCount > 0);
     const foregroundOk = Boolean(foregroundPushResult);
     const backgroundOk = Boolean(backgroundPushResult);
+    const sentCount = Number(pushTestResult?.body?.sent || pushTestResult?.body?.enviados || 0);
+    const fcmSentOk = Boolean(pushTestResult?.ok && sentCount > 0);
+    const fcmOk = Boolean(fcmSentOk || foregroundOk || backgroundOk);
+    const lastAttemptFailed = Boolean(pushTestResult && !pushTestResult.ok);
     return {
       browserPermission,
       deviceRegistered,
       fcmOk,
+      fcmSentOk,
+      fcmStatusLabel: fcmSentOk ? "correcto" : fcmOk ? "recibido previamente" : "sin probar",
+      lastAttemptFailed,
       foregroundOk,
       backgroundOk,
       allOk: browserPermission === "granted" && deviceRegistered && fcmOk && foregroundOk && backgroundOk,
-      tokenOperational: fcmOk && (foregroundOk || backgroundOk)
+      tokenOperational: fcmOk || foregroundOk || backgroundOk
     };
   }, [pushDiagnostic, pushTestResult, foregroundPushResult, backgroundPushResult]);
   const pushCooldownActive = pushCooldownNow < pushCooldownUntil;
@@ -892,8 +897,14 @@ export function Settings() {
               </div>
               <div className="flex justify-between gap-3">
                 <dt>Push FCM</dt>
-                <dd className="font-semibold text-ink">{pushSummary.fcmOk ? "correcto" : "sin probar"}</dd>
+                <dd className="font-semibold text-ink">{pushSummary.fcmStatusLabel}</dd>
               </div>
+              {pushSummary.lastAttemptFailed ? (
+                <div className="flex justify-between gap-3">
+                  <dt>Último intento</dt>
+                  <dd className="text-right font-semibold text-brass">falló: {pushTestResult?.body?.stage || "sin etapa"}</dd>
+                </div>
+              ) : null}
               <div className="flex justify-between gap-3">
                 <dt>App abierta</dt>
                 <dd className="font-semibold text-ink">{pushSummary.foregroundOk ? "recibido" : "sin recibir"}</dd>
@@ -1025,7 +1036,7 @@ export function Settings() {
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div><dt>SW activo con FCM</dt><dd className="font-semibold text-ink">{boolLabel(pushDiagnostic.serviceWorkerHasFcmSupport)}</dd></div>
-                <div><dt>Token FCM operativo</dt><dd className="font-semibold text-ink">{pushSummary.tokenOperational ? "si" : boolLabel(pushDiagnostic.serviceWorkerUsedMatchesActive)}</dd></div>
+                <div><dt>Token FCM operativo</dt><dd className="font-semibold text-ink">{pushSummary.tokenOperational ? "si" : "sin confirmar"}</dd></div>
               </div>
               <div className="flex justify-between gap-3">
                 <dt>Status SW file</dt>
@@ -1111,10 +1122,15 @@ export function Settings() {
                 {pushAutoResult ? (
                   <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-xl bg-ink/5 p-2 text-[11px] dark:bg-white/10">{JSON.stringify({
                     hora: pushAutoResult.at,
+                    eventoGuardado: pushAutoResult.eventoGuardado ?? true,
+                    novedadInternaCreada: pushAutoResult.novedadInternaCreada ?? Boolean(pushAutoResult.notificationId),
+                    pushIntentado: pushAutoResult.pushIntentado ?? !pushAutoResult.skipped,
+                    pushEnviado: pushAutoResult.pushEnviado ?? Number(pushAutoResult.body?.sent || 0) > 0,
                     notificationId: pushAutoResult.notificationId,
                     scheduleId: pushAutoResult.scheduleId,
                     songId: pushAutoResult.songId,
                     statusHttp: pushAutoResult.status,
+                    source: pushAutoResult.body?.source,
                     deduplicado: pushAutoResult.body?.deduplicated || pushAutoResult.body?.duplicate || false,
                     tokensEncontrados: pushAutoResult.body?.tokensFound,
                     tokensActivos: pushAutoResult.body?.activeTokens,

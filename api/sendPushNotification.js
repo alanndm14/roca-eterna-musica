@@ -68,6 +68,10 @@ function isPreconditionError(error = {}) {
     || message.includes("FAILED_PRECONDITION");
 }
 
+function firestoreStage(stage = "") {
+  return ["check_role", "read_tokens", "dedupe", "cleanup_invalid_tokens"].includes(stage);
+}
+
 function environmentDiagnostic() {
   return {
     hasProjectId: Boolean(process.env.FIREBASE_PROJECT_ID),
@@ -343,9 +347,6 @@ export default async function handler(request, response) {
     stage = "verify_id_token";
     const decoded = await verifyRequester(request);
 
-    stage = "check_role";
-    await checkRole(decoded);
-
     const {
       mode = "broadcast",
       type = "other",
@@ -361,6 +362,9 @@ export default async function handler(request, response) {
       badge
     } = request.body || {};
     notificationId = incomingNotificationId || "";
+
+    stage = "check_role";
+    await checkRole(decoded);
 
     if (!allowedTypes.has(type)) return sendJson(response, 400, { ok: false, stage: "validate_payload", code: "INVALID_TYPE", message: "Tipo de notificacion no permitido." });
     if (!title || !body) return sendJson(response, 400, { ok: false, stage: "validate_payload", code: "MISSING_TITLE_BODY", message: "Faltan titulo o mensaje." });
@@ -465,12 +469,17 @@ export default async function handler(request, response) {
   } catch (error) {
     const status = error.status || 500;
     const sanitized = sanitizeError(error);
+    const errorStage = error.stage || stage;
+    const fromFirestore = firestoreStage(errorStage);
     const body = {
       ok: false,
-      stage: error.stage || stage,
-      source: (error.stage || stage) === "read_tokens" ? "firestore" : "backend",
+      stage: errorStage,
+      source: fromFirestore ? "firestore" : "backend",
+      notificationId,
       ...sanitized,
-      message: (error.stage || stage) === "read_tokens"
+      message: errorStage === "check_role" && isQuotaError(error)
+        ? "Firestore reporto cuota excedida al validar permisos. El evento se guardo, pero el push no se envio."
+        : errorStage === "read_tokens"
         ? isQuotaError(error)
           ? "Firestore reporto cuota excedida al leer tokens."
           : sanitized.message || "Firestore/Admin SDK fallo al leer tokens."
@@ -479,8 +488,8 @@ export default async function handler(request, response) {
         : isPreconditionError(error)
           ? "FCM reporto FAILED_PRECONDITION. Revisa Cloud Messaging API, VAPID key y service account del mismo proyecto."
           : sanitized.message,
-      hint: (error.stage || stage) === "read_tokens"
-        ? "Fallo al leer tokens desde Firestore/Admin SDK. No es un error de FCM todavia."
+      hint: fromFirestore
+        ? "Fallo en Firestore/Admin SDK antes de enviar a FCM. No es un error de FCM todavia."
         : "",
       env: stage === "initialize_admin" ? {
         hasProjectId: Boolean(process.env.FIREBASE_PROJECT_ID),

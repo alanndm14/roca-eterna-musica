@@ -34,8 +34,17 @@ export function isPushBackendConfigured() {
 }
 
 export async function sendExternalPush(payload = {}, options = {}) {
+  const meta = options.meta || {};
   if (!pushServerUrl || !auth?.currentUser) {
-    return { skipped: true, reason: "Push externo no configurado." };
+    const result = { skipped: true, reason: "Push externo no configurado.", ...meta };
+    saveLastPushResult(options.kind === "test" ? LAST_TEST_KEY : LAST_AUTO_KEY, {
+      notificationId: payload.notificationId || "",
+      scheduleId: payload.scheduleId || "",
+      songId: payload.songId || "",
+      mode: payload.mode || "broadcast",
+      ...result
+    });
+    return result;
   }
 
   try {
@@ -53,9 +62,11 @@ export async function sendExternalPush(payload = {}, options = {}) {
       skipped: false,
       ok: response.ok && body.ok !== false,
       status: response.status,
+      pushEnviado: response.ok && body.ok !== false && Number(body.sent || body.enviados || 0) > 0,
       body
     };
     saveLastPushResult(options.kind === "test" ? LAST_TEST_KEY : LAST_AUTO_KEY, {
+      ...meta,
       notificationId: payload.notificationId || "",
       scheduleId: payload.scheduleId || "",
       songId: payload.songId || "",
@@ -64,8 +75,14 @@ export async function sendExternalPush(payload = {}, options = {}) {
     });
     return result;
   } catch (error) {
-    const result = { skipped: false, ok: false, error: error.message };
-    saveLastPushResult(options.kind === "test" ? LAST_TEST_KEY : LAST_AUTO_KEY, result);
+    const result = { skipped: false, ok: false, error: error.message, ...meta };
+    saveLastPushResult(options.kind === "test" ? LAST_TEST_KEY : LAST_AUTO_KEY, {
+      notificationId: payload.notificationId || "",
+      scheduleId: payload.scheduleId || "",
+      songId: payload.songId || "",
+      mode: payload.mode || "broadcast",
+      ...result
+    });
     return result;
   }
 }
