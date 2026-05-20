@@ -5,12 +5,14 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
   serverTimestamp,
   setDoc,
   updateDoc,
+  where,
   writeBatch
 } from "firebase/firestore";
 import { deleteObject, getDownloadURL, ref, uploadBytes } from "firebase/storage";
@@ -263,8 +265,13 @@ export function MusicDataProvider({ children }) {
       title: notification.title || "Nueva notificación",
       message: notification.message || "",
       pushNotificationId: notification.pushNotificationId || "",
+      entityType: notification.entityType || (notification.scheduleId ? "schedule" : notification.songId ? "song" : "other"),
+      entityId: notification.entityId || notification.scheduleId || notification.songId || "",
       scheduleId: notification.scheduleId || "",
       songId: notification.songId || "",
+      active: notification.active !== false,
+      deleted: false,
+      relatedEntityDeleted: false,
       targetRoles: notification.targetRoles || ["admin", "editor", "viewer"],
       targetUsers: notification.targetUsers || [],
       readBy: [],
@@ -300,6 +307,37 @@ export function MusicDataProvider({ children }) {
     await Promise.all(notifications.filter((item) => !(item.readBy || []).includes(profile?.uid)).map((item) => markNotificationRead(item.id)));
   };
 
+  const deactivateRelatedNotifications = async ({ entityType, entityId }) => {
+    if (!entityType || !entityId) return;
+    const matchesEntity = (item) => (
+      item.entityType === entityType && item.entityId === entityId
+    ) || (
+      entityType === "schedule" && item.scheduleId === entityId
+    ) || (
+      entityType === "song" && item.songId === entityId
+    );
+    const payload = {
+      active: false,
+      deleted: true,
+      relatedEntityDeleted: true,
+      deletedAt: useLocal ? new Date().toISOString() : serverTimestamp()
+    };
+
+    if (useLocal) {
+      setNotifications((current) => current.map((item) => matchesEntity(item) ? { ...item, ...payload } : item));
+      return;
+    }
+
+    const fieldName = entityType === "schedule" ? "scheduleId" : "songId";
+    const [entitySnap, legacySnap] = await Promise.all([
+      getDocs(query(collection(db, "notifications"), where("entityId", "==", entityId))).catch(() => ({ docs: [] })),
+      getDocs(query(collection(db, "notifications"), where(fieldName, "==", entityId))).catch(() => ({ docs: [] }))
+    ]);
+    const refs = new Map();
+    [...entitySnap.docs, ...legacySnap.docs].forEach((item) => refs.set(item.ref.path, item.ref));
+    await Promise.all([...refs.values()].map((refItem) => updateDoc(refItem, payload).catch(() => undefined)));
+  };
+
   const saveSong = async (song) => {
     const before = song.id ? songs.find((item) => item.id === song.id) : null;
     const normalizedSong = normalizeSong(song, settings.keyPreference);
@@ -333,6 +371,8 @@ export function MusicDataProvider({ children }) {
           type: "new_song",
           title: "Nuevo canto en el repertorio",
           message: payload.title,
+          entityType: "song",
+          entityId: id,
           songId: id,
           pushNotificationId
         };
@@ -370,6 +410,8 @@ export function MusicDataProvider({ children }) {
         type: "new_song",
         title: "Nuevo canto en el repertorio",
         message: payload.title,
+        entityType: "song",
+        entityId: created.id,
         songId: created.id,
         pushNotificationId
       };
@@ -463,10 +505,12 @@ export function MusicDataProvider({ children }) {
     const before = songs.find((song) => song.id === songId);
     if (useLocal) {
       setSongs((current) => current.filter((song) => song.id !== songId));
+      await deactivateRelatedNotifications({ entityType: "song", entityId: songId });
       await logAuditEvent({ actionType: "delete", entityType: "song", entityId: songId, entityName: before?.title || "", summary: `Canto eliminado: ${before?.title || songId}`, beforeData: before });
       return;
     }
     await deleteDoc(doc(db, "songs", songId));
+    await deactivateRelatedNotifications({ entityType: "song", entityId: songId });
     await logAuditEvent({ actionType: "delete", entityType: "song", entityId: songId, entityName: before?.title || "", summary: `Canto eliminado: ${before?.title || songId}`, beforeData: before });
   };
 
@@ -511,6 +555,8 @@ export function MusicDataProvider({ children }) {
             type: "new_schedule",
             title: "Nueva programación",
             message: formatSchedulePushBody(payload),
+            entityType: "schedule",
+            entityId: id,
             scheduleId: id,
             isFutureSchedule: true,
             pushNotificationId
@@ -549,6 +595,8 @@ export function MusicDataProvider({ children }) {
           type: "new_schedule",
           title: "Nueva programación",
           message: formatSchedulePushBody(payload),
+          entityType: "schedule",
+          entityId: created.id,
           scheduleId: created.id,
           isFutureSchedule: true,
           pushNotificationId
@@ -573,10 +621,12 @@ export function MusicDataProvider({ children }) {
     const before = schedules.find((schedule) => schedule.id === scheduleId);
     if (useLocal) {
       setSchedules((current) => current.filter((schedule) => schedule.id !== scheduleId));
+      await deactivateRelatedNotifications({ entityType: "schedule", entityId: scheduleId });
       await logAuditEvent({ actionType: "delete", entityType: "schedule", entityId: scheduleId, entityName: before?.serviceLabel || before?.date || "", summary: `Programación eliminada: ${before?.serviceLabel || before?.date || scheduleId}`, beforeData: before });
       return;
     }
     await deleteDoc(doc(db, "schedules", scheduleId));
+    await deactivateRelatedNotifications({ entityType: "schedule", entityId: scheduleId });
     await logAuditEvent({ actionType: "delete", entityType: "schedule", entityId: scheduleId, entityName: before?.serviceLabel || before?.date || "", summary: `Programación eliminada: ${before?.serviceLabel || before?.date || scheduleId}`, beforeData: before });
   };
 

@@ -40,14 +40,29 @@ const notificationToNovelty = (notification = {}) => ({
   receivedAt: new Date().toISOString()
 });
 
+const notificationKey = (notification = {}) => notification.pushNotificationId || notification.notificationId || notification.id || "";
+
+const relativeTime = (value) => {
+  if (!value) return "";
+  const date = value.seconds ? new Date(value.seconds * 1000) : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const diff = Date.now() - date.getTime();
+  const minutes = Math.max(0, Math.round(diff / 60000));
+  if (minutes < 1) return "ahora";
+  if (minutes < 60) return `hace ${minutes} min`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `hace ${hours} h`;
+  return date.toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" });
+};
+
 export function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
   const { profile, saveUserPreferences } = useAuth();
-  const { settings, useLocal, notifications, markNotificationRead, markAllNotificationsRead } = useMusicData();
+  const { settings, useLocal, notifications, schedules, songs, markNotificationRead, markAllNotificationsRead } = useMusicData();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem(sidebarStorageKey) === "true");
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [foregroundPush, setForegroundPush] = useState(null);
+  const [foregroundPushes, setForegroundPushes] = useState([]);
   const seenInternalNotifications = useRef(new Set());
   const initializedInternalNotifications = useRef(false);
   const pageTitle = pageNames[location.pathname] || "Roca Eterna Música";
@@ -55,14 +70,27 @@ export function AppShell() {
   const effectiveTheme = getEffectiveThemeMode(themeMode);
   const logoSrc = getInstitutionalLogo(settings, appLogo, themeMode);
   const logoAlt = settings.logoAltText || "Roca Eterna Música";
-  const visibleNotifications = useMemo(() => notifications.filter((item) => {
+  const scheduleIds = useMemo(() => new Set(schedules.map((schedule) => schedule.id)), [schedules]);
+  const songIds = useMemo(() => new Set(songs.map((song) => song.id)), [songs]);
+  const targetedNotifications = useMemo(() => notifications.filter((item) => {
     const targetUsers = item.targetUsers || [];
     const targetRoles = item.targetRoles || [];
     if (targetUsers.length) return targetUsers.includes(profile?.uid);
     if (targetRoles.length) return targetRoles.includes(profile?.role);
     return true;
   }), [notifications, profile?.role, profile?.uid]);
-  const unreadNotifications = visibleNotifications.filter((item) => !(item.readBy || []).includes(profile?.uid));
+  const isNotificationEntityDeleted = (item) => Boolean(
+    item?.deleted
+    || item?.relatedEntityDeleted
+    || item?.active === false
+    || (item?.scheduleId && !scheduleIds.has(item.scheduleId))
+    || (item?.songId && !songIds.has(item.songId))
+  );
+  const activeNotifications = useMemo(
+    () => targetedNotifications.filter((item) => !isNotificationEntityDeleted(item)),
+    [targetedNotifications, scheduleIds, songIds]
+  );
+  const unreadNotifications = activeNotifications.filter((item) => !(item.readBy || []).includes(profile?.uid));
   const shellStyle = {
     "--color-brass": hexToRgb(profile?.accentColor || localStorage.getItem("roca-eterna-accent-color") || "#b6945f"),
     "--color-blue-gray": hexToRgb(profile?.blueGrayColor || "#60717d")
@@ -79,6 +107,16 @@ export function AppShell() {
     if (logoAlt) localStorage.setItem("roca-eterna-logo-alt", logoAlt);
     localStorage.removeItem("roca-eterna-logo-invert");
   }, [logoAlt, logoSrc, settings]);
+
+  const addNovelty = (notification) => {
+    const novelty = notificationToNovelty(notification);
+    const key = notificationKey(novelty);
+    if (!key || isNotificationEntityDeleted(novelty)) return;
+    setForegroundPushes((current) => {
+      if (current.some((item) => notificationKey(item) === key)) return current;
+      return [novelty, ...current.filter((item) => notificationKey(item) !== key)].slice(0, 3);
+    });
+  };
 
   useEffect(() => {
     let unsubscribe = () => {};
@@ -108,7 +146,7 @@ export function AppShell() {
       shown.set(tag, Date.now());
       if (message.notificationId) seenInternalNotifications.current.add(message.notificationId);
       setTimeout(() => shown.delete(tag), 15000);
-      setForegroundPush(message);
+      addNovelty(message);
       window.dispatchEvent(new CustomEvent("roca-eterna-foreground-push", { detail: message }));
 
       if (!message.hasNotificationPayload && "Notification" in window && Notification.permission === "granted") {
@@ -152,33 +190,37 @@ export function AppShell() {
       ) return;
       seenInternalNotifications.current.add(id);
       if (notification?.pushNotificationId) seenInternalNotifications.current.add(notification.pushNotificationId);
-      setForegroundPush(notificationToNovelty(notification));
+      addNovelty(notification);
     };
     window.addEventListener("roca-eterna-internal-notification", handleInternalNotification);
     return () => window.removeEventListener("roca-eterna-internal-notification", handleInternalNotification);
   }, []);
 
   useEffect(() => {
-    const visibleIds = visibleNotifications.map((item) => item.id).filter(Boolean);
+    const visibleIds = activeNotifications.map((item) => item.id).filter(Boolean);
     if (!initializedInternalNotifications.current) {
       visibleIds.forEach((id) => seenInternalNotifications.current.add(id));
       initializedInternalNotifications.current = true;
       return;
     }
 
-    const nextNotification = visibleNotifications.find((item) => {
+    const newNotifications = activeNotifications.filter((item) => {
       if (!item?.id || seenInternalNotifications.current.has(item.id) || (item.pushNotificationId && seenInternalNotifications.current.has(item.pushNotificationId))) return false;
       if (!noveltyTypes.has(item.type)) return false;
       if ((item.readBy || []).includes(profile?.uid)) return false;
       return true;
     });
 
-    if (nextNotification) {
+    newNotifications.slice(0, 3).forEach((nextNotification) => {
       seenInternalNotifications.current.add(nextNotification.id);
       if (nextNotification.pushNotificationId) seenInternalNotifications.current.add(nextNotification.pushNotificationId);
-      setForegroundPush(notificationToNovelty(nextNotification));
-    }
-  }, [profile?.uid, visibleNotifications]);
+      addNovelty(nextNotification);
+    });
+  }, [profile?.uid, activeNotifications]);
+
+  useEffect(() => {
+    setForegroundPushes((current) => current.filter((item) => !isNotificationEntityDeleted(item)));
+  }, [scheduleIds, songIds]);
 
   useEffect(() => {
     const handleServiceWorkerMessage = (event) => {
@@ -229,26 +271,39 @@ export function AppShell() {
   const openNotification = async (notification) => {
     await markNotificationRead(notification.id);
     setNotificationsOpen(false);
+    if (isNotificationEntityDeleted(notification)) {
+      alert(notification.scheduleId ? "Esta programación ya fue eliminada." : notification.songId ? "Este canto ya fue eliminado." : "Esta novedad ya no está activa.");
+      return;
+    }
     if (notification.scheduleId) navigate("/programacion");
     if (notification.songId) navigate(`/repertorio/${notification.songId}`);
   };
 
-  const openForegroundPush = () => {
-    if (!foregroundPush) return;
-    const url = foregroundPush.url || "";
-    setForegroundPush(null);
-    if (foregroundPush.source === "internal" && foregroundPush.id) {
-      markNotificationRead(foregroundPush.id).catch(() => undefined);
+  const openNovelty = (novelty) => {
+    if (!novelty) return;
+    const url = novelty.url || "";
+    setForegroundPushes((current) => current.filter((item) => notificationKey(item) !== notificationKey(novelty)));
+    if (novelty.source === "internal" && novelty.id) {
+      markNotificationRead(novelty.id).catch(() => undefined);
     }
-    if (foregroundPush.scheduleId) {
+    if (isNotificationEntityDeleted(novelty)) {
+      alert(novelty.scheduleId ? "Esta programación ya fue eliminada." : novelty.songId ? "Este canto ya fue eliminado." : "Esta novedad ya no está activa.");
+      return;
+    }
+    if (novelty.scheduleId) {
       navigate("/programacion");
-    } else if (foregroundPush.songId) {
-      navigate(`/repertorio/${foregroundPush.songId}`);
+    } else if (novelty.songId) {
+      navigate(`/repertorio/${novelty.songId}`);
     } else if (url.startsWith("/#/")) {
       navigate(url.replace("/#", ""));
     } else if (url.startsWith("#/")) {
       navigate(url.replace("#", ""));
     }
+  };
+
+  const dismissNovelty = (novelty) => {
+    setForegroundPushes((current) => current.filter((item) => notificationKey(item) !== notificationKey(novelty)));
+    if (novelty?.source === "internal" && novelty.id) markNotificationRead(novelty.id).catch(() => undefined);
   };
 
   return (
@@ -309,25 +364,26 @@ export function AppShell() {
                       </Button>
                     </div>
                     <div className="mt-3 max-h-80 space-y-2 overflow-auto">
-                      {visibleNotifications.length ? visibleNotifications.slice(0, 12).map((item) => {
+                      {targetedNotifications.length ? targetedNotifications.slice(0, 12).map((item) => {
                         const unread = !(item.readBy || []).includes(profile?.uid);
                         const Icon = item.type === "new_song" ? Music2 : item.type === "new_schedule" || item.type === "updated_schedule" ? CalendarDays : Bell;
+                        const entityDeleted = isNotificationEntityDeleted(item);
                         return (
                           <button
                             key={item.id}
                             type="button"
                             onClick={() => openNotification(item)}
-                            className={`grid w-full grid-cols-[2.5rem_1fr] gap-3 rounded-2xl border p-3 text-left transition hover:border-brass/45 hover:bg-brass/5 ${unread ? "border-brass/30 bg-brass/12" : "border-transparent bg-ink/5 dark:bg-white/7"}`}
+                            className={`grid w-full grid-cols-[2.5rem_1fr] gap-3 rounded-2xl border p-3 text-left transition ${entityDeleted ? "cursor-default border-transparent bg-ink/5 opacity-65 dark:bg-white/5" : unread ? "border-brass/30 bg-brass/12 hover:border-brass/45 hover:bg-brass/5" : "border-transparent bg-ink/5 hover:border-brass/45 hover:bg-brass/5 dark:bg-white/7"}`}
                           >
                             <span className={`grid h-10 w-10 place-items-center rounded-2xl ${unread ? "bg-brass text-white" : "bg-ink/10 text-ink/65 dark:bg-white/10"}`}>
                               <Icon className="h-4 w-4" />
                             </span>
                             <span className="min-w-0">
                               <span className="flex items-center justify-between gap-2">
-                                <span className="text-sm font-bold text-ink">{item.title}</span>
+                                <span className="text-sm font-bold text-ink">{entityDeleted ? (item.scheduleId ? "Programación eliminada" : item.songId ? "Canto eliminado" : item.title) : item.title}</span>
                                 {unread ? <span className="h-2 w-2 rounded-full bg-brass" aria-label="No leída" /> : null}
                               </span>
-                              <span className="mt-1 block text-xs leading-5 text-ink/60">{item.message}</span>
+                              <span className="mt-1 block text-xs leading-5 text-ink/60">{entityDeleted ? "Esta novedad ya no está activa." : item.message}</span>
                               <span className="mt-2 block text-[11px] text-ink/40">
                                 {item.createdAt ? new Date(item.createdAt.seconds ? item.createdAt.seconds * 1000 : item.createdAt).toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" }) : ""}
                               </span>
@@ -344,34 +400,38 @@ export function AppShell() {
         </header>
 
         <div className="mx-auto max-w-7xl px-4 py-5 md:px-8 md:py-6">
-          {foregroundPush ? (
+          {foregroundPushes.length ? (
             <motion.div
-              role="button"
-              tabIndex={0}
-              onClick={openForegroundPush}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") openForegroundPush();
-              }}
-              className="mb-4 w-full rounded-3xl border border-brass/35 bg-brass/12 p-4 text-left shadow-[0_0_28px_rgba(182,148,95,0.18)] transition hover:border-brass/60 hover:bg-brass/16"
+              className="mb-4 w-full rounded-3xl border border-brass/35 bg-brass/12 p-4 text-left shadow-[0_0_28px_rgba(182,148,95,0.18)]"
               initial={{ opacity: 0, y: -8, scale: 0.99 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               transition={{ duration: 0.24 }}
             >
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex gap-3">
-                  <span className="mt-1 grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-brass text-white shadow-soft">
-                    {foregroundPush.type === "new_song" ? <Music2 className="h-5 w-5" /> : <CalendarDays className="h-5 w-5" />}
-                  </span>
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-brass">Novedades</p>
-                    <p className="mt-1 font-bold text-ink">{foregroundPush.title}</p>
-                    {foregroundPush.body ? <p className="mt-1 text-sm text-ink/65">{foregroundPush.body}</p> : null}
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-brass">Novedades</p>
+                {activeNotifications.length > 3 ? (
+                  <Button variant="subtle" className="h-9 px-3 text-xs" onClick={() => setNotificationsOpen(true)}>Ver todas</Button>
+                ) : null}
+              </div>
+              <div className="grid gap-2">
+                {foregroundPushes.slice(0, 3).map((novelty) => (
+                  <div key={notificationKey(novelty)} className="grid gap-3 rounded-2xl bg-white/80 p-3 shadow-soft dark:bg-white/10 sm:grid-cols-[2.75rem_1fr_auto] sm:items-center">
+                    <button type="button" onClick={() => openNovelty(novelty)} className="contents text-left">
+                      <span className="grid h-11 w-11 place-items-center rounded-2xl bg-brass text-white shadow-soft">
+                        {novelty.type === "new_song" ? <Music2 className="h-5 w-5" /> : <CalendarDays className="h-5 w-5" />}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block font-bold text-ink">{novelty.title}</span>
+                        {novelty.body ? <span className="mt-1 block text-sm text-ink/65">{novelty.body}</span> : null}
+                        <span className="mt-1 block text-xs text-ink/45">{relativeTime(novelty.receivedAt)}</span>
+                      </span>
+                    </button>
+                    <div className="flex gap-2 sm:justify-end">
+                      <Button variant="secondary" className="h-9 px-3 text-xs" onClick={() => openNovelty(novelty)}>Abrir</Button>
+                      <Button variant="subtle" className="h-9 px-3 text-xs" onClick={() => dismissNovelty(novelty)}>Cerrar</Button>
+                    </div>
                   </div>
-                </div>
-                <div className="flex gap-2">
-                  <span className="inline-flex h-10 items-center rounded-xl bg-white px-3 text-sm font-semibold text-ink shadow-soft dark:bg-white/10 dark:text-white">Abrir</span>
-                  <Button variant="subtle" className="h-10 px-3 text-sm" onClick={(event) => { event.stopPropagation(); setForegroundPush(null); }}>Cerrar</Button>
-                </div>
+                ))}
               </div>
             </motion.div>
           ) : null}

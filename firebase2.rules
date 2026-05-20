@@ -173,6 +173,8 @@ service cloud.firestore {
       allow create: if isEditor();
       allow update: if isAuthorized()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["readBy"]);
+      allow update: if isEditor()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["active", "deleted", "relatedEntityDeleted", "deletedAt", "readBy"]);
       allow delete: if isAdmin();
 
       match /reads/{userId} {

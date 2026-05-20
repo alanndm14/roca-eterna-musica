@@ -18,6 +18,7 @@ import {
 } from "../services/serviceSheetPdf";
 import { downloadBlob, getSongPdfSource, mergePdfFiles, mergeServiceLocalPdfs } from "../services/mergeServicePdfs";
 import { getSongPdfUrl } from "../services/songUtils";
+import { cleanupExpiredTemporaryServicePdfs, deleteTemporaryServicePdf, getTemporaryServicePdf, saveTemporaryServicePdf } from "../services/temporaryServicePdfStore";
 
 const compactDate = (dateString) => {
   if (!dateString) return "Sin fecha";
@@ -126,6 +127,8 @@ export function MusicianView() {
   const [replaceTarget, setReplaceTarget] = useState(null);
   const [isMergingLocalFiles, setIsMergingLocalFiles] = useState(false);
   const [isMergingServiceLocal, setIsMergingServiceLocal] = useState(false);
+  const [temporaryMergedPdf, setTemporaryMergedPdf] = useState(null);
+  const [temporaryMergedPdfUrl, setTemporaryMergedPdfUrl] = useState("");
   const selectedServiceRef = useRef(null);
   const today = todayString();
   const [pickerDate, setPickerDate] = useState(today);
@@ -175,6 +178,39 @@ export function MusicianView() {
   );
   const activePdfSong = serviceSongs[activePdfIndex] || serviceSongs[0];
   const serviceDocument = selectedSchedule ? <ServiceSheetDocument schedule={selectedSchedule} songs={songs} settings={settings} /> : null;
+
+  useEffect(() => {
+    cleanupExpiredTemporaryServicePdfs().catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!selectedSchedule?.id) {
+      setTemporaryMergedPdf(null);
+      setTemporaryMergedPdfUrl("");
+      return undefined;
+    }
+    getTemporaryServicePdf(selectedSchedule.id)
+      .then((record) => {
+        if (cancelled) return;
+        setTemporaryMergedPdf(record);
+        setTemporaryMergedPdfUrl((current) => {
+          if (current) URL.revokeObjectURL(current);
+          return record?.blob ? URL.createObjectURL(record.blob) : "";
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setTemporaryMergedPdf(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedSchedule?.id]);
+
+  useEffect(() => () => {
+    if (temporaryMergedPdfUrl) URL.revokeObjectURL(temporaryMergedPdfUrl);
+  }, [temporaryMergedPdfUrl]);
+
   const realUsageBySong = useMemo(() => {
     const counts = new Map();
     schedules.forEach((schedule) => {
@@ -264,10 +300,31 @@ export function MusicianView() {
     }
   };
 
+  const storeMergedServicePdf = async (result) => {
+    if (!selectedSchedule?.id || !result?.blob) return null;
+    const record = await saveTemporaryServicePdf({
+      scheduleId: selectedSchedule.id,
+      serviceTitle: getServiceDisplayLabel(selectedSchedule),
+      serviceDate: selectedSchedule.date || "",
+      generatedAt: new Date().toISOString(),
+      fileName: result.fileName || getServiceFileName(selectedSchedule),
+      blob: result.blob,
+      included: result.included || [],
+      omitted: result.omitted || []
+    });
+    setTemporaryMergedPdf(record);
+    setTemporaryMergedPdfUrl((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return URL.createObjectURL(record.blob);
+    });
+    return record;
+  };
+
   const mergeServiceFromPublicPdfs = async () => {
     setIsMergingServiceLocal(true);
     try {
       const result = await mergeServiceLocalPdfs(selectedSchedule, songs, settings.keyPreference || "sharps");
+      if (result.blob) await storeMergedServicePdf(result);
       if (result.omitted.length) {
         setMergeResult(result);
       } else if (result.blob) {
@@ -278,6 +335,26 @@ export function MusicianView() {
     } finally {
       setIsMergingServiceLocal(false);
     }
+  };
+
+  const openTemporaryMergedPdf = () => {
+    if (!temporaryMergedPdfUrl) return;
+    window.open(temporaryMergedPdfUrl, "_blank", "noopener,noreferrer");
+  };
+
+  const downloadTemporaryMergedPdf = () => {
+    if (!temporaryMergedPdf?.blob) return;
+    downloadBlob(temporaryMergedPdf.blob, temporaryMergedPdf.fileName || getServiceFileName(selectedSchedule));
+  };
+
+  const deleteTemporaryMergedPdf = async () => {
+    if (!selectedSchedule?.id) return;
+    await deleteTemporaryServicePdf(selectedSchedule.id);
+    setTemporaryMergedPdf(null);
+    setTemporaryMergedPdfUrl((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return "";
+    });
   };
 
   const confirmReplacement = async (candidate) => {
@@ -360,6 +437,33 @@ export function MusicianView() {
             )) : (
               <p className="rounded-2xl bg-ink/5 p-4 text-sm text-ink/55">No hay programaciones en este día.</p>
             )}
+          </div>
+        </div>
+        <div className="mt-5 rounded-3xl border border-ink/10 bg-white/80 p-4 dark:border-white/10 dark:bg-white/5">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h4 className="font-bold text-ink">PDF unido del servicio</h4>
+              <p className="mt-1 text-sm text-ink/55">
+                {temporaryMergedPdf
+                  ? `Disponible en este dispositivo desde ${new Date(temporaryMergedPdf.generatedAt).toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" })}.`
+                  : "Este PDF se guarda temporalmente en este dispositivo."}
+              </p>
+              {temporaryMergedPdf?.omitted?.length ? (
+                <p className="mt-2 text-xs font-semibold text-brass">Se generó parcial: {temporaryMergedPdf.omitted.length} canto(s) no se pudieron incluir.</p>
+              ) : null}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {temporaryMergedPdf ? (
+                <>
+                  <Button variant="secondary" onClick={openTemporaryMergedPdf}>Abrir PDF unido</Button>
+                  <Button variant="secondary" onClick={downloadTemporaryMergedPdf}>Descargar otra vez</Button>
+                  <Button isLoading={isMergingServiceLocal} onClick={mergeServiceFromPublicPdfs}>Regenerar</Button>
+                  <Button variant="danger" onClick={deleteTemporaryMergedPdf}>Borrar PDF temporal</Button>
+                </>
+              ) : (
+                <Button isLoading={isMergingServiceLocal} onClick={mergeServiceFromPublicPdfs}>Generar PDF unido</Button>
+              )}
+            </div>
           </div>
         </div>
       </Card>
