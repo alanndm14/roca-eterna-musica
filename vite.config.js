@@ -15,7 +15,7 @@ export default defineConfig({
       injectManifest: {
         globPatterns: ["**/*.{js,css,html,png,svg,webmanifest,pdf}"]
       },
-      includeAssets: ["icons/icon-192.png", "icons/icon-512.png", "icons/icon-192.svg", "icons/icon-512.svg"],
+      includeAssets: ["icons/logo modo claro.png", "icons/cropped-LOGO-IBRE-5-1.png"],
       manifest: {
         name: "Roca Eterna Música",
         short_name: "RE Música",
@@ -26,25 +26,13 @@ export default defineConfig({
         start_url: "/",
         icons: [
           {
-            src: "icons/icon-192.svg",
-            sizes: "192x192",
-            type: "image/svg+xml",
-            purpose: "any maskable"
-          },
-          {
-            src: "icons/icon-512.svg",
-            sizes: "512x512",
-            type: "image/svg+xml",
-            purpose: "any maskable"
-          },
-          {
-            src: "icons/icon-192.png",
+            src: "icons/logo%20modo%20claro.png",
             sizes: "192x192",
             type: "image/png",
             purpose: "any maskable"
           },
           {
-            src: "icons/icon-512.png",
+            src: "icons/cropped-LOGO-IBRE-5-1.png",
             sizes: "512x512",
             type: "image/png",
             purpose: "any maskable"

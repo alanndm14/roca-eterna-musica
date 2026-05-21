@@ -116,6 +116,7 @@ service cloud.firestore {
             "sidebarCollapsed",
             "onboardingCompleted",
             "onboardingCompletedAt",
+            "dismissedPushPromptByUser",
             "preferencesUpdatedAt"
           ])
         );

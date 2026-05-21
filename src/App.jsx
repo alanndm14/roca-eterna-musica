@@ -6,7 +6,7 @@ import { OnboardingGuide } from "./components/ui/OnboardingGuide";
 import { WelcomeSplash } from "./components/ui/WelcomeSplash";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
 import { MusicDataProvider, useMusicData } from "./hooks/useMusicData";
-import { appLogo } from "./assets/logo";
+import { appDarkLogo, appLogo } from "./assets/logo";
 import { getEffectiveThemeMode, getInstitutionalLogo } from "./services/songUtils";
 import { Dashboard } from "./pages/Dashboard";
 import { AuditLogs } from "./pages/AuditLogs";
@@ -73,7 +73,7 @@ function DataReady({ children }) {
 
   const themeMode = profile?.themeMode || localStorage.getItem("roca-eterna-theme-mode") || "system";
   const effectiveTheme = getEffectiveThemeMode(themeMode);
-  const logoSrc = getInstitutionalLogo(settings, appLogo, themeMode);
+  const logoSrc = getInstitutionalLogo(settings, effectiveTheme === "dark" ? appDarkLogo : appLogo, themeMode);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", effectiveTheme === "dark");

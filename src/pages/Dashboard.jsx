@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { CalendarPlus, Clock, FileClock, ListPlus, Music2, RotateCcw, Sparkles } from "lucide-react";
+import { BellRing, CalendarPlus, Clock, FileClock, ListPlus, Music2, RotateCcw, Sparkles } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { StatCard } from "../components/ui/StatCard";
@@ -8,6 +8,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
 import { formatDate, getCurrentOrNextSchedule, getEstimatedServiceEndDate, getScheduleStartDate, getServiceDisplayLabel, todayString } from "../services/dateUtils";
 import { getSongPdfUrl } from "../services/songUtils";
+import { diagnosePushNotifications, enablePushNotificationsForUser } from "../services/pushNotifications";
 
 const currentMonth = () => todayString().slice(0, 7);
 
@@ -50,9 +51,10 @@ const getMonthlyTopSongs = (schedules = []) => {
 };
 
 export function Dashboard() {
-  const { canEdit, profile } = useAuth();
+  const { canEdit, profile, saveUserPreferences } = useAuth();
   const { songs = [], schedules = [] } = useMusicData();
   const [now, setNow] = useState(() => new Date());
+  const [pushPrompt, setPushPrompt] = useState({ checked: false, show: false, status: "" });
   const isViewer = profile?.role === "viewer";
   const upcoming = useMemo(() => getCurrentOrNextSchedule(schedules, now), [schedules, now]);
   const missingPdfLinks = songs.filter((song) => !getSongPdfUrl(song)).length;
@@ -70,8 +72,67 @@ export function Dashboard() {
     return () => window.clearInterval(timer);
   }, [countdownActive]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const checkPushPrompt = async () => {
+      if (!profile?.uid || profile.dismissedPushPromptByUser || localStorage.getItem(`roca-eterna-push-prompt-dismissed-${profile.uid}`) === "true") {
+        setPushPrompt((current) => ({ ...current, checked: true, show: false }));
+        return;
+      }
+      if (typeof Notification === "undefined") {
+        setPushPrompt((current) => ({ ...current, checked: true, show: false }));
+        return;
+      }
+      const diagnostic = await diagnosePushNotifications(profile).catch(() => null);
+      if (cancelled) return;
+      const permissionGranted = Notification.permission === "granted";
+      const hasRegisteredDevice = Boolean(diagnostic?.tokenPath || diagnostic?.tokenObtained || diagnostic?.firestoreWrite === "token existente" || diagnostic?.firestoreWrite === "permitida");
+      setPushPrompt({ checked: true, show: !permissionGranted || !hasRegisteredDevice, status: "" });
+    };
+    checkPushPrompt();
+    return () => {
+      cancelled = true;
+    };
+  }, [profile?.uid, profile?.dismissedPushPromptByUser]);
+
+  const activatePushFromPrompt = async () => {
+    const result = await enablePushNotificationsForUser(profile);
+    setPushPrompt({
+      checked: true,
+      show: !(result.supported && (result.tokenObtained || result.firestoreWrite === "permitida")),
+      status: result.reason || (result.supported ? "Notificaciones activadas." : "No se pudieron activar las notificaciones.")
+    });
+  };
+
+  const dismissPushPrompt = async () => {
+    if (profile?.uid) localStorage.setItem(`roca-eterna-push-prompt-dismissed-${profile.uid}`, "true");
+    await saveUserPreferences?.({ dismissedPushPromptByUser: true });
+    setPushPrompt({ checked: true, show: false, status: "" });
+  };
+
   return (
     <div className="space-y-6">
+      {pushPrompt.checked && pushPrompt.show ? (
+        <Card className="border-brass/25 bg-brass/10">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex gap-3">
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-brass text-white">
+                <BellRing className="h-5 w-5" />
+              </span>
+              <div>
+                <h2 className="text-lg font-bold text-ink">Recibir novedades</h2>
+                <p className="mt-1 text-sm leading-6 text-ink/62">Podemos avisarte cuando se agregue una nueva programación o un nuevo canto al repertorio.</p>
+                {pushPrompt.status ? <p className="mt-2 text-sm font-semibold text-brass">{pushPrompt.status}</p> : null}
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={activatePushFromPrompt}>Activar notificaciones</Button>
+              <Button variant="subtle" onClick={dismissPushPrompt}>Ahora no</Button>
+            </div>
+          </div>
+        </Card>
+      ) : null}
+
       <section className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
         <Card className="relative overflow-hidden bg-ink p-6 text-white">
           <div className="absolute -right-20 -top-20 h-56 w-56 rounded-full border border-white/10" />

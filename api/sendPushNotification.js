@@ -101,7 +101,7 @@ function absoluteAppUrl(url = "") {
 }
 
 function publicIconUrl() {
-  return `${appBaseUrl()}/icons/icon-192.png`;
+  return `${appBaseUrl()}/icons/logo%20modo%20claro.png`;
 }
 
 function stringData(payload) {

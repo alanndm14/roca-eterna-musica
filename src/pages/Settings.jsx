@@ -12,7 +12,7 @@ import { canonicalThemeKey, collectSongThemes, getInstitutionalLogo, normalizeTh
 import { diagnosePublicAsset } from "../services/publicPdfTools";
 import { getLastPushResult, isPushBackendConfigured, sendExternalPush } from "../services/externalPush";
 import { cleanupCurrentUserFcmTokens, diagnosePushNotifications, disablePushNotificationsForUser, enablePushNotificationsForUser, getCurrentPushTokenForUser, getLastBackgroundPush, getLastForegroundPush, reinstallMessagingServiceWorker, requestSiteNotificationPermissionOnly, testLocalNotification } from "../services/pushNotifications";
-import { appLogo, fallbackAppLogo } from "../assets/logo";
+import { appDarkLogo, appLogo, fallbackAppLogo } from "../assets/logo";
 
 const defaultColors = {
   accentColor: "#b6945f",
@@ -99,6 +99,10 @@ export function Settings() {
     );
     const foregroundOk = Boolean(foregroundPushResult);
     const backgroundOk = Boolean(backgroundPushResult);
+    const lastReceptionAt = foregroundPushResult?.receivedAt || backgroundPushResult?.receivedAt || "";
+    const lastReceptionLabel = lastReceptionAt
+      ? new Date(lastReceptionAt).toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" })
+      : "sin recepción reciente";
     const sentCount = Number(pushTestResult?.body?.sent || pushTestResult?.body?.enviados || 0);
     const fcmSentOk = Boolean(pushTestResult?.ok && sentCount > 0);
     const fcmOk = Boolean(fcmSentOk || foregroundOk || backgroundOk);
@@ -112,6 +116,7 @@ export function Settings() {
       lastAttemptFailed,
       foregroundOk,
       backgroundOk,
+      lastReceptionLabel,
       allOk: browserPermission === "granted" && deviceRegistered && fcmOk && foregroundOk && backgroundOk,
       tokenOperational: fcmOk || foregroundOk || backgroundOk
     };
@@ -222,7 +227,7 @@ export function Settings() {
   };
 
   const lightLogo = getInstitutionalLogo(localSettings, appLogo, "light");
-  const darkLogo = getInstitutionalLogo(localSettings, appLogo, "dark");
+  const darkLogo = getInstitutionalLogo(localSettings, appDarkLogo, "dark");
   const lightLogoSource = localSettings.logoLightUrl || "";
   const darkLogoSource = localSettings.logoDarkUrl || "";
 
@@ -896,8 +901,12 @@ export function Settings() {
                 <dd className="font-semibold text-ink">{yesNoLabel(pushSummary.deviceRegistered)}</dd>
               </div>
               <div className="flex justify-between gap-3">
-                <dt>Push FCM</dt>
+                <dt>Push</dt>
                 <dd className="font-semibold text-ink">{pushSummary.fcmStatusLabel}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt>Última recepción</dt>
+                <dd className="text-right font-semibold text-ink">{pushSummary.lastReceptionLabel}</dd>
               </div>
               {pushSummary.lastAttemptFailed ? (
                 <div className="flex justify-between gap-3">
@@ -921,16 +930,16 @@ export function Settings() {
           <div className="mt-4 grid gap-2">
             {isAdmin ? (
               <Button className="w-full" variant="secondary" disabled={isUpdatingPush} onClick={runLocalNotificationTest}>
-                Probar notificación local
+                Probar notificación
               </Button>
             ) : null}
             {isAdmin ? (
-              <Button className="w-full" variant="subtle" disabled={isUpdatingPush} onClick={runPersistentLocalNotificationTest}>
+              <Button className="hidden w-full" variant="subtle" disabled={isUpdatingPush} onClick={runPersistentLocalNotificationTest}>
                 Probar notificación local persistente
               </Button>
             ) : null}
             {isAdmin ? (
-              <Button className="w-full" variant="subtle" disabled={isUpdatingPush} onClick={requestSitePermission}>
+              <Button className="hidden w-full" variant="subtle" disabled={isUpdatingPush} onClick={requestSitePermission}>
                 Solicitar permiso del sitio
               </Button>
             ) : null}
@@ -939,10 +948,10 @@ export function Settings() {
             </Button>
             {isAdmin ? (
               <>
-                <Button className="w-full" variant="secondary" isLoading={isUpdatingPush} disabled={isUpdatingPush || pushCooldownActive || !isPushBackendConfigured()} onClick={sendSelfTestPush}>
+                <Button className="hidden w-full" variant="secondary" isLoading={isUpdatingPush} disabled={isUpdatingPush || pushCooldownActive || !isPushBackendConfigured()} onClick={sendSelfTestPush}>
                   {pushCooldownActive ? `Espera ${pushCooldownSeconds}s` : "Enviar push de prueba a este dispositivo"}
                 </Button>
-                <Button className="w-full" variant="subtle" isLoading={isUpdatingPush} disabled={isUpdatingPush || pushCooldownActive || !isPushBackendConfigured()} onClick={sendSelfTestDataOnlyPush}>
+                <Button className="hidden w-full" variant="subtle" isLoading={isUpdatingPush} disabled={isUpdatingPush || pushCooldownActive || !isPushBackendConfigured()} onClick={sendSelfTestDataOnlyPush}>
                   {pushCooldownActive ? `Espera ${pushCooldownSeconds}s` : "Enviar prueba FCM data-only"}
                 </Button>
                 <Button className="w-full" variant="subtle" disabled={isUpdatingPush} onClick={reinstallServiceWorker}>
@@ -962,7 +971,7 @@ export function Settings() {
           {pushStatus ? <p className="mt-3 rounded-2xl bg-ink/5 p-3 text-sm text-ink/60">{pushStatus}</p> : null}
           {(localNotificationResult || pushTestResult || foregroundPushResult || backgroundPushResult) ? (
             <div className="mt-3 space-y-2 rounded-2xl border border-ink/10 bg-white/70 p-3 text-xs text-ink/70 dark:bg-white/5">
-              <p className="font-bold text-ink">Ultimos resultados</p>
+              <p className="font-bold text-ink">Últimos resultados</p>
               {localNotificationResult ? (
                 <p>Prueba local: {localNotificationResult.executed ? "ejecutada sin error" : "no ejecutada"}{localNotificationResult.method ? ` via ${localNotificationResult.method}` : ""}.</p>
               ) : null}
@@ -975,7 +984,7 @@ export function Settings() {
           ) : null}
           {isAdmin ? (
             <Button className="mt-3 w-full" variant="subtle" onClick={() => setShowAdvancedPushDiagnostics((value) => !value)}>
-              {showAdvancedPushDiagnostics ? "Ocultar diagnostico avanzado" : "Diagnostico avanzado"}
+              {showAdvancedPushDiagnostics ? "Ocultar diagnóstico avanzado" : "Diagnóstico avanzado"}
             </Button>
           ) : null}
           {showAdvancedPushDiagnostics && pushDiagnostic ? (
@@ -1072,6 +1081,20 @@ export function Settings() {
               </Button>
               {showAdvancedPushDiagnostics ? (
               <div className="mt-3 space-y-2 rounded-2xl border border-ink/10 bg-white/70 p-3 text-xs text-ink/70 dark:bg-white/5">
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Button className="w-full" variant="secondary" isLoading={isUpdatingPush} disabled={isUpdatingPush || pushCooldownActive || !isPushBackendConfigured()} onClick={sendSelfTestPush}>
+                    {pushCooldownActive ? `Espera ${pushCooldownSeconds}s` : "Prueba FCM normal"}
+                  </Button>
+                  <Button className="w-full" variant="subtle" isLoading={isUpdatingPush} disabled={isUpdatingPush || pushCooldownActive || !isPushBackendConfigured()} onClick={sendSelfTestDataOnlyPush}>
+                    {pushCooldownActive ? `Espera ${pushCooldownSeconds}s` : "Prueba data-only"}
+                  </Button>
+                  <Button className="w-full" variant="subtle" disabled={isUpdatingPush} onClick={runPersistentLocalNotificationTest}>
+                    Notificación local persistente
+                  </Button>
+                  <Button className="w-full" variant="subtle" disabled={isUpdatingPush} onClick={requestSitePermission}>
+                    Solicitar permiso del sitio
+                  </Button>
+                </div>
                 <p className="font-semibold text-ink">Prueba local</p>
                 {localNotificationResult ? (
                   <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-xl bg-ink/5 p-2 text-[11px] dark:bg-white/10">{JSON.stringify({

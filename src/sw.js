@@ -19,7 +19,7 @@ const firebaseConfig = {
 };
 
 const baseUrl = new URL(self.registration.scope).pathname || "/";
-const iconPath = `${baseUrl.replace(/\/$/, "")}/icons/icon-192.png`;
+const iconPath = `${baseUrl.replace(/\/$/, "")}/icons/logo%20modo%20claro.png`;
 const hasConfig = Object.values(firebaseConfig).every(Boolean);
 const shownTags = new Set();
 

@@ -74,6 +74,21 @@ function ReviewBadge({ label, value }) {
 }
 
 const getVisiblePdfInput = (song) => song.pdfUrl || song.drivePdfUrl || (!song.pdfUrl && !song.drivePdfUrl ? song.chordsUrl : "") || "";
+const hasValue = (value) => Boolean(String(value || "").trim());
+const hasGoogleDriveLink = (song) => [
+  song.drivePdfUrl,
+  song.pdfUrl,
+  song.pdfPreviewUrl,
+  song.chordsUrl
+].some((value) => String(value || "").includes("drive.google.com"));
+const hasExternalPdfOrChords = (song) => Boolean(getSongExternalChordsUrl(song) || song.chordsUrl || song.pdfUrl || song.drivePdfUrl || song.pdfPreviewUrl);
+const linkCompleteness = (song) => ({
+  youtube: hasValue(getSongYoutubeUrl(song)),
+  spotify: hasValue(getSongSpotifyUrl(song)),
+  drive: hasGoogleDriveLink(song),
+  localPdf: hasValue(song.localPdfPath),
+  externalPdf: hasExternalPdfOrChords(song)
+});
 
 const toneSummary = (song) => {
   if (Number(song.capo || 0) > 0) return `Capo ${song.capo} · Suena en ${song.keyWithCapo || song.mainKey || "--"}`;
@@ -407,6 +422,11 @@ export function Songs() {
     format: "",
     keyChange: "",
     localPdf: "",
+    youtube: "",
+    spotify: "",
+    driveLink: "",
+    externalPdf: "",
+    missingLinks: "",
     artist: ""
   });
   const [viewMode, setViewMode] = useState(() => localStorage.getItem("roca-eterna-song-view-mode") || "cards");
@@ -442,7 +462,27 @@ export function Songs() {
   }, [schedules]);
 
   const setFilter = (field, value) => setFilters((current) => ({ ...current, [field]: value }));
-  const clearFilters = () => setFilters({ query: "", category: "", mainTheme: "", otherTheme: "", key: "", capo: "", music: "", keynote: "", pdf: "", sung: "", format: "", keyChange: "", localPdf: "", artist: "" });
+  const clearFilters = () => setFilters({
+    query: "",
+    category: "",
+    mainTheme: "",
+    otherTheme: "",
+    key: "",
+    capo: "",
+    music: "",
+    keynote: "",
+    pdf: "",
+    sung: "",
+    format: "",
+    keyChange: "",
+    localPdf: "",
+    youtube: "",
+    spotify: "",
+    driveLink: "",
+    externalPdf: "",
+    missingLinks: "",
+    artist: ""
+  });
 
   const filteredSongs = useMemo(
     () =>
@@ -473,12 +513,21 @@ export function Songs() {
         const matchesFormat = !filters.format || song.format === filters.format;
         const matchesKeyChange = !filters.keyChange || (filters.keyChange === "si" ? song.hasKeyChange : !song.hasKeyChange);
         const matchesArtist = !filters.artist || normalizeSearchText(song.artistOrSource).includes(normalizeSearchText(filters.artist));
-        const hasLocalPdf = Boolean(song.localPdfPath);
+        const links = linkCompleteness(song);
+        const hasLocalPdf = links.localPdf;
         const matchesLocalPdf = !filters.localPdf
           || (filters.localPdf === "with" && hasLocalPdf)
           || (filters.localPdf === "without" && !hasLocalPdf)
           || (filters.localPdf === "invalid" && ["missing", "failed", "error"].includes(song.pdfIndexStatus || song.localPdfStatus));
-        return matchesQuery && matchesCategory && matchesMainTheme && matchesOtherTheme && matchesKey && matchesCapo && matchesMusic && matchesKeynote && matchesPdf && matchesSung && matchesFormat && matchesKeyChange && matchesArtist && matchesLocalPdf;
+        const matchesYoutube = !filters.youtube || (filters.youtube === "with" ? links.youtube : !links.youtube);
+        const matchesSpotify = !filters.spotify || (filters.spotify === "with" ? links.spotify : !links.spotify);
+        const matchesDriveLink = !filters.driveLink || (filters.driveLink === "with" ? links.drive : !links.drive);
+        const matchesExternalPdf = !filters.externalPdf || (filters.externalPdf === "with" ? links.externalPdf : !links.externalPdf);
+        const requiredLinks = [links.youtube, links.spotify, links.drive, links.localPdf];
+        const matchesMissingLinks = !filters.missingLinks
+          || (filters.missingLinks === "missing" && requiredLinks.some((value) => !value))
+          || (filters.missingLinks === "complete" && requiredLinks.every(Boolean));
+        return matchesQuery && matchesCategory && matchesMainTheme && matchesOtherTheme && matchesKey && matchesCapo && matchesMusic && matchesKeynote && matchesPdf && matchesSung && matchesFormat && matchesKeyChange && matchesArtist && matchesLocalPdf && matchesYoutube && matchesSpotify && matchesDriveLink && matchesExternalPdf && matchesMissingLinks;
       }),
     [filters, songs]
   );
@@ -583,7 +632,7 @@ export function Songs() {
           </Select>
         </div>
 
-        <details className="mt-4 rounded-2xl border border-ink/10 bg-white p-4">
+        <details className="mt-4 rounded-2xl border border-ink/10 bg-white p-4 dark:border-white/10 dark:bg-white/5">
           <summary className="cursor-pointer text-sm font-bold text-ink">Filtros avanzados</summary>
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <Select value={filters.otherTheme} onChange={(event) => setFilter("otherTheme", event.target.value)}>
@@ -625,6 +674,31 @@ export function Songs() {
               <option value="with">Con ruta PDF local</option>
               <option value="without">Sin ruta PDF local</option>
               <option value="invalid">Ruta PDF local invalida</option>
+            </Select>
+            <Select value={filters.youtube} onChange={(event) => setFilter("youtube", event.target.value)}>
+              <option value="">YouTube</option>
+              <option value="with">Con YouTube</option>
+              <option value="without">Sin YouTube</option>
+            </Select>
+            <Select value={filters.spotify} onChange={(event) => setFilter("spotify", event.target.value)}>
+              <option value="">Spotify</option>
+              <option value="with">Con Spotify</option>
+              <option value="without">Sin Spotify</option>
+            </Select>
+            <Select value={filters.driveLink} onChange={(event) => setFilter("driveLink", event.target.value)}>
+              <option value="">Google Drive letra/acordes</option>
+              <option value="with">Con link de Google Drive</option>
+              <option value="without">Sin link de Google Drive</option>
+            </Select>
+            <Select value={filters.externalPdf} onChange={(event) => setFilter("externalPdf", event.target.value)}>
+              <option value="">PDF/acordes externos</option>
+              <option value="with">Con PDF/acordes</option>
+              <option value="without">Sin PDF/acordes</option>
+            </Select>
+            <Select value={filters.missingLinks} onChange={(event) => setFilter("missingLinks", event.target.value)}>
+              <option value="">Faltan enlaces</option>
+              <option value="missing">Falta algún enlace</option>
+              <option value="complete">Completos</option>
             </Select>
             <Input value={filters.artist} onChange={(event) => setFilter("artist", event.target.value)} placeholder="Artista o fuente" />
           </div>

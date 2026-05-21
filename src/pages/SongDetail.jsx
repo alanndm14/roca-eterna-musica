@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, CalendarPlus, CheckCircle, Copy, Edit3, ExternalLink, FileText, Headphones, Trash2, Youtube } from "lucide-react";
 import { Button } from "../components/ui/Button";
@@ -48,6 +48,10 @@ export function SongDetail() {
   const [pdfTest, setPdfTest] = useState(null);
   const [editingSong, setEditingSong] = useState(false);
   const song = normalizeSong(songs.find((item) => item.id === songId), settings.keyPreference || "sharps");
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [songId]);
 
   if (!song?.id) return <EmptyState title="Canto no encontrado" text="Es posible que haya sido eliminado." />;
 

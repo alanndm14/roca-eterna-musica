@@ -1,5 +1,5 @@
 import { deleteToken, getMessaging, getToken, isSupported, onMessage } from "firebase/messaging";
-import { collection, getDocs, serverTimestamp, setDoc } from "firebase/firestore";
+import { collection, doc, getDocs, serverTimestamp, setDoc } from "firebase/firestore";
 import { db, firebaseApp, firebaseVapidKey, isFirebaseConfigured } from "../lib/firebase";
 import { resolvePublicAssetUrl } from "./songUtils";
 
@@ -42,7 +42,7 @@ const iconUrl = () => {
     || localStorage.getItem("roca-eterna-logo-dark-src")
     || localStorage.getItem("roca-eterna-logo-src")
     || "";
-  return resolvePublicAssetUrl(preferred) || new URL(`${import.meta.env.BASE_URL || "/"}icons/icon-192.png`, window.location.origin).href;
+  return resolvePublicAssetUrl(preferred || "icons/logo modo claro.png");
 };
 
 const normalizePushPayload = (payload = {}) => {

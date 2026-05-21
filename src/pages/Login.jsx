@@ -1,6 +1,6 @@
 import { LogIn, ShieldCheck } from "lucide-react";
 import { motion } from "framer-motion";
-import { appLogo, fallbackAppLogo } from "../assets/logo";
+import { appDarkLogo, appLogo } from "../assets/logo";
 import { Button } from "../components/ui/Button";
 import { useAuth } from "../hooks/useAuth";
 import { firebaseMissingConfigKeys, isDemoModeAllowed } from "../lib/firebase";
@@ -13,7 +13,7 @@ export function Login() {
   const effectiveTheme = getEffectiveThemeMode(themeMode);
   const logoSrc = (effectiveTheme === "dark"
     ? localStorage.getItem("roca-eterna-logo-dark-src")
-    : localStorage.getItem("roca-eterna-logo-light-src")) || localStorage.getItem("roca-eterna-logo-src") || appLogo;
+    : localStorage.getItem("roca-eterna-logo-light-src")) || (effectiveTheme === "dark" ? appDarkLogo : appLogo);
   const logoAlt = localStorage.getItem("roca-eterna-logo-alt") || "Roca Eterna Música";
   const firebasePublishWarning =
     import.meta.env.PROD && !isFirebaseConfigured
@@ -33,7 +33,7 @@ export function Login() {
           <img
             src={logoSrc}
             onError={(event) => {
-              event.currentTarget.src = fallbackAppLogo;
+              event.currentTarget.style.display = "none";
             }}
             alt={logoAlt}
             className={`h-44 w-44 rounded-3xl object-contain p-3 shadow-2xl md:h-56 md:w-56 ${effectiveTheme === "dark" ? "bg-zinc-950" : "bg-white"}`}

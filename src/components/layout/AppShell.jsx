@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { Bell, CalendarDays, CheckCheck, HelpCircle, Music2, PanelLeftClose, PanelLeftOpen } from "lucide-react";
-import { appLogo, fallbackAppLogo } from "../../assets/logo";
+import { appDarkLogo, appLogo, fallbackAppLogo } from "../../assets/logo";
 import { useAuth } from "../../hooks/useAuth";
 import { useMusicData } from "../../hooks/useMusicData";
 import { getEffectiveThemeMode, getInstitutionalLogo } from "../../services/songUtils";
@@ -68,7 +68,7 @@ export function AppShell() {
   const pageTitle = pageNames[location.pathname] || "Roca Eterna Música";
   const themeMode = profile?.themeMode || localStorage.getItem("roca-eterna-theme-mode") || "system";
   const effectiveTheme = getEffectiveThemeMode(themeMode);
-  const logoSrc = getInstitutionalLogo(settings, appLogo, themeMode);
+  const logoSrc = getInstitutionalLogo(settings, effectiveTheme === "dark" ? appDarkLogo : appLogo, themeMode);
   const logoAlt = settings.logoAltText || "Roca Eterna Música";
   const scheduleIds = useMemo(() => new Set(schedules.map((schedule) => schedule.id)), [schedules]);
   const songIds = useMemo(() => new Set(songs.map((song) => song.id)), [songs]);
@@ -103,7 +103,7 @@ export function AppShell() {
   useEffect(() => {
     if (logoSrc) localStorage.setItem("roca-eterna-logo-src", logoSrc);
     localStorage.setItem("roca-eterna-logo-light-src", getInstitutionalLogo(settings, appLogo, "light"));
-    localStorage.setItem("roca-eterna-logo-dark-src", getInstitutionalLogo(settings, appLogo, "dark"));
+    localStorage.setItem("roca-eterna-logo-dark-src", getInstitutionalLogo(settings, appDarkLogo, "dark"));
     if (logoAlt) localStorage.setItem("roca-eterna-logo-alt", logoAlt);
     localStorage.removeItem("roca-eterna-logo-invert");
   }, [logoAlt, logoSrc, settings]);
