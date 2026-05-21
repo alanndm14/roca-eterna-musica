@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, CalendarDays, Copy, Edit3, Plus, Search, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { pdf } from "@react-pdf/renderer";
+import { ArrowDown, ArrowUp, CalendarDays, Copy, Download, Edit3, Eye, FileText, Plus, Printer, Search, Trash2 } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -10,7 +11,16 @@ import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
 import { formatDate, todayString } from "../services/dateUtils";
 import { normalizeSearchText } from "../services/songUtils";
-import { isSpecialService } from "../services/specialProgramPdf";
+import { downloadBlob } from "../services/mergeServicePdfs";
+import {
+  SPECIAL_PROGRAM_TYPES,
+  SpecialProgramDocument,
+  SpecialProgramFourUpDocument,
+  emptySpecialProgramItem,
+  getSpecialProgramFileName,
+  isSpecialService,
+  normalizeSpecialProgramItems
+} from "../services/specialProgramPdf";
 
 const serviceOptions = [
   { value: "miercoles-oracion", label: "Miércoles de oración", time: "19:00", weekday: 3 },
@@ -319,7 +329,20 @@ function MonthCalendar({ schedules, selectedDate, onSelectDate }) {
   );
 }
 
-function ScheduleCard({ schedule, songs, canEdit, canDelete, onEdit, onDuplicate, onDelete }) {
+function ScheduleCard({
+  schedule,
+  songs,
+  canEdit,
+  canDelete,
+  onEdit,
+  onDuplicate,
+  onDelete,
+  onEditSpecialProgram,
+  onViewSpecialProgram,
+  onPrintSpecialProgram,
+  onPrintSpecialProgramFourUp
+}) {
+  const special = isSpecialService(schedule);
   return (
     <Card>
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
@@ -346,6 +369,39 @@ function ScheduleCard({ schedule, songs, canEdit, canDelete, onEdit, onDuplicate
           ) : null}
         </div>
       </div>
+      {special ? (
+        <div className="mt-5 rounded-2xl border border-brass/25 bg-brass/10 p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-start gap-3">
+              <FileText className="mt-0.5 h-5 w-5 text-brass" />
+              <div>
+                <h4 className="font-bold text-ink">Programa especial</h4>
+                <p className="mt-1 text-sm text-ink/60">Orden imprimible del servicio especial.</p>
+              </div>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2 lg:flex lg:flex-wrap">
+              {canEdit ? (
+                <Button variant="secondary" onClick={() => onEditSpecialProgram(schedule)}>
+                  <Edit3 className="h-4 w-4" />
+                  Editar programa
+                </Button>
+              ) : null}
+              <Button variant="secondary" onClick={() => onViewSpecialProgram(schedule)}>
+                <Eye className="h-4 w-4" />
+                Ver programa
+              </Button>
+              <Button onClick={() => onPrintSpecialProgram(schedule)}>
+                <Printer className="h-4 w-4" />
+                Imprimir programa
+              </Button>
+              <Button variant="secondary" onClick={() => onPrintSpecialProgramFourUp(schedule)}>
+                <Download className="h-4 w-4" />
+                4 programas por hoja
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div className="mt-5 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
         {(schedule.songs || []).map((song, songIndex) => (
           <div key={`${song.songId}-${songIndex}`} className="rounded-2xl bg-ink/5 p-3">
@@ -365,9 +421,13 @@ function ScheduleCard({ schedule, songs, canEdit, canDelete, onEdit, onDuplicate
 
 export function Schedules() {
   const { canEdit, canDelete } = useAuth();
-  const { songs, schedules, saveSchedule, deleteSchedule, duplicateSchedule } = useMusicData();
+  const { songs, schedules, settings, saveSchedule, deleteSchedule, duplicateSchedule } = useMusicData();
   const [editingSchedule, setEditingSchedule] = useState(null);
   const [newScheduleDraft, setNewScheduleDraft] = useState(null);
+  const [specialProgramSchedule, setSpecialProgramSchedule] = useState(null);
+  const [programDraft, setProgramDraft] = useState([]);
+  const [programPreviewUrl, setProgramPreviewUrl] = useState("");
+  const [programPreviewTitle, setProgramPreviewTitle] = useState("Programa especial");
   const [tab, setTab] = useState("calendar");
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = todayString();
@@ -412,6 +472,76 @@ export function Schedules() {
   const closeModal = () => {
     setEditingSchedule(null);
     setNewScheduleDraft(null);
+  };
+
+  useEffect(() => () => {
+    if (programPreviewUrl) URL.revokeObjectURL(programPreviewUrl);
+  }, [programPreviewUrl]);
+
+  const openSpecialProgramEditor = (schedule) => {
+    const items = normalizeSpecialProgramItems(schedule?.specialProgram || []);
+    setSpecialProgramSchedule(schedule);
+    setProgramDraft(items.length ? items : [emptySpecialProgramItem(1)]);
+  };
+
+  const updateProgramItem = (index, field, value) => {
+    setProgramDraft((current) => current.map((item, itemIndex) => {
+      if (itemIndex !== index) return item;
+      const next = { ...item, [field]: value };
+      if (field === "songId" && value) {
+        const song = songs.find((entry) => entry.id === value);
+        if (song && !next.title) next.title = song.title;
+      }
+      return next;
+    }));
+  };
+
+  const addProgramItem = () => {
+    setProgramDraft((current) => [...current, emptySpecialProgramItem(current.length + 1)]);
+  };
+
+  const removeProgramItem = (index) => {
+    setProgramDraft((current) => normalizeSpecialProgramItems(current.filter((_, itemIndex) => itemIndex !== index)));
+  };
+
+  const moveProgramItem = (index, direction) => {
+    const target = index + direction;
+    if (target < 0 || target >= programDraft.length) return;
+    setProgramDraft((current) => {
+      const next = [...current];
+      [next[index], next[target]] = [next[target], next[index]];
+      return normalizeSpecialProgramItems(next);
+    });
+  };
+
+  const saveSpecialProgram = async () => {
+    if (!specialProgramSchedule) return;
+    await saveSchedule({
+      ...specialProgramSchedule,
+      isSpecialService: true,
+      specialProgram: normalizeSpecialProgramItems(programDraft).filter((item) => item.title || item.type || item.notes || item.songId)
+    });
+    setSpecialProgramSchedule(null);
+    setProgramDraft([]);
+  };
+
+  const viewSpecialProgram = async (schedule) => {
+    const blob = await pdf(<SpecialProgramDocument schedule={schedule} songs={songs} settings={settings} />).toBlob();
+    setProgramPreviewUrl((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return URL.createObjectURL(blob);
+    });
+    setProgramPreviewTitle("Programa especial");
+  };
+
+  const printSpecialProgram = async (schedule) => {
+    const blob = await pdf(<SpecialProgramDocument schedule={schedule} songs={songs} settings={settings} />).toBlob();
+    downloadBlob(blob, getSpecialProgramFileName(schedule));
+  };
+
+  const printSpecialProgramFourUp = async (schedule) => {
+    const blob = await pdf(<SpecialProgramFourUpDocument schedule={schedule} songs={songs} settings={settings} />).toBlob();
+    downloadBlob(blob, getSpecialProgramFileName(schedule, " 4 por hoja"));
   };
 
   return (
@@ -484,6 +614,10 @@ export function Schedules() {
               onEdit={setEditingSchedule}
               onDuplicate={duplicateSchedule}
               onDelete={deleteSchedule}
+              onEditSpecialProgram={openSpecialProgramEditor}
+              onViewSpecialProgram={viewSpecialProgram}
+              onPrintSpecialProgram={printSpecialProgram}
+              onPrintSpecialProgramFourUp={printSpecialProgramFourUp}
             />
           ))}
         </div>
@@ -501,6 +635,65 @@ export function Schedules() {
             closeModal();
           }}
         />
+      </Modal>
+      <Modal open={Boolean(specialProgramSchedule)} title="Editar programa especial" onClose={() => setSpecialProgramSchedule(null)} wide>
+        <div className="space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm leading-6 text-ink/60">Agrega el orden completo del servicio especial. Esto no reemplaza la lista normal de cantos.</p>
+            <Button variant="secondary" onClick={addProgramItem}>
+              <Plus className="h-4 w-4" />
+              Agregar elemento
+            </Button>
+          </div>
+          <div className="max-h-[58vh] space-y-3 overflow-auto pr-1">
+            {programDraft.map((item, index) => (
+              <div key={`${item.order}-${index}`} className="rounded-2xl border border-ink/10 bg-white p-3">
+                <div className="grid gap-3 md:grid-cols-[80px_180px_1fr]">
+                  <Field label="Orden">
+                    <Input value={item.order} readOnly />
+                  </Field>
+                  <Field label="Tipo">
+                    <Select value={item.type} onChange={(event) => updateProgramItem(index, "type", event.target.value)}>
+                      {SPECIAL_PROGRAM_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+                    </Select>
+                  </Field>
+                  <Field label="Título o descripción">
+                    <Input value={item.title || ""} onChange={(event) => updateProgramItem(index, "title", event.target.value)} placeholder="Ej. Oración inicial" />
+                  </Field>
+                </div>
+                {item.type === "Canto" ? (
+                  <Field label="Canto relacionado opcional" className="mt-3">
+                    <Select value={item.songId || ""} onChange={(event) => updateProgramItem(index, "songId", event.target.value)}>
+                      <option value="">Sin canto relacionado</option>
+                      {songs.map((song) => <option key={song.id} value={song.id}>{song.title}</option>)}
+                    </Select>
+                  </Field>
+                ) : null}
+                <Field label="Notas opcionales" className="mt-3">
+                  <Textarea value={item.notes || ""} onChange={(event) => updateProgramItem(index, "notes", event.target.value)} />
+                </Field>
+                <div className="mt-3 flex flex-wrap justify-end gap-2">
+                  <Button variant="subtle" className="h-10 w-10 px-0" disabled={index === 0} onClick={() => moveProgramItem(index, -1)} aria-label="Subir"><ArrowUp className="h-4 w-4" /></Button>
+                  <Button variant="subtle" className="h-10 w-10 px-0" disabled={index === programDraft.length - 1} onClick={() => moveProgramItem(index, 1)} aria-label="Bajar"><ArrowDown className="h-4 w-4" /></Button>
+                  <Button variant="danger" onClick={() => removeProgramItem(index)}>
+                    <Trash2 className="h-4 w-4" />
+                    Borrar
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-end gap-3">
+            <Button variant="secondary" onClick={() => setSpecialProgramSchedule(null)}>Cancelar</Button>
+            <Button onClick={saveSpecialProgram}>Guardar programa</Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal open={Boolean(programPreviewUrl)} title={programPreviewTitle} onClose={() => setProgramPreviewUrl("")} wide panelClassName="h-[92dvh] md:h-[90vh] max-w-6xl flex flex-col">
+        <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-ink/10 bg-white">
+          {programPreviewUrl ? <iframe title={programPreviewTitle} src={programPreviewUrl} className="h-full w-full" /> : null}
+        </div>
       </Modal>
     </div>
   );

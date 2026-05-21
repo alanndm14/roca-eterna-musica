@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { pdf } from "@react-pdf/renderer";
-import { ArrowDown, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, Download, ExternalLink, Eye, FileStack, FileText, Maximize2, Minimize2, Pencil, Plus, Printer, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, Download, ExternalLink, Eye, FileStack, FileText, Maximize2, Minimize2, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -17,9 +17,7 @@ import { cleanupExpiredTemporaryServicePdfs, deleteTemporaryServicePdf, getTempo
 import {
   SPECIAL_PROGRAM_TYPES,
   SpecialProgramDocument,
-  SpecialProgramFourUpDocument,
   emptySpecialProgramItem,
-  getSpecialProgramFileName,
   isSpecialService,
   normalizeSpecialProgramItems
 } from "../services/specialProgramPdf";
@@ -274,18 +272,6 @@ export function MusicianView() {
     if (sheetUrl) URL.revokeObjectURL(sheetUrl);
     setSheetUrl(URL.createObjectURL(blob));
     setShowSheet(true);
-  };
-
-  const downloadSpecialProgram = async () => {
-    if (!selectedSchedule) return;
-    const blob = await pdf(<SpecialProgramDocument schedule={selectedSchedule} songs={songs} settings={settings} />).toBlob();
-    downloadBlob(blob, getSpecialProgramFileName(selectedSchedule));
-  };
-
-  const downloadSpecialProgramFourUp = async () => {
-    if (!selectedSchedule) return;
-    const blob = await pdf(<SpecialProgramFourUpDocument schedule={selectedSchedule} songs={songs} settings={settings} />).toBlob();
-    downloadBlob(blob, getSpecialProgramFileName(selectedSchedule, " 4 por hoja"));
   };
 
   const addLocalFiles = (files) => {
@@ -544,7 +530,7 @@ export function MusicianView() {
               <FileText className="h-5 w-5 text-brass" />
               <h4 className="font-bold text-ink">Programa especial</h4>
             </div>
-            <p className="mt-2 text-sm leading-6 text-ink/60">Orden completo del servicio especial para imprimir o compartir.</p>
+            <p className="mt-2 text-sm leading-6 text-ink/60">Orden completo del servicio especial.</p>
             <div className="mt-4 grid gap-2 sm:grid-cols-2">
               {canEdit ? (
                 <Button variant="secondary" onClick={openSpecialProgramEditor}>
@@ -555,14 +541,6 @@ export function MusicianView() {
               <Button variant="secondary" onClick={viewSpecialProgram}>
                 <Eye className="h-4 w-4" />
                 Ver programa
-              </Button>
-              <Button onClick={downloadSpecialProgram}>
-                <Printer className="h-4 w-4" />
-                Imprimir programa
-              </Button>
-              <Button variant="secondary" onClick={downloadSpecialProgramFourUp}>
-                <Download className="h-4 w-4" />
-                4 programas por hoja
               </Button>
             </div>
           </div>

@@ -83,6 +83,11 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 700
   },
+  churchSubtitle: {
+    marginTop: 2,
+    fontSize: 9,
+    color: "#555"
+  },
   event: {
     marginTop: 5,
     fontSize: 15,
@@ -193,6 +198,8 @@ function ProgramContent({ schedule, songs, settings, compact = false }) {
   const logo = getLogoUrl(settings);
   const title = getServiceDisplayLabel(schedule);
   const meta = `${formatDate(schedule?.date)}${schedule?.time ? ` · ${schedule.time}` : ""}${schedule?.leader ? ` · ${schedule.leader}` : ""}`;
+  const churchName = settings?.churchName || "";
+  const showChurchSubtitle = churchName && churchName.toLowerCase() !== "roca eterna";
 
   if (compact) {
     return (
@@ -200,6 +207,8 @@ function ProgramContent({ schedule, songs, settings, compact = false }) {
         <View style={styles.miniHeader}>
           {logo ? <Image src={logo} style={styles.miniLogo} /> : null}
           <View>
+            <Text style={styles.miniEvent}>Roca Eterna</Text>
+            {showChurchSubtitle ? <Text style={styles.miniMeta}>{churchName}</Text> : null}
             <Text style={styles.miniEvent}>{title}</Text>
             <Text style={styles.miniMeta}>{meta}</Text>
           </View>
@@ -218,7 +227,8 @@ function ProgramContent({ schedule, songs, settings, compact = false }) {
       <View style={styles.header}>
         {logo ? <Image src={logo} style={styles.logo} /> : null}
         <View>
-          <Text style={styles.church}>{settings?.churchName || "Roca Eterna"}</Text>
+          <Text style={styles.church}>Roca Eterna</Text>
+          {showChurchSubtitle ? <Text style={styles.churchSubtitle}>{churchName}</Text> : null}
           <Text style={styles.event}>{title}</Text>
           <Text style={styles.meta}>{meta}</Text>
         </View>

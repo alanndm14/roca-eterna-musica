@@ -1,6 +1,28 @@
-export const appVersion = "0.9.6";
+export const appVersion = "0.9.7";
 
 export const changelog = [
+  {
+    version: "0.9.7",
+    date: "2026-05-21",
+    title: "Programa especial y Vista de músicos más limpia",
+    added: [
+      "Edición del programa especial directamente desde Programación",
+      "Vista previa, impresión normal y formato 4 programas por hoja desde Programación",
+      "La hoja imprimible del programa especial muestra Roca Eterna junto al evento"
+    ],
+    changed: [
+      "Vista de músicos conserva solo Editar programa y Ver programa para servicios especiales",
+      "Los botones de imprimir y 4 por hoja se movieron a Programación",
+      "Documentos del servicio queda enfocado en el PDF unido para los músicos"
+    ],
+    fixed: [
+      "Se evita saturar Vista de músicos con acciones administrativas de impresión",
+      "El programa especial reutiliza el mismo guardado de Firestore desde Programación y Músicos"
+    ],
+    pending: [
+      "Probar impresión física de 4 por hoja con la configuración real de la impresora"
+    ]
+  },
   {
     version: "0.9.6",
     date: "2026-05-17",
