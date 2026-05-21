@@ -1,24 +1,28 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { PDFDownloadLink, pdf } from "@react-pdf/renderer";
-import { ArrowDown, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, Download, ExternalLink, Eye, FileStack, Maximize2, Minimize2, Trash2, Upload } from "lucide-react";
+import { pdf } from "@react-pdf/renderer";
+import { ArrowDown, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, Download, ExternalLink, Eye, FileStack, FileText, Maximize2, Minimize2, Pencil, Plus, Printer, Trash2 } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
-import { Select } from "../components/ui/Field";
+import { Field, Input, Select, Textarea } from "../components/ui/Field";
 import { Modal } from "../components/ui/Modal";
 import { SongNameLink } from "../components/ui/SongNameLink";
 import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
 import { formatDate, formatScheduleDateWithService, getCurrentOrNextSchedule, todayString } from "../services/dateUtils";
-import {
-  ServiceSheetDocument,
-  buildServiceSongs,
-  getServiceDisplayLabel,
-  getServiceFileName
-} from "../services/serviceSheetPdf";
+import { buildServiceSongs, getServiceDisplayLabel, getServiceFileName } from "../services/serviceSheetPdf";
 import { downloadBlob, getSongPdfSource, mergePdfFiles, mergeServiceLocalPdfs } from "../services/mergeServicePdfs";
 import { getSongPdfUrl } from "../services/songUtils";
 import { cleanupExpiredTemporaryServicePdfs, deleteTemporaryServicePdf, getTemporaryServicePdf, saveTemporaryServicePdf } from "../services/temporaryServicePdfStore";
+import {
+  SPECIAL_PROGRAM_TYPES,
+  SpecialProgramDocument,
+  SpecialProgramFourUpDocument,
+  emptySpecialProgramItem,
+  getSpecialProgramFileName,
+  isSpecialService,
+  normalizeSpecialProgramItems
+} from "../services/specialProgramPdf";
 
 const compactDate = (dateString) => {
   if (!dateString) return "Sin fecha";
@@ -113,14 +117,15 @@ function MusicianScheduleCalendar({ schedules, selectedDate, onSelectDate }) {
 }
 
 export function MusicianView() {
-  const { isAdmin } = useAuth();
-  const { schedules, songs, settings, replaceScheduleSong } = useMusicData();
+  const { isAdmin, canEdit } = useAuth();
+  const { schedules, songs, settings, replaceScheduleSong, saveSchedule } = useMusicData();
   const [selectedId, setSelectedId] = useState("");
   const [focusMode, setFocusMode] = useState(false);
   const [sheetUrl, setSheetUrl] = useState("");
   const [showSheet, setShowSheet] = useState(false);
   const [showServicePdfs, setShowServicePdfs] = useState(false);
   const [showLocalMerge, setShowLocalMerge] = useState(false);
+  const [showSpecialProgramEditor, setShowSpecialProgramEditor] = useState(false);
   const [activePdfIndex, setActivePdfIndex] = useState(0);
   const [localFiles, setLocalFiles] = useState([]);
   const [mergeResult, setMergeResult] = useState(null);
@@ -129,6 +134,7 @@ export function MusicianView() {
   const [isMergingServiceLocal, setIsMergingServiceLocal] = useState(false);
   const [temporaryMergedPdf, setTemporaryMergedPdf] = useState(null);
   const [temporaryMergedPdfUrl, setTemporaryMergedPdfUrl] = useState("");
+  const [programDraft, setProgramDraft] = useState([]);
   const selectedServiceRef = useRef(null);
   const today = todayString();
   const [pickerDate, setPickerDate] = useState(today);
@@ -177,7 +183,7 @@ export function MusicianView() {
     [selectedSchedule, songs, settings.keyPreference]
   );
   const activePdfSong = serviceSongs[activePdfIndex] || serviceSongs[0];
-  const serviceDocument = selectedSchedule ? <ServiceSheetDocument schedule={selectedSchedule} songs={songs} settings={settings} /> : null;
+  const selectedIsSpecial = isSpecialService(selectedSchedule);
 
   useEffect(() => {
     cleanupExpiredTemporaryServicePdfs().catch(() => undefined);
@@ -262,12 +268,24 @@ export function MusicianView() {
     if (document.fullscreenElement) await document.exitFullscreen?.();
   };
 
-  const viewServiceSheet = async () => {
-    if (!serviceDocument) return;
-    const blob = await pdf(serviceDocument).toBlob();
+  const viewSpecialProgram = async () => {
+    if (!selectedSchedule) return;
+    const blob = await pdf(<SpecialProgramDocument schedule={selectedSchedule} songs={songs} settings={settings} />).toBlob();
     if (sheetUrl) URL.revokeObjectURL(sheetUrl);
     setSheetUrl(URL.createObjectURL(blob));
     setShowSheet(true);
+  };
+
+  const downloadSpecialProgram = async () => {
+    if (!selectedSchedule) return;
+    const blob = await pdf(<SpecialProgramDocument schedule={selectedSchedule} songs={songs} settings={settings} />).toBlob();
+    downloadBlob(blob, getSpecialProgramFileName(selectedSchedule));
+  };
+
+  const downloadSpecialProgramFourUp = async () => {
+    if (!selectedSchedule) return;
+    const blob = await pdf(<SpecialProgramFourUpDocument schedule={selectedSchedule} songs={songs} settings={settings} />).toBlob();
+    downloadBlob(blob, getSpecialProgramFileName(selectedSchedule, " 4 por hoja"));
   };
 
   const addLocalFiles = (files) => {
@@ -357,6 +375,52 @@ export function MusicianView() {
     });
   };
 
+  const openSpecialProgramEditor = () => {
+    const items = normalizeSpecialProgramItems(selectedSchedule?.specialProgram || []);
+    setProgramDraft(items.length ? items : [emptySpecialProgramItem(1)]);
+    setShowSpecialProgramEditor(true);
+  };
+
+  const updateProgramItem = (index, field, value) => {
+    setProgramDraft((current) => current.map((item, itemIndex) => {
+      if (itemIndex !== index) return item;
+      const next = { ...item, [field]: value };
+      if (field === "songId" && value) {
+        const song = songs.find((entry) => entry.id === value);
+        if (song && !next.title) next.title = song.title;
+      }
+      return next;
+    }));
+  };
+
+  const addProgramItem = () => {
+    setProgramDraft((current) => [...current, emptySpecialProgramItem(current.length + 1)]);
+  };
+
+  const removeProgramItem = (index) => {
+    setProgramDraft((current) => normalizeSpecialProgramItems(current.filter((_, itemIndex) => itemIndex !== index)));
+  };
+
+  const moveProgramItem = (index, direction) => {
+    const target = index + direction;
+    if (target < 0 || target >= programDraft.length) return;
+    setProgramDraft((current) => {
+      const next = [...current];
+      [next[index], next[target]] = [next[target], next[index]];
+      return normalizeSpecialProgramItems(next);
+    });
+  };
+
+  const saveSpecialProgram = async () => {
+    if (!selectedSchedule) return;
+    await saveSchedule({
+      ...selectedSchedule,
+      isSpecialService: true,
+      specialProgram: normalizeSpecialProgramItems(programDraft).filter((item) => item.title || item.type || item.notes || item.songId)
+    });
+    setShowSpecialProgramEditor(false);
+  };
+
   const confirmReplacement = async (candidate) => {
     if (!replaceTarget || !selectedSchedule) return;
     if (!confirm(`¿Sustituir este canto en la programación?\n\n${replaceTarget.title} -> ${candidate.title}`)) return;
@@ -439,7 +503,11 @@ export function MusicianView() {
             )}
           </div>
         </div>
-        <div className="mt-5 rounded-3xl border border-ink/10 bg-white/80 p-4 dark:border-white/10 dark:bg-white/5">
+        <div className="mt-5">
+          <h3 className="font-bold text-ink">Documentos del servicio</h3>
+          <p className="mt-1 text-sm text-ink/55">Documentos útiles para ensayo y servicio, sin subir archivos a la nube.</p>
+        </div>
+        <div className="mt-4 rounded-3xl border border-ink/10 bg-white/80 p-4 dark:border-white/10 dark:bg-white/5">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h4 className="font-bold text-ink">PDF unido del servicio</h4>
@@ -456,54 +524,51 @@ export function MusicianView() {
               {temporaryMergedPdf ? (
                 <>
                   <Button variant="secondary" onClick={openTemporaryMergedPdf}>Abrir PDF unido</Button>
-                  <Button variant="secondary" onClick={downloadTemporaryMergedPdf}>Descargar otra vez</Button>
+                  <Button variant="secondary" onClick={downloadTemporaryMergedPdf}>Descargar</Button>
                   <Button isLoading={isMergingServiceLocal} onClick={mergeServiceFromPublicPdfs}>Regenerar</Button>
-                  <Button variant="danger" onClick={deleteTemporaryMergedPdf}>Borrar PDF temporal</Button>
+                  <Button variant="danger" onClick={deleteTemporaryMergedPdf}>Borrar temporal</Button>
                 </>
               ) : (
-                <Button isLoading={isMergingServiceLocal} onClick={mergeServiceFromPublicPdfs}>Generar PDF unido</Button>
+                <>
+                  <Button isLoading={isMergingServiceLocal} onClick={mergeServiceFromPublicPdfs} data-tour="service-local-merge">Generar PDF unido</Button>
+                  <Button variant="secondary" onClick={() => { setActivePdfIndex(0); setShowServicePdfs(true); }} data-tour="service-pdfs">Ver PDFs individuales</Button>
+                  <Button variant="secondary" onClick={() => setShowLocalMerge(true)}>Unir desde mi computadora</Button>
+                </>
               )}
             </div>
           </div>
         </div>
+        {selectedIsSpecial ? (
+          <div className="mt-4 rounded-3xl border border-brass/25 bg-brass/10 p-4">
+            <div className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-brass" />
+              <h4 className="font-bold text-ink">Programa especial</h4>
+            </div>
+            <p className="mt-2 text-sm leading-6 text-ink/60">Orden completo del servicio especial para imprimir o compartir.</p>
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              {canEdit ? (
+                <Button variant="secondary" onClick={openSpecialProgramEditor}>
+                  <Pencil className="h-4 w-4" />
+                  Editar programa
+                </Button>
+              ) : null}
+              <Button variant="secondary" onClick={viewSpecialProgram}>
+                <Eye className="h-4 w-4" />
+                Ver programa
+              </Button>
+              <Button onClick={downloadSpecialProgram}>
+                <Printer className="h-4 w-4" />
+                Imprimir programa
+              </Button>
+              <Button variant="secondary" onClick={downloadSpecialProgramFourUp}>
+                <Download className="h-4 w-4" />
+                4 programas por hoja
+              </Button>
+            </div>
+          </div>
+        ) : null}
       </Card>
 
-      <Card>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h3 className="font-bold text-ink">Documentos del servicio</h3>
-            <p className="mt-1 text-sm text-ink/55">Hoja resumida del día, PDFs del repertorio y unión local sin subir archivos.</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" onClick={viewServiceSheet}>
-              <Eye className="h-4 w-4" />
-              Ver hoja del servicio
-            </Button>
-            {serviceDocument ? (
-              <PDFDownloadLink document={serviceDocument} fileName={getServiceFileName(selectedSchedule)} className={linkButtonClass}>
-                {({ loading }) => (
-                  <>
-                    <Download className="h-4 w-4" />
-                    {loading ? "Preparando..." : "Descargar hoja del servicio"}
-                  </>
-                )}
-              </PDFDownloadLink>
-            ) : null}
-            <Button onClick={() => { setActivePdfIndex(0); setShowServicePdfs(true); }} data-tour="service-pdfs">
-              <FileStack className="h-4 w-4" />
-              Ver PDFs del servicio
-            </Button>
-            <Button variant="secondary" onClick={() => setShowLocalMerge(true)}>
-              <Upload className="h-4 w-4" />
-              Unir PDFs desde mi computadora
-            </Button>
-            <Button variant="secondary" isLoading={isMergingServiceLocal} onClick={mergeServiceFromPublicPdfs} data-tour="service-local-merge">
-              <Download className="h-4 w-4" />
-              Unir PDFs del servicio desde la app
-            </Button>
-          </div>
-        </div>
-      </Card>
 
       <div className="grid gap-4">
         {serviceSongs.map((song) => (
@@ -550,9 +615,9 @@ export function MusicianView() {
         </Card>
       ) : null}
 
-      <Modal open={showSheet} title="Hoja del servicio" onClose={() => setShowSheet(false)} wide panelClassName="h-[92dvh] md:h-[90vh] max-w-6xl flex flex-col">
+      <Modal open={showSheet} title="Programa especial" onClose={() => setShowSheet(false)} wide panelClassName="h-[92dvh] md:h-[90vh] max-w-6xl flex flex-col">
         <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-ink/10 bg-white">
-          {sheetUrl ? <iframe title="Hoja del servicio" src={sheetUrl} className="h-full w-full" /> : null}
+          {sheetUrl ? <iframe title="Programa especial" src={sheetUrl} className="h-full w-full" /> : null}
         </div>
       </Modal>
 
@@ -600,6 +665,60 @@ export function MusicianView() {
           {activePdfSong?.previewUrl ? (
             <p className="text-sm text-ink/55">Si la vista previa no carga o no se desplaza correctamente, abre el PDF en una pestaña nueva.</p>
           ) : null}
+        </div>
+      </Modal>
+
+      <Modal open={showSpecialProgramEditor} title="Editar programa especial" onClose={() => setShowSpecialProgramEditor(false)} wide>
+        <div className="space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm leading-6 text-ink/60">Agrega el orden completo del servicio especial. Esto no reemplaza la lista normal de cantos.</p>
+            <Button variant="secondary" onClick={addProgramItem}>
+              <Plus className="h-4 w-4" />
+              Agregar elemento
+            </Button>
+          </div>
+          <div className="max-h-[58vh] space-y-3 overflow-auto pr-1">
+            {programDraft.map((item, index) => (
+              <div key={`${item.order}-${index}`} className="rounded-2xl border border-ink/10 bg-white p-3">
+                <div className="grid gap-3 md:grid-cols-[80px_180px_1fr]">
+                  <Field label="Orden">
+                    <Input value={item.order} readOnly />
+                  </Field>
+                  <Field label="Tipo">
+                    <Select value={item.type} onChange={(event) => updateProgramItem(index, "type", event.target.value)}>
+                      {SPECIAL_PROGRAM_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+                    </Select>
+                  </Field>
+                  <Field label="Título o descripción">
+                    <Input value={item.title || ""} onChange={(event) => updateProgramItem(index, "title", event.target.value)} placeholder="Ej. Oración inicial" />
+                  </Field>
+                </div>
+                {item.type === "Canto" ? (
+                  <Field label="Canto relacionado opcional" className="mt-3">
+                    <Select value={item.songId || ""} onChange={(event) => updateProgramItem(index, "songId", event.target.value)}>
+                      <option value="">Sin canto relacionado</option>
+                      {songs.map((song) => <option key={song.id} value={song.id}>{song.title}</option>)}
+                    </Select>
+                  </Field>
+                ) : null}
+                <Field label="Notas opcionales" className="mt-3">
+                  <Textarea value={item.notes || ""} onChange={(event) => updateProgramItem(index, "notes", event.target.value)} />
+                </Field>
+                <div className="mt-3 flex flex-wrap justify-end gap-2">
+                  <Button variant="subtle" className="h-10 w-10 px-0" disabled={index === 0} onClick={() => moveProgramItem(index, -1)} aria-label="Subir"><ArrowUp className="h-4 w-4" /></Button>
+                  <Button variant="subtle" className="h-10 w-10 px-0" disabled={index === programDraft.length - 1} onClick={() => moveProgramItem(index, 1)} aria-label="Bajar"><ArrowDown className="h-4 w-4" /></Button>
+                  <Button variant="danger" onClick={() => removeProgramItem(index)}>
+                    <Trash2 className="h-4 w-4" />
+                    Borrar
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-end gap-3">
+            <Button variant="secondary" onClick={() => setShowSpecialProgramEditor(false)}>Cancelar</Button>
+            <Button onClick={saveSpecialProgram}>Guardar programa</Button>
+          </div>
         </div>
       </Modal>
 

@@ -10,6 +10,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
 import { formatDate, todayString } from "../services/dateUtils";
 import { normalizeSearchText } from "../services/songUtils";
+import { isSpecialService } from "../services/specialProgramPdf";
 
 const serviceOptions = [
   { value: "miercoles-oracion", label: "Miércoles de oración", time: "19:00", weekday: 3 },
@@ -28,6 +29,8 @@ const blankSchedule = {
   leader: "",
   songs: [],
   generalNotes: "",
+  isSpecialService: false,
+  specialProgram: [],
   status: "confirmed"
 };
 
@@ -41,7 +44,8 @@ function ScheduleForm({ initialSchedule, songs, onSubmit, onCancel }) {
     ...initialSchedule,
     serviceType: initialSchedule?.serviceType || initialService.value,
     serviceLabel: initialSchedule?.serviceLabel || initialService.label,
-    time: initialSchedule?.time || initialService.time
+    time: initialSchedule?.time || initialService.time,
+    isSpecialService: initialSchedule?.isSpecialService ?? isSpecialService(initialSchedule || { serviceType: initialService.value })
   });
   const initialLeaderChoice = worshipLeaders.includes(initialSchedule?.leader) ? initialSchedule.leader : initialSchedule?.leader ? "Otro" : "";
   const [leaderChoice, setLeaderChoice] = useState(initialLeaderChoice);
@@ -85,6 +89,7 @@ function ScheduleForm({ initialSchedule, songs, onSubmit, onCancel }) {
     setSchedule((current) => ({
       ...current,
       serviceType,
+      isSpecialService: serviceType === "especial" ? true : current.isSpecialService,
       serviceLabel: nextService.value === "especial" ? current.serviceLabel || "Servicio especial" : nextService.label,
       time: nextService.time || current.time || "",
       type: nextService.value === "especial" ? current.serviceLabel || "Servicio especial" : nextService.label
@@ -155,6 +160,12 @@ function ScheduleForm({ initialSchedule, songs, onSubmit, onCancel }) {
                 <Input value={schedule.serviceLabel || ""} onChange={(event) => update("serviceLabel", event.target.value)} placeholder="Aniversario, conferencia, otro" />
               </Field>
             ) : null}
+            <Field label="¿Es servicio especial?">
+              <Select value={schedule.isSpecialService ? "si" : "no"} onChange={(event) => update("isSpecialService", event.target.value === "si")}>
+                <option value="no">No</option>
+                <option value="si">Sí</option>
+              </Select>
+            </Field>
             <Field label={schedule.serviceType === "especial" ? "Hora manual" : "Hora automática"}>
               <Input type="time" value={schedule.time || ""} disabled={schedule.serviceType !== "especial"} onChange={(event) => update("time", event.target.value)} />
             </Field>
