@@ -10,7 +10,7 @@ clientsClaim();
 cleanupOutdatedCaches();
 precacheAndRoute(self.__WB_MANIFEST);
 
-const CACHE_NAME = "roca-eterna-musica-v1.0.1-single-welcome-splash";
+const CACHE_NAME = "roca-eterna-musica-v1.0.2-single-welcome-once";
 const OLD_ICON_PATTERNS = [
   "icon-192",
   "icon-512",

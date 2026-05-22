@@ -20,31 +20,14 @@ import { Songs } from "./pages/Songs";
 import { Stats } from "./pages/Stats";
 import { Unauthorized } from "./pages/Unauthorized";
 
-function StartupSplash({ profile, ready = false, onDone }) {
-  const themeMode = profile?.themeMode || localStorage.getItem("roca-eterna-theme-mode") || "system";
-  const effectiveTheme = getEffectiveThemeMode(themeMode);
-  const logoSrc = effectiveTheme === "dark" ? appDarkLogo : appLogo;
-
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", effectiveTheme === "dark");
-  }, [effectiveTheme]);
-
-  return (
-    <WelcomeSplash
-      profile={profile}
-      onDone={onDone}
-      logoSrc={logoSrc}
-      logoAlt="Roca Eterna Música"
-      logoMode={effectiveTheme}
-      ready={ready}
-    />
-  );
+function SilentStartupFrame() {
+  return <div className="min-h-screen bg-stonewash" aria-hidden="true" />;
 }
 
 function ProtectedRoute({ children }) {
   const { user, profile, loading, unauthorized } = useAuth();
 
-  if (loading) return <StartupSplash profile={profile} ready={false} />;
+  if (loading) return <SilentStartupFrame />;
   if (!user) return <Navigate to="/login" replace />;
   if (unauthorized || !profile?.active) return <Unauthorized />;
 
@@ -118,7 +101,7 @@ function DataReady({ children }) {
 
 function LoginRoute() {
   const { user, profile, loading, unauthorized } = useAuth();
-  if (loading) return <StartupSplash profile={profile} ready={false} />;
+  if (loading) return <SilentStartupFrame />;
   if (user && profile && !unauthorized) return <Navigate to="/" replace />;
   return <Login />;
 }
