@@ -13,6 +13,8 @@ import { diagnosePublicAsset } from "../services/publicPdfTools";
 import { getLastPushResult, isPushBackendConfigured, sendExternalPush } from "../services/externalPush";
 import { cleanupCurrentUserFcmTokens, diagnosePushNotifications, disablePushNotificationsForUser, enablePushNotificationsForUser, getCurrentPushTokenForUser, getLastBackgroundPush, getLastForegroundPush, reinstallMessagingServiceWorker, requestSiteNotificationPermissionOnly, testLocalNotification } from "../services/pushNotifications";
 import { appDarkLogo, appLogo, fallbackAppLogo } from "../assets/logo";
+import { activateLatestAppVersion, fetchLatestVersion, getInstalledVersion } from "../services/appUpdate";
+import { appVersion } from "../data/changelog";
 
 const defaultColors = {
   accentColor: "#b6945f",
@@ -87,6 +89,7 @@ export function Settings() {
   const [pushCooldownUntil, setPushCooldownUntil] = useState(0);
   const [pushCooldownNow, setPushCooldownNow] = useState(Date.now());
   const [tokenCleanupResult, setTokenCleanupResult] = useState(null);
+  const [latestVersion, setLatestVersion] = useState(null);
   const [installPromptEvent, setInstallPromptEvent] = useState(null);
   const [installStatus, setInstallStatus] = useState("");
   const [isStandalone, setIsStandalone] = useState(() => {
@@ -205,6 +208,20 @@ export function Settings() {
   }, [settings]);
 
   useEffect(() => {
+    let cancelled = false;
+    fetchLatestVersion()
+      .then((result) => {
+        if (!cancelled) setLatestVersion(result);
+      })
+      .catch(() => {
+        if (!cancelled) setLatestVersion(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     setPersonalSettings({
       preferredDisplayName: profile?.preferredDisplayName || "",
       themeMode: profile?.themeMode || localStorage.getItem("roca-eterna-theme-mode") || "system",
@@ -302,19 +319,8 @@ export function Settings() {
   };
 
   const refreshApp = async () => {
-    try {
-      const keys = await caches?.keys?.();
-      await Promise.all((keys || []).map((key) => caches.delete(key)));
-      const registrations = await navigator.serviceWorker?.getRegistrations?.();
-      await Promise.all((registrations || []).map((registration) => registration.unregister()));
-      localStorage.removeItem("roca-eterna-logo-src");
-      localStorage.removeItem("roca-eterna-logo-light-src");
-      localStorage.removeItem("roca-eterna-logo-dark-src");
-    } catch {
-      // Algunos navegadores limitan esta limpieza; recargar sigue siendo seguro.
-    }
-    if (confirm("La app intento limpiar cache. Recarga para ver la version mas reciente.")) {
-      window.location.reload();
+    if (confirm("La app limpiará caché local y recargará para buscar la versión más reciente.")) {
+      await activateLatestAppVersion(latestVersion?.version || appVersion);
     }
   };
 
@@ -505,8 +511,8 @@ export function Settings() {
   };
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[1fr_420px]">
-      <div className="space-y-5">
+    <div className="settings-page grid min-w-0 max-w-full gap-5 overflow-x-hidden pb-10 xl:grid-cols-[minmax(0,1fr)_minmax(300px,420px)]">
+      <div className="min-w-0 space-y-5">
         <Card>
           <div className="flex items-center gap-3">
             <Palette className="h-5 w-5 text-brass" />
@@ -911,7 +917,7 @@ export function Settings() {
         ) : null}
       </div>
 
-      <aside className="space-y-5">
+      <aside className="min-w-0 space-y-5">
         <Card>
           <h2 className="text-xl font-bold text-ink">Mi sesión</h2>
           <dl className="mt-4 space-y-3 text-sm">
@@ -1263,7 +1269,21 @@ export function Settings() {
         {!isViewer ? (
         <Card>
           <h2 className="text-xl font-bold text-ink">Actualizar app</h2>
-          <p className="mt-3 text-sm leading-6 text-ink/60">Limpia cache local y pide recargar si la PWA muestra una version vieja.</p>
+          <p className="mt-3 text-sm leading-6 text-ink/60">Limpia caché local y recarga si la PWA muestra una versión vieja.</p>
+          <dl className="mt-4 grid gap-2 rounded-2xl bg-ink/5 p-3 text-sm">
+            <div className="flex items-center justify-between gap-3">
+              <dt className="text-ink/55">Versión instalada</dt>
+              <dd className="font-semibold text-ink">{getInstalledVersion() || appVersion}</dd>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <dt className="text-ink/55">Última versión disponible</dt>
+              <dd className="font-semibold text-ink">{latestVersion?.version || "sin revisar"}</dd>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <dt className="text-ink/55">Estado</dt>
+              <dd className="font-semibold text-ink">{latestVersion?.version && latestVersion.version !== appVersion ? "actualización disponible" : "actualizado"}</dd>
+            </div>
+          </dl>
           <Button className="mt-4 w-full" variant="secondary" onClick={refreshApp}>Actualizar app</Button>
         </Card>
         ) : null}

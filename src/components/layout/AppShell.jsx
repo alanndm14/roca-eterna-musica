@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Bell, CalendarDays, CheckCheck, HelpCircle, Music2, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Bell, CalendarDays, CheckCheck, HelpCircle, Music2, PanelLeftClose, PanelLeftOpen, RefreshCw, Sparkles } from "lucide-react";
 import { appDarkLogo, appLogo, fallbackAppLogo } from "../../assets/logo";
 import { useAuth } from "../../hooks/useAuth";
 import { useMusicData } from "../../hooks/useMusicData";
 import { getEffectiveThemeMode, getInstitutionalLogo } from "../../services/songUtils";
 import { saveLastBackgroundPush, subscribeForegroundPushMessages } from "../../services/pushNotifications";
+import { activateLatestAppVersion, compareVersions, dismissUpdate, fetchLatestVersion, getInstalledVersion, markInstalledVersion, wasUpdateDismissed } from "../../services/appUpdate";
+import { appVersion } from "../../data/changelog";
 import { Button } from "../ui/Button";
 import { ErrorBoundary } from "../ui/ErrorBoundary";
 import { BottomNav } from "./BottomNav";
@@ -63,6 +65,8 @@ export function AppShell() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem(sidebarStorageKey) === "true");
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [foregroundPushes, setForegroundPushes] = useState([]);
+  const [availableUpdate, setAvailableUpdate] = useState(null);
+  const [updateHidden, setUpdateHidden] = useState(false);
   const seenInternalNotifications = useRef(new Set());
   const initializedInternalNotifications = useRef(false);
   const pageTitle = pageNames[location.pathname] || "Roca Eterna Música";
@@ -99,6 +103,50 @@ export function AppShell() {
   useEffect(() => {
     localStorage.setItem(sidebarStorageKey, String(sidebarCollapsed));
   }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    markInstalledVersion(appVersion);
+    let cancelled = false;
+
+    const checkVersion = async () => {
+      try {
+        const latest = await fetchLatestVersion();
+        const installed = getInstalledVersion();
+        const shouldShow = latest?.version
+          && compareVersions(latest.version, installed) > 0
+          && (!wasUpdateDismissed(latest.version) || latest.critical);
+        if (!cancelled) {
+          setAvailableUpdate(shouldShow ? { ...latest, installedVersion: installed } : null);
+          setUpdateHidden(false);
+        }
+      } catch {
+        if (!cancelled) setAvailableUpdate(null);
+      }
+    };
+
+    checkVersion();
+    const interval = window.setInterval(checkVersion, 30 * 60 * 1000);
+
+    const onControllerChange = () => checkVersion();
+    navigator.serviceWorker?.addEventListener?.("controllerchange", onControllerChange);
+
+    navigator.serviceWorker?.ready?.then((registration) => {
+      if (cancelled) return;
+      registration.update?.();
+      registration.addEventListener?.("updatefound", () => {
+        const worker = registration.installing;
+        worker?.addEventListener?.("statechange", () => {
+          if (worker.state === "installed" && navigator.serviceWorker?.controller) checkVersion();
+        });
+      });
+    }).catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      navigator.serviceWorker?.removeEventListener?.("controllerchange", onControllerChange);
+    };
+  }, []);
 
   useEffect(() => {
     if (logoSrc) localStorage.setItem("roca-eterna-logo-src", logoSrc);
@@ -309,10 +357,10 @@ export function AppShell() {
   return (
     <div className="min-h-screen bg-stonewash text-ink" style={shellStyle}>
       <Sidebar profile={profile} collapsed={sidebarCollapsed} logoSrc={logoSrc} logoAlt={logoAlt} logoMode={effectiveTheme} />
-      <main className={`app-main pb-32 transition-all duration-200 lg:pb-0 ${sidebarCollapsed ? "lg:ml-20" : "lg:ml-72"}`}>
-        <header className="app-header sticky top-0 z-30 border-b border-ink/10 bg-stonewash/86 px-4 py-3 backdrop-blur md:px-8 md:py-4">
-          <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
-            <div className="flex min-w-0 items-center gap-3">
+      <main className={`app-main min-w-0 overflow-x-hidden pb-[calc(8rem+env(safe-area-inset-bottom))] transition-all duration-200 lg:pb-0 ${sidebarCollapsed ? "lg:ml-20" : "lg:ml-72"}`}>
+        <header className="app-header sticky top-0 z-30 border-b border-ink/10 bg-stonewash/86 px-3 py-3 backdrop-blur md:px-8 md:py-4">
+          <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
+            <div className="flex min-w-0 flex-1 items-center gap-3">
               <img
                 src={logoSrc}
                 onError={(event) => {
@@ -336,7 +384,7 @@ export function AppShell() {
                 <h1 className="truncate text-xl font-bold tracking-normal text-ink md:text-2xl">{pageTitle}</h1>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex shrink-0 items-center justify-end gap-2 max-sm:w-full">
               {useLocal ? (
                 <span className="hidden rounded-full bg-brass/12 px-3 py-1 text-xs font-semibold text-brass sm:inline-flex">
                   Modo demo
@@ -399,7 +447,50 @@ export function AppShell() {
           </div>
         </header>
 
-        <div className="mx-auto max-w-7xl px-4 py-5 md:px-8 md:py-6">
+        <div className="mx-auto max-w-7xl min-w-0 px-4 py-5 md:px-8 md:py-6">
+          {availableUpdate && !updateHidden ? (
+            <motion.div
+              className="mb-4 rounded-3xl border border-brass/35 bg-white p-4 shadow-soft dark:bg-zinc-900"
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.22 }}
+            >
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 text-brass">
+                    <Sparkles className="h-4 w-4" />
+                    <p className="text-xs font-bold uppercase tracking-wide">Actualización disponible</p>
+                  </div>
+                  <h2 className="mt-1 text-lg font-bold text-ink">Hay una nueva versión de Roca Eterna Música.</h2>
+                  <p className="mt-1 text-sm leading-6 text-ink/60">Actualiza para ver los cambios más recientes.</p>
+                  <ul className="mt-3 space-y-1 text-sm text-ink/70">
+                    {(availableUpdate.changes || []).slice(0, 3).map((change) => <li key={change}>- {change}</li>)}
+                  </ul>
+                  <p className="mt-3 text-xs text-ink/45">
+                    Instalada: {availableUpdate.installedVersion || appVersion} · Disponible: {availableUpdate.version}
+                  </p>
+                </div>
+                <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
+                  <Button onClick={() => activateLatestAppVersion(availableUpdate.version)}>
+                    <RefreshCw className="h-4 w-4" />
+                    Actualizar ahora
+                  </Button>
+                  {profile?.role === "admin" || profile?.role === "editor" ? (
+                    <Button variant="secondary" onClick={() => navigate("/actualizaciones")}>Ver cambios</Button>
+                  ) : null}
+                  <Button
+                    variant="subtle"
+                    onClick={() => {
+                      dismissUpdate(availableUpdate.version);
+                      setUpdateHidden(true);
+                    }}
+                  >
+                    Después
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          ) : null}
           {foregroundPushes.length ? (
             <motion.div
               className="mb-4 w-full rounded-3xl border border-brass/35 bg-brass/12 p-4 text-left shadow-[0_0_28px_rgba(182,148,95,0.18)]"

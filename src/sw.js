@@ -165,6 +165,10 @@ self.addEventListener("push", (event) => {
 });
 
 self.addEventListener("message", (event) => {
+  if (event.data?.type === "SKIP_WAITING") {
+    self.skipWaiting();
+    return;
+  }
   if (event.data?.type === "roca-eterna-fcm-ping") {
     event.ports?.[0]?.postMessage({
       type: "roca-eterna-fcm-pong",
