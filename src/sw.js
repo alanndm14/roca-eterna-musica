@@ -10,6 +10,15 @@ clientsClaim();
 cleanupOutdatedCaches();
 precacheAndRoute(self.__WB_MANIFEST);
 
+const CACHE_NAME = "roca-eterna-musica-v1.0.0-pwa-logo-clean";
+const OLD_ICON_PATTERNS = [
+  "icon-192",
+  "icon-512",
+  "logo%20modo%20claro",
+  "logo%20modo%20oscuro",
+  "cropped-LOGO-IBRE-5-1"
+];
+
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "",
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "",
@@ -19,9 +28,43 @@ const firebaseConfig = {
 };
 
 const baseUrl = new URL(self.registration.scope).pathname || "/";
-const iconPath = `${baseUrl.replace(/\/$/, "")}/icons/logo%20modo%20claro.png`;
+const iconPath = `${baseUrl.replace(/\/$/, "")}/icons/pwa-192.png`;
 const hasConfig = Object.values(firebaseConfig).every(Boolean);
 const shownTags = new Set();
+
+self.addEventListener("install", (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => cache.addAll([
+      `${baseUrl}manifest.webmanifest`,
+      `${baseUrl}favicon.png`,
+      `${baseUrl}icons/roca-eterna-logo-light.png`,
+      `${baseUrl}icons/roca-eterna-logo-dark.png`,
+      `${baseUrl}icons/pwa-192.png`,
+      `${baseUrl}icons/pwa-512.png`,
+      `${baseUrl}icons/pwa-maskable-192.png`,
+      `${baseUrl}icons/pwa-maskable-512.png`,
+      `${baseUrl}icons/apple-touch-icon.png`
+    ]).catch(() => undefined))
+  );
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys.map(async (key) => {
+      if (key !== CACHE_NAME && key.startsWith("roca-eterna-musica")) {
+        await caches.delete(key);
+      }
+    }));
+    const cache = await caches.open(CACHE_NAME);
+    const requests = await cache.keys();
+    await Promise.all(requests.map((request) => {
+      const href = request.url || "";
+      return OLD_ICON_PATTERNS.some((pattern) => href.includes(pattern)) ? cache.delete(request) : Promise.resolve(false);
+    }));
+    await self.clients.claim();
+  })());
+});
 
 function resolveUrl(url = "") {
   if (/^https?:\/\//i.test(url)) return url;

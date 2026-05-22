@@ -100,8 +100,43 @@ function encodePublicPath(path = "") {
     .replace(/%25/g, "%");
 }
 
-export function normalizePublicAssetPath(path = "") {
+function normalizeInstitutionalLogoSource(path = "") {
   const value = String(path || "").trim();
+  if (!value) return "";
+  if (/^https?:\/\//i.test(value)) {
+    try {
+      const url = new URL(value);
+      const normalizedPath = normalizeInstitutionalLogoSource(url.pathname);
+      if (normalizedPath && normalizedPath !== url.pathname) {
+        const nextPath = normalizePublicAssetPath(normalizedPath);
+        return `${url.origin}${nextPath}`;
+      }
+    } catch {
+      return value;
+    }
+    return value;
+  }
+  const comparable = value
+    .replace(/\\/g, "/")
+    .replace(/^\/+/, "")
+    .replace(/^public\//i, "")
+    .replace(/^roca-eterna-musica\//i, "")
+    .toLowerCase();
+  if (
+    comparable === "icons/logo modo claro.png"
+    || comparable === "icons/logo%20modo%20claro.png"
+  ) return "icons/roca-eterna-logo-light.png";
+  if (
+    comparable === "icons/logo modo oscuro.png"
+    || comparable === "icons/logo%20modo%20oscuro.png"
+    || comparable === "icons/cropped-logo-ibre-5-1.png"
+  ) return "icons/roca-eterna-logo-dark.png";
+  if (comparable === "icons/icon-192.png" || comparable === "icons/icon-512.png") return "icons/pwa-192.png";
+  return value;
+}
+
+export function normalizePublicAssetPath(path = "") {
+  const value = normalizeInstitutionalLogoSource(path);
   if (!value) return "";
   if (/^https?:\/\//i.test(value)) return value;
   const base = import.meta.env.BASE_URL || "/";
@@ -121,7 +156,7 @@ export function normalizePublicAssetPath(path = "") {
 }
 
 export function resolvePublicAssetUrl(path = "") {
-  const value = String(path || "").trim();
+  const value = normalizeInstitutionalLogoSource(path);
   if (!value) return "";
   if (/^https?:\/\//i.test(value)) return value;
   const normalizedPath = normalizePublicAssetPath(value);
@@ -155,7 +190,7 @@ export function resolveAppLogoForNotification(settings = {}, themeMode = "light"
   const effectiveMode = getEffectiveThemeMode(themeMode);
   const preferred = effectiveMode === "dark" ? settings.logoDarkUrl : settings.logoLightUrl;
   const alternate = effectiveMode === "dark" ? settings.logoLightUrl : settings.logoDarkUrl;
-  return resolvePublicAssetUrl(preferred || alternate || "");
+  return resolvePublicAssetUrl(preferred || alternate || "icons/pwa-192.png");
 }
 
 export function shouldInvertInstitutionalLogo(settings = {}, themeMode = "system") {

@@ -42,7 +42,7 @@ const iconUrl = () => {
     || localStorage.getItem("roca-eterna-logo-dark-src")
     || localStorage.getItem("roca-eterna-logo-src")
     || "";
-  return resolvePublicAssetUrl(preferred || "icons/logo modo claro.png");
+  return resolvePublicAssetUrl(preferred || "icons/pwa-192.png");
 };
 
 const normalizePushPayload = (payload = {}) => {

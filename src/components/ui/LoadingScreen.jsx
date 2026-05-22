@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { appDarkLogo, appLogo } from "../../assets/logo";
-import { getEffectiveThemeMode } from "../../services/songUtils";
+import { getEffectiveThemeMode, resolvePublicAssetUrl } from "../../services/songUtils";
 
 export function LoadingScreen() {
   const effectiveTheme = getEffectiveThemeMode(localStorage.getItem("roca-eterna-theme-mode") || "system");
-  const logoSrc = (effectiveTheme === "dark"
+  const logoSrc = resolvePublicAssetUrl((effectiveTheme === "dark"
     ? localStorage.getItem("roca-eterna-logo-dark-src")
-    : localStorage.getItem("roca-eterna-logo-light-src")) || (effectiveTheme === "dark" ? appDarkLogo : appLogo);
+    : localStorage.getItem("roca-eterna-logo-light-src")) || (effectiveTheme === "dark" ? appDarkLogo : appLogo));
   const logoAlt = localStorage.getItem("roca-eterna-logo-alt") || "Roca Eterna Musica";
   const [imageFailed, setImageFailed] = useState(false);
 

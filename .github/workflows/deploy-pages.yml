@@ -106,7 +106,14 @@ jobs:
           test -d dist/pdfs
           test -d dist/icons
           test -f "dist/pdfs/Glorificate.pdf"
-          test -f "dist/icons/cropped-LOGO-IBRE-5-1.png"
+          test -f "dist/icons/roca-eterna-logo-light.png"
+          test -f "dist/icons/roca-eterna-logo-dark.png"
+          test -f "dist/icons/pwa-192.png"
+          test -f "dist/icons/pwa-512.png"
+          test -f "dist/icons/pwa-maskable-192.png"
+          test -f "dist/icons/pwa-maskable-512.png"
+          test -f "dist/icons/apple-touch-icon.png"
+          test -f "dist/favicon.png"
 
       - name: Publish dist to gh-pages
         uses: peaceiris/actions-gh-pages@v4

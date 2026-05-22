@@ -4,16 +4,16 @@ import { appDarkLogo, appLogo } from "../assets/logo";
 import { Button } from "../components/ui/Button";
 import { useAuth } from "../hooks/useAuth";
 import { firebaseMissingConfigKeys, isDemoModeAllowed } from "../lib/firebase";
-import { getEffectiveThemeMode } from "../services/songUtils";
+import { getEffectiveThemeMode, resolvePublicAssetUrl } from "../services/songUtils";
 
 export function Login() {
   const { signInWithGoogle, enterDemoMode, error, isFirebaseConfigured } = useAuth();
   const showDemoMode = isDemoModeAllowed;
   const themeMode = localStorage.getItem("roca-eterna-theme-mode") || "system";
   const effectiveTheme = getEffectiveThemeMode(themeMode);
-  const logoSrc = (effectiveTheme === "dark"
+  const logoSrc = resolvePublicAssetUrl((effectiveTheme === "dark"
     ? localStorage.getItem("roca-eterna-logo-dark-src")
-    : localStorage.getItem("roca-eterna-logo-light-src")) || (effectiveTheme === "dark" ? appDarkLogo : appLogo);
+    : localStorage.getItem("roca-eterna-logo-light-src")) || (effectiveTheme === "dark" ? appDarkLogo : appLogo));
   const logoAlt = localStorage.getItem("roca-eterna-logo-alt") || "Roca Eterna Música";
   const firebasePublishWarning =
     import.meta.env.PROD && !isFirebaseConfigured

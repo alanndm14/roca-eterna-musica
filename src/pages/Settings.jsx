@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { BellRing, Database, FileSearch, HelpCircle, Image as ImageIcon, LogOut, Palette, Save, Tags, Trash2, Upload, UserPlus } from "lucide-react";
+import { BellRing, Database, Download, FileSearch, HelpCircle, Image as ImageIcon, LogOut, Palette, Save, Tags, Trash2, Upload, UserPlus } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { Field, Input, Select, Textarea } from "../components/ui/Field";
@@ -87,6 +87,12 @@ export function Settings() {
   const [pushCooldownUntil, setPushCooldownUntil] = useState(0);
   const [pushCooldownNow, setPushCooldownNow] = useState(Date.now());
   const [tokenCleanupResult, setTokenCleanupResult] = useState(null);
+  const [installPromptEvent, setInstallPromptEvent] = useState(null);
+  const [installStatus, setInstallStatus] = useState("");
+  const [isStandalone, setIsStandalone] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia?.("(display-mode: standalone)")?.matches || window.navigator?.standalone === true;
+  });
   const parsedImport = useMemo(() => parseSongsTable(importText, localSettings.keyPreference || "sharps"), [importText, localSettings.keyPreference]);
   const importSummary = useMemo(() => analyzeImport(parsedImport.songs, songs), [parsedImport.songs, songs]);
   const pushSummary = useMemo(() => {
@@ -218,6 +224,30 @@ export function Settings() {
     };
   }, []);
 
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (event) => {
+      event.preventDefault();
+      setInstallPromptEvent(event);
+      setInstallStatus("");
+    };
+    const handleAppInstalled = () => {
+      setIsStandalone(true);
+      setInstallPromptEvent(null);
+      setInstallStatus("App instalada correctamente.");
+    };
+    const media = window.matchMedia?.("(display-mode: standalone)");
+    const updateStandalone = () => setIsStandalone(Boolean(media?.matches || window.navigator?.standalone === true));
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    window.addEventListener("appinstalled", handleAppInstalled);
+    media?.addEventListener?.("change", updateStandalone);
+    updateStandalone();
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+      window.removeEventListener("appinstalled", handleAppInstalled);
+      media?.removeEventListener?.("change", updateStandalone);
+    };
+  }, []);
+
   const updateSettings = (field, value) => {
     setLocalSettings((current) => ({ ...current, [field]: value }));
   };
@@ -276,13 +306,36 @@ export function Settings() {
       const keys = await caches?.keys?.();
       await Promise.all((keys || []).map((key) => caches.delete(key)));
       const registrations = await navigator.serviceWorker?.getRegistrations?.();
-      await Promise.all((registrations || []).map((registration) => registration.update().catch(() => registration.unregister())));
+      await Promise.all((registrations || []).map((registration) => registration.unregister()));
+      localStorage.removeItem("roca-eterna-logo-src");
+      localStorage.removeItem("roca-eterna-logo-light-src");
+      localStorage.removeItem("roca-eterna-logo-dark-src");
     } catch {
       // Algunos navegadores limitan esta limpieza; recargar sigue siendo seguro.
     }
     if (confirm("La app intento limpiar cache. Recarga para ver la version mas reciente.")) {
       window.location.reload();
     }
+  };
+
+  const installApp = async () => {
+    if (isStandalone) {
+      setInstallStatus("La app ya está instalada o se abrió en modo app.");
+      return;
+    }
+    if (installPromptEvent) {
+      installPromptEvent.prompt();
+      const choice = await installPromptEvent.userChoice;
+      setInstallPromptEvent(null);
+      setInstallStatus(choice?.outcome === "accepted" ? "Instalación iniciada." : "Instalación cancelada por ahora.");
+      return;
+    }
+    const isiOS = /iphone|ipad|ipod/i.test(navigator.userAgent || "");
+    setInstallStatus(
+      isiOS
+        ? "En Safari, toca Compartir y luego Agregar a pantalla de inicio."
+        : "Abre el menú del navegador y elige Instalar app o Agregar a pantalla principal."
+    );
   };
 
   const runPdfIndex = async () => {
@@ -501,11 +554,11 @@ export function Settings() {
               <Input value={localSettings.appName || ""} disabled={!isAdmin} onChange={(event) => updateSettings("appName", event.target.value)} />
             </Field>
             <Field label="Logo para modo claro">
-              <Input value={localSettings.logoLightUrl || ""} disabled={!isAdmin} placeholder="/icons/logo-roca-negro.png" onChange={(event) => updateSettings("logoLightUrl", event.target.value)} />
+              <Input value={localSettings.logoLightUrl || ""} disabled={!isAdmin} placeholder="/icons/roca-eterna-logo-light.png" onChange={(event) => updateSettings("logoLightUrl", event.target.value)} />
               <p className="mt-2 text-xs leading-5 text-ink/55">Si el archivo esta en public/icons/logo.png, escribe /icons/logo.png. No es necesario escribir public/.</p>
             </Field>
             <Field label="Logo para modo oscuro">
-              <Input value={localSettings.logoDarkUrl || ""} disabled={!isAdmin} placeholder="/icons/logo-roca-blanco.png" onChange={(event) => updateSettings("logoDarkUrl", event.target.value)} />
+              <Input value={localSettings.logoDarkUrl || ""} disabled={!isAdmin} placeholder="/icons/roca-eterna-logo-dark.png" onChange={(event) => updateSettings("logoDarkUrl", event.target.value)} />
             </Field>
             <Field label="Texto alternativo del logo">
               <Input value={localSettings.logoAltText || ""} disabled={!isAdmin} placeholder="Roca Eterna Musica" onChange={(event) => updateSettings("logoAltText", event.target.value)} />
@@ -1181,6 +1234,29 @@ export function Settings() {
               </div>
               ) : null}
             </>
+          ) : null}
+        </Card>
+
+        <Card>
+          <div className="flex items-start gap-3">
+            <div className="rounded-2xl bg-brass/12 p-3 text-brass">
+              <Download className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-ink">Instalar app</h2>
+              <p className="mt-2 text-sm leading-6 text-ink/60">
+                Instala Roca Eterna Música para abrirla como app en tu celular o computadora.
+              </p>
+            </div>
+          </div>
+          <Button className="mt-4 w-full" variant="secondary" onClick={installApp} disabled={isStandalone}>
+            {isStandalone ? "App instalada" : "Instalar app"}
+          </Button>
+          {installStatus ? <p className="mt-3 rounded-2xl bg-ink/5 p-3 text-sm text-ink/65">{installStatus}</p> : null}
+          {!installPromptEvent && !isStandalone ? (
+            <p className="mt-3 text-xs leading-5 text-ink/55">
+              Si el botón no abre un permiso de instalación, usa el menú del navegador y elige Instalar app o Agregar a pantalla principal.
+            </p>
           ) : null}
         </Card>
 

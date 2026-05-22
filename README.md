@@ -124,7 +124,7 @@ Antes de usar un PDF o logo en la app, abre la URL directa en el navegador.
 Logo:
 
 ```text
-https://alanndm14.github.io/roca-eterna-musica/icons/cropped-LOGO-IBRE-5-1.png
+https://alanndm14.github.io/roca-eterna-musica/icons/roca-eterna-logo-light.png
 ```
 
 PDF:
@@ -297,7 +297,37 @@ Publicar:
 npm run deploy
 ```
 
-El repo tambien incluye un workflow en `.github/workflows/deploy-pages.yml`. En cada push a `main`, GitHub Actions instala dependencias, verifica de forma segura que los secrets de Firebase existan, ejecuta `npm run build` con esas variables, verifica que `dist/pdfs/Glorificate.pdf` y `dist/icons/cropped-LOGO-IBRE-5-1.png` existan, y publica `dist` en la rama `gh-pages`.
+El repo tambien incluye un workflow en `.github/workflows/deploy-pages.yml`. En cada push a `main`, GitHub Actions instala dependencias, verifica de forma segura que los secrets de Firebase existan, ejecuta `npm run build` con esas variables, verifica que `dist/pdfs/Glorificate.pdf` y los iconos PWA actuales existan, y publica `dist` en la rama `gh-pages`.
+
+## PWA instalable
+
+La app esta configurada como PWA para GitHub Pages bajo `/roca-eterna-musica/`.
+
+El manifest publicado debe usar:
+
+```text
+name: Roca Eterna Música
+short_name: Roca Eterna
+start_url: /roca-eterna-musica/
+scope: /roca-eterna-musica/
+display: standalone
+lang: es-MX
+```
+
+Iconos vigentes:
+
+```text
+/icons/roca-eterna-logo-light.png
+/icons/roca-eterna-logo-dark.png
+/icons/pwa-192.png
+/icons/pwa-512.png
+/icons/pwa-maskable-192.png
+/icons/pwa-maskable-512.png
+/icons/apple-touch-icon.png
+/favicon.png
+```
+
+No se deben volver a referenciar `icon-192.png`, `icon-512.png`, `logo modo claro.png`, `logo modo oscuro.png` ni `cropped-LOGO-IBRE-5-1.png`. Si la app muestra un logo anterior, entra a Configuracion > Actualizar app para limpiar cache local y recargar.
 
 La app usa `HashRouter`, asi que las rutas internas funcionan en GitHub Pages.
 

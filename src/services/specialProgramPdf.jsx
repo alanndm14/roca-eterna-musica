@@ -56,7 +56,7 @@ export function getSpecialProgramFileName(schedule, suffix = "") {
 }
 
 function getLogoUrl(settings = {}) {
-  return resolvePublicAssetUrl(settings.logoLightUrl || "icons/logo modo claro.png");
+  return resolvePublicAssetUrl(settings.logoLightUrl || "icons/roca-eterna-logo-light.png");
 }
 
 const styles = StyleSheet.create({

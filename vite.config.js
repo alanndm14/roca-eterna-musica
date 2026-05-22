@@ -13,29 +13,60 @@ export default defineConfig({
       filename: "sw.js",
       registerType: "autoUpdate",
       injectManifest: {
-        globPatterns: ["**/*.{js,css,html,png,svg,webmanifest,pdf}"]
+        globPatterns: ["**/*.{js,css,html,png,webmanifest,ico}"],
+        globIgnores: [
+          "**/icons/logo modo claro.png",
+          "**/icons/logo modo oscuro.png",
+          "**/icons/cropped-LOGO-IBRE-5-1.png",
+          "**/icons/icon-192.*",
+          "**/icons/icon-512.*"
+        ]
       },
-      includeAssets: ["icons/logo modo claro.png", "icons/cropped-LOGO-IBRE-5-1.png"],
+      includeAssets: [
+        "favicon.png",
+        "icons/roca-eterna-logo-light.png",
+        "icons/roca-eterna-logo-dark.png",
+        "icons/pwa-192.png",
+        "icons/pwa-512.png",
+        "icons/pwa-maskable-192.png",
+        "icons/pwa-maskable-512.png",
+        "icons/apple-touch-icon.png"
+      ],
       manifest: {
         name: "Roca Eterna Música",
-        short_name: "RE Música",
+        short_name: "Roca Eterna",
         description: "Organización del ministerio de música de Roca Eterna",
+        lang: "es-MX",
         theme_color: "#111111",
         background_color: "#f6f5f2",
         display: "standalone",
-        start_url: "/",
+        orientation: "portrait-primary",
+        start_url: "/roca-eterna-musica/",
+        scope: "/roca-eterna-musica/",
         icons: [
           {
-            src: "icons/logo%20modo%20claro.png",
+            src: "/roca-eterna-musica/icons/pwa-192.png",
             sizes: "192x192",
             type: "image/png",
-            purpose: "any maskable"
+            purpose: "any"
           },
           {
-            src: "icons/cropped-LOGO-IBRE-5-1.png",
+            src: "/roca-eterna-musica/icons/pwa-512.png",
             sizes: "512x512",
             type: "image/png",
-            purpose: "any maskable"
+            purpose: "any"
+          },
+          {
+            src: "/roca-eterna-musica/icons/pwa-maskable-192.png",
+            sizes: "192x192",
+            type: "image/png",
+            purpose: "maskable"
+          },
+          {
+            src: "/roca-eterna-musica/icons/pwa-maskable-512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "maskable"
           }
         ]
       }
