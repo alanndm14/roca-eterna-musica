@@ -2,19 +2,27 @@ import { useEffect, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { appLogo, fallbackAppLogo } from "../../assets/logo";
 
-export function WelcomeSplash({ profile, onDone, logoSrc = appLogo, logoAlt = "Roca Eterna Música", logoMode = "light" }) {
+export function WelcomeSplash({
+  profile,
+  onDone,
+  logoSrc = appLogo,
+  logoAlt = "Roca Eterna Música",
+  logoMode = "light",
+  ready = true,
+}) {
   const reduceMotion = useReducedMotion();
   const [leaving, setLeaving] = useState(false);
   const name = profile?.preferredDisplayName || profile?.displayName || profile?.email || "";
 
   useEffect(() => {
+    if (!ready) return undefined;
     const fadeTimer = window.setTimeout(() => setLeaving(true), reduceMotion ? 700 : 2850);
-    const doneTimer = window.setTimeout(onDone, reduceMotion ? 950 : 3350);
+    const doneTimer = window.setTimeout(() => onDone?.(), reduceMotion ? 950 : 3350);
     return () => {
       window.clearTimeout(fadeTimer);
       window.clearTimeout(doneTimer);
     };
-  }, [onDone, reduceMotion]);
+  }, [onDone, ready, reduceMotion]);
 
   return (
     <motion.div

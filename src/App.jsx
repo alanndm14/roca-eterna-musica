@@ -1,7 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useCallback, useEffect, useState } from "react";
 import { AppShell } from "./components/layout/AppShell";
-import { LoadingScreen } from "./components/ui/LoadingScreen";
 import { OnboardingGuide } from "./components/ui/OnboardingGuide";
 import { WelcomeSplash } from "./components/ui/WelcomeSplash";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
@@ -21,10 +20,31 @@ import { Songs } from "./pages/Songs";
 import { Stats } from "./pages/Stats";
 import { Unauthorized } from "./pages/Unauthorized";
 
+function StartupSplash({ profile, ready = false, onDone }) {
+  const themeMode = profile?.themeMode || localStorage.getItem("roca-eterna-theme-mode") || "system";
+  const effectiveTheme = getEffectiveThemeMode(themeMode);
+  const logoSrc = effectiveTheme === "dark" ? appDarkLogo : appLogo;
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", effectiveTheme === "dark");
+  }, [effectiveTheme]);
+
+  return (
+    <WelcomeSplash
+      profile={profile}
+      onDone={onDone}
+      logoSrc={logoSrc}
+      logoAlt="Roca Eterna Música"
+      logoMode={effectiveTheme}
+      ready={ready}
+    />
+  );
+}
+
 function ProtectedRoute({ children }) {
   const { user, profile, loading, unauthorized } = useAuth();
 
-  if (loading) return <LoadingScreen />;
+  if (loading) return <StartupSplash profile={profile} ready={false} />;
   if (!user) return <Navigate to="/login" replace />;
   if (unauthorized || !profile?.active) return <Unauthorized />;
 
@@ -34,20 +54,9 @@ function ProtectedRoute({ children }) {
 function DataReady({ children }) {
   const { profile, completeOnboarding } = useAuth();
   const { loading, settings } = useMusicData();
-  const [showWelcome, setShowWelcome] = useState(false);
   const [welcomeReady, setWelcomeReady] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [guideChecked, setGuideChecked] = useState(false);
-
-  useEffect(() => {
-    if (loading || !profile?.active) return;
-    if (sessionStorage.getItem("roca-eterna-welcome-shown") === "true") {
-      setWelcomeReady(true);
-      return;
-    }
-    sessionStorage.setItem("roca-eterna-welcome-shown", "true");
-    setShowWelcome(true);
-  }, [loading, profile?.active]);
 
   useEffect(() => {
     const openGuide = () => setShowGuide(true);
@@ -63,7 +72,6 @@ function DataReady({ children }) {
   }, [guideChecked, loading, profile, welcomeReady]);
 
   const finishWelcome = useCallback(() => {
-    setShowWelcome(false);
     setWelcomeReady(true);
   }, []);
 
@@ -79,19 +87,38 @@ function DataReady({ children }) {
     document.documentElement.classList.toggle("dark", effectiveTheme === "dark");
   }, [effectiveTheme]);
 
-  if (loading) return <LoadingScreen />;
-  if (showWelcome) return <WelcomeSplash profile={profile} onDone={finishWelcome} logoSrc={logoSrc} logoAlt={settings.logoAltText || "Roca Eterna Música"} logoMode={effectiveTheme} />;
+  if (loading || !welcomeReady) {
+    return (
+      <WelcomeSplash
+        profile={profile}
+        onDone={finishWelcome}
+        logoSrc={logoSrc}
+        logoAlt={settings?.logoAltText || "Roca Eterna Música"}
+        logoMode={effectiveTheme}
+        ready={!loading && Boolean(profile?.active)}
+      />
+    );
+  }
+
   return (
     <>
       {children}
-      <OnboardingGuide open={showGuide} onClose={() => setShowGuide(false)} onFinish={finishGuide} logoSrc={logoSrc} logoAlt={settings.logoAltText || "Roca Eterna Música"} logoMode={effectiveTheme} role={profile?.role || "viewer"} />
+      <OnboardingGuide
+        open={showGuide}
+        onClose={() => setShowGuide(false)}
+        onFinish={finishGuide}
+        logoSrc={logoSrc}
+        logoAlt={settings?.logoAltText || "Roca Eterna Música"}
+        logoMode={effectiveTheme}
+        role={profile?.role || "viewer"}
+      />
     </>
   );
 }
 
 function LoginRoute() {
   const { user, profile, loading, unauthorized } = useAuth();
-  if (loading) return <LoadingScreen />;
+  if (loading) return <StartupSplash profile={profile} ready={false} />;
   if (user && profile && !unauthorized) return <Navigate to="/" replace />;
   return <Login />;
 }
