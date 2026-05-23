@@ -1,8 +1,13 @@
 export {
   buildUsageIndex,
   createSuggestedServiceBlock,
+  getServiceSlots,
   getReplacementCandidates,
+  getSlotAlternatives,
   getSongRecommendations,
+  getSmartServiceDefaultCount,
+  inferSmartServiceType,
+  parseThemeInput,
   reviewServiceSchedule,
   scoreSong,
   smartEnergies,

@@ -1,39 +1,56 @@
 import { useMemo, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { BrainCircuit, CalendarCheck2, GitCompareArrows, Lightbulb, ListChecks, Search, Wand2 } from "lucide-react";
+import { BrainCircuit, CalendarCheck2, GitCompareArrows, Lightbulb, ListChecks, RefreshCw, Search, Shuffle, Wand2 } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Field, Input, Select } from "../components/ui/Field";
+import { Modal } from "../components/ui/Modal";
 import { SmartCard, SmartGradientBackground, SmartPanel } from "../components/smart/SmartPanel";
 import { RecommendationCard } from "../components/smart/RecommendationCard";
 import { ServiceReviewPanel } from "../components/smart/ServiceReviewPanel";
 import { InsightCard } from "../components/smart/InsightCard";
 import { ScoreBadge } from "../components/smart/ScoreBadge";
+import { ReasonChips } from "../components/smart/ReasonChips";
 import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
+import { formatDate, getCurrentOrNextSchedule } from "../services/dateUtils";
 import {
   buildUsageIndex,
   createSuggestedServiceBlock,
   getPreparationGaps,
   getReplacementCandidates,
   getRepertoireInsights,
+  getSlotAlternatives,
+  getSmartServiceDefaultCount,
   getSongRecommendations,
+  inferSmartServiceType,
+  parseThemeInput,
   reviewServiceSchedule,
+  scoreSong,
   searchSongsByIntent,
-  smartEnergies,
   smartServiceTypes,
   toSongEntry
 } from "../services/smartRecommendations";
+import { getSongPdfUrl } from "../services/songUtils";
+
+const tabItems = [
+  { id: "programar", label: "Programar", icon: Wand2 },
+  { id: "revisar", label: "Revisar", icon: CalendarCheck2 },
+  { id: "sustituir", label: "Sustituir", icon: GitCompareArrows },
+  { id: "balance", label: "Balance", icon: Lightbulb },
+  { id: "buscar", label: "Buscar", icon: Search }
+];
 
 const defaultOptions = {
   serviceType: "Domingo AM",
   theme: "adoración",
   category: "",
-  count: 4,
+  count: 5,
   includeHymns: true,
   avoidRecent: true,
   onlyKeynoteReady: false,
   preferredKey: "",
-  energy: "congregacional fuerte"
+  seed: 0
 };
 
 const shortDate = (schedule = {}) => schedule.date
@@ -42,41 +59,133 @@ const shortDate = (schedule = {}) => schedule.date
 
 const scheduleLabel = (schedule = {}) => `${schedule.serviceLabel || schedule.type || "Servicio"} · ${shortDate(schedule)} · ${schedule.time || "Sin hora"}`;
 
+function nextBlockState(block, overrides) {
+  if (!Object.keys(overrides).length) return block;
+  const items = block.items.map((item) => overrides[item.slot.id] || item);
+  return {
+    ...block,
+    items,
+    score: items.length ? Math.round(items.reduce((sum, item) => sum + item.score, 0) / items.length) : 0
+  };
+}
+
+function songFactRows(song = {}, item = {}) {
+  return [
+    ["Tema", song.mainTheme || "Sin tema"],
+    ["Categoría", song.category || "Sin categoría"],
+    ["Tono", song.mainKey || "Sin tono"],
+    ["Capo", song.capo || 0],
+    ["Suena en", song.keyWithCapo || song.mainKey || "Sin tono"],
+    ["Última vez usado", item.usage?.lastUsedAt || "Sin historial"],
+    ["Usos este mes", item.usage?.monthCount || 0],
+    ["Keynote", song.keynoteReviewStatus || "pendiente"],
+    ["PDF Drive", song.drivePdfUrl || song.pdfUrl ? "Sí" : "No"],
+    ["PDF local", song.localPdfPath ? "Sí" : "No"],
+    ["YouTube/Spotify", song.youtubeUrl || song.spotifyUrl ? "Sí" : "No"]
+  ];
+}
+
+function EmptySmartState({ title, message, action, onAction }) {
+  return (
+    <SmartPanel>
+      <p className="text-lg font-black text-ink">{title}</p>
+      <p className="mt-2 text-sm leading-6 text-ink/60">{message}</p>
+      {action ? <Button className="mt-4" variant="secondary" onClick={onAction}>{action}</Button> : null}
+    </SmartPanel>
+  );
+}
+
 export function SmartCenter() {
   const navigate = useNavigate();
-  const { profile } = useAuth();
-  const { songs, schedules, saveSchedule, replaceScheduleSong } = useMusicData();
+  const reduceMotion = useReducedMotion();
+  const { profile, canEdit } = useAuth();
+  const { songs, schedules, themes, saveSchedule, replaceScheduleSong } = useMusicData();
+  const nextSchedule = getCurrentOrNextSchedule(schedules) || schedules[0] || null;
+  const [activeTab, setActiveTab] = useState("programar");
   const [options, setOptions] = useState(defaultOptions);
-  const [selectedScheduleId, setSelectedScheduleId] = useState(schedules[0]?.id || "");
+  const [selectedScheduleId, setSelectedScheduleId] = useState("");
   const [replacementSongId, setReplacementSongId] = useState("");
   const [intentQuery, setIntentQuery] = useState("adoración en tono G");
   const [dismissed, setDismissed] = useState([]);
-  const [compareSong, setCompareSong] = useState(null);
   const [status, setStatus] = useState("");
+  const [blockOverrides, setBlockOverrides] = useState({});
+  const [alternativeSlot, setAlternativeSlot] = useState(null);
+  const [compareItem, setCompareItem] = useState(null);
+  const [compareSongId, setCompareSongId] = useState("");
+  const [applyBlockModalOpen, setApplyBlockModalOpen] = useState(false);
 
-  const selectedSchedule = schedules.find((schedule) => schedule.id === selectedScheduleId) || schedules[0] || null;
+  const selectedSchedule = schedules.find((schedule) => schedule.id === selectedScheduleId) || nextSchedule;
+  const selectedServiceType = options.serviceType || inferSmartServiceType(selectedSchedule || {});
   const usageIndex = useMemo(() => buildUsageIndex(schedules), [schedules]);
+  const themeOptions = useMemo(() => {
+    const values = new Set();
+    (themes || []).forEach((theme) => values.add(theme.name || theme.label || theme));
+    songs.forEach((song) => {
+      if (song.mainTheme) values.add(song.mainTheme);
+      (song.otherThemes || []).forEach((theme) => values.add(theme));
+    });
+    return [...values].filter(Boolean).sort((a, b) => String(a).localeCompare(String(b), "es"));
+  }, [songs, themes]);
   const recommendations = useMemo(
-    () => getSongRecommendations(songs, schedules, { ...options, currentSchedule: selectedSchedule, limit: 20 })
+    () => getSongRecommendations(songs, schedules, { ...options, serviceType: selectedServiceType, currentSchedule: selectedSchedule, limit: 20, usageIndex })
       .filter((item) => !dismissed.includes(item.song.id)),
-    [dismissed, options, schedules, selectedSchedule, songs]
+    [dismissed, options, schedules, selectedSchedule, selectedServiceType, songs, usageIndex]
   );
-  const suggestedBlock = useMemo(
-    () => createSuggestedServiceBlock(songs, schedules, { ...options, currentSchedule: selectedSchedule }),
-    [options, schedules, selectedSchedule, songs]
+  const rawBlock = useMemo(
+    () => createSuggestedServiceBlock(songs, schedules, { ...options, serviceType: selectedServiceType, currentSchedule: selectedSchedule }),
+    [options, schedules, selectedSchedule, selectedServiceType, songs]
   );
-  const review = useMemo(() => selectedSchedule ? reviewServiceSchedule(selectedSchedule, songs) : { score: 0, status: "Sin programación", alerts: [] }, [selectedSchedule, songs]);
+  const suggestedBlock = useMemo(() => nextBlockState(rawBlock, blockOverrides), [blockOverrides, rawBlock]);
+  const review = useMemo(
+    () => selectedSchedule ? reviewServiceSchedule(selectedSchedule, songs) : { score: 0, status: "Sin programación", alerts: [] },
+    [selectedSchedule, songs]
+  );
   const currentReplacementEntry = selectedSchedule?.songs?.find((entry) => entry.songId === replacementSongId) || selectedSchedule?.songs?.[0] || null;
   const currentReplacementSong = songs.find((song) => song.id === currentReplacementEntry?.songId) || null;
   const replacementCandidates = useMemo(
     () => currentReplacementSong ? getReplacementCandidates(currentReplacementSong, songs, schedules, selectedSchedule).slice(0, 8) : [],
     [currentReplacementSong, schedules, selectedSchedule, songs]
   );
-  const insights = useMemo(() => getRepertoireInsights(songs, schedules), [schedules, songs]);
+  const insights = useMemo(() => getRepertoireInsightsSafe(songs, schedules), [schedules, songs]);
   const gaps = useMemo(() => getPreparationGaps(songs), [songs]);
   const intentSearch = useMemo(() => searchSongsByIntent(intentQuery, songs, usageIndex), [intentQuery, songs, usageIndex]);
+  const alternativeCandidates = useMemo(() => {
+    if (!alternativeSlot) return [];
+    const selectedIds = new Set(suggestedBlock.items.map((item) => item.song.id));
+    selectedIds.delete(suggestedBlock.items.find((item) => item.slot.id === alternativeSlot.id)?.song.id);
+    return getSlotAlternatives(songs, schedules, { ...options, serviceType: selectedServiceType, currentSchedule: selectedSchedule }, alternativeSlot, selectedIds).slice(0, 8);
+  }, [alternativeSlot, options, schedules, selectedSchedule, selectedServiceType, songs, suggestedBlock.items]);
+  const compareTargetSong = songs.find((song) => song.id === compareSongId) || recommendations.find((item) => item.song.id !== compareItem?.song?.id)?.song || null;
+  const compareTargetItem = compareTargetSong ? scoreSong(compareTargetSong, { ...options, serviceType: selectedServiceType }, { usageIndex }) : null;
 
-  const updateOption = (key, value) => setOptions((current) => ({ ...current, [key]: value }));
+  const updateOption = (key, value) => {
+    setBlockOverrides({});
+    setOptions((current) => ({ ...current, [key]: value }));
+  };
+
+  const generateForNextService = () => {
+    if (!nextSchedule) {
+      setStatus("No hay programación próxima registrada. Crea una programación y vuelve a generar el bloque.");
+      return;
+    }
+    const serviceType = inferSmartServiceType(nextSchedule);
+    setSelectedScheduleId(nextSchedule.id);
+    setOptions((current) => ({
+      ...current,
+      serviceType,
+      count: getSmartServiceDefaultCount(serviceType),
+      seed: current.seed + 1
+    }));
+    setBlockOverrides({});
+    setActiveTab("programar");
+    setStatus(`Bloque generado para ${scheduleLabel(nextSchedule)}.`);
+  };
+
+  const regenerateBlock = () => {
+    setOptions((current) => ({ ...current, seed: current.seed + 1 }));
+    setBlockOverrides({});
+    setStatus("Bloque regenerado con nuevas alternativas.");
+  };
 
   const addSongToSchedule = async (song) => {
     if (!selectedSchedule?.id || !song?.id) {
@@ -95,34 +204,34 @@ export function SmartCenter() {
     setStatus(`Agregado a ${selectedSchedule.serviceLabel || selectedSchedule.date}: ${song.title}`);
   };
 
-  const addBlockToSchedule = async () => {
+  const applyBlock = async (mode) => {
     if (!selectedSchedule?.id) {
-      setStatus("Selecciona una programación destino.");
+      setStatus("No hay programación destino. Abre Programación para crear el servicio primero.");
+      setApplyBlockModalOpen(false);
       return;
     }
-    const existing = new Set((selectedSchedule.songs || []).map((entry) => entry.songId));
-    const entries = suggestedBlock.items
-      .map((item) => item.song)
-      .filter((song) => song?.id && !existing.has(song.id))
-      .map(toSongEntry);
-    if (!entries.length) {
-      setStatus("El bloque sugerido ya está incluido o no tiene cantos disponibles.");
-      return;
-    }
-    await saveSchedule({ ...selectedSchedule, songs: [...(selectedSchedule.songs || []), ...entries] });
-    setStatus(`Bloque agregado: ${entries.length} canto(s).`);
+    const entries = suggestedBlock.items.map((item) => toSongEntry(item.song, item.role));
+    const nextSongs = mode === "replace" ? entries : [...(selectedSchedule.songs || []), ...entries.filter((entry) => !(selectedSchedule.songs || []).some((current) => current.songId === entry.songId))];
+    await saveSchedule({ ...selectedSchedule, songs: nextSongs });
+    setApplyBlockModalOpen(false);
+    setStatus(mode === "replace" ? "Bloque aplicado reemplazando los cantos actuales." : "Bloque agregado al final de la programación.");
   };
 
   const replaceSong = async (candidate) => {
     if (!selectedSchedule?.id || !currentReplacementEntry || !candidate?.id) return;
     if (!confirm(`¿Sustituir "${currentReplacementEntry.titleSnapshot}" por "${candidate.title}"?`)) return;
     await replaceScheduleSong(selectedSchedule.id, currentReplacementEntry, candidate);
-    setStatus(`Sustitución aplicada: ${currentReplacementEntry.titleSnapshot} → ${candidate.title}`);
+    setStatus(`Sustitución aplicada: ${currentReplacementEntry.titleSnapshot} -> ${candidate.title}`);
   };
 
   const openRepertoireFilter = (params = {}) => {
     const search = new URLSearchParams(params);
     navigate(`/repertorio?${search.toString()}`);
+  };
+
+  const openCompare = (item) => {
+    setCompareItem(item);
+    setCompareSongId(recommendations.find((candidate) => candidate.song.id !== item.song.id)?.song.id || "");
   };
 
   if (profile?.role === "viewer") {
@@ -137,240 +246,363 @@ export function SmartCenter() {
 
   return (
     <SmartGradientBackground>
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
-          <div className="inline-flex items-center gap-2 rounded-full border border-brass/25 bg-brass/12 px-3 py-1 text-xs font-bold uppercase tracking-wide text-brass">
-            <BrainCircuit className="h-4 w-4" />
-            Análisis inteligente sin IA externa
-          </div>
-          <h1 className="mt-4 text-3xl font-black tracking-normal text-ink md:text-4xl">Centro Inteligente</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/65">
-            Reglas avanzadas, historial y metadatos del repertorio para apoyar decisiones de programación.
-          </p>
-        </div>
-        <div className="rounded-3xl border border-white/60 bg-white/65 p-3 text-sm shadow-soft backdrop-blur-xl dark:border-white/10 dark:bg-white/8">
-          <p className="font-bold text-ink">Base analizada</p>
-          <p className="text-ink/60">{songs.length} cantos · {schedules.length} programaciones</p>
-        </div>
-      </div>
-
-      <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <SmartCard icon={Wand2} title="Asistente de programación" description="Genera sugerencias de cantos según tema, categoría, rotación y preparación." metric={`${recommendations[0]?.score || 0}/100`} action="Generar sugerencias" onClick={() => document.getElementById("smart-assistant")?.scrollIntoView({ behavior: "smooth" })} />
-        <SmartCard icon={CalendarCheck2} title="Revisión inteligente" description="Detecta faltantes, repeticiones y riesgos antes del servicio." metric={review.status} action="Revisar servicio" onClick={() => document.getElementById("smart-review")?.scrollIntoView({ behavior: "smooth" })} />
-        <SmartCard icon={GitCompareArrows} title="Sustitución inteligente" description="Encuentra reemplazos adecuados si un canto no se puede tocar." metric={`${replacementCandidates[0]?.score || 0}/100`} action="Buscar reemplazo" onClick={() => document.getElementById("smart-replacement")?.scrollIntoView({ behavior: "smooth" })} />
-        <SmartCard icon={Lightbulb} title="Balance del repertorio" description="Analiza temas, categorías, pendientes y cantos olvidados." metric={`${gaps.filter((gap) => gap.count).length} pendientes`} action="Ver insights" onClick={() => document.getElementById("smart-balance")?.scrollIntoView({ behavior: "smooth" })} />
-      </div>
-
-      {status ? <p className="mt-5 rounded-2xl border border-brass/25 bg-brass/12 p-3 text-sm font-semibold text-ink">{status}</p> : null}
-
-      <section id="smart-assistant" className="mt-6 grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
-        <SmartPanel>
-          <div className="flex items-center gap-2">
-            <Wand2 className="h-5 w-5 text-brass" />
-            <h2 className="text-xl font-black text-ink">Asistente de programación</h2>
-          </div>
-          <div className="mt-5 grid gap-4">
-            <Field label="Programación destino">
-              <Select value={selectedSchedule?.id || ""} onChange={(event) => setSelectedScheduleId(event.target.value)}>
-                {schedules.map((schedule) => <option key={schedule.id} value={schedule.id}>{scheduleLabel(schedule)}</option>)}
-              </Select>
-            </Field>
-            <Field label="Tipo de servicio">
-              <Select value={options.serviceType} onChange={(event) => updateOption("serviceType", event.target.value)}>
-                {smartServiceTypes.map((type) => <option key={type} value={type}>{type}</option>)}
-              </Select>
-            </Field>
-            <Field label="Tema deseado">
-              <Input value={options.theme} onChange={(event) => updateOption("theme", event.target.value)} placeholder="adoración, cruz, gloria..." />
-            </Field>
-            <Field label="Categoría">
-              <Select value={options.category} onChange={(event) => updateOption("category", event.target.value)}>
-                <option value="">Cualquiera</option>
-                <option value="normal">Normal</option>
-                <option value="himno">Himno</option>
-                <option value="navidad">Navidad</option>
-                <option value="santa cena">Santa Cena</option>
-                <option value="especial">Especial</option>
-              </Select>
-            </Field>
-            <Field label="Número de cantos">
-              <Input type="number" min="1" max="8" value={options.count} onChange={(event) => updateOption("count", Number(event.target.value || 4))} />
-            </Field>
-            <Field label="Energía deseada">
-              <Select value={options.energy} onChange={(event) => updateOption("energy", event.target.value)}>
-                {smartEnergies.map((energy) => <option key={energy} value={energy}>{energy}</option>)}
-              </Select>
-            </Field>
-            <Field label="Tonalidad preferida">
-              <Input value={options.preferredKey} onChange={(event) => updateOption("preferredKey", event.target.value)} placeholder="G, D, Bb..." />
-            </Field>
-            <label className="flex items-center gap-2 text-sm font-semibold text-ink">
-              <input type="checkbox" checked={options.includeHymns} onChange={(event) => updateOption("includeHymns", event.target.checked)} />
-              Incluir himnos
-            </label>
-            <label className="flex items-center gap-2 text-sm font-semibold text-ink">
-              <input type="checkbox" checked={options.avoidRecent} onChange={(event) => updateOption("avoidRecent", event.target.checked)} />
-              Evitar repetidos recientes
-            </label>
-            <label className="flex items-center gap-2 text-sm font-semibold text-ink">
-              <input type="checkbox" checked={options.onlyKeynoteReady} onChange={(event) => updateOption("onlyKeynoteReady", event.target.checked)} />
-              Solo con Keynote listo
-            </label>
-          </div>
-        </SmartPanel>
-
-        <div className="grid gap-4">
-          <SmartPanel>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wide text-brass">Crear bloque sugerido</p>
-                <h3 className="text-xl font-black text-ink">Bloque sugerido para {options.serviceType}</h3>
-              </div>
-              <ScoreBadge score={suggestedBlock.score} label="Bloque" />
+      <motion.div
+        initial={reduceMotion ? false : { opacity: 0, y: 14 }}
+        animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+        transition={{ duration: 0.32, ease: "easeOut" }}
+      >
+        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-brass/25 bg-brass/12 px-3 py-1 text-xs font-bold uppercase tracking-wide text-brass">
+              <BrainCircuit className="h-4 w-4" />
+              Análisis inteligente sin IA externa
             </div>
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
-              {suggestedBlock.items.map((item, index) => (
-                <div key={`${item.role}-${item.song.id}`} className="rounded-2xl border border-white/60 bg-white/70 p-3 dark:border-white/10 dark:bg-white/8">
-                  <p className="text-xs font-bold uppercase tracking-wide text-brass">{index + 1}. {item.role}</p>
-                  <p className="mt-1 font-black text-ink">{item.song.title}</p>
-                  <p className="mt-1 text-sm text-ink/60">{item.song.mainTheme || "Sin tema"} · {item.song.keyWithCapo || item.song.mainKey || "Sin tono"}</p>
+            <h1 className="mt-4 text-3xl font-black tracking-normal text-ink md:text-4xl">Centro Inteligente</h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/65">
+              Un panel de apoyo para armar servicios reales con tema, posición, rotación y preparación.
+            </p>
+          </div>
+          <Button onClick={generateForNextService}>
+            <Wand2 className="h-4 w-4" />
+            Generar bloque para el siguiente servicio
+          </Button>
+        </div>
+
+        <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <SmartPanel>
+            <div className="grid gap-4 md:grid-cols-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide text-ink/45">Próximo servicio</p>
+                <p className="mt-1 font-black text-ink">{nextSchedule ? scheduleLabel(nextSchedule) : "Sin próxima programación"}</p>
+              </div>
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide text-ink/45">Tipo detectado</p>
+                <p className="mt-1 font-black text-ink">{nextSchedule ? inferSmartServiceType(nextSchedule) : selectedServiceType}</p>
+              </div>
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide text-ink/45">Cantos sugeridos</p>
+                <p className="mt-1 font-black text-ink">{getSmartServiceDefaultCount(nextSchedule ? inferSmartServiceType(nextSchedule) : selectedServiceType)}</p>
+              </div>
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide text-ink/45">Preparación</p>
+                <p className="mt-1 font-black text-ink">{review.score}/100</p>
+              </div>
+            </div>
+          </SmartPanel>
+          <SmartPanel>
+            <p className="text-xs font-bold uppercase tracking-wide text-brass">Tema actual</p>
+            <p className="mt-1 text-lg font-black text-ink">{parseThemeInput(options.theme).join(" + ") || "Sin tema elegido"}</p>
+            <p className="mt-1 text-sm text-ink/60">{songs.length} cantos · {schedules.length} programaciones analizadas</p>
+          </SmartPanel>
+        </div>
+
+        <div className="mt-5 flex gap-2 overflow-x-auto pb-1">
+          {tabItems.map((tab) => {
+            const Icon = tab.icon;
+            const active = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-2xl px-4 text-sm font-bold transition ${active ? "bg-ink text-white shadow-soft dark:bg-brass dark:text-ink" : "bg-white/70 text-ink ring-1 ring-ink/10 hover:bg-brass/10 dark:bg-white/8 dark:ring-white/10"}`}
+              >
+                <Icon className="h-4 w-4" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {status ? <p className="mt-5 rounded-2xl border border-brass/25 bg-brass/12 p-3 text-sm font-semibold text-ink">{status}</p> : null}
+
+        {activeTab === "programar" ? (
+          <section className="mt-6 grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
+            <SmartPanel>
+              <div className="flex items-center gap-2">
+                <Wand2 className="h-5 w-5 text-brass" />
+                <h2 className="text-xl font-black text-ink">Asistente de programación</h2>
+              </div>
+              <div className="mt-5 grid gap-4">
+                <Field label="Programación destino">
+                  <Select value={selectedSchedule?.id || ""} onChange={(event) => setSelectedScheduleId(event.target.value)}>
+                    {schedules.map((schedule) => <option key={schedule.id} value={schedule.id}>{scheduleLabel(schedule)}</option>)}
+                  </Select>
+                </Field>
+                <Field label="Tipo de servicio">
+                  <Select value={selectedServiceType} onChange={(event) => updateOption("serviceType", event.target.value)}>
+                    {smartServiceTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+                  </Select>
+                </Field>
+                <Field label="Tema principal y secundarios">
+                  <Input value={options.theme} onChange={(event) => updateOption("theme", event.target.value)} placeholder="cruz, gracia" />
+                </Field>
+                {themeOptions.length ? (
+                  <div className="flex flex-wrap gap-2">
+                    {themeOptions.slice(0, 10).map((theme) => (
+                      <button key={theme} type="button" onClick={() => updateOption("theme", theme)} className="rounded-full bg-brass/12 px-3 py-1 text-xs font-bold text-brass">
+                        {theme}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+                <Field label="Número de cantos">
+                  <Input type="number" min="1" max="8" value={options.count} onChange={(event) => updateOption("count", Number(event.target.value || getSmartServiceDefaultCount(selectedServiceType)))} />
+                </Field>
+                <label className="flex items-center gap-2 text-sm font-semibold text-ink">
+                  <input type="checkbox" checked={options.includeHymns} onChange={(event) => updateOption("includeHymns", event.target.checked)} />
+                  Intentar abrir con himno si conviene
+                </label>
+                <label className="flex items-center gap-2 text-sm font-semibold text-ink">
+                  <input type="checkbox" checked={options.avoidRecent} onChange={(event) => updateOption("avoidRecent", event.target.checked)} />
+                  Evitar repetidos recientes
+                </label>
+                <label className="flex items-center gap-2 text-sm font-semibold text-ink">
+                  <input type="checkbox" checked={options.onlyKeynoteReady} onChange={(event) => updateOption("onlyKeynoteReady", event.target.checked)} />
+                  Solo con Keynote listo
+                </label>
+                <div className="grid gap-2">
+                  <Button onClick={regenerateBlock}><Wand2 className="h-4 w-4" />Crear bloque sugerido</Button>
+                  <Button variant="secondary" onClick={regenerateBlock}><RefreshCw className="h-4 w-4" />Regenerar bloque</Button>
+                  <Button variant="secondary" onClick={() => updateOption("count", getSmartServiceDefaultCount(selectedServiceType))}>Usar cantidad sugerida</Button>
                 </div>
+              </div>
+            </SmartPanel>
+
+            <div className="grid gap-4">
+              <SmartPanel>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wide text-brass">{selectedServiceType} · Tema: {suggestedBlock.theme}</p>
+                    <h3 className="text-xl font-black text-ink">Bloque sugerido</h3>
+                  </div>
+                  <ScoreBadge score={suggestedBlock.score} label="Bloque" />
+                </div>
+                <div className="mt-4 grid gap-3">
+                  {suggestedBlock.items.length ? suggestedBlock.items.map((item, index) => (
+                    <article key={`${item.slot.id}-${item.song.id}`} className="rounded-2xl border border-white/60 bg-white/74 p-4 shadow-soft dark:border-white/10 dark:bg-white/8">
+                      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold uppercase tracking-wide text-brass">{index + 1}. {item.role}</p>
+                          <h4 className="mt-1 text-lg font-black text-ink">{item.song.title}</h4>
+                          <p className="mt-1 text-sm text-ink/60">{item.slot.description}</p>
+                          <div className="mt-3"><ReasonChips reasons={item.reasons} warnings={item.warnings} /></div>
+                        </div>
+                        <div className="flex shrink-0 flex-wrap items-center gap-2">
+                          <ScoreBadge score={item.score} compact />
+                          <Button variant="secondary" onClick={() => setAlternativeSlot(item.slot)}><Shuffle className="h-4 w-4" />Cambiar</Button>
+                          <Button variant="subtle" onClick={() => openCompare(item)}>Comparar</Button>
+                        </div>
+                      </div>
+                    </article>
+                  )) : (
+                    <EmptySmartState title="No hay suficientes datos" message="No se pudo formar un bloque. Revisa que los cantos tengan tema, tono y preparación." action="Ir a repertorio" onAction={() => navigate("/repertorio")} />
+                  )}
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {suggestedBlock.reasons.map((reason) => <span key={reason} className="rounded-full bg-brass/12 px-3 py-1 text-xs font-bold text-brass">{reason}</span>)}
+                </div>
+                <Button className="mt-4" disabled={!suggestedBlock.items.length || !canEdit} onClick={() => setApplyBlockModalOpen(true)}>
+                  <ListChecks className="h-4 w-4" />
+                  Agregar bloque a programación
+                </Button>
+              </SmartPanel>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                {recommendations.slice(0, 8).map((item) => (
+                  <RecommendationCard
+                    key={item.song.id}
+                    item={item}
+                    onAdd={addSongToSchedule}
+                    onView={(song) => navigate(`/repertorio/${song.id}`)}
+                    onCompare={() => openCompare(item)}
+                    onDismiss={(song) => setDismissed((current) => [...current, song.id])}
+                  />
+                ))}
+              </div>
+            </div>
+          </section>
+        ) : null}
+
+        {activeTab === "revisar" ? <section className="mt-6"><ServiceReviewPanel review={review} /></section> : null}
+
+        {activeTab === "sustituir" ? (
+          <section className="mt-6 grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
+            <SmartPanel>
+              <div className="flex items-center gap-2">
+                <GitCompareArrows className="h-5 w-5 text-brass" />
+                <h2 className="text-xl font-black text-ink">Sustitución inteligente</h2>
+              </div>
+              <Field label="Programación" className="mt-5">
+                <Select value={selectedSchedule?.id || ""} onChange={(event) => setSelectedScheduleId(event.target.value)}>
+                  {schedules.map((schedule) => <option key={schedule.id} value={schedule.id}>{scheduleLabel(schedule)}</option>)}
+                </Select>
+              </Field>
+              <Field label="Canto a sustituir" className="mt-4">
+                <Select value={currentReplacementEntry?.songId || ""} onChange={(event) => setReplacementSongId(event.target.value)}>
+                  {(selectedSchedule?.songs || []).map((entry) => <option key={`${entry.songId}-${entry.titleSnapshot}`} value={entry.songId}>{entry.titleSnapshot}</option>)}
+                </Select>
+              </Field>
+              {currentReplacementSong ? (
+                <div className="mt-5 rounded-2xl bg-ink/5 p-4 dark:bg-white/8">
+                  <p className="text-xs font-bold uppercase tracking-wide text-ink/45">Canto actual</p>
+                  <p className="mt-1 font-black text-ink">{currentReplacementSong.title}</p>
+                  <p className="mt-1 text-sm text-ink/60">{currentReplacementSong.mainTheme || "Sin tema"} · {currentReplacementSong.category || "Sin categoría"} · {currentReplacementSong.keyWithCapo || currentReplacementSong.mainKey || "Sin tono"}</p>
+                </div>
+              ) : <p className="mt-4 text-sm text-ink/60">Esta programación no tiene cantos para sustituir.</p>}
+            </SmartPanel>
+            <div className="grid gap-4 lg:grid-cols-2">
+              {replacementCandidates.map((item) => (
+                <RecommendationCard
+                  key={item.song.id}
+                  item={{ ...item, label: "Compatibilidad de sustitución" }}
+                  actionLabel="Sustituir"
+                  onAdd={replaceSong}
+                  onView={(song) => navigate(`/repertorio/${song.id}`)}
+                  onCompare={() => openCompare(item)}
+                />
               ))}
             </div>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {suggestedBlock.reasons.map((reason) => <span key={reason} className="rounded-full bg-brass/12 px-3 py-1 text-xs font-bold text-brass">{reason}</span>)}
-            </div>
-            <Button className="mt-4" onClick={addBlockToSchedule}><ListChecks className="h-4 w-4" />Agregar bloque completo</Button>
-          </SmartPanel>
+          </section>
+        ) : null}
 
-          <div className="grid gap-4 lg:grid-cols-2">
-            {recommendations.slice(0, 10).map((item) => (
-              <RecommendationCard
-                key={item.song.id}
-                item={item}
-                onAdd={addSongToSchedule}
-                onView={(song) => navigate(`/repertorio/${song.id}`)}
-                onCompare={setCompareSong}
-                onDismiss={(song) => setDismissed((current) => [...current, song.id])}
-              />
-            ))}
-          </div>
-        </div>
-      </section>
+        {activeTab === "balance" ? (
+          <section className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+            <SmartPanel>
+              <div className="flex items-center gap-2">
+                <Lightbulb className="h-5 w-5 text-brass" />
+                <h2 className="text-xl font-black text-ink">Balance del repertorio</h2>
+              </div>
+              <div className="mt-5 grid gap-3 md:grid-cols-2">
+                {insights.map((insight) => (
+                  <InsightCard key={insight.title} insight={insight} onAction={() => openRepertoireFilter(insight.filter || { q: insight.title })} />
+                ))}
+              </div>
+            </SmartPanel>
+            <SmartPanel>
+              <h2 className="text-xl font-black text-ink">Qué falta preparar</h2>
+              <div className="mt-4 grid gap-3">
+                {gaps.map((gap) => (
+                  <div key={gap.key} className="rounded-2xl border border-white/60 bg-white/70 p-3 dark:border-white/10 dark:bg-white/8">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="font-bold text-ink">{gap.label}</p>
+                        <p className="text-xs text-ink/55">Prioridad {gap.priority}</p>
+                      </div>
+                      <p className="text-2xl font-black text-brass">{gap.count}</p>
+                    </div>
+                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-ink/10 dark:bg-white/10">
+                      <div className="h-full rounded-full bg-brass" style={{ width: `${Math.min(100, gap.percent)}%` }} />
+                    </div>
+                    <Button variant="subtle" className="mt-3 h-9 px-3 text-xs" onClick={() => openRepertoireFilter({ smartFilter: gap.key })}>Aplicar filtro</Button>
+                  </div>
+                ))}
+              </div>
+            </SmartPanel>
+          </section>
+        ) : null}
 
-      <section id="smart-review" className="mt-6">
-        <ServiceReviewPanel review={review} />
-      </section>
+        {activeTab === "buscar" ? (
+          <section className="mt-6">
+            <SmartPanel>
+              <div className="flex items-center gap-2">
+                <Search className="h-5 w-5 text-brass" />
+                <h2 className="text-xl font-black text-ink">Buscar por intención</h2>
+              </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
+                <Input value={intentQuery} onChange={(event) => setIntentQuery(event.target.value)} placeholder="cantos para santa cena, himnos no usados, sin youtube..." />
+                <Button variant="secondary" onClick={() => openRepertoireFilter({ q: intentQuery })}>Aplicar filtro</Button>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {intentSearch.interpretation.length ? intentSearch.interpretation.map((item) => <span key={item} className="rounded-full bg-brass/12 px-3 py-1 text-xs font-bold text-brass">{item}</span>) : <span className="text-sm text-ink/55">Escribe una intención para interpretarla.</span>}
+              </div>
+              <div className="mt-5 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                {intentSearch.results.slice(0, 9).map((song) => (
+                  <button key={song.id} type="button" onClick={() => navigate(`/repertorio/${song.id}`)} className="rounded-2xl border border-white/60 bg-white/70 p-3 text-left shadow-soft dark:border-white/10 dark:bg-white/8">
+                    <p className="font-bold text-ink">{song.title}</p>
+                    <p className="mt-1 text-sm text-ink/60">{song.mainTheme || "Sin tema"} · {song.keyWithCapo || song.mainKey || "Sin tono"}</p>
+                  </button>
+                ))}
+              </div>
+            </SmartPanel>
+          </section>
+        ) : null}
+      </motion.div>
 
-      <section id="smart-replacement" className="mt-6 grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
-        <SmartPanel>
-          <div className="flex items-center gap-2">
-            <GitCompareArrows className="h-5 w-5 text-brass" />
-            <h2 className="text-xl font-black text-ink">Sustitución inteligente</h2>
-          </div>
-          <p className="mt-3 text-sm leading-6 text-ink/62">Compara el canto actual contra candidatos por tema, tono, preparación y rotación.</p>
-          <Field label="Programación" className="mt-5">
-            <Select value={selectedSchedule?.id || ""} onChange={(event) => setSelectedScheduleId(event.target.value)}>
-              {schedules.map((schedule) => <option key={schedule.id} value={schedule.id}>{scheduleLabel(schedule)}</option>)}
-            </Select>
-          </Field>
-          <Field label="Canto a sustituir" className="mt-4">
-            <Select value={currentReplacementEntry?.songId || ""} onChange={(event) => setReplacementSongId(event.target.value)}>
-              {(selectedSchedule?.songs || []).map((entry) => <option key={`${entry.songId}-${entry.titleSnapshot}`} value={entry.songId}>{entry.titleSnapshot}</option>)}
-            </Select>
-          </Field>
-          {currentReplacementSong ? (
-            <div className="mt-5 rounded-2xl bg-ink/5 p-4 dark:bg-white/8">
-              <p className="text-xs font-bold uppercase tracking-wide text-ink/45">Canto actual</p>
-              <p className="mt-1 font-black text-ink">{currentReplacementSong.title}</p>
-              <p className="mt-1 text-sm text-ink/60">{currentReplacementSong.mainTheme || "Sin tema"} · {currentReplacementSong.category || "Sin categoría"} · {currentReplacementSong.keyWithCapo || currentReplacementSong.mainKey || "Sin tono"}</p>
-            </div>
-          ) : null}
-        </SmartPanel>
-        <div className="grid gap-4 lg:grid-cols-2">
-          {replacementCandidates.map((item) => (
+      <Modal open={Boolean(alternativeSlot)} title={`Cambiar ${alternativeSlot?.role || "posición"}`} onClose={() => setAlternativeSlot(null)} wide>
+        <div className="grid max-h-[70dvh] gap-4 overflow-y-auto pr-1 md:grid-cols-2">
+          {alternativeCandidates.map((item) => (
             <RecommendationCard
               key={item.song.id}
-              item={{ ...item, label: "Compatibilidad de sustitución" }}
-              actionLabel="Sustituir"
-              onAdd={replaceSong}
+              item={{ ...item, label: alternativeSlot?.role }}
+              actionLabel="Usar aquí"
+              onAdd={() => {
+                setBlockOverrides((current) => ({ ...current, [alternativeSlot.id]: { ...item, role: alternativeSlot.role, slot: alternativeSlot } }));
+                setAlternativeSlot(null);
+              }}
               onView={(song) => navigate(`/repertorio/${song.id}`)}
-              onCompare={setCompareSong}
+              onCompare={() => openCompare(item)}
             />
           ))}
+          {!alternativeCandidates.length ? <p className="text-sm text-ink/60">No hay alternativas disponibles para esta posición sin duplicar cantos.</p> : null}
         </div>
-      </section>
+      </Modal>
 
-      <section id="smart-balance" className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
-        <SmartPanel>
-          <div className="flex items-center gap-2">
-            <Lightbulb className="h-5 w-5 text-brass" />
-            <h2 className="text-xl font-black text-ink">Balance del repertorio</h2>
+      <Modal open={applyBlockModalOpen} title="¿Agregar este bloque a la programación?" onClose={() => setApplyBlockModalOpen(false)}>
+        <div className="space-y-4">
+          <p className="text-sm leading-6 text-ink/62">Destino: <strong>{selectedSchedule ? scheduleLabel(selectedSchedule) : "sin programación"}</strong></p>
+          <div className="grid gap-2">
+            <Button onClick={() => applyBlock("replace")}>Reemplazar cantos actuales</Button>
+            <Button variant="secondary" onClick={() => applyBlock("append")}>Agregar al final</Button>
+            <Button variant="subtle" onClick={() => setApplyBlockModalOpen(false)}>Cancelar</Button>
           </div>
-          <div className="mt-5 grid gap-3 md:grid-cols-2">
-            {insights.map((insight) => (
-              <InsightCard key={insight.title} insight={insight} onAction={() => openRepertoireFilter({ smart: insight.title })} />
-            ))}
-          </div>
-        </SmartPanel>
-        <SmartPanel>
-          <h2 className="text-xl font-black text-ink">Qué falta preparar</h2>
-          <div className="mt-4 grid gap-3">
-            {gaps.map((gap) => (
-              <div key={gap.key} className="rounded-2xl border border-white/60 bg-white/70 p-3 dark:border-white/10 dark:bg-white/8">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="font-bold text-ink">{gap.label}</p>
-                    <p className="text-xs text-ink/55">Prioridad {gap.priority}</p>
+        </div>
+      </Modal>
+
+      <Modal open={Boolean(compareItem)} title="Comparar cantos" onClose={() => setCompareItem(null)} wide>
+        {compareItem ? (
+          <div className="max-h-[75dvh] overflow-y-auto pr-1">
+            <Field label="Comparar contra">
+              <Select value={compareTargetSong?.id || ""} onChange={(event) => setCompareSongId(event.target.value)}>
+                {songs.filter((song) => song.id !== compareItem.song.id).map((song) => <option key={song.id} value={song.id}>{song.title}</option>)}
+              </Select>
+            </Field>
+            <div className="mt-4 grid gap-4 lg:grid-cols-2">
+              {[compareItem, compareTargetItem].filter(Boolean).map((item) => (
+                <article key={item.song.id} className="rounded-2xl border border-ink/10 bg-white p-4 dark:border-white/10 dark:bg-white/8">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wide text-brass">{item.label || "Candidato"}</p>
+                      <h3 className="mt-1 text-xl font-black text-ink">{item.song.title}</h3>
+                    </div>
+                    <ScoreBadge score={item.score} compact />
                   </div>
-                  <p className="text-2xl font-black text-brass">{gap.count}</p>
-                </div>
-                <div className="mt-3 h-2 overflow-hidden rounded-full bg-ink/10 dark:bg-white/10">
-                  <div className="h-full rounded-full bg-brass" style={{ width: `${Math.min(100, gap.percent)}%` }} />
-                </div>
-                <Button variant="subtle" className="mt-3 h-9 px-3 text-xs" onClick={() => openRepertoireFilter({ smartFilter: gap.key })}>Ver</Button>
-              </div>
-            ))}
-          </div>
-        </SmartPanel>
-      </section>
-
-      <section className="mt-6">
-        <SmartPanel>
-          <div className="flex items-center gap-2">
-            <Search className="h-5 w-5 text-brass" />
-            <h2 className="text-xl font-black text-ink">Buscar por intención</h2>
-          </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
-            <Input value={intentQuery} onChange={(event) => setIntentQuery(event.target.value)} placeholder="cantos para santa cena, himnos no usados, sin youtube..." />
-            <Button variant="secondary" onClick={() => openRepertoireFilter({ q: intentQuery })}>Aplicar en repertorio</Button>
-          </div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {intentSearch.interpretation.map((item) => <span key={item} className="rounded-full bg-brass/12 px-3 py-1 text-xs font-bold text-brass">{item}</span>)}
-          </div>
-          <div className="mt-5 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-            {intentSearch.results.slice(0, 9).map((song) => (
-              <button key={song.id} type="button" onClick={() => navigate(`/repertorio/${song.id}`)} className="rounded-2xl border border-white/60 bg-white/70 p-3 text-left shadow-soft dark:border-white/10 dark:bg-white/8">
-                <p className="font-bold text-ink">{song.title}</p>
-                <p className="mt-1 text-sm text-ink/60">{song.mainTheme || "Sin tema"} · {song.keyWithCapo || song.mainKey || "Sin tono"}</p>
-              </button>
-            ))}
-          </div>
-        </SmartPanel>
-      </section>
-
-      {compareSong ? (
-        <SmartPanel className="fixed inset-x-4 bottom-4 z-50 mx-auto max-w-3xl border-brass/30">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wide text-brass">Comparación rápida</p>
-              <h3 className="text-lg font-black text-ink">{compareSong.title}</h3>
-              <p className="text-sm text-ink/60">{compareSong.mainTheme || "Sin tema"} · {compareSong.category || "Sin categoría"} · {compareSong.keyWithCapo || compareSong.mainKey || "Sin tono"}</p>
+                  <div className="mt-4 grid gap-2 text-sm">
+                    {songFactRows(item.song, item).map(([label, value]) => (
+                      <div key={label} className="flex justify-between gap-4 border-b border-ink/5 py-1">
+                        <span className="font-semibold text-ink/55">{label}</span>
+                        <span className="text-right font-bold text-ink">{value}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-4"><ReasonChips reasons={item.reasons} warnings={item.warnings} /></div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {getSongPdfUrl(item.song) ? <Button variant="secondary" onClick={() => window.open(getSongPdfUrl(item.song), "_blank", "noopener,noreferrer")}>Abrir PDF</Button> : null}
+                    <Button variant="subtle" onClick={() => navigate(`/repertorio/${item.song.id}`)}>Ver detalle</Button>
+                  </div>
+                </article>
+              ))}
             </div>
-            <Button variant="secondary" onClick={() => setCompareSong(null)}>Cerrar</Button>
           </div>
-        </SmartPanel>
-      ) : null}
+        ) : null}
+      </Modal>
     </SmartGradientBackground>
   );
+}
+
+function getRepertoireInsightsSafe(songs, schedules) {
+  return getRepertoireInsights(songs, schedules).map((insight) => ({
+    ...insight,
+    filter: insight.filter || (insight.action?.toLowerCase().includes("filtrar") ? { q: insight.title } : { smart: insight.title })
+  }));
 }
