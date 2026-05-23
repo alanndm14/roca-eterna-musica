@@ -1,6 +1,31 @@
-export const appVersion = "0.9.8";
+export const appVersion = "0.9.9";
 
 export const changelog = [
+  {
+    version: "0.9.9",
+    date: "2026-05-23",
+    title: "Programación Inteligente más clara",
+    added: [
+      "Programación inteligente por fecha y tipo de servicio",
+      "Modo para crear programación nueva desde un bloque sugerido",
+      "Explicación del score por canto",
+      "Revisión del servicio agrupada por faltantes"
+    ],
+    changed: [
+      "Cantidad automática de cantos para Miércoles, Domingo AM y Domingo PM",
+      "Bloques sugeridos por posición dentro del servicio",
+      "Preparación del servicio ahora se muestra en porcentaje",
+      "Regenerar crea alternativas con los mismos criterios"
+    ],
+    fixed: [
+      "Se eliminaron textos técnicos visibles del Centro Inteligente",
+      "El score queda protegido contra valores inválidos y duplicados",
+      "La revisión incluye Keynote, revisión PDF, PDF Drive, PDF local, enlaces, tono, tema y rotación"
+    ],
+    pending: [
+      "Probar pesos del scoring con programaciones reales de varias semanas"
+    ]
+  },
   {
     version: "0.9.8",
     date: "2026-05-23",

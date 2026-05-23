@@ -7,6 +7,12 @@ const keyAliases = { DB: "C#", EB: "D#", GB: "F#", AB: "G#", BB: "A#" };
 export const smartServiceTypes = ["Domingo AM", "Domingo PM", "Miércoles de oración", "Santa Cena", "Especial", "Aniversario", "Navidad"];
 export const smartEnergies = ["apertura", "congregacional fuerte", "reflexión", "cierre"];
 
+export function clampScore(score) {
+  const value = Number(score);
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
 const serviceDefaults = {
   "Miércoles de oración": { count: 3, preferredThemeFallbacks: ["oración", "entrega", "fe", "esperanza"] },
   "Domingo AM": { count: 5, preferredThemeFallbacks: ["adoración", "gloria", "señorío", "cruz"] },
@@ -53,6 +59,19 @@ export function getSmartServiceDefaultCount(serviceType = "Domingo AM") {
 
 export function getServiceSlots(serviceType = "Domingo AM", count) {
   const desiredCount = Number(count || getSmartServiceDefaultCount(serviceType));
+  if (serviceType === "Especial" || serviceType === "Aniversario") {
+    const special = [
+      { id: "apertura", role: "Apertura", intent: "apertura", description: "Inicio congregacional del servicio especial." },
+      { id: "congregacional", role: "Congregacional", intent: "congregacional", description: "Canto para unir a la iglesia." },
+      { id: "enfoque", role: "Enfoque", intent: "enfoque", description: "Canto conectado con el tema principal." },
+      { id: "especial_1", role: "Canto especial", intent: "enfoque", description: "Espacio flexible según el evento." },
+      { id: "antes_predicacion", role: "Antes de predicación", intent: "antes_predicacion", description: "Prepara el corazón para la Palabra." },
+      { id: "despues_predicacion", role: "Después de predicación", intent: "despues_predicacion", description: "Solo un canto de respuesta." },
+      { id: "especial_2", role: "Cierre especial", intent: "despues_predicacion", description: "Cierre flexible del evento." },
+      { id: "especial_3", role: "Canto adicional", intent: "congregacional", description: "Canto adicional si el programa lo requiere." }
+    ];
+    return special.slice(0, Math.max(1, Math.min(desiredCount, special.length)));
+  }
   if (serviceType === "Miércoles de oración") {
     return [
       { id: "apertura", role: "Apertura sencilla", intent: "apertura", description: "Congregacional y fácil de entrar." },
@@ -75,7 +94,7 @@ export function getServiceSlots(serviceType = "Domingo AM", count) {
     { id: "antes_predicacion", role: "Antes de predicación", intent: "antes_predicacion", description: "Prepara el corazón para la Palabra." },
     { id: "despues_predicacion", role: "Después de predicación", intent: "despues_predicacion", description: "Solo un canto de respuesta." }
   ];
-  if (serviceType === "Especial" || serviceType === "Aniversario" || serviceType === "Santa Cena" || serviceType === "Navidad") {
+  if (serviceType === "Santa Cena" || serviceType === "Navidad") {
     return normal.slice(0, Math.max(1, Math.min(desiredCount, 6)));
   }
   return normal.slice(0, Math.max(1, Math.min(desiredCount, 5)));
@@ -102,16 +121,19 @@ export function buildUsageIndex(schedules = [], now = new Date()) {
   const usage = new Map();
   const currentMonth = now.toISOString().slice(0, 7);
   const pastSchedules = [...schedules]
-    .filter((schedule) => schedule.date && new Date(`${schedule.date}T${schedule.time || "00:00"}`) <= now)
+    .filter((schedule) => !schedule.deleted && schedule.date && new Date(`${schedule.date}T${schedule.time || "00:00"}`) <= now)
     .sort((a, b) => `${b.date}${b.time || ""}`.localeCompare(`${a.date}${a.time || ""}`));
   const previousService = pastSchedules[0] || null;
 
   schedules.forEach((schedule) => {
-    if (!schedule.date) return;
+    if (!schedule.date || schedule.deleted) return;
     const scheduleDate = new Date(`${schedule.date}T${schedule.time || "00:00"}`);
     const isFuture = scheduleDate > now;
+    const countedInSchedule = new Set();
     (schedule.songs || []).forEach((entry) => {
       if (!entry.songId) return;
+      if (countedInSchedule.has(entry.songId)) return;
+      countedInSchedule.add(entry.songId);
       const current = usage.get(entry.songId) || { count: 0, monthCount: 0, lastUsedAt: "", lastSchedule: null, usedInPreviousService: false };
       if (!isFuture) {
         current.count += 1;
@@ -303,7 +325,7 @@ export function scoreSong(song = {}, options = {}, context = {}) {
     addUniqueReason(warnings, "Es himno y el filtro lo evita");
   }
 
-  const total = Math.max(0, Math.min(100, Math.round(score)));
+  const total = clampScore(score);
   return {
     song,
     score: total,
@@ -319,6 +341,7 @@ export function getSongRecommendations(songs = [], schedules = [], options = {})
   const usageIndex = options.usageIndex || buildUsageIndex(schedules);
   const scheduledIds = new Set((options.currentSchedule?.songs || []).map((entry) => entry.songId).filter(Boolean));
   return songs
+    .filter((song) => song?.id && !song.deleted)
     .map((song) => scoreSong(song, options, { usageIndex, scheduledIds }))
     .filter((item) => item.score > 0)
     .sort((a, b) => b.score - a.score || (a.song.title || "").localeCompare(b.song.title || "", "es"))
@@ -355,7 +378,7 @@ export function createSuggestedServiceBlock(songs = [], schedules = [], options 
     }, slot, selectedIds).map((item) => {
       const key = item.song.keyWithCapo || item.song.mainKey || "";
       const keyPenalty = key && usedKeys.get(key) ? -5 : 0;
-      return { ...item, score: Math.max(0, item.score + keyPenalty) };
+      return { ...item, score: clampScore(item.score + keyPenalty) };
     }).sort((a, b) => b.score - a.score || (a.song.title || "").localeCompare(b.song.title || "", "es"));
 
     const chosen = alternatives[(seed + slotIndex) % Math.max(1, Math.min(3, alternatives.length))] || alternatives[0];
@@ -376,7 +399,7 @@ export function createSuggestedServiceBlock(songs = [], schedules = [], options 
     theme: usedThemeText,
     slots,
     items: selected,
-    score: selected.length ? Math.round(selected.reduce((sum, item) => sum + item.score, 0) / selected.length) : 0,
+    score: selected.length ? clampScore(selected.reduce((sum, item) => sum + item.score, 0) / selected.length) : 0,
     reasons: [
       `Estructura para ${serviceType}`,
       "Solo un canto después de predicación",
@@ -401,12 +424,20 @@ export function getReplacementCandidates(currentSong = {}, songs = [], schedules
   }).filter((item) => item.song.id !== currentSong.id && !scheduledIds.has(item.song.id));
 }
 
-export function reviewServiceSchedule(schedule = {}, songs = []) {
+export function reviewServiceSchedule(schedule = {}, songs = [], schedules = []) {
   const songById = new Map(songs.map((song) => [song.id, song]));
   const entries = schedule?.songs || [];
   const alerts = [];
+  const groups = {
+    links: { title: "Faltan enlaces", severity: "warning", items: [] },
+    files: { title: "Faltan archivos", severity: "warning", items: [] },
+    reviews: { title: "Faltan revisiones", severity: "important", items: [] },
+    musicData: { title: "Datos musicales incompletos", severity: "warning", items: [] },
+    rotation: { title: "Rotación", severity: "info", items: [] }
+  };
   let score = 100;
   const themes = new Map();
+  const usageIndex = buildUsageIndex(schedules.length ? schedules : [schedule]);
 
   entries.forEach((entry) => {
     const song = songById.get(entry.songId) || entry;
@@ -414,17 +445,43 @@ export function reviewServiceSchedule(schedule = {}, songs = []) {
     if (song.keynoteReviewStatus !== "completado") {
       score -= 10;
       alerts.push({ severity: "important", title: "Keynote pendiente", message: `${title} no tiene Keynote completado.` });
+      groups.reviews.items.push(`${title}: Keynote pendiente`);
+    }
+    if (song.pdfReviewStatus !== "completado") {
+      score -= 5;
+      groups.reviews.items.push(`${title}: revisión PDF pendiente`);
     }
     if (!songHasPdf(song) && !entry.pdfUrl) {
       score -= 8;
       alerts.push({ severity: "warning", title: "PDF faltante", message: `${title} no tiene PDF o ruta local disponible.` });
+      groups.links.items.push(`${title}: sin PDF de Drive o acordes`);
+      groups.files.items.push(`${title}: sin ruta PDF local`);
+    } else {
+      if (!(song.drivePdfUrl || song.pdfUrl || song.chordsUrl || entry.pdfUrl)) groups.links.items.push(`${title}: sin PDF de Drive`);
+      if (!song.localPdfPath) groups.files.items.push(`${title}: sin ruta PDF local`);
     }
     if (!song.mainKey && !song.keyWithCapo && !entry.keySnapshot) {
       score -= 7;
       alerts.push({ severity: "warning", title: "Tono faltante", message: `${title} no tiene tono definido.` });
+      groups.musicData.items.push(`${title}: sin tono`);
     }
+    if (!song.mainTheme) {
+      score -= 4;
+      groups.musicData.items.push(`${title}: sin tema principal`);
+    }
+    if (!song.youtubeUrl) groups.links.items.push(`${title}: sin YouTube`);
+    if (!song.spotifyUrl) groups.links.items.push(`${title}: sin Spotify`);
     if (!songHasListeningLink(song)) {
       alerts.push({ severity: "info", title: "Sin enlace de escucha", message: `${title} no tiene YouTube o Spotify.` });
+    }
+    const usage = usageIndex.usage.get(entry.songId);
+    if (usage?.usedInPreviousService) {
+      score -= 8;
+      groups.rotation.items.push(`${title}: usado en el servicio anterior`);
+    }
+    if ((usage?.monthCount || 0) > 1) {
+      score -= 5;
+      groups.rotation.items.push(`${title}: repetido este mes`);
     }
     const theme = song.mainTheme || "Sin tema";
     themes.set(theme, (themes.get(theme) || 0) + 1);
@@ -442,16 +499,18 @@ export function reviewServiceSchedule(schedule = {}, songs = []) {
     if (theme !== "Sin tema" && count >= Math.max(3, Math.ceil(entries.length * 0.75))) {
       score -= 8;
       alerts.push({ severity: "info", title: "Tema muy repetido", message: `Hay ${count} cantos del tema ${theme}.` });
+      groups.rotation.items.push(`${count} cantos del tema ${theme}`);
     }
   });
   if (!alerts.some((alert) => alert.title === "Tono faltante")) {
     alerts.push({ severity: "success", title: "Tonos completos", message: "Todos los cantos tienen tono definido." });
   }
 
-  const finalScore = Math.max(0, Math.min(100, Math.round(score)));
+  const finalScore = clampScore(score);
   return {
     score: finalScore,
-    status: finalScore >= 88 ? "Listo" : finalScore >= 72 ? "Casi listo" : finalScore >= 50 ? "Revisar antes del servicio" : "Riesgo alto",
-    alerts
+    status: finalScore >= 90 ? "Listo" : finalScore >= 70 ? "Casi listo" : finalScore >= 50 ? "Revisar" : "Riesgo alto",
+    alerts,
+    groups: Object.values(groups).filter((group) => group.items.length)
   };
 }

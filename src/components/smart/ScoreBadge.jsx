@@ -5,7 +5,7 @@ export function ScoreBadge({ score = 0, label = "Score", compact = false }) {
     <div className={compact ? "min-w-32" : "min-w-40"}>
       <div className="flex items-center justify-between gap-3">
         <span className="text-xs font-bold uppercase tracking-wide text-ink/45">{label}</span>
-        <span className="text-sm font-black text-ink">{normalized}/100</span>
+        <span className="text-sm font-black text-ink">{normalized}%</span>
       </div>
       <div className="mt-2 h-2 overflow-hidden rounded-full bg-ink/10 dark:bg-white/10">
         <div className={`h-full rounded-full ${tone}`} style={{ width: `${normalized}%` }} />

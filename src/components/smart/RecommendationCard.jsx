@@ -3,7 +3,7 @@ import { Button } from "../ui/Button";
 import { ScoreBadge } from "./ScoreBadge";
 import { ReasonChips } from "./ReasonChips";
 
-export function RecommendationCard({ item, onAdd, onView, onCompare, onDismiss, actionLabel = "Agregar a programación" }) {
+export function RecommendationCard({ item, onAdd, onView, onCompare, onDismiss, onExplain, actionLabel = "Agregar a programación" }) {
   const song = item.song || item;
   return (
     <article className="rounded-[1.5rem] border border-white/60 bg-white/78 p-4 shadow-soft backdrop-blur-xl dark:border-white/10 dark:bg-white/8">
@@ -30,6 +30,7 @@ export function RecommendationCard({ item, onAdd, onView, onCompare, onDismiss, 
         {onAdd ? <Button onClick={() => onAdd(song)}><Plus className="h-4 w-4" />{actionLabel}</Button> : null}
         {onView ? <Button variant="secondary" onClick={() => onView(song)}><Eye className="h-4 w-4" />Ver detalle</Button> : null}
         {onCompare ? <Button variant="subtle" onClick={() => onCompare(song)}><GitCompare className="h-4 w-4" />Comparar</Button> : null}
+        {onExplain ? <Button variant="subtle" onClick={() => onExplain(item)}>¿Cómo se calculó?</Button> : null}
         {onDismiss ? <Button variant="subtle" onClick={() => onDismiss(song)}><X className="h-4 w-4" />Descartar</Button> : null}
       </div>
     </article>

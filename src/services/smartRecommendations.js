@@ -1,5 +1,6 @@
 export {
   buildUsageIndex,
+  clampScore,
   createSuggestedServiceBlock,
   getServiceSlots,
   getReplacementCandidates,

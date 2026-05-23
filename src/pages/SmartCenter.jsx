@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { BrainCircuit, CalendarCheck2, GitCompareArrows, Lightbulb, ListChecks, RefreshCw, Search, Shuffle, Wand2 } from "lucide-react";
 import { Button } from "../components/ui/Button";
@@ -13,9 +13,10 @@ import { ScoreBadge } from "../components/smart/ScoreBadge";
 import { ReasonChips } from "../components/smart/ReasonChips";
 import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
-import { formatDate, getCurrentOrNextSchedule } from "../services/dateUtils";
+import { getCurrentOrNextSchedule, todayString } from "../services/dateUtils";
 import {
   buildUsageIndex,
+  clampScore,
   createSuggestedServiceBlock,
   getPreparationGaps,
   getReplacementCandidates,
@@ -34,7 +35,7 @@ import {
 import { getSongPdfUrl } from "../services/songUtils";
 
 const tabItems = [
-  { id: "programar", label: "Programar", icon: Wand2 },
+  { id: "programar", label: "Programación Inteligente", icon: Wand2, primary: true },
   { id: "revisar", label: "Revisar", icon: CalendarCheck2 },
   { id: "sustituir", label: "Sustituir", icon: GitCompareArrows },
   { id: "balance", label: "Balance", icon: Lightbulb },
@@ -53,6 +54,24 @@ const defaultOptions = {
   seed: 0
 };
 
+const worshipLeaders = ["", "Ps. José Campos", "Ps. Eduardo", "Adrián", "Esaú", "Otro"];
+
+const serviceMeta = {
+  "Domingo AM": { serviceType: "domingo-manana", serviceLabel: "Domingo AM", time: "11:00" },
+  "Domingo PM": { serviceType: "domingo-tarde", serviceLabel: "Domingo PM", time: "17:00" },
+  "Miércoles de oración": { serviceType: "miercoles-oracion", serviceLabel: "Miércoles de oración", time: "19:00" },
+  "Santa Cena": { serviceType: "especial", serviceLabel: "Santa Cena", time: "" },
+  Especial: { serviceType: "especial", serviceLabel: "Servicio especial", time: "" },
+  Aniversario: { serviceType: "especial", serviceLabel: "Aniversario", time: "" },
+  Navidad: { serviceType: "especial", serviceLabel: "Navidad", time: "" }
+};
+
+const normalServiceTypes = ["Domingo AM", "Domingo PM", "Miércoles de oración"];
+
+function isManualCountService(serviceType) {
+  return !normalServiceTypes.includes(serviceType);
+}
+
 const shortDate = (schedule = {}) => schedule.date
   ? new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "short" }).format(new Date(`${schedule.date}T00:00:00`))
   : "Sin fecha";
@@ -65,7 +84,7 @@ function nextBlockState(block, overrides) {
   return {
     ...block,
     items,
-    score: items.length ? Math.round(items.reduce((sum, item) => sum + item.score, 0) / items.length) : 0
+    score: items.length ? clampScore(items.reduce((sum, item) => sum + item.score, 0) / items.length) : 0
   };
 }
 
@@ -102,6 +121,11 @@ export function SmartCenter() {
   const { songs, schedules, themes, saveSchedule, replaceScheduleSong } = useMusicData();
   const nextSchedule = getCurrentOrNextSchedule(schedules) || schedules[0] || null;
   const [activeTab, setActiveTab] = useState("programar");
+  const [planningMode, setPlanningMode] = useState("create");
+  const [draftDate, setDraftDate] = useState(todayString());
+  const [leaderChoice, setLeaderChoice] = useState("");
+  const [manualLeader, setManualLeader] = useState("");
+  const [blockGenerated, setBlockGenerated] = useState(false);
   const [options, setOptions] = useState(defaultOptions);
   const [selectedScheduleId, setSelectedScheduleId] = useState("");
   const [replacementSongId, setReplacementSongId] = useState("");
@@ -113,9 +137,19 @@ export function SmartCenter() {
   const [compareItem, setCompareItem] = useState(null);
   const [compareSongId, setCompareSongId] = useState("");
   const [applyBlockModalOpen, setApplyBlockModalOpen] = useState(false);
+  const [conflictModalOpen, setConflictModalOpen] = useState(false);
+  const [scoreHelpItem, setScoreHelpItem] = useState(null);
 
-  const selectedSchedule = schedules.find((schedule) => schedule.id === selectedScheduleId) || nextSchedule;
-  const selectedServiceType = options.serviceType || inferSmartServiceType(selectedSchedule || {});
+  const existingSchedule = schedules.find((schedule) => schedule.id === selectedScheduleId) || nextSchedule;
+  const selectedSchedule = planningMode === "existing" ? existingSchedule : null;
+  const selectedServiceType = options.serviceType || inferSmartServiceType(existingSchedule || {});
+  const effectiveCount = isManualCountService(selectedServiceType) ? Number(options.count || 4) : getSmartServiceDefaultCount(selectedServiceType);
+  const selectedLeader = leaderChoice === "Otro" ? manualLeader : leaderChoice;
+  const newScheduleConflict = schedules.find((schedule) =>
+    !schedule.deleted
+    && schedule.date === draftDate
+    && inferSmartServiceType(schedule) === selectedServiceType
+  );
   const usageIndex = useMemo(() => buildUsageIndex(schedules), [schedules]);
   const themeOptions = useMemo(() => {
     const values = new Set();
@@ -132,13 +166,13 @@ export function SmartCenter() {
     [dismissed, options, schedules, selectedSchedule, selectedServiceType, songs, usageIndex]
   );
   const rawBlock = useMemo(
-    () => createSuggestedServiceBlock(songs, schedules, { ...options, serviceType: selectedServiceType, currentSchedule: selectedSchedule }),
-    [options, schedules, selectedSchedule, selectedServiceType, songs]
+    () => createSuggestedServiceBlock(songs, schedules, { ...options, count: effectiveCount, serviceType: selectedServiceType, currentSchedule: selectedSchedule }),
+    [effectiveCount, options, schedules, selectedSchedule, selectedServiceType, songs]
   );
   const suggestedBlock = useMemo(() => nextBlockState(rawBlock, blockOverrides), [blockOverrides, rawBlock]);
   const review = useMemo(
-    () => selectedSchedule ? reviewServiceSchedule(selectedSchedule, songs) : { score: 0, status: "Sin programación", alerts: [] },
-    [selectedSchedule, songs]
+    () => selectedSchedule ? reviewServiceSchedule(selectedSchedule, songs, schedules) : { score: 0, status: "Sin programación", alerts: [], groups: [] },
+    [schedules, selectedSchedule, songs]
   );
   const currentReplacementEntry = selectedSchedule?.songs?.find((entry) => entry.songId === replacementSongId) || selectedSchedule?.songs?.[0] || null;
   const currentReplacementSong = songs.find((song) => song.id === currentReplacementEntry?.songId) || null;
@@ -160,15 +194,30 @@ export function SmartCenter() {
 
   const updateOption = (key, value) => {
     setBlockOverrides({});
+    if (key !== "seed") setBlockGenerated(false);
     setOptions((current) => ({ ...current, [key]: value }));
+  };
+
+  const updateServiceType = (serviceType) => {
+    setBlockOverrides({});
+    setBlockGenerated(false);
+    setOptions((current) => ({
+      ...current,
+      serviceType,
+      count: isManualCountService(serviceType) ? current.count || 4 : getSmartServiceDefaultCount(serviceType)
+    }));
   };
 
   const generateForNextService = () => {
     if (!nextSchedule) {
-      setStatus("No hay programación próxima registrada. Crea una programación y vuelve a generar el bloque.");
+      setPlanningMode("create");
+      setDraftDate(todayString());
+      setBlockGenerated(false);
+      setStatus("Elige fecha, servicio y tema para crear una programación nueva.");
       return;
     }
     const serviceType = inferSmartServiceType(nextSchedule);
+    setPlanningMode("existing");
     setSelectedScheduleId(nextSchedule.id);
     setOptions((current) => ({
       ...current,
@@ -177,14 +226,26 @@ export function SmartCenter() {
       seed: current.seed + 1
     }));
     setBlockOverrides({});
+    setBlockGenerated(true);
     setActiveTab("programar");
     setStatus(`Bloque generado para ${scheduleLabel(nextSchedule)}.`);
   };
 
-  const regenerateBlock = () => {
+  const createBlock = () => {
     setOptions((current) => ({ ...current, seed: current.seed + 1 }));
     setBlockOverrides({});
-    setStatus("Bloque regenerado con nuevas alternativas.");
+    setBlockGenerated(true);
+    setStatus(`Bloque sugerido para ${selectedServiceType} con ${effectiveCount} canto(s).`);
+  };
+
+  const regenerateBlock = () => {
+    if (!blockGenerated) {
+      createBlock();
+      return;
+    }
+    setOptions((current) => ({ ...current, seed: current.seed + 1 }));
+    setBlockOverrides({});
+    setStatus("Generando una alternativa con los mismos criterios.");
   };
 
   const addSongToSchedule = async (song) => {
@@ -204,7 +265,48 @@ export function SmartCenter() {
     setStatus(`Agregado a ${selectedSchedule.serviceLabel || selectedSchedule.date}: ${song.title}`);
   };
 
+  const buildNewSchedulePayload = () => {
+    const meta = serviceMeta[selectedServiceType] || serviceMeta.Especial;
+    return {
+      date: draftDate,
+      serviceType: meta.serviceType,
+      serviceLabel: meta.serviceLabel,
+      type: meta.serviceLabel,
+      time: meta.time,
+      leader: selectedLeader,
+      songs: suggestedBlock.items.map((item) => toSongEntry(item.song, item.role)),
+      generalNotes: `Tema sugerido: ${suggestedBlock.theme}`,
+      isSpecialService: isManualCountService(selectedServiceType),
+      specialProgram: [],
+      status: "confirmed"
+    };
+  };
+
+  const createScheduleFromBlock = async ({ force = false } = {}) => {
+    if (!draftDate) {
+      setStatus("Elige una fecha para crear la programación.");
+      return;
+    }
+    if (!suggestedBlock.items.length) {
+      setStatus("Primero crea un bloque sugerido.");
+      return;
+    }
+    if (newScheduleConflict && !force) {
+      setConflictModalOpen(true);
+      return;
+    }
+    await saveSchedule(buildNewSchedulePayload());
+    setConflictModalOpen(false);
+    setStatus("Programación creada con el bloque sugerido.");
+    navigate("/programacion");
+  };
+
   const applyBlock = async (mode) => {
+    if (planningMode === "create") {
+      await createScheduleFromBlock();
+      setApplyBlockModalOpen(false);
+      return;
+    }
     if (!selectedSchedule?.id) {
       setStatus("No hay programación destino. Abre Programación para crear el servicio primero.");
       setApplyBlockModalOpen(false);
@@ -255,7 +357,7 @@ export function SmartCenter() {
           <div>
             <div className="inline-flex items-center gap-2 rounded-full border border-brass/25 bg-brass/12 px-3 py-1 text-xs font-bold uppercase tracking-wide text-brass">
               <BrainCircuit className="h-4 w-4" />
-              Análisis inteligente sin IA externa
+              Análisis y apoyo para programación
             </div>
             <h1 className="mt-4 text-3xl font-black tracking-normal text-ink md:text-4xl">Centro Inteligente</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/65">
@@ -276,16 +378,16 @@ export function SmartCenter() {
                 <p className="mt-1 font-black text-ink">{nextSchedule ? scheduleLabel(nextSchedule) : "Sin próxima programación"}</p>
               </div>
               <div>
-                <p className="text-xs font-bold uppercase tracking-wide text-ink/45">Tipo detectado</p>
+                <p className="text-xs font-bold uppercase tracking-wide text-ink/45">{planningMode === "create" ? "Servicio seleccionado" : "Servicio sugerido"}</p>
                 <p className="mt-1 font-black text-ink">{nextSchedule ? inferSmartServiceType(nextSchedule) : selectedServiceType}</p>
               </div>
               <div>
                 <p className="text-xs font-bold uppercase tracking-wide text-ink/45">Cantos sugeridos</p>
-                <p className="mt-1 font-black text-ink">{getSmartServiceDefaultCount(nextSchedule ? inferSmartServiceType(nextSchedule) : selectedServiceType)}</p>
+                <p className="mt-1 font-black text-ink">{effectiveCount}</p>
               </div>
               <div>
                 <p className="text-xs font-bold uppercase tracking-wide text-ink/45">Preparación</p>
-                <p className="mt-1 font-black text-ink">{review.score}/100</p>
+                <p className="mt-1 font-black text-ink">{review.score}%</p>
               </div>
             </div>
           </SmartPanel>
@@ -305,10 +407,11 @@ export function SmartCenter() {
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
-                className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-2xl px-4 text-sm font-bold transition ${active ? "bg-ink text-white shadow-soft dark:bg-brass dark:text-ink" : "bg-white/70 text-ink ring-1 ring-ink/10 hover:bg-brass/10 dark:bg-white/8 dark:ring-white/10"}`}
+                className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-2xl px-4 text-sm font-bold transition ${active ? "bg-ink text-white shadow-soft dark:bg-brass dark:text-ink" : tab.primary ? "border border-brass/40 bg-brass/12 text-ink shadow-soft hover:bg-brass/18 dark:bg-brass/15" : "bg-white/70 text-ink ring-1 ring-ink/10 hover:bg-brass/10 dark:bg-white/8 dark:ring-white/10"}`}
               >
                 <Icon className="h-4 w-4" />
                 {tab.label}
+                {tab.primary ? <span className="rounded-full bg-brass px-2 py-0.5 text-[10px] font-black text-ink">Inteligente</span> : null}
               </button>
             );
           })}
@@ -316,26 +419,54 @@ export function SmartCenter() {
 
         {status ? <p className="mt-5 rounded-2xl border border-brass/25 bg-brass/12 p-3 text-sm font-semibold text-ink">{status}</p> : null}
 
+        <AnimatePresence mode="wait">
         {activeTab === "programar" ? (
-          <section className="mt-6 grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
+          <motion.section key="programar" initial={reduceMotion ? false : { opacity: 0, y: 10 }} animate={reduceMotion ? undefined : { opacity: 1, y: 0 }} exit={reduceMotion ? undefined : { opacity: 0, y: -6 }} transition={{ duration: 0.2 }} className="mt-6 grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
             <SmartPanel>
               <div className="flex items-center gap-2">
                 <Wand2 className="h-5 w-5 text-brass" />
-                <h2 className="text-xl font-black text-ink">Asistente de programación</h2>
+                <h2 className="text-xl font-black text-ink">Programación Inteligente</h2>
               </div>
               <div className="mt-5 grid gap-4">
-                <Field label="Programación destino">
-                  <Select value={selectedSchedule?.id || ""} onChange={(event) => setSelectedScheduleId(event.target.value)}>
-                    {schedules.map((schedule) => <option key={schedule.id} value={schedule.id}>{scheduleLabel(schedule)}</option>)}
+                <Field label="Modo">
+                  <Select value={planningMode} onChange={(event) => { setPlanningMode(event.target.value); setBlockGenerated(false); setBlockOverrides({}); }}>
+                    <option value="create">Crear nueva programación</option>
+                    <option value="existing">Usar programación existente</option>
                   </Select>
                 </Field>
+                {planningMode === "create" ? (
+                  <>
+                    <Field label="Fecha">
+                      <Input type="date" value={draftDate} onChange={(event) => { setDraftDate(event.target.value); setBlockGenerated(false); }} />
+                    </Field>
+                    <Field label="Líder de adoración">
+                      <Select value={leaderChoice} onChange={(event) => setLeaderChoice(event.target.value)}>
+                        {worshipLeaders.map((leader) => <option key={leader || "empty"} value={leader}>{leader || "Sin líder definido"}</option>)}
+                      </Select>
+                    </Field>
+                    {leaderChoice === "Otro" ? (
+                      <Field label="Nombre del líder">
+                        <Input value={manualLeader} onChange={(event) => setManualLeader(event.target.value)} placeholder="Nombre" />
+                      </Field>
+                    ) : null}
+                  </>
+                ) : (
+                  <Field label="Programación existente">
+                    <Select value={existingSchedule?.id || ""} onChange={(event) => { setSelectedScheduleId(event.target.value); setBlockGenerated(false); }}>
+                      {schedules.map((schedule) => <option key={schedule.id} value={schedule.id}>{scheduleLabel(schedule)}</option>)}
+                    </Select>
+                  </Field>
+                )}
                 <Field label="Tipo de servicio">
-                  <Select value={selectedServiceType} onChange={(event) => updateOption("serviceType", event.target.value)}>
+                  <Select value={selectedServiceType} onChange={(event) => updateServiceType(event.target.value)}>
                     {smartServiceTypes.map((type) => <option key={type} value={type}>{type}</option>)}
                   </Select>
                 </Field>
-                <Field label="Tema principal y secundarios">
-                  <Input value={options.theme} onChange={(event) => updateOption("theme", event.target.value)} placeholder="cruz, gracia" />
+                <Field label="Tema principal">
+                  <Input value={parseThemeInput(options.theme)[0] || ""} onChange={(event) => updateOption("theme", [event.target.value, ...parseThemeInput(options.theme).slice(1)].filter(Boolean).join(", "))} placeholder="cruz" />
+                </Field>
+                <Field label="Temas secundarios">
+                  <Input value={parseThemeInput(options.theme).slice(1).join(", ")} onChange={(event) => updateOption("theme", [parseThemeInput(options.theme)[0], event.target.value].filter(Boolean).join(", "))} placeholder="gracia, entrega" />
                 </Field>
                 {themeOptions.length ? (
                   <div className="flex flex-wrap gap-2">
@@ -346,9 +477,15 @@ export function SmartCenter() {
                     ))}
                   </div>
                 ) : null}
-                <Field label="Número de cantos">
-                  <Input type="number" min="1" max="8" value={options.count} onChange={(event) => updateOption("count", Number(event.target.value || getSmartServiceDefaultCount(selectedServiceType)))} />
-                </Field>
+                {isManualCountService(selectedServiceType) ? (
+                  <Field label="Número de cantos">
+                    <Input type="number" min="1" max="8" value={options.count} onChange={(event) => updateOption("count", Number(event.target.value || 4))} />
+                  </Field>
+                ) : (
+                  <p className="rounded-2xl bg-brass/12 p-3 text-sm font-semibold text-ink">
+                    {selectedServiceType} usa {effectiveCount} cantos.
+                  </p>
+                )}
                 <label className="flex items-center gap-2 text-sm font-semibold text-ink">
                   <input type="checkbox" checked={options.includeHymns} onChange={(event) => updateOption("includeHymns", event.target.checked)} />
                   Intentar abrir con himno si conviene
@@ -362,9 +499,14 @@ export function SmartCenter() {
                   Solo con Keynote listo
                 </label>
                 <div className="grid gap-2">
-                  <Button onClick={regenerateBlock}><Wand2 className="h-4 w-4" />Crear bloque sugerido</Button>
-                  <Button variant="secondary" onClick={regenerateBlock}><RefreshCw className="h-4 w-4" />Regenerar bloque</Button>
-                  <Button variant="secondary" onClick={() => updateOption("count", getSmartServiceDefaultCount(selectedServiceType))}>Usar cantidad sugerida</Button>
+                  {!blockGenerated ? (
+                    <Button onClick={createBlock}><Wand2 className="h-4 w-4" />Crear bloque sugerido</Button>
+                  ) : (
+                    <>
+                      <Button onClick={regenerateBlock}><RefreshCw className="h-4 w-4" />Regenerar alternativa</Button>
+                      <p className="text-xs leading-5 text-ink/55">Regenerar crea una alternativa con los mismos criterios.</p>
+                    </>
+                  )}
                 </div>
               </div>
             </SmartPanel>
@@ -379,7 +521,7 @@ export function SmartCenter() {
                   <ScoreBadge score={suggestedBlock.score} label="Bloque" />
                 </div>
                 <div className="mt-4 grid gap-3">
-                  {suggestedBlock.items.length ? suggestedBlock.items.map((item, index) => (
+                  {blockGenerated && suggestedBlock.items.length ? suggestedBlock.items.map((item, index) => (
                     <article key={`${item.slot.id}-${item.song.id}`} className="rounded-2xl border border-white/60 bg-white/74 p-4 shadow-soft dark:border-white/10 dark:bg-white/8">
                       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                         <div className="min-w-0">
@@ -392,19 +534,20 @@ export function SmartCenter() {
                           <ScoreBadge score={item.score} compact />
                           <Button variant="secondary" onClick={() => setAlternativeSlot(item.slot)}><Shuffle className="h-4 w-4" />Cambiar</Button>
                           <Button variant="subtle" onClick={() => openCompare(item)}>Comparar</Button>
+                          <Button variant="subtle" onClick={() => setScoreHelpItem(item)}>¿Cómo se calculó?</Button>
                         </div>
                       </div>
                     </article>
                   )) : (
-                    <EmptySmartState title="No hay suficientes datos" message="No se pudo formar un bloque. Revisa que los cantos tengan tema, tono y preparación." action="Ir a repertorio" onAction={() => navigate("/repertorio")} />
+                    <EmptySmartState title={blockGenerated ? "No hay suficientes datos" : "Listo para generar"} message={blockGenerated ? "No se pudo formar un bloque. Revisa que los cantos tengan tema, tono y preparación." : "Elige fecha, servicio y temas. Luego crea el bloque sugerido."} action={blockGenerated ? "Ir a repertorio" : ""} onAction={() => navigate("/repertorio")} />
                   )}
                 </div>
                 <div className="mt-4 flex flex-wrap gap-2">
                   {suggestedBlock.reasons.map((reason) => <span key={reason} className="rounded-full bg-brass/12 px-3 py-1 text-xs font-bold text-brass">{reason}</span>)}
                 </div>
-                <Button className="mt-4" disabled={!suggestedBlock.items.length || !canEdit} onClick={() => setApplyBlockModalOpen(true)}>
+                <Button className="mt-4" disabled={!blockGenerated || !suggestedBlock.items.length || !canEdit} onClick={() => setApplyBlockModalOpen(true)}>
                   <ListChecks className="h-4 w-4" />
-                  Agregar bloque a programación
+                  {planningMode === "create" ? "Crear programación con este bloque" : "Agregar bloque a programación"}
                 </Button>
               </SmartPanel>
 
@@ -416,18 +559,19 @@ export function SmartCenter() {
                     onAdd={addSongToSchedule}
                     onView={(song) => navigate(`/repertorio/${song.id}`)}
                     onCompare={() => openCompare(item)}
+                    onExplain={setScoreHelpItem}
                     onDismiss={(song) => setDismissed((current) => [...current, song.id])}
                   />
                 ))}
               </div>
             </div>
-          </section>
+          </motion.section>
         ) : null}
 
-        {activeTab === "revisar" ? <section className="mt-6"><ServiceReviewPanel review={review} /></section> : null}
+        {activeTab === "revisar" ? <motion.section key="revisar" initial={reduceMotion ? false : { opacity: 0, y: 10 }} animate={reduceMotion ? undefined : { opacity: 1, y: 0 }} exit={reduceMotion ? undefined : { opacity: 0, y: -6 }} transition={{ duration: 0.2 }} className="mt-6"><ServiceReviewPanel review={review} /></motion.section> : null}
 
         {activeTab === "sustituir" ? (
-          <section className="mt-6 grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
+          <motion.section key="sustituir" initial={reduceMotion ? false : { opacity: 0, y: 10 }} animate={reduceMotion ? undefined : { opacity: 1, y: 0 }} exit={reduceMotion ? undefined : { opacity: 0, y: -6 }} transition={{ duration: 0.2 }} className="mt-6 grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
             <SmartPanel>
               <div className="flex items-center gap-2">
                 <GitCompareArrows className="h-5 w-5 text-brass" />
@@ -460,14 +604,15 @@ export function SmartCenter() {
                   onAdd={replaceSong}
                   onView={(song) => navigate(`/repertorio/${song.id}`)}
                   onCompare={() => openCompare(item)}
+                  onExplain={setScoreHelpItem}
                 />
               ))}
             </div>
-          </section>
+          </motion.section>
         ) : null}
 
         {activeTab === "balance" ? (
-          <section className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+          <motion.section key="balance" initial={reduceMotion ? false : { opacity: 0, y: 10 }} animate={reduceMotion ? undefined : { opacity: 1, y: 0 }} exit={reduceMotion ? undefined : { opacity: 0, y: -6 }} transition={{ duration: 0.2 }} className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
             <SmartPanel>
               <div className="flex items-center gap-2">
                 <Lightbulb className="h-5 w-5 text-brass" />
@@ -499,11 +644,11 @@ export function SmartCenter() {
                 ))}
               </div>
             </SmartPanel>
-          </section>
+          </motion.section>
         ) : null}
 
         {activeTab === "buscar" ? (
-          <section className="mt-6">
+          <motion.section key="buscar" initial={reduceMotion ? false : { opacity: 0, y: 10 }} animate={reduceMotion ? undefined : { opacity: 1, y: 0 }} exit={reduceMotion ? undefined : { opacity: 0, y: -6 }} transition={{ duration: 0.2 }} className="mt-6">
             <SmartPanel>
               <div className="flex items-center gap-2">
                 <Search className="h-5 w-5 text-brass" />
@@ -525,8 +670,9 @@ export function SmartCenter() {
                 ))}
               </div>
             </SmartPanel>
-          </section>
+          </motion.section>
         ) : null}
+        </AnimatePresence>
       </motion.div>
 
       <Modal open={Boolean(alternativeSlot)} title={`Cambiar ${alternativeSlot?.role || "posición"}`} onClose={() => setAlternativeSlot(null)} wide>
@@ -542,6 +688,7 @@ export function SmartCenter() {
               }}
               onView={(song) => navigate(`/repertorio/${song.id}`)}
               onCompare={() => openCompare(item)}
+              onExplain={setScoreHelpItem}
             />
           ))}
           {!alternativeCandidates.length ? <p className="text-sm text-ink/60">No hay alternativas disponibles para esta posición sin duplicar cantos.</p> : null}
@@ -550,11 +697,43 @@ export function SmartCenter() {
 
       <Modal open={applyBlockModalOpen} title="¿Agregar este bloque a la programación?" onClose={() => setApplyBlockModalOpen(false)}>
         <div className="space-y-4">
-          <p className="text-sm leading-6 text-ink/62">Destino: <strong>{selectedSchedule ? scheduleLabel(selectedSchedule) : "sin programación"}</strong></p>
+          {planningMode === "create" ? (
+            <>
+              <p className="text-sm leading-6 text-ink/62">Se creará una programación nueva para <strong>{draftDate}</strong> · <strong>{selectedServiceType}</strong>.</p>
+              <div className="grid gap-2">
+                <Button onClick={() => createScheduleFromBlock()}>Crear programación con este bloque</Button>
+                <Button variant="subtle" onClick={() => setApplyBlockModalOpen(false)}>Cancelar</Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-sm leading-6 text-ink/62">Destino: <strong>{selectedSchedule ? scheduleLabel(selectedSchedule) : "sin programación"}</strong></p>
+              <div className="grid gap-2">
+                <Button onClick={() => applyBlock("replace")}>Reemplazar cantos actuales</Button>
+                <Button variant="secondary" onClick={() => applyBlock("append")}>Agregar al final</Button>
+                <Button variant="subtle" onClick={() => setApplyBlockModalOpen(false)}>Cancelar</Button>
+              </div>
+            </>
+          )}
+        </div>
+      </Modal>
+
+      <Modal open={conflictModalOpen} title="Ya existe una programación para este servicio" onClose={() => setConflictModalOpen(false)}>
+        <div className="space-y-4">
+          <p className="text-sm leading-6 text-ink/62">
+            Ya existe: <strong>{newScheduleConflict ? scheduleLabel(newScheduleConflict) : "programación existente"}</strong>.
+          </p>
           <div className="grid gap-2">
-            <Button onClick={() => applyBlock("replace")}>Reemplazar cantos actuales</Button>
-            <Button variant="secondary" onClick={() => applyBlock("append")}>Agregar al final</Button>
-            <Button variant="subtle" onClick={() => setApplyBlockModalOpen(false)}>Cancelar</Button>
+            <Button onClick={() => { setConflictModalOpen(false); setPlanningMode("existing"); setSelectedScheduleId(newScheduleConflict?.id || ""); }}>Abrir existente</Button>
+            <Button variant="secondary" onClick={async () => {
+              if (!newScheduleConflict) return;
+              await saveSchedule({ ...newScheduleConflict, songs: suggestedBlock.items.map((item) => toSongEntry(item.song, item.role)) });
+              setConflictModalOpen(false);
+              setApplyBlockModalOpen(false);
+              navigate("/programacion");
+            }}>Reemplazar cantos</Button>
+            <Button variant="secondary" onClick={() => createScheduleFromBlock({ force: true })}>Crear de todos modos</Button>
+            <Button variant="subtle" onClick={() => setConflictModalOpen(false)}>Cancelar</Button>
           </div>
         </div>
       </Modal>
@@ -592,6 +771,31 @@ export function SmartCenter() {
                   </div>
                 </article>
               ))}
+            </div>
+          </div>
+        ) : null}
+      </Modal>
+
+      <Modal open={Boolean(scoreHelpItem)} title="¿Cómo se calculó el score?" onClose={() => setScoreHelpItem(null)}>
+        {scoreHelpItem ? (
+          <div className="space-y-4">
+            <div className="rounded-2xl bg-ink/5 p-4">
+              <p className="font-black text-ink">{scoreHelpItem.song.title} — {scoreHelpItem.score}%</p>
+              <p className="mt-2 text-sm leading-6 text-ink/62">
+                El puntaje considera tema principal, temas secundarios, tipo de servicio, posición, rotación histórica, uso reciente, Keynote, PDF, enlaces de escucha, tonalidad y datos faltantes.
+              </p>
+            </div>
+            <div>
+              <p className="font-bold text-ink">A favor</p>
+              <ul className="mt-2 space-y-1 text-sm text-ink/65">
+                {(scoreHelpItem.reasons || []).map((reason) => <li key={reason}>+ {reason}</li>)}
+              </ul>
+            </div>
+            <div>
+              <p className="font-bold text-ink">Riesgos</p>
+              <ul className="mt-2 space-y-1 text-sm text-ink/65">
+                {(scoreHelpItem.warnings || []).length ? scoreHelpItem.warnings.map((warning) => <li key={warning}>- {warning}</li>) : <li>Sin riesgos importantes detectados.</li>}
+              </ul>
             </div>
           </div>
         ) : null}

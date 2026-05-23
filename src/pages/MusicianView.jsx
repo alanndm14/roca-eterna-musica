@@ -185,8 +185,8 @@ export function MusicianView() {
   const activePdfSong = serviceSongs[activePdfIndex] || serviceSongs[0];
   const selectedIsSpecial = isSpecialService(selectedSchedule);
   const serviceReview = useMemo(
-    () => selectedSchedule ? reviewServiceSchedule(selectedSchedule, songs) : null,
-    [selectedSchedule, songs]
+    () => selectedSchedule ? reviewServiceSchedule(selectedSchedule, songs, schedules) : null,
+    [schedules, selectedSchedule, songs]
   );
 
   useEffect(() => {
