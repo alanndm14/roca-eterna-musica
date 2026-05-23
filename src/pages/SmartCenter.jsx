@@ -5,7 +5,7 @@ import { BrainCircuit, CalendarCheck2, GitCompareArrows, Lightbulb, ListChecks, 
 import { Button } from "../components/ui/Button";
 import { Field, Input, Select } from "../components/ui/Field";
 import { Modal } from "../components/ui/Modal";
-import { SmartCard, SmartGradientBackground, SmartPanel } from "../components/smart/SmartPanel";
+import { SmartGradientBackground, SmartPanel } from "../components/smart/SmartPanel";
 import { RecommendationCard } from "../components/smart/RecommendationCard";
 import { ServiceReviewPanel } from "../components/smart/ServiceReviewPanel";
 import { InsightCard } from "../components/smart/InsightCard";
@@ -32,7 +32,7 @@ import {
   smartServiceTypes,
   toSongEntry
 } from "../services/smartRecommendations";
-import { getSongPdfUrl } from "../services/songUtils";
+import { getSongPdfUrl, normalizeSearchText } from "../services/songUtils";
 
 const tabItems = [
   { id: "programar", label: "Programación Inteligente", icon: Wand2, primary: true },
@@ -51,6 +51,7 @@ const defaultOptions = {
   avoidRecent: true,
   onlyKeynoteReady: false,
   preferredKey: "",
+  includePdfText: false,
   seed: 0
 };
 
@@ -60,10 +61,7 @@ const serviceMeta = {
   "Domingo AM": { serviceType: "domingo-manana", serviceLabel: "Domingo AM", time: "11:00" },
   "Domingo PM": { serviceType: "domingo-tarde", serviceLabel: "Domingo PM", time: "17:00" },
   "Miércoles de oración": { serviceType: "miercoles-oracion", serviceLabel: "Miércoles de oración", time: "19:00" },
-  "Santa Cena": { serviceType: "especial", serviceLabel: "Santa Cena", time: "" },
-  Especial: { serviceType: "especial", serviceLabel: "Servicio especial", time: "" },
-  Aniversario: { serviceType: "especial", serviceLabel: "Aniversario", time: "" },
-  Navidad: { serviceType: "especial", serviceLabel: "Navidad", time: "" }
+  "Servicio especial": { serviceType: "especial", serviceLabel: "Servicio especial", time: "" }
 };
 
 const normalServiceTypes = ["Domingo AM", "Domingo PM", "Miércoles de oración"];
@@ -77,6 +75,17 @@ const shortDate = (schedule = {}) => schedule.date
   : "Sin fecha";
 
 const scheduleLabel = (schedule = {}) => `${schedule.serviceLabel || schedule.type || "Servicio"} · ${shortDate(schedule)} · ${schedule.time || "Sin hora"}`;
+const normalizeTheme = (theme = "") => normalizeSearchText(theme);
+const gapFilterMap = {
+  youtube: "missing-youtube",
+  spotify: "missing-spotify",
+  drive: "missing-drive-pdf",
+  localPdf: "missing-local-pdf",
+  keynote: "missing-keynote",
+  key: "missing-key",
+  theme: "missing-theme",
+  ocr: "ocr-pending"
+};
 
 function nextBlockState(block, overrides) {
   if (!Object.keys(overrides).length) return block;
@@ -139,6 +148,7 @@ export function SmartCenter() {
   const [applyBlockModalOpen, setApplyBlockModalOpen] = useState(false);
   const [conflictModalOpen, setConflictModalOpen] = useState(false);
   const [scoreHelpItem, setScoreHelpItem] = useState(null);
+  const [showAllBalance, setShowAllBalance] = useState(false);
 
   const existingSchedule = schedules.find((schedule) => schedule.id === selectedScheduleId) || nextSchedule;
   const selectedSchedule = planningMode === "existing" ? existingSchedule : null;
@@ -160,6 +170,10 @@ export function SmartCenter() {
     });
     return [...values].filter(Boolean).sort((a, b) => String(a).localeCompare(String(b), "es"));
   }, [songs, themes]);
+  const selectedThemes = parseThemeInput(options.theme);
+  const primaryTheme = selectedThemes[0] || "";
+  const additionalThemes = selectedThemes.slice(1);
+  const songsWithIndexedText = useMemo(() => songs.filter((song) => song.pdfSearchText || song.pdfOcrText || song.pdfText || song.lyricsText).length, [songs]);
   const recommendations = useMemo(
     () => getSongRecommendations(songs, schedules, { ...options, serviceType: selectedServiceType, currentSchedule: selectedSchedule, limit: 20, usageIndex })
       .filter((item) => !dismissed.includes(item.song.id)),
@@ -181,6 +195,7 @@ export function SmartCenter() {
     [currentReplacementSong, schedules, selectedSchedule, songs]
   );
   const insights = useMemo(() => getRepertoireInsightsSafe(songs, schedules), [schedules, songs]);
+  const visibleInsights = showAllBalance ? insights : insights.slice(0, 5);
   const gaps = useMemo(() => getPreparationGaps(songs), [songs]);
   const intentSearch = useMemo(() => searchSongsByIntent(intentQuery, songs, usageIndex), [intentQuery, songs, usageIndex]);
   const alternativeCandidates = useMemo(() => {
@@ -196,6 +211,27 @@ export function SmartCenter() {
     setBlockOverrides({});
     if (key !== "seed") setBlockGenerated(false);
     setOptions((current) => ({ ...current, [key]: value }));
+  };
+
+  const updateThemes = (nextThemes) => {
+    updateOption("theme", nextThemes.map((theme) => String(theme || "").trim()).filter(Boolean).join(", "));
+  };
+
+  const updatePrimaryTheme = (theme) => {
+    updateThemes([theme, ...additionalThemes]);
+  };
+
+  const updateAdditionalThemes = (value) => {
+    updateThemes([primaryTheme, ...parseThemeInput(value)]);
+  };
+
+  const toggleAdditionalTheme = (theme) => {
+    if (!primaryTheme) {
+      updateThemes([theme]);
+      return;
+    }
+    const exists = additionalThemes.some((item) => normalizeTheme(item) === normalizeTheme(theme));
+    updateThemes([primaryTheme, ...(exists ? additionalThemes.filter((item) => normalizeTheme(item) !== normalizeTheme(theme)) : [...additionalThemes, theme])]);
   };
 
   const updateServiceType = (serviceType) => {
@@ -266,7 +302,7 @@ export function SmartCenter() {
   };
 
   const buildNewSchedulePayload = () => {
-    const meta = serviceMeta[selectedServiceType] || serviceMeta.Especial;
+    const meta = serviceMeta[selectedServiceType] || serviceMeta["Servicio especial"];
     return {
       date: draftDate,
       serviceType: meta.serviceType,
@@ -357,7 +393,7 @@ export function SmartCenter() {
           <div>
             <div className="inline-flex items-center gap-2 rounded-full border border-brass/25 bg-brass/12 px-3 py-1 text-xs font-bold uppercase tracking-wide text-brass">
               <BrainCircuit className="h-4 w-4" />
-              Análisis y apoyo para programación
+              Análisis musical del servicio
             </div>
             <h1 className="mt-4 text-3xl font-black tracking-normal text-ink md:text-4xl">Centro Inteligente</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/65">
@@ -393,7 +429,7 @@ export function SmartCenter() {
           </SmartPanel>
           <SmartPanel>
             <p className="text-xs font-bold uppercase tracking-wide text-brass">Tema actual</p>
-            <p className="mt-1 text-lg font-black text-ink">{parseThemeInput(options.theme).join(" + ") || "Sin tema elegido"}</p>
+              <p className="mt-1 text-lg font-black text-ink">{selectedThemes.join(" + ") || "Sin tema elegido"}</p>
             <p className="mt-1 text-sm text-ink/60">{songs.length} cantos · {schedules.length} programaciones analizadas</p>
           </SmartPanel>
         </div>
@@ -425,7 +461,7 @@ export function SmartCenter() {
             <SmartPanel>
               <div className="flex items-center gap-2">
                 <Wand2 className="h-5 w-5 text-brass" />
-                <h2 className="text-xl font-black text-ink">Programación Inteligente</h2>
+                <h2 className="text-xl font-black text-ink">Configurar servicio</h2>
               </div>
               <div className="mt-5 grid gap-4">
                 <Field label="Modo">
@@ -463,20 +499,29 @@ export function SmartCenter() {
                   </Select>
                 </Field>
                 <Field label="Tema principal">
-                  <Input value={parseThemeInput(options.theme)[0] || ""} onChange={(event) => updateOption("theme", [event.target.value, ...parseThemeInput(options.theme).slice(1)].filter(Boolean).join(", "))} placeholder="cruz" />
+                  <Input value={primaryTheme} onChange={(event) => updatePrimaryTheme(event.target.value)} placeholder="cruz" />
                 </Field>
-                <Field label="Temas secundarios">
-                  <Input value={parseThemeInput(options.theme).slice(1).join(", ")} onChange={(event) => updateOption("theme", [parseThemeInput(options.theme)[0], event.target.value].filter(Boolean).join(", "))} placeholder="gracia, entrega" />
+                <Field label="Temas adicionales">
+                  <Input value={additionalThemes.join(", ")} onChange={(event) => updateAdditionalThemes(event.target.value)} placeholder="gracia, redención, entrega" />
                 </Field>
                 {themeOptions.length ? (
                   <div className="flex flex-wrap gap-2">
-                    {themeOptions.slice(0, 10).map((theme) => (
-                      <button key={theme} type="button" onClick={() => updateOption("theme", theme)} className="rounded-full bg-brass/12 px-3 py-1 text-xs font-bold text-brass">
+                    {themeOptions.slice(0, 16).map((theme) => {
+                      const active = selectedThemes.some((item) => normalizeTheme(item) === normalizeTheme(theme));
+                      return (
+                      <button key={theme} type="button" onClick={() => (primaryTheme ? toggleAdditionalTheme(theme) : updatePrimaryTheme(theme))} className={`rounded-full px-3 py-1 text-xs font-bold transition ${active ? "bg-brass text-ink" : "bg-brass/12 text-brass hover:bg-brass/20"}`}>
                         {theme}
                       </button>
-                    ))}
+                    );})}
                   </div>
                 ) : null}
+                <label className="flex items-start gap-2 rounded-2xl bg-white/55 p-3 text-sm font-semibold text-ink dark:bg-white/8">
+                  <input className="mt-1" type="checkbox" checked={options.includePdfText} onChange={(event) => updateOption("includePdfText", event.target.checked)} />
+                  <span>
+                    Buscar también en letras/PDF
+                    {options.includePdfText && songsWithIndexedText < songs.length ? <span className="block text-xs font-medium text-ink/55">Algunos cantos no tienen texto indexado; la búsqueda puede ser incompleta.</span> : null}
+                  </span>
+                </label>
                 {isManualCountService(selectedServiceType) ? (
                   <Field label="Número de cantos">
                     <Input type="number" min="1" max="8" value={options.count} onChange={(event) => updateOption("count", Number(event.target.value || 4))} />
@@ -551,8 +596,16 @@ export function SmartCenter() {
                 </Button>
               </SmartPanel>
 
-              <div className="grid gap-4 lg:grid-cols-2">
-                {recommendations.slice(0, 8).map((item) => (
+              <SmartPanel>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wide text-brass">Recomendaciones</p>
+                    <h3 className="text-xl font-black text-ink">Cantos candidatos</h3>
+                  </div>
+                  <p className="text-sm font-semibold text-ink/55">Top {Math.min(6, recommendations.length)}</p>
+                </div>
+                <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                {recommendations.slice(0, 6).map((item) => (
                   <RecommendationCard
                     key={item.song.id}
                     item={item}
@@ -563,7 +616,8 @@ export function SmartCenter() {
                     onDismiss={(song) => setDismissed((current) => [...current, song.id])}
                   />
                 ))}
-              </div>
+                </div>
+              </SmartPanel>
             </div>
           </motion.section>
         ) : null}
@@ -619,10 +673,15 @@ export function SmartCenter() {
                 <h2 className="text-xl font-black text-ink">Balance del repertorio</h2>
               </div>
               <div className="mt-5 grid gap-3 md:grid-cols-2">
-                {insights.map((insight) => (
+                {visibleInsights.map((insight) => (
                   <InsightCard key={insight.title} insight={insight} onAction={() => openRepertoireFilter(insight.filter || { q: insight.title })} />
                 ))}
               </div>
+              {insights.length > 5 ? (
+                <Button variant="subtle" className="mt-4" onClick={() => setShowAllBalance((current) => !current)}>
+                  {showAllBalance ? "Ver menos" : "Ver más"}
+                </Button>
+              ) : null}
             </SmartPanel>
             <SmartPanel>
               <h2 className="text-xl font-black text-ink">Qué falta preparar</h2>
@@ -639,7 +698,7 @@ export function SmartCenter() {
                     <div className="mt-3 h-2 overflow-hidden rounded-full bg-ink/10 dark:bg-white/10">
                       <div className="h-full rounded-full bg-brass" style={{ width: `${Math.min(100, gap.percent)}%` }} />
                     </div>
-                    <Button variant="subtle" className="mt-3 h-9 px-3 text-xs" onClick={() => openRepertoireFilter({ smartFilter: gap.key })}>Aplicar filtro</Button>
+                    <Button variant="subtle" className="mt-3 h-9 px-3 text-xs" onClick={() => openRepertoireFilter({ filter: gapFilterMap[gap.key] || gap.key })}>Aplicar filtro</Button>
                   </div>
                 ))}
               </div>
@@ -780,22 +839,31 @@ export function SmartCenter() {
         {scoreHelpItem ? (
           <div className="space-y-4">
             <div className="rounded-2xl bg-ink/5 p-4">
-              <p className="font-black text-ink">{scoreHelpItem.song.title} — {scoreHelpItem.score}%</p>
-              <p className="mt-2 text-sm leading-6 text-ink/62">
-                El puntaje considera tema principal, temas secundarios, tipo de servicio, posición, rotación histórica, uso reciente, Keynote, PDF, enlaces de escucha, tonalidad y datos faltantes.
-              </p>
+              <p className="font-black text-ink">{scoreHelpItem.song.title} — {scoreHelpItem.scoreDetails?.finalScore ?? scoreHelpItem.score}%</p>
+              <p className="mt-2 text-sm leading-6 text-ink/62">Este desglose es específico para este canto, los temas elegidos y la posición donde se propuso.</p>
             </div>
             <div>
               <p className="font-bold text-ink">A favor</p>
               <ul className="mt-2 space-y-1 text-sm text-ink/65">
-                {(scoreHelpItem.reasons || []).map((reason) => <li key={reason}>+ {reason}</li>)}
+                {(scoreHelpItem.scoreDetails?.positives || []).map((item) => <li key={`${item.points}-${item.label}`}>+{item.points} {item.label}</li>)}
               </ul>
             </div>
             <div>
-              <p className="font-bold text-ink">Riesgos</p>
+              <p className="font-bold text-ink">En contra</p>
               <ul className="mt-2 space-y-1 text-sm text-ink/65">
-                {(scoreHelpItem.warnings || []).length ? scoreHelpItem.warnings.map((warning) => <li key={warning}>- {warning}</li>) : <li>Sin riesgos importantes detectados.</li>}
+                {(scoreHelpItem.scoreDetails?.penalties || []).length ? scoreHelpItem.scoreDetails.penalties.map((item) => <li key={`${item.points}-${item.label}`}>{item.points} {item.label}</li>) : <li>Sin penalizaciones importantes detectadas.</li>}
               </ul>
+            </div>
+            {scoreHelpItem.scoreDetails?.warnings?.length ? (
+              <div>
+                <p className="font-bold text-ink">Notas</p>
+                <ul className="mt-2 space-y-1 text-sm text-ink/65">
+                  {scoreHelpItem.scoreDetails.warnings.map((warning) => <li key={warning}>• {warning}</li>)}
+                </ul>
+              </div>
+            ) : null}
+            <div className="rounded-2xl border border-ink/10 p-3 text-sm font-bold text-ink/70 dark:border-white/10">
+              Total calculado: {scoreHelpItem.scoreDetails?.rawScore ?? scoreHelpItem.score}% · Resultado visible: {scoreHelpItem.scoreDetails?.finalScore ?? scoreHelpItem.score}%
             </div>
           </div>
         ) : null}
@@ -805,8 +873,19 @@ export function SmartCenter() {
 }
 
 function getRepertoireInsightsSafe(songs, schedules) {
+  const inferFilter = (insight = {}) => {
+    const text = normalizeSearchText(`${insight.title || ""} ${insight.message || ""} ${insight.action || ""}`);
+    if (text.includes("youtube")) return { filter: "missing-youtube" };
+    if (text.includes("spotify")) return { filter: "missing-spotify" };
+    if (text.includes("documentos") || text.includes("pdf")) return { filter: "missing-drive-pdf" };
+    if (text.includes("himnos")) return { filter: "hymns-ready" };
+    if (text.includes("olvidados")) return { filter: "unused-ready" };
+    if (text.includes("repeticion") || text.includes("repetidos")) return { filter: "repeated" };
+    if (text.includes("navidad")) return { q: "navidad" };
+    return { q: insight.title };
+  };
   return getRepertoireInsights(songs, schedules).map((insight) => ({
     ...insight,
-    filter: insight.filter || (insight.action?.toLowerCase().includes("filtrar") ? { q: insight.title } : { smart: insight.title })
+    filter: insight.filter || inferFilter(insight)
   }));
 }

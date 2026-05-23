@@ -1,10 +1,10 @@
 {
-  "version": "0.9.9",
+  "version": "0.9.91",
   "date": "2026-05-23",
   "critical": false,
   "changes": [
-    "Programación inteligente por fecha y tipo de servicio",
-    "Bloques sugeridos por posición y explicación del score",
-    "Revisión del servicio agrupada por faltantes"
+    "Centro Inteligente más limpio",
+    "Temas adicionales múltiples y búsqueda en letras/PDF",
+    "Score explicado por canto y filtros reales hacia Repertorio"
   ]
 }

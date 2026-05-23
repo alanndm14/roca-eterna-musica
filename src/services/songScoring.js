@@ -4,7 +4,7 @@ const dayMs = 24 * 60 * 60 * 1000;
 const keyOrder = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const keyAliases = { DB: "C#", EB: "D#", GB: "F#", AB: "G#", BB: "A#" };
 
-export const smartServiceTypes = ["Domingo AM", "Domingo PM", "Miércoles de oración", "Santa Cena", "Especial", "Aniversario", "Navidad"];
+export const smartServiceTypes = ["Domingo AM", "Domingo PM", "Miércoles de oración", "Servicio especial"];
 export const smartEnergies = ["apertura", "congregacional fuerte", "reflexión", "cierre"];
 
 export function clampScore(score) {
@@ -17,10 +17,7 @@ const serviceDefaults = {
   "Miércoles de oración": { count: 3, preferredThemeFallbacks: ["oración", "entrega", "fe", "esperanza"] },
   "Domingo AM": { count: 5, preferredThemeFallbacks: ["adoración", "gloria", "señorío", "cruz"] },
   "Domingo PM": { count: 4, preferredThemeFallbacks: ["adoración", "entrega", "gracia", "esperanza"] },
-  "Santa Cena": { count: 4, preferredThemeFallbacks: ["cruz", "sangre", "gracia", "redención"] },
-  Navidad: { count: 4, preferredThemeFallbacks: ["navidad", "encarnación", "gloria", "esperanza"] },
-  Aniversario: { count: 5, preferredThemeFallbacks: ["gratitud", "fidelidad", "adoración", "gloria"] },
-  Especial: { count: 4, preferredThemeFallbacks: ["adoración", "entrega", "gloria", "esperanza"] }
+  "Servicio especial": { count: 4, preferredThemeFallbacks: ["adoración", "entrega", "gloria", "esperanza"] }
 };
 
 const slotThemes = {
@@ -37,10 +34,8 @@ const slotThemes = {
 export function inferSmartServiceType(schedule = {}) {
   const label = normalizeSearchText([schedule.serviceLabel, schedule.type, schedule.serviceType].filter(Boolean).join(" "));
   const time = String(schedule.time || "");
-  if (label.includes("navidad")) return "Navidad";
-  if (label.includes("santa cena")) return "Santa Cena";
-  if (label.includes("aniversario")) return "Aniversario";
-  if (label.includes("especial") || label.includes("congreso") || label.includes("vigilia") || label.includes("evento")) return "Especial";
+  if (label.includes("navidad") || label.includes("santa cena") || label.includes("aniversario")) return "Servicio especial";
+  if (label.includes("especial") || label.includes("congreso") || label.includes("vigilia") || label.includes("evento")) return "Servicio especial";
   if (label.includes("miercoles") || label.includes("oracion")) return "Miércoles de oración";
   if (label.includes("tarde") || label.includes("pm") || time.startsWith("17")) return "Domingo PM";
   if (label.includes("manana") || label.includes("am") || time.startsWith("11")) return "Domingo AM";
@@ -50,7 +45,7 @@ export function inferSmartServiceType(schedule = {}) {
     if (weekday === 0 && time >= "16:00") return "Domingo PM";
     if (weekday === 0) return "Domingo AM";
   }
-  return "Especial";
+  return "Servicio especial";
 }
 
 export function getSmartServiceDefaultCount(serviceType = "Domingo AM") {
@@ -59,7 +54,7 @@ export function getSmartServiceDefaultCount(serviceType = "Domingo AM") {
 
 export function getServiceSlots(serviceType = "Domingo AM", count) {
   const desiredCount = Number(count || getSmartServiceDefaultCount(serviceType));
-  if (serviceType === "Especial" || serviceType === "Aniversario") {
+  if (serviceType === "Servicio especial") {
     const special = [
       { id: "apertura", role: "Apertura", intent: "apertura", description: "Inicio congregacional del servicio especial." },
       { id: "congregacional", role: "Congregacional", intent: "congregacional", description: "Canto para unir a la iglesia." },
@@ -90,13 +85,10 @@ export function getServiceSlots(serviceType = "Domingo AM", count) {
   const normal = [
     { id: "apertura", role: "Apertura", intent: "apertura", description: "Preferentemente himno o congregacional fuerte." },
     { id: "congregacional", role: "Congregacional", intent: "congregacional", description: "Canto congregacional para afirmar el servicio." },
-    { id: "enfoque", role: "Enfoque / adoración", intent: serviceType === "Santa Cena" ? "santa_cena" : serviceType === "Navidad" ? "navidad" : "enfoque", description: "Centro temático del bloque." },
+    { id: "enfoque", role: "Enfoque / adoración", intent: "enfoque", description: "Centro temático del bloque." },
     { id: "antes_predicacion", role: "Antes de predicación", intent: "antes_predicacion", description: "Prepara el corazón para la Palabra." },
     { id: "despues_predicacion", role: "Después de predicación", intent: "despues_predicacion", description: "Solo un canto de respuesta." }
   ];
-  if (serviceType === "Santa Cena" || serviceType === "Navidad") {
-    return normal.slice(0, Math.max(1, Math.min(desiredCount, 6)));
-  }
   return normal.slice(0, Math.max(1, Math.min(desiredCount, 5)));
 }
 
@@ -180,6 +172,31 @@ function songThemeText(song = {}) {
   ].filter(Boolean).join(" "));
 }
 
+function songIndexedText(song = {}) {
+  return [
+    song.pdfSearchText,
+    song.pdfOcrText,
+    song.pdfText,
+    song.lyricsText,
+    ...(song.pdfSearchTokens || [])
+  ].filter(Boolean).join(" ");
+}
+
+function findIndexedTextMatch(song = {}, themes = []) {
+  const rawText = songIndexedText(song);
+  const normalizedText = normalizeSearchText(rawText);
+  const matchedTheme = themes.find((theme) => theme && normalizedText.includes(normalizeSearchText(theme)));
+  if (!matchedTheme) return null;
+  const words = String(rawText || "").replace(/\s+/g, " ").trim();
+  const normalizedTheme = normalizeSearchText(matchedTheme);
+  const normalizedWords = normalizeSearchText(words);
+  const index = normalizedWords.indexOf(normalizedTheme);
+  const snippet = index >= 0
+    ? words.slice(Math.max(0, index - 28), Math.min(words.length, index + String(matchedTheme).length + 36)).trim()
+    : String(matchedTheme);
+  return { theme: matchedTheme, snippet };
+}
+
 function hasThemeMatch(song = {}, themes = []) {
   const text = songThemeText(song);
   return themes.some((theme) => text.includes(normalizeSearchText(theme)));
@@ -201,137 +218,156 @@ export function scoreSong(song = {}, options = {}, context = {}) {
   const usage = context.usageIndex?.usage?.get(song.id) || {};
   const scheduledIds = context.scheduledIds || new Set();
   const themes = parseThemeInput(options.theme || "");
-  const normalizedThemes = themes.map(normalizeSearchText);
+  const primaryTheme = themes[0] || "";
+  const additionalThemes = themes.slice(1);
+  const normalizedPrimaryTheme = normalizeSearchText(primaryTheme);
+  const normalizedAdditionalThemes = additionalThemes.map(normalizeSearchText);
   const slot = options.slot || null;
   const reasons = [];
   const warnings = [];
   let score = 20;
+  const scoreDetails = {
+    base: 20,
+    positives: [{ points: 20, label: "Base de evaluación" }],
+    warnings: [],
+    penalties: [],
+    rawScore: 20,
+    finalScore: 20
+  };
+  const addPositive = (points, reason) => {
+    score += points;
+    scoreDetails.positives.push({ points, label: reason });
+    addUniqueReason(reasons, reason);
+  };
+  const addPenalty = (points, reason) => {
+    const value = Math.abs(points);
+    score -= value;
+    scoreDetails.penalties.push({ points: -value, label: reason });
+    addUniqueReason(warnings, reason);
+  };
+  const addWarning = (reason) => {
+    scoreDetails.warnings.push(reason);
+    addUniqueReason(warnings, reason);
+  };
 
   const mainTheme = normalizeSearchText(song.mainTheme || "");
   const otherThemes = [...(song.otherThemes || []), ...(song.tags || [])].map((theme) => normalizeSearchText(theme));
   const fullThemeText = songThemeText(song);
 
-  if (normalizedThemes.length) {
-    if (normalizedThemes.some((theme) => mainTheme.includes(theme))) {
-      score += 25;
-      addUniqueReason(reasons, `Coincide con tema principal: ${song.mainTheme}`);
-    } else if (normalizedThemes.some((theme) => otherThemes.some((other) => other.includes(theme)) || fullThemeText.includes(theme))) {
-      score += 15;
-      addUniqueReason(reasons, "Coincide con tema secundario");
+  if (normalizedPrimaryTheme) {
+    if (mainTheme.includes(normalizedPrimaryTheme) || fullThemeText.includes(normalizedPrimaryTheme)) {
+      addPositive(25, `Tema principal coincide: ${primaryTheme}`);
+    } else {
+      addWarning(`No coincide directamente con el tema principal: ${primaryTheme}`);
+    }
+  }
+
+  const additionalMatches = additionalThemes.filter((theme) => {
+    const normalized = normalizeSearchText(theme);
+    return normalized && (otherThemes.some((other) => other.includes(normalized)) || fullThemeText.includes(normalized));
+  });
+  additionalMatches.slice(0, 3).forEach((theme) => addPositive(10, `Tema adicional coincide: ${theme}`));
+
+  if (options.includePdfText) {
+    const pdfMatch = findIndexedTextMatch(song, themes);
+    if (pdfMatch) {
+      addPositive(pdfMatch.theme === primaryTheme ? 10 : 6, `Coincidencia en letra/PDF: "${pdfMatch.snippet}"`);
+    } else if (!songIndexedText(song)) {
+      addWarning("Sin texto indexado de PDF para comparar");
     }
   }
 
   if (slot) {
     const slotWords = slotThemes[slot.intent] || slotThemes[slot.id] || [];
     if (hasThemeMatch(song, slotWords)) {
-      score += 14;
-      addUniqueReason(reasons, `Encaja con ${slot.role}`);
+      addPositive(14, `Encaja con ${slot.role}`);
     }
     if (slot.id === "apertura") {
       if (isHymn(song)) {
-        score += 12;
-        addUniqueReason(reasons, "Buen himno para abrir");
+        addPositive(12, "Buen himno para abrir");
       }
-      if (hasThemeMatch(song, ["gloria", "alabanza", "señorío", "gratitud"])) score += 8;
+      if (hasThemeMatch(song, ["gloria", "alabanza", "señorío", "gratitud"])) addPositive(8, "Tema fuerte para apertura");
       if (hasThemeMatch(song, ["reflexión", "dolor", "quebrantamiento"])) {
-        score -= 8;
-        addUniqueReason(warnings, "Puede sentirse muy reflexivo para apertura");
+        addPenalty(8, "Puede sentirse muy reflexivo para apertura");
       }
     }
     if (slot.id === "antes_predicacion" && hasThemeMatch(song, ["palabra", "enseñanza", "entrega", "fe", "oración"])) {
-      score += 10;
-      addUniqueReason(reasons, "Prepara bien la predicación");
+      addPositive(10, "Prepara bien la predicación");
     }
     if (slot.id === "despues_predicacion") {
       if (hasThemeMatch(song, ["respuesta", "entrega", "oración", "cruz", "gracia", "consagración", "reflexión"])) {
-        score += 14;
-        addUniqueReason(reasons, "Funciona como respuesta después de la predicación");
+        addPositive(14, "Funciona como respuesta después de la predicación");
       }
       if (hasThemeMatch(song, ["apertura", "fiesta", "celebración"])) {
-        score -= 10;
-        addUniqueReason(warnings, "Suena más a apertura que a respuesta");
+        addPenalty(10, "Suena más a apertura que a respuesta");
       }
     }
   }
 
   if (options.category && normalizeSearchText(song.category) === normalizeSearchText(options.category)) {
-    score += 12;
-    addUniqueReason(reasons, `Categoría adecuada: ${song.category}`);
+    addPositive(12, `Categoría adecuada: ${song.category}`);
   }
   if (song.keynoteReviewStatus === "completado") {
-    score += 15;
-    addUniqueReason(reasons, "Keynote listo");
+    addPositive(15, "Keynote listo");
   } else if (options.onlyKeynoteReady) {
-    score -= 100;
-    addUniqueReason(warnings, "Keynote pendiente");
+    addPenalty(100, "Keynote pendiente");
   } else {
-    score -= 4;
-    addUniqueReason(warnings, "Keynote pendiente");
+    addPenalty(4, "Keynote pendiente");
   }
   if (songHasPdf(song)) {
-    score += 10;
-    addUniqueReason(reasons, "Tiene PDF o ruta disponible");
+    addPositive(10, "Tiene PDF o ruta disponible");
   } else {
-    score -= 5;
-    addUniqueReason(warnings, "Falta PDF o ruta local");
+    addPenalty(5, "Falta PDF o ruta local");
   }
   if (songHasListeningLink(song)) {
-    score += 6;
-    addUniqueReason(reasons, "Tiene enlace de escucha");
+    addPositive(6, "Tiene enlace de escucha");
   }
   if (!usage.lastUsedAt) {
-    score += 10;
-    addUniqueReason(reasons, "Sin historial reciente");
+    addPositive(10, "Sin historial reciente");
   } else {
     const daysSince = Math.floor((Date.now() - new Date(`${usage.lastUsedAt}T00:00:00`).getTime()) / dayMs);
     if (daysSince >= 30) {
-      score += 10;
-      addUniqueReason(reasons, `No se usa desde hace ${daysSince} días`);
+      addPositive(10, `No se usa desde hace ${daysSince} días`);
     } else if (daysSince < 14 && options.avoidRecent) {
-      score -= 15;
-      addUniqueReason(warnings, `Se usó hace ${daysSince} días`);
+      addPenalty(15, `Se usó hace ${daysSince} días`);
     }
   }
   if ((usage.monthCount || 0) === 0) {
-    score += 8;
-    addUniqueReason(reasons, "Poco usado este mes");
+    addPositive(8, "Poco usado este mes");
   } else if ((usage.monthCount || 0) >= 2) {
-    score -= 8;
-    addUniqueReason(warnings, "Ya se usó varias veces este mes");
+    addPenalty(8, "Ya se usó varias veces este mes");
   }
   if (options.preferredKey) {
     const distance = keyDistance(song.keyWithCapo || song.mainKey, options.preferredKey);
     if (distance !== null && distance <= 2) {
-      score += 5;
-      addUniqueReason(reasons, "Tonalidad cercana a la preferida");
+      addPositive(5, "Tonalidad cercana a la preferida");
     } else if (distance !== null && distance >= 5) {
-      addUniqueReason(warnings, "Tonalidad lejana a la preferida");
+      addWarning("Tonalidad lejana a la preferida");
     }
   }
   if (usage.usedInPreviousService) {
-    score -= 25;
-    addUniqueReason(warnings, "Se usó en el servicio anterior");
+    addPenalty(25, "Se usó en el servicio anterior");
   }
   if (scheduledIds.has(song.id)) {
-    score -= 10;
-    addUniqueReason(warnings, "Ya aparece en la programación seleccionada");
+    addPenalty(10, "Ya aparece en la programación seleccionada");
   }
   if (!song.mainKey && !song.keyWithCapo) {
-    score -= 10;
-    addUniqueReason(warnings, "Falta tono definido");
+    addPenalty(10, "Falta tono definido");
   }
   if (options.includeHymns === false && isHymn(song)) {
-    score -= 20;
-    addUniqueReason(warnings, "Es himno y el filtro lo evita");
+    addPenalty(20, "Es himno y el filtro lo evita");
   }
 
   const total = clampScore(score);
+  scoreDetails.rawScore = score;
+  scoreDetails.finalScore = total;
   return {
     song,
     score: total,
     label: total >= 82 ? "Muy recomendado" : total >= 62 ? "Recomendado" : "Útil con reservas",
     reasons: reasons.slice(0, 6),
     warnings: warnings.slice(0, 5),
+    scoreDetails,
     usage,
     slot
   };
@@ -358,7 +394,7 @@ export function getSlotAlternatives(songs = [], schedules = [], options = {}, sl
 
 export function createSuggestedServiceBlock(songs = [], schedules = [], options = {}) {
   const serviceType = options.serviceType || inferSmartServiceType(options.currentSchedule || {});
-  const fallbackThemes = serviceDefaults[serviceType]?.preferredThemeFallbacks || serviceDefaults.Especial.preferredThemeFallbacks;
+  const fallbackThemes = serviceDefaults[serviceType]?.preferredThemeFallbacks || serviceDefaults["Servicio especial"].preferredThemeFallbacks;
   const themeValue = parseThemeInput(options.theme).length ? options.theme : fallbackThemes.slice(0, 2).join(", ");
   const slots = getServiceSlots(serviceType, options.count);
   const selected = [];
@@ -378,7 +414,19 @@ export function createSuggestedServiceBlock(songs = [], schedules = [], options 
     }, slot, selectedIds).map((item) => {
       const key = item.song.keyWithCapo || item.song.mainKey || "";
       const keyPenalty = key && usedKeys.get(key) ? -5 : 0;
-      return { ...item, score: clampScore(item.score + keyPenalty) };
+      if (!keyPenalty) return item;
+      const nextScore = clampScore(item.score + keyPenalty);
+      return {
+        ...item,
+        score: nextScore,
+        warnings: [...(item.warnings || []), "Repite tonalidad dentro del bloque"],
+        scoreDetails: {
+          ...(item.scoreDetails || {}),
+          penalties: [...(item.scoreDetails?.penalties || []), { points: keyPenalty, label: "Repite tonalidad dentro del bloque" }],
+          rawScore: (item.scoreDetails?.rawScore ?? item.score) + keyPenalty,
+          finalScore: nextScore
+        }
+      };
     }).sort((a, b) => b.score - a.score || (a.song.title || "").localeCompare(b.song.title || "", "es"));
 
     const chosen = alternatives[(seed + slotIndex) % Math.max(1, Math.min(3, alternatives.length))] || alternatives[0];

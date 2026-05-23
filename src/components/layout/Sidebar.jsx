@@ -26,7 +26,9 @@ export function Sidebar({ profile, collapsed = false, logoSrc = appLogo, logoAlt
       </div>
 
       <nav className="mt-10 space-y-1">
-        {navItems.map((item) => (
+        {navItems.map((item) => {
+          const isSmart = item.path === "/inteligente";
+          return (
           <NavLink
             key={item.path}
             to={item.path}
@@ -36,13 +38,18 @@ export function Sidebar({ profile, collapsed = false, logoSrc = appLogo, logoAlt
             className={({ isActive }) =>
               `flex items-center gap-3 rounded-2xl py-3 text-sm font-semibold transition ${
                 collapsed ? "justify-center px-0" : "px-4"
-              } ${isActive ? "bg-white text-ink" : "text-white/68 hover:bg-white/8 hover:text-white"}`
+              } ${isActive ? (isSmart ? "bg-brass text-ink shadow-[0_0_24px_rgba(212,175,55,0.28)]" : "bg-white text-ink") : isSmart ? "border border-brass/25 bg-brass/10 text-brass hover:bg-brass/18" : "text-white/68 hover:bg-white/8 hover:text-white"}`
             }
           >
             <item.icon className="h-5 w-5 shrink-0" />
-            {!collapsed ? item.label : null}
+            {!collapsed ? (
+              <>
+                <span className="min-w-0 flex-1">{item.label}</span>
+                {isSmart ? <span className="rounded-full bg-brass/20 px-2 py-0.5 text-[10px] font-black text-brass">IA</span> : null}
+              </>
+            ) : null}
           </NavLink>
-        ))}
+        );})}
       </nav>
 
       <div className={`mt-auto rounded-3xl border border-white/10 bg-white/7 ${collapsed ? "px-2 py-3 text-center" : "p-4"}`}>

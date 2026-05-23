@@ -427,6 +427,8 @@ export function Songs() {
     driveLink: "",
     externalPdf: "",
     missingLinks: "",
+    smartPreset: "",
+    smartPresetLabel: "",
     artist: ""
   });
   const [viewMode, setViewMode] = useState(() => localStorage.getItem("roca-eterna-song-view-mode") || "cards");
@@ -447,18 +449,35 @@ export function Songs() {
     const params = new URLSearchParams(location.search || "");
     if (!params.size) return;
     const smartFilter = params.get("smartFilter") || "";
+    const filterAlias = params.get("filter") || "";
     const query = params.get("q") || params.get("smart") || "";
+    const filterMap = {
+      "missing-youtube": { youtube: "without", label: "Sin YouTube" },
+      "missing-spotify": { spotify: "without", label: "Sin Spotify" },
+      "missing-drive-pdf": { driveLink: "without", label: "Sin PDF Drive" },
+      "missing-local-pdf": { localPdf: "without", label: "Sin PDF local" },
+      "missing-keynote": { keynote: "pendiente", label: "Sin Keynote" },
+      "missing-key": { smartPreset: "missing-key", label: "Sin tono" },
+      "missing-theme": { smartPreset: "missing-theme", label: "Sin tema" },
+      "ocr-pending": { smartPreset: "ocr-pending", label: "OCR pendiente" },
+      "unused-ready": { smartPreset: "unused-ready", label: "Listos poco usados" },
+      "hymns-ready": { smartPreset: "hymns-ready", label: "Himnos listos" },
+      repeated: { smartPreset: "repeated", label: "Repetidos este mes" }
+    };
+    const aliasFilter = filterMap[filterAlias] || {};
     setFilters((current) => ({
       ...current,
       query: query || current.query,
-      youtube: smartFilter === "youtube" ? "without" : current.youtube,
-      spotify: smartFilter === "spotify" ? "without" : current.spotify,
-      driveLink: smartFilter === "drive" ? "without" : current.driveLink,
-      localPdf: smartFilter === "localPdf" ? "without" : current.localPdf,
-      keynote: smartFilter === "keynote" ? "pendiente" : current.keynote,
+      youtube: aliasFilter.youtube || (smartFilter === "youtube" ? "without" : current.youtube),
+      spotify: aliasFilter.spotify || (smartFilter === "spotify" ? "without" : current.spotify),
+      driveLink: aliasFilter.driveLink || (smartFilter === "drive" ? "without" : current.driveLink),
+      localPdf: aliasFilter.localPdf || (smartFilter === "localPdf" ? "without" : current.localPdf),
+      keynote: aliasFilter.keynote || (smartFilter === "keynote" ? "pendiente" : current.keynote),
       key: smartFilter === "key" ? "" : current.key,
       mainTheme: smartFilter === "theme" ? "" : current.mainTheme,
-      missingLinks: ["youtube", "spotify", "drive", "localPdf"].includes(smartFilter) ? "missing" : current.missingLinks
+      missingLinks: ["youtube", "spotify", "drive", "localPdf"].includes(smartFilter) ? "missing" : current.missingLinks,
+      smartPreset: aliasFilter.smartPreset || current.smartPreset,
+      smartPresetLabel: aliasFilter.label || current.smartPresetLabel
     }));
   }, [location.search]);
 
@@ -500,6 +519,8 @@ export function Songs() {
     driveLink: "",
     externalPdf: "",
     missingLinks: "",
+    smartPreset: "",
+    smartPresetLabel: "",
     artist: ""
   });
 
@@ -546,9 +567,19 @@ export function Songs() {
         const matchesMissingLinks = !filters.missingLinks
           || (filters.missingLinks === "missing" && requiredLinks.some((value) => !value))
           || (filters.missingLinks === "complete" && requiredLinks.every(Boolean));
-        return matchesQuery && matchesCategory && matchesMainTheme && matchesOtherTheme && matchesKey && matchesCapo && matchesMusic && matchesKeynote && matchesPdf && matchesSung && matchesFormat && matchesKeyChange && matchesArtist && matchesLocalPdf && matchesYoutube && matchesSpotify && matchesDriveLink && matchesExternalPdf && matchesMissingLinks;
+        const categoryText = normalizeSearchText(song.category);
+        const hasIndexedText = Boolean(song.pdfSearchText || song.pdfOcrText || song.pdfText || (song.pdfSearchTokens || []).length);
+        const usageCount = realUsageBySong.get(song.id) || 0;
+        const matchesSmartPreset = !filters.smartPreset
+          || (filters.smartPreset === "missing-key" && !(song.mainKey || song.keyWithCapo))
+          || (filters.smartPreset === "missing-theme" && !song.mainTheme)
+          || (filters.smartPreset === "ocr-pending" && !hasIndexedText)
+          || (filters.smartPreset === "unused-ready" && song.keynoteReviewStatus === "completado" && usageCount === 0)
+          || (filters.smartPreset === "hymns-ready" && categoryText.includes("himno") && song.keynoteReviewStatus === "completado")
+          || (filters.smartPreset === "repeated" && usageCount >= 2);
+        return matchesQuery && matchesCategory && matchesMainTheme && matchesOtherTheme && matchesKey && matchesCapo && matchesMusic && matchesKeynote && matchesPdf && matchesSung && matchesFormat && matchesKeyChange && matchesArtist && matchesLocalPdf && matchesYoutube && matchesSpotify && matchesDriveLink && matchesExternalPdf && matchesMissingLinks && matchesSmartPreset;
       }),
-    [filters, songs]
+    [filters, realUsageBySong, songs]
   );
 
   const handleDelete = async (song) => {
@@ -608,6 +639,10 @@ export function Songs() {
   const closeModal = () => {
     setEditingSong(null);
     setIsAdding(false);
+  };
+  const clearSmartRouteFilter = () => {
+    clearFilters();
+    navigate("/repertorio", { replace: true });
   };
 
   return (
@@ -724,11 +759,18 @@ export function Songs() {
         </details>
 
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm font-semibold text-ink/55">Mostrando {filteredSongs.length} de {songs.length} cantos</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm font-semibold text-ink/55">Mostrando {filteredSongs.length} de {songs.length} cantos</p>
+            {filters.smartPresetLabel ? (
+              <button type="button" onClick={clearSmartRouteFilter} className="rounded-full bg-brass/14 px-3 py-1 text-xs font-black text-brass">
+                {filters.smartPresetLabel} ×
+              </button>
+            ) : null}
+          </div>
           <div className="flex gap-2">
             <Button variant={viewMode === "cards" ? "primary" : "secondary"} onClick={() => { setViewMode("cards"); localStorage.setItem("roca-eterna-song-view-mode", "cards"); }}>Tarjetas</Button>
             <Button variant={viewMode === "list" ? "primary" : "secondary"} onClick={() => { setViewMode("list"); localStorage.setItem("roca-eterna-song-view-mode", "list"); }}>Lista</Button>
-            <Button variant="secondary" onClick={clearFilters}>Limpiar filtros</Button>
+            <Button variant="secondary" onClick={clearSmartRouteFilter}>Limpiar filtros</Button>
           </div>
         </div>
       </Card>

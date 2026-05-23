@@ -1,6 +1,29 @@
-export const appVersion = "0.9.9";
+export const appVersion = "0.9.91";
 
 export const changelog = [
+  {
+    version: "0.9.91",
+    date: "2026-05-23",
+    title: "Limpieza del Centro Inteligente",
+    added: [
+      "Temas adicionales múltiples en Programación Inteligente",
+      "Búsqueda opcional en letras/PDF indexado",
+      "Score explicado por canto con puntos a favor y en contra"
+    ],
+    changed: [
+      "Programación Inteligente queda organizada en servicio, temas, bloque sugerido y candidatos",
+      "Balance ahora abre Repertorio con filtros reales aplicados",
+      "Centro Inteligente destaca visualmente en la navegación principal"
+    ],
+    fixed: [
+      "Se quitó Santa Cena como tipo de servicio fijo del Centro Inteligente",
+      "Se redujeron tarjetas y textos repetidos",
+      "Las tarjetas de candidatos quedan más limpias y alineadas"
+    ],
+    pending: [
+      "Ajustar los pesos del scoring con más historial real del ministerio"
+    ]
+  },
   {
     version: "0.9.9",
     date: "2026-05-23",

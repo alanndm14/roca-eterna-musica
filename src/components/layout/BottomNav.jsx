@@ -30,20 +30,23 @@ export function BottomNav() {
               </Button>
             </div>
             <div className="grid gap-2">
-              {mobileExtraItems.map((item) => (
+              {mobileExtraItems.map((item) => {
+                const isSmart = item.path === "/inteligente";
+                return (
                 <NavLink
                   key={item.path}
                   to={item.path}
                   data-tour={item.tourId}
                   onClick={() => setOpen(false)}
                   className={({ isActive }) =>
-                    `flex min-h-12 items-center gap-3 rounded-2xl px-4 text-sm font-semibold transition ${isActive ? "bg-ink text-white" : "bg-ink/5 text-ink"}`
+                    `flex min-h-12 items-center gap-3 rounded-2xl px-4 text-sm font-semibold transition ${isActive ? (isSmart ? "bg-brass text-ink shadow-soft" : "bg-ink text-white") : isSmart ? "border border-brass/30 bg-brass/12 text-brass" : "bg-ink/5 text-ink"}`
                   }
                 >
                   <item.icon className="h-5 w-5" />
-                  {item.label}
+                  <span className="flex-1">{item.label}</span>
+                  {isSmart ? <span className="rounded-full bg-brass px-2 py-0.5 text-[10px] font-black text-ink">Inteligente</span> : null}
                 </NavLink>
-              ))}
+              );})}
               <button type="button" onClick={openGuide} className="flex min-h-12 items-center gap-3 rounded-2xl bg-ink/5 px-4 text-left text-sm font-semibold text-ink">
                 <HelpCircle className="h-5 w-5" />
                 Guía de uso
