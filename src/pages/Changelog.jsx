@@ -1,4 +1,4 @@
-import { Sparkles } from "lucide-react";
+import { History } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Card } from "../components/ui/Card";
 import { appVersion, changelog } from "../data/changelog";
@@ -26,7 +26,7 @@ export function Changelog() {
       <Card>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-3">
-          <Sparkles className="h-5 w-5 text-brass" />
+          <History className="h-5 w-5 text-brass" />
           <div>
             <h2 className="text-xl font-bold text-ink">Actualizaciones</h2>
             <p className="text-sm text-ink/55">Versión actual de la app: {appVersion}</p>

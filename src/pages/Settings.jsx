@@ -76,6 +76,7 @@ export function Settings() {
   const [pdfIndexResult, setPdfIndexResult] = useState(null);
   const [isIndexingPdfs, setIsIndexingPdfs] = useState(false);
   const [pdfIndexProgress, setPdfIndexProgress] = useState(null);
+  const [enablePdfOcr, setEnablePdfOcr] = useState(false);
   const [logoTest, setLogoTest] = useState(null);
   const [pushStatus, setPushStatus] = useState("");
   const [pushDiagnostic, setPushDiagnostic] = useState(null);
@@ -347,9 +348,9 @@ export function Settings() {
   const runPdfIndex = async () => {
     setIsIndexingPdfs(true);
     setPdfIndexResult(null);
-    setPdfIndexProgress({ current: 0, total: songs.filter((item) => item.localPdfPath).length, songTitle: "", found: 0, indexed: 0, noText: 0, missing: 0, failed: 0 });
+    setPdfIndexProgress({ current: 0, total: songs.filter((item) => item.localPdfPath).length, songTitle: "", found: 0, indexed: 0, noText: 0, missing: 0, failed: 0, ocrItems: [] });
     try {
-      const result = await indexLocalPdfTexts(setPdfIndexProgress);
+      const result = await indexLocalPdfTexts(setPdfIndexProgress, { enableOcr: enablePdfOcr });
       setPdfIndexResult(result);
     } finally {
       setIsIndexingPdfs(false);
@@ -819,11 +820,20 @@ export function Settings() {
             <h2 className="text-xl font-bold text-ink">Busqueda dentro de PDFs locales</h2>
           </div>
           <p className="mt-2 text-sm leading-6 text-ink/60">
-            Indexa solo PDFs accesibles desde public/pdfs. No muestra letras completas; guarda texto normalizado para encontrar cantos por palabras.
+            Indexa PDFs accesibles desde public/pdfs. No muestra letras completas; guarda texto normalizado para encontrar cantos por palabras.
           </p>
+          <label className="mt-4 flex items-start gap-3 rounded-2xl border border-brass/25 bg-brass/10 p-4 text-sm font-semibold text-ink">
+            <input className="mt-1" type="checkbox" checked={enablePdfOcr} onChange={(event) => setEnablePdfOcr(event.target.checked)} disabled={isIndexingPdfs} />
+            <span>
+              Usar OCR automático gratuito para PDFs escaneados
+              <span className="mt-1 block text-xs font-medium text-ink/55">
+                Se ejecuta en este navegador con Tesseract.js. Puede tardar varios minutos si hay muchos cantos.
+              </span>
+            </span>
+          </label>
           <Button className="mt-4" variant="secondary" isLoading={isIndexingPdfs} disabled={isIndexingPdfs} onClick={runPdfIndex}>
             <FileSearch className="h-4 w-4" />
-            {isIndexingPdfs ? "Indexando PDFs..." : "Indexar textos de PDFs locales"}
+            {isIndexingPdfs ? "Indexando PDFs..." : enablePdfOcr ? "Indexar PDFs con OCR automático" : "Indexar textos de PDFs locales"}
           </Button>
           {pdfIndexProgress ? (
             <div className="mt-4 rounded-2xl border border-ink/10 bg-ink/5 p-4">
@@ -835,9 +845,14 @@ export function Settings() {
                 <div className="h-full rounded-full bg-brass transition-all" style={{ width: `${pdfIndexProgress.total ? Math.round(((pdfIndexProgress.current || 0) / pdfIndexProgress.total) * 100) : 0}%` }} />
               </div>
               <p className="mt-3 text-sm text-ink/55">{pdfIndexProgress.songTitle ? `Procesando: ${pdfIndexProgress.songTitle}` : "Preparando indice..."}</p>
+              {pdfIndexProgress.ocrProgress ? (
+                <p className="mt-1 text-xs font-semibold text-brass">
+                  OCR página {pdfIndexProgress.ocrProgress.pageNumber || "-"} de {pdfIndexProgress.ocrProgress.totalPages || "-"} · {pdfIndexProgress.ocrProgress.phase || "leyendo"} {pdfIndexProgress.ocrProgress.progress ? `${Math.round(pdfIndexProgress.ocrProgress.progress * 100)}%` : ""}
+                </p>
+              ) : null}
               {pdfIndexProgress.pdfPath ? <p className="mt-1 break-all text-xs text-ink/45">PDF: {pdfIndexProgress.pdfPath}</p> : null}
               <p className="mt-2 text-xs font-semibold text-ink/50">
-                Encontrados {pdfIndexProgress.found || 0} - Indexados {pdfIndexProgress.indexed || 0} - Sin texto {pdfIndexProgress.noText || 0} - No encontrados {pdfIndexProgress.missing || 0} - Errores {pdfIndexProgress.failed || 0}
+                Encontrados {pdfIndexProgress.found || 0} - Indexados {pdfIndexProgress.indexed || 0} - OCR {(pdfIndexProgress.ocrItems || []).length} - Sin texto {pdfIndexProgress.noText || 0} - No encontrados {pdfIndexProgress.missing || 0} - Errores {pdfIndexProgress.failed || 0}
               </p>
             </div>
           ) : null}
@@ -1338,9 +1353,10 @@ function PdfIndexSummary({ result }) {
   return (
     <div className="mt-4 space-y-3">
       <p className="text-sm font-semibold text-ink/60">
-        Encontrados {result.found}, indexados {result.indexed}, sin texto {result.noText}, no encontrados {result.missing}, errores {result.failed}
+        Encontrados {result.found}, indexados {result.indexed}, con OCR {(result.ocrItems || []).length}, sin texto {result.noText}, no encontrados {result.missing}, errores {result.failed}
       </p>
       <PdfIndexList title="Indexados correctamente" items={result.indexedItems} />
+      <PdfIndexList title="Indexados con OCR" items={result.ocrItems} />
       <PdfIndexList title="Sin texto extraible" items={result.noTextItems} fallbackMessage="El PDF existe, pero no tiene texto seleccionable." />
       <PdfIndexList title="No encontrados" items={result.missingItems} showUrl />
       <PdfIndexList title="Errores" items={result.errorItems} showUrl />
@@ -1363,6 +1379,7 @@ function PdfIndexList({ title, items = [], showUrl = false, fallbackMessage = ""
               <p className="break-all">Ruta guardada: {item.localPdfPath || "--"}</p>
               {showUrl ? <p className="break-all">URL resuelta: {item.resolvedUrl || "--"}</p> : null}
               {item.statusHttp ? <p>Status HTTP: {item.statusHttp}</p> : null}
+              {item.method ? <p>Método: {item.method === "ocr" ? "OCR automático" : "texto seleccionable"}</p> : null}
               {(item.message || fallbackMessage) ? <p>{item.message || fallbackMessage}</p> : null}
             </div>
           ))}

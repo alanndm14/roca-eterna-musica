@@ -36,11 +36,17 @@ export function Sidebar({ profile, collapsed = false, logoSrc = appLogo, logoAlt
             data-tour={item.tourId}
             title={collapsed ? item.label : undefined}
             className={({ isActive }) =>
-              `flex items-center gap-3 rounded-2xl py-3 text-sm font-semibold transition ${
+              `relative flex items-center gap-3 overflow-hidden rounded-2xl py-3 text-sm font-semibold transition ${
                 collapsed ? "justify-center px-0" : "px-4"
               } ${isActive ? (isSmart ? "bg-brass text-ink shadow-[0_0_24px_rgba(212,175,55,0.28)]" : "bg-white text-ink") : isSmart ? "border border-brass/25 bg-brass/10 text-brass hover:bg-brass/18" : "text-white/68 hover:bg-white/8 hover:text-white"}`
             }
           >
+            {isSmart ? (
+              <>
+                <span className="pointer-events-none absolute right-3 top-2 h-1.5 w-1.5 animate-pulse rounded-full bg-brass" />
+                <span className="pointer-events-none absolute bottom-2 right-8 h-1 w-1 animate-pulse rounded-full bg-white/80 [animation-delay:600ms]" />
+              </>
+            ) : null}
             <item.icon className="h-5 w-5 shrink-0" />
             {!collapsed ? (
               <>

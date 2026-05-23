@@ -1,6 +1,29 @@
-export const appVersion = "0.9.91";
+export const appVersion = "0.9.92";
 
 export const changelog = [
+  {
+    version: "0.9.92",
+    date: "2026-05-23",
+    title: "OCR y pulido del Centro Inteligente",
+    added: [
+      "OCR automático gratuito para indexar PDFs escaneados desde Ajustes",
+      "Selección organizada de tema principal y varios temas adicionales",
+      "Brillos sutiles en la navegación del Centro Inteligente"
+    ],
+    changed: [
+      "Centro Inteligente usa el icono brillante y Actualizaciones usa un icono de historial",
+      "Las tarjetas del bloque sugerido son más compactas y estables en PC",
+      "El score ya no toma en cuenta enlaces de escucha"
+    ],
+    fixed: [
+      "La revisión del servicio muestra una sola barra de riesgo/preparación",
+      "Los temas secundarios aceptan varios valores escritos o seleccionados",
+      "El panel de indexación distingue texto seleccionable y OCR automático"
+    ],
+    pending: [
+      "OCR puede tardar varios minutos en bibliotecas grandes o PDFs escaneados pesados"
+    ]
+  },
   {
     version: "0.9.91",
     date: "2026-05-23",

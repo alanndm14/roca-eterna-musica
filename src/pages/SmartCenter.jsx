@@ -505,14 +505,33 @@ export function SmartCenter() {
                   <Input value={additionalThemes.join(", ")} onChange={(event) => updateAdditionalThemes(event.target.value)} placeholder="gracia, redención, entrega" />
                 </Field>
                 {themeOptions.length ? (
-                  <div className="flex flex-wrap gap-2">
-                    {themeOptions.slice(0, 16).map((theme) => {
-                      const active = selectedThemes.some((item) => normalizeTheme(item) === normalizeTheme(theme));
-                      return (
-                      <button key={theme} type="button" onClick={() => (primaryTheme ? toggleAdditionalTheme(theme) : updatePrimaryTheme(theme))} className={`rounded-full px-3 py-1 text-xs font-bold transition ${active ? "bg-brass text-ink" : "bg-brass/12 text-brass hover:bg-brass/20"}`}>
-                        {theme}
-                      </button>
-                    );})}
+                  <div className="grid gap-3 rounded-2xl border border-ink/10 bg-white/55 p-3 dark:border-white/10 dark:bg-white/8">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-wide text-ink/45">Seleccionar tema principal</p>
+                      <div className="mt-2 flex max-h-32 flex-wrap gap-2 overflow-y-auto pr-1">
+                        {themeOptions.map((theme) => {
+                          const active = normalizeTheme(primaryTheme) === normalizeTheme(theme);
+                          return (
+                            <button key={`primary-${theme}`} type="button" onClick={() => updatePrimaryTheme(theme)} className={`rounded-full px-3 py-1 text-xs font-bold transition ${active ? "bg-brass text-ink" : "bg-ink/5 text-ink/65 hover:bg-brass/15 hover:text-brass"}`}>
+                              {theme}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-wide text-ink/45">Seleccionar temas adicionales</p>
+                      <div className="mt-2 flex max-h-36 flex-wrap gap-2 overflow-y-auto pr-1">
+                        {themeOptions.map((theme) => {
+                          const active = additionalThemes.some((item) => normalizeTheme(item) === normalizeTheme(theme));
+                          return (
+                            <button key={`additional-${theme}`} type="button" onClick={() => toggleAdditionalTheme(theme)} className={`rounded-full px-3 py-1 text-xs font-bold transition ${active ? "bg-brass text-ink" : "bg-ink/5 text-ink/65 hover:bg-brass/15 hover:text-brass"}`}>
+                              {theme}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
                 ) : null}
                 <label className="flex items-start gap-2 rounded-2xl bg-white/55 p-3 text-sm font-semibold text-ink dark:bg-white/8">
@@ -567,19 +586,19 @@ export function SmartCenter() {
                 </div>
                 <div className="mt-4 grid gap-3">
                   {blockGenerated && suggestedBlock.items.length ? suggestedBlock.items.map((item, index) => (
-                    <article key={`${item.slot.id}-${item.song.id}`} className="rounded-2xl border border-white/60 bg-white/74 p-4 shadow-soft dark:border-white/10 dark:bg-white/8">
-                      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                        <div className="min-w-0">
+                    <article key={`${item.slot.id}-${item.song.id}`} className="rounded-2xl border border-white/60 bg-white/74 p-3 shadow-soft dark:border-white/10 dark:bg-white/8 sm:p-4">
+                      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_190px] lg:items-start">
+                        <div className="min-w-0 overflow-hidden">
                           <p className="text-xs font-bold uppercase tracking-wide text-brass">{index + 1}. {item.role}</p>
                           <h4 className="mt-1 text-lg font-black text-ink">{item.song.title}</h4>
-                          <p className="mt-1 text-sm text-ink/60">{item.slot.description}</p>
+                          <p className="mt-1 line-clamp-2 text-sm text-ink/60">{item.slot.description}</p>
                           <div className="mt-3"><ReasonChips reasons={item.reasons} warnings={item.warnings} /></div>
                         </div>
-                        <div className="flex shrink-0 flex-wrap items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2 lg:flex-col lg:items-stretch">
                           <ScoreBadge score={item.score} compact />
-                          <Button variant="secondary" onClick={() => setAlternativeSlot(item.slot)}><Shuffle className="h-4 w-4" />Cambiar</Button>
-                          <Button variant="subtle" onClick={() => openCompare(item)}>Comparar</Button>
-                          <Button variant="subtle" onClick={() => setScoreHelpItem(item)}>¿Cómo se calculó?</Button>
+                          <Button className="h-9 px-3 text-xs" variant="secondary" onClick={() => setAlternativeSlot(item.slot)}><Shuffle className="h-4 w-4" />Cambiar</Button>
+                          <Button className="h-9 px-3 text-xs" variant="subtle" onClick={() => openCompare(item)}>Comparar</Button>
+                          <Button className="h-9 px-3 text-xs" variant="subtle" onClick={() => setScoreHelpItem(item)}>Ver score</Button>
                         </div>
                       </div>
                     </article>

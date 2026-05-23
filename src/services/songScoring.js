@@ -319,9 +319,6 @@ export function scoreSong(song = {}, options = {}, context = {}) {
   } else {
     addPenalty(5, "Falta PDF o ruta local");
   }
-  if (songHasListeningLink(song)) {
-    addPositive(6, "Tiene enlace de escucha");
-  }
   if (!usage.lastUsedAt) {
     addPositive(10, "Sin historial reciente");
   } else {

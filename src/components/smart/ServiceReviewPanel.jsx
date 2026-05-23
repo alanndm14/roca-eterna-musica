@@ -22,10 +22,6 @@ export function ServiceReviewPanel({ review }) {
         </div>
         <ScoreBadge score={review.score} label="Preparación" />
       </div>
-      <div className="mt-5 h-3 overflow-hidden rounded-full bg-ink/10 dark:bg-white/10">
-        <div className="h-full rounded-full bg-brass" style={{ width: `${review.score || 0}%` }} />
-      </div>
-
       {groups.length ? (
         <div className="mt-5 grid gap-3">
           {groups.map((group) => {

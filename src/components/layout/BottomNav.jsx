@@ -39,9 +39,15 @@ export function BottomNav() {
                   data-tour={item.tourId}
                   onClick={() => setOpen(false)}
                   className={({ isActive }) =>
-                    `flex min-h-12 items-center gap-3 rounded-2xl px-4 text-sm font-semibold transition ${isActive ? (isSmart ? "bg-brass text-ink shadow-soft" : "bg-ink text-white") : isSmart ? "border border-brass/30 bg-brass/12 text-brass" : "bg-ink/5 text-ink"}`
+                    `relative flex min-h-12 items-center gap-3 overflow-hidden rounded-2xl px-4 text-sm font-semibold transition ${isActive ? (isSmart ? "bg-brass text-ink shadow-soft" : "bg-ink text-white") : isSmart ? "border border-brass/30 bg-brass/12 text-brass" : "bg-ink/5 text-ink"}`
                   }
                 >
+                  {isSmart ? (
+                    <>
+                      <span className="pointer-events-none absolute right-3 top-2 h-1.5 w-1.5 animate-pulse rounded-full bg-brass" />
+                      <span className="pointer-events-none absolute bottom-2 right-10 h-1 w-1 animate-pulse rounded-full bg-white/80 [animation-delay:600ms]" />
+                    </>
+                  ) : null}
                   <item.icon className="h-5 w-5" />
                   <span className="flex-1">{item.label}</span>
                   {isSmart ? <span className="rounded-full bg-brass px-2 py-0.5 text-[10px] font-black text-ink">Inteligente</span> : null}

@@ -866,7 +866,7 @@ export function MusicDataProvider({ children }) {
     return results;
   };
 
-  const indexLocalPdfTexts = async (onProgress) => {
+  const indexLocalPdfTexts = async (onProgress, options = {}) => {
     const results = {
       found: 0,
       indexed: 0,
@@ -874,6 +874,7 @@ export function MusicDataProvider({ children }) {
       noText: 0,
       missing: 0,
       indexedItems: [],
+      ocrItems: [],
       noTextItems: [],
       missingItems: [],
       errorItems: []
@@ -883,7 +884,10 @@ export function MusicDataProvider({ children }) {
     for (const song of candidates) {
       current += 1;
       onProgress?.({ current, total: candidates.length, songTitle: song.title, pdfPath: song.localPdfPath, ...results });
-      const extracted = await extractLocalPdfText(song.localPdfPath);
+      const extracted = await extractLocalPdfText(song.localPdfPath, {
+        enableOcr: Boolean(options.enableOcr),
+        onOcrProgress: (ocrProgress) => onProgress?.({ current, total: candidates.length, songTitle: song.title, pdfPath: song.localPdfPath, ocrProgress, ...results })
+      });
       const status = extracted.status === "failed" ? "error" : extracted.status;
       const itemSummary = {
         title: song.title,
@@ -891,13 +895,16 @@ export function MusicDataProvider({ children }) {
         resolvedUrl: extracted.resolvedUrl || "",
         statusHttp: extracted.statusHttp || "",
         contentType: extracted.contentType || "",
-        message: extracted.message || ""
+        message: extracted.message || "",
+        method: extracted.method || ""
       };
       const payload = {
         ...song,
         pdfSearchText: extracted.status === "indexed" ? extracted.text : "",
+        pdfOcrText: extracted.status === "indexed" && extracted.method === "ocr" ? extracted.text : "",
         pdfSearchTokens: extracted.tokens || [],
         pdfIndexStatus: status,
+        pdfIndexMethod: extracted.method || "",
         pdfIndexMessage: extracted.message,
         pdfIndexError: status === "error" ? extracted.message : "",
         pdfIndexUrl: extracted.resolvedUrl || "",
@@ -911,6 +918,7 @@ export function MusicDataProvider({ children }) {
         results.indexed += 1;
         results.found += 1;
         results.indexedItems.push(itemSummary);
+        if (extracted.method === "ocr") results.ocrItems.push(itemSummary);
       } else if (status === "no_text") {
         results.noText += 1;
         results.found += 1;
@@ -935,7 +943,7 @@ export function MusicDataProvider({ children }) {
       entityType: "pdf",
       entityId: "local-pdf-index",
       entityName: "Indice de PDFs locales",
-      summary: `Indexacion PDF: ${results.indexed} indexados, ${results.noText} sin texto, ${results.missing} no encontrados, ${results.failed} con error`,
+      summary: `Indexacion PDF: ${results.indexed} indexados, ${results.ocrItems.length} con OCR, ${results.noText} sin texto, ${results.missing} no encontrados, ${results.failed} con error`,
       afterData: results
     });
     return results;

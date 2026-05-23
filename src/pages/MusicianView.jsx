@@ -475,9 +475,6 @@ export function MusicianView() {
               </div>
               <ScoreBadge score={serviceReview.score} label="Preparación" />
             </div>
-            <div className="mt-3 h-2 overflow-hidden rounded-full bg-ink/10">
-              <div className="h-full rounded-full bg-gradient-to-r from-brass via-gold to-emerald-500" style={{ width: `${serviceReview.score}%` }} />
-            </div>
           </div>
         ) : null}
         <div className="mt-5">

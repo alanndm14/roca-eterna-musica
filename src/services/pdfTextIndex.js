@@ -14,7 +14,35 @@ export function buildPdfSearchTokens(text = "") {
   return [...new Set(normalizeTokenText(text).split(" ").filter((token) => token.length > 2))].slice(0, 700);
 }
 
-export async function extractLocalPdfText(localPdfPath) {
+async function extractTextWithOcr(document, onOcrProgress) {
+  if (typeof window === "undefined" || typeof window.document === "undefined") {
+    return { text: "", pages: 0 };
+  }
+  const { recognize } = await import("tesseract.js");
+  const pages = [];
+  for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
+    const page = await document.getPage(pageNumber);
+    const viewport = page.getViewport({ scale: 1.45 });
+    const canvas = window.document.createElement("canvas");
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    canvas.width = Math.ceil(viewport.width);
+    canvas.height = Math.ceil(viewport.height);
+    await page.render({ canvasContext: context, viewport }).promise;
+    onOcrProgress?.({ pageNumber, totalPages: document.numPages, phase: "ocr" });
+    const result = await recognize(canvas, "spa", {
+      logger: (event) => onOcrProgress?.({
+        pageNumber,
+        totalPages: document.numPages,
+        phase: event.status || "ocr",
+        progress: event.progress || 0
+      })
+    });
+    pages.push(result?.data?.text || "");
+  }
+  return { text: pages.join(" "), pages: pages.length };
+}
+
+export async function extractLocalPdfText(localPdfPath, options = {}) {
   const url = resolvePublicPdfPath(localPdfPath);
   if (!url) return { status: "missing", text: "", tokens: [], message: "Sin ruta PDF local." };
 
@@ -36,9 +64,27 @@ export async function extractLocalPdfText(localPdfPath) {
     const text = normalizeTokenText(pages.join(" "));
     const tokens = buildPdfSearchTokens(text);
     if (!tokens.length) {
-      return { status: "no_text", text: "", tokens: [], message: "Este PDF no tiene texto seleccionable; no puede indexarse sin OCR." };
+      if (!options.enableOcr) {
+        return { status: "no_text", text: "", tokens: [], message: "Este PDF no tiene texto seleccionable. Activa OCR automático para leer PDFs escaneados." };
+      }
+      const ocr = await extractTextWithOcr(document, options.onOcrProgress);
+      const ocrText = normalizeTokenText(ocr.text);
+      const ocrTokens = buildPdfSearchTokens(ocrText);
+      if (!ocrTokens.length) {
+        return { status: "no_text", text: "", tokens: [], message: "OCR ejecutado, pero no encontró texto legible.", method: "ocr" };
+      }
+      return {
+        status: "indexed",
+        text: ocrText,
+        tokens: ocrTokens,
+        message: "PDF indexado con OCR automático.",
+        resolvedUrl: diagnosis.finalUrl,
+        statusHttp: diagnosis.status,
+        contentType: diagnosis.contentType,
+        method: "ocr"
+      };
     }
-    return { status: "indexed", text, tokens, message: "PDF indexado correctamente.", resolvedUrl: diagnosis.finalUrl, statusHttp: diagnosis.status, contentType: diagnosis.contentType };
+    return { status: "indexed", text, tokens, message: "PDF indexado correctamente.", resolvedUrl: diagnosis.finalUrl, statusHttp: diagnosis.status, contentType: diagnosis.contentType, method: "text" };
   } catch (error) {
     const diagnosis = error.diagnosis;
     return {
