@@ -1,10 +1,10 @@
 {
-  "version": "0.9.91",
+  "version": "0.9.92",
   "date": "2026-05-23",
   "critical": false,
   "changes": [
-    "Centro Inteligente más limpio",
-    "Temas adicionales múltiples y búsqueda en letras/PDF",
-    "Score explicado por canto y filtros reales hacia Repertorio"
+    "OCR automático gratuito para PDFs locales",
+    "Centro Inteligente con temas múltiples organizados",
+    "Ajustes visuales de tarjetas, score y navegación"
   ]
 }
