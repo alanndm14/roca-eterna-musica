@@ -76,6 +76,25 @@ textarea {
   max-width: none;
 }
 
+.smart-shell {
+  isolation: isolate;
+}
+
+.smart-shell button,
+.smart-shell input,
+.smart-shell select {
+  max-width: 100%;
+}
+
+.dark .smart-shell .bg-white\/78,
+.dark .smart-shell .bg-white\/76,
+.dark .smart-shell .bg-white\/74,
+.dark .smart-shell .bg-white\/72,
+.dark .smart-shell .bg-white\/70,
+.dark .smart-shell .bg-white\/65 {
+  background-color: rgb(255 255 255 / 0.08) !important;
+}
+
 .dark .bg-white {
   background-color: rgb(32 32 32 / var(--tw-bg-opacity, 1)) !important;
 }

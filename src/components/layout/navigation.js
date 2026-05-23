@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  BrainCircuit,
   CalendarDays,
   Clock3,
   FileClock,
@@ -16,6 +17,7 @@ export const navItems = [
   { label: "Repertorio", path: "/repertorio", icon: ListMusic, tourId: "nav-repertorio", roles: ["admin", "editor", "viewer"] },
   { label: "Programación", path: "/programacion", icon: CalendarDays, tourId: "nav-programacion", roles: ["admin", "editor", "viewer"] },
   { label: "Músicos", path: "/musicos", icon: Music2, tourId: "nav-musicos", roles: ["admin", "editor", "viewer"] },
+  { label: "Centro Inteligente", path: "/inteligente", icon: BrainCircuit, tourId: "nav-inteligente", roles: ["admin", "editor"] },
   { label: "Historial", path: "/historial", icon: Clock3, tourId: "nav-historial", roles: ["admin", "editor"] },
   { label: "Estadísticas", path: "/estadisticas", icon: BarChart3, tourId: "nav-estadisticas", roles: ["admin", "editor"] },
   { label: "Configuración", path: "/configuracion", icon: Settings, tourId: "nav-configuracion", roles: ["admin", "editor", "viewer"] },
@@ -32,4 +34,4 @@ export const getMobileExtraItems = (role = "viewer") =>
 
 export const mobilePrimaryItems = getMobilePrimaryItems("admin");
 export const mobileExtraItems = getMobileExtraItems("admin");
-export const mobileNavItems = [...mobilePrimaryItems, { ...navItems[6], icon: UsersRound }];
+export const mobileNavItems = [...mobilePrimaryItems, { ...navItems[7], icon: UsersRound }];

@@ -443,6 +443,25 @@ export function Songs() {
     }
   }, [canEdit, location.pathname, location.state, navigate, songs]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(location.search || "");
+    if (!params.size) return;
+    const smartFilter = params.get("smartFilter") || "";
+    const query = params.get("q") || params.get("smart") || "";
+    setFilters((current) => ({
+      ...current,
+      query: query || current.query,
+      youtube: smartFilter === "youtube" ? "without" : current.youtube,
+      spotify: smartFilter === "spotify" ? "without" : current.spotify,
+      driveLink: smartFilter === "drive" ? "without" : current.driveLink,
+      localPdf: smartFilter === "localPdf" ? "without" : current.localPdf,
+      keynote: smartFilter === "keynote" ? "pendiente" : current.keynote,
+      key: smartFilter === "key" ? "" : current.key,
+      mainTheme: smartFilter === "theme" ? "" : current.mainTheme,
+      missingLinks: ["youtube", "spotify", "drive", "localPdf"].includes(smartFilter) ? "missing" : current.missingLinks
+    }));
+  }, [location.search]);
+
   const themeOptions = useMemo(() => collectSongThemes(songs, themes), [songs, themes]);
   const keyOptions = useMemo(() => collectSongKeys(songs), [songs]);
   const capoOptions = useMemo(() => [...new Set(songs.map((song) => song.capo).filter((capo) => capo !== undefined && capo !== ""))].sort((a, b) => Number(a) - Number(b)), [songs]);

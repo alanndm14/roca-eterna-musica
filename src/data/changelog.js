@@ -1,6 +1,32 @@
-export const appVersion = "0.9.7";
+export const appVersion = "0.9.8";
 
 export const changelog = [
+  {
+    version: "0.9.8",
+    date: "2026-05-23",
+    title: "Centro Inteligente",
+    added: [
+      "Nuevo Centro Inteligente para admin y editor",
+      "Asistente de programación con puntajes y razones visibles",
+      "Bloque sugerido para armar servicios completos",
+      "Revisión inteligente del servicio con score y alertas",
+      "Sustitución inteligente visual con compatibilidad",
+      "Balance del repertorio con insights y pendientes",
+      "Búsqueda por intención sin usar APIs externas"
+    ],
+    changed: [
+      "Vista de músicos muestra una revisión inteligente compacta del servicio",
+      "La sustitución en Vista de músicos ahora usa el panel visual inteligente",
+      "Repertorio puede abrir filtros desde los pendientes inteligentes"
+    ],
+    fixed: [
+      "Las recomendaciones evitan duplicados dentro de la programación seleccionada",
+      "Los puntajes consideran preparación, rotación, PDF, enlaces, tema, categoría y tonalidad"
+    ],
+    pending: [
+      "Ajustar pesos del scoring con el uso real del ministerio"
+    ]
+  },
   {
     version: "0.9.7",
     date: "2026-05-21",

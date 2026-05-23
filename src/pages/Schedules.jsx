@@ -7,11 +7,13 @@ import { EmptyState } from "../components/ui/EmptyState";
 import { Field, Input, Select, Textarea } from "../components/ui/Field";
 import { Modal } from "../components/ui/Modal";
 import { SongNameLink } from "../components/ui/SongNameLink";
+import { ScoreBadge } from "../components/smart/ScoreBadge";
 import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
 import { formatDate, todayString } from "../services/dateUtils";
 import { normalizeSearchText } from "../services/songUtils";
 import { downloadBlob } from "../services/mergeServicePdfs";
+import { reviewServiceSchedule } from "../services/smartRecommendations";
 import {
   SPECIAL_PROGRAM_TYPES,
   SpecialProgramDocument,
@@ -343,6 +345,7 @@ function ScheduleCard({
   onPrintSpecialProgramFourUp
 }) {
   const special = isSpecialService(schedule);
+  const review = reviewServiceSchedule(schedule, songs);
   return (
     <Card>
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
@@ -367,6 +370,16 @@ function ScheduleCard({
               Eliminar
             </Button>
           ) : null}
+        </div>
+      </div>
+      <div className="mt-5 rounded-2xl border border-brass/20 bg-[linear-gradient(135deg,rgba(255,255,255,0.82),rgba(182,148,95,0.12))] p-4 dark:border-brass/25 dark:bg-white/8">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wide text-brass">Revisión inteligente</p>
+            <p className="mt-1 font-bold text-ink">{review.status}</p>
+            <p className="mt-1 text-sm text-ink/60">{review.alerts[0]?.message || "No hay alertas importantes."}</p>
+          </div>
+          <ScoreBadge score={review.score} label="Preparación" />
         </div>
       </div>
       {special ? (

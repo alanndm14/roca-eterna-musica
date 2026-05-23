@@ -6,13 +6,15 @@ import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Field, Input, Select, Textarea } from "../components/ui/Field";
 import { Modal } from "../components/ui/Modal";
+import { RecommendationCard } from "../components/smart/RecommendationCard";
+import { ScoreBadge } from "../components/smart/ScoreBadge";
 import { SongNameLink } from "../components/ui/SongNameLink";
 import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
-import { formatDate, formatScheduleDateWithService, getCurrentOrNextSchedule, todayString } from "../services/dateUtils";
+import { formatDate, getCurrentOrNextSchedule, todayString } from "../services/dateUtils";
 import { buildServiceSongs, getServiceDisplayLabel, getServiceFileName } from "../services/serviceSheetPdf";
 import { downloadBlob, getSongPdfSource, mergePdfFiles, mergeServiceLocalPdfs } from "../services/mergeServicePdfs";
-import { getSongPdfUrl } from "../services/songUtils";
+import { getReplacementCandidates, reviewServiceSchedule } from "../services/smartRecommendations";
 import { cleanupExpiredTemporaryServicePdfs, deleteTemporaryServicePdf, getTemporaryServicePdf, saveTemporaryServicePdf } from "../services/temporaryServicePdfStore";
 import {
   SPECIAL_PROGRAM_TYPES,
@@ -182,6 +184,10 @@ export function MusicianView() {
   );
   const activePdfSong = serviceSongs[activePdfIndex] || serviceSongs[0];
   const selectedIsSpecial = isSpecialService(selectedSchedule);
+  const serviceReview = useMemo(
+    () => selectedSchedule ? reviewServiceSchedule(selectedSchedule, songs) : null,
+    [selectedSchedule, songs]
+  );
 
   useEffect(() => {
     cleanupExpiredTemporaryServicePdfs().catch(() => undefined);
@@ -215,42 +221,10 @@ export function MusicianView() {
     if (temporaryMergedPdfUrl) URL.revokeObjectURL(temporaryMergedPdfUrl);
   }, [temporaryMergedPdfUrl]);
 
-  const realUsageBySong = useMemo(() => {
-    const counts = new Map();
-    schedules.forEach((schedule) => {
-      if (schedule.date > today) return;
-      (schedule.songs || []).forEach((entry) => {
-        if (!entry.songId) return;
-        const current = counts.get(entry.songId) || { count: 0, lastSchedule: null };
-        current.count += 1;
-        if (!current.lastSchedule || `${schedule.date}${schedule.time || ""}` > `${current.lastSchedule.date}${current.lastSchedule.time || ""}`) {
-          current.lastSchedule = schedule;
-        }
-        counts.set(entry.songId, current);
-      });
-    });
-    return counts;
-  }, [schedules, today]);
   const replacementSuggestions = useMemo(() => {
     if (!replaceTarget) return [];
-    const current = replaceTarget.full || {};
-    const scheduledIds = new Set((selectedSchedule?.songs || []).map((entry) => entry.songId).filter(Boolean));
-    return songs
-      .filter((song) => song.id !== replaceTarget.entry?.songId && !scheduledIds.has(song.id))
-      .map((song) => {
-        const themeMatches = [song.mainTheme, ...(song.otherThemes || [])].filter(Boolean).filter((theme) => [current.mainTheme, ...(current.otherThemes || [])].includes(theme)).length;
-        const score =
-          themeMatches * 5
-          + (song.category && song.category === current.category ? 3 : 0)
-          + (song.mainKey && song.mainKey === current.mainKey ? 2 : 0)
-          + (song.keynoteReviewStatus === "completado" ? 3 : 0)
-          + (getSongPdfUrl(song) ? 1 : 0)
-          + ((realUsageBySong.get(song.id)?.count || 0) <= 1 ? 1 : 0);
-        return { song, score };
-      })
-      .sort((a, b) => b.score - a.score || (a.song.title || "").localeCompare(b.song.title || "", "es"))
-      .slice(0, 8);
-  }, [realUsageBySong, replaceTarget, selectedSchedule?.songs, songs]);
+    return getReplacementCandidates(replaceTarget.full || {}, songs, schedules, selectedSchedule).slice(0, 8);
+  }, [replaceTarget, schedules, selectedSchedule, songs]);
 
   const enterFocusMode = async () => {
     setFocusMode(true);
@@ -489,6 +463,23 @@ export function MusicianView() {
             )}
           </div>
         </div>
+        {serviceReview ? (
+          <div className="mt-4 overflow-hidden rounded-3xl border border-brass/20 bg-[linear-gradient(135deg,rgba(255,255,255,0.82),rgba(182,148,95,0.12))] p-4 shadow-soft backdrop-blur-xl dark:border-brass/25 dark:bg-white/8">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-brass">Revisión inteligente</p>
+                <h4 className="mt-1 text-lg font-black text-ink">{serviceReview.status}</h4>
+                <p className="mt-1 text-sm text-ink/60">
+                  {serviceReview.alerts[0]?.message || "No hay alertas importantes para este servicio."}
+                </p>
+              </div>
+              <ScoreBadge score={serviceReview.score} label="Preparación" />
+            </div>
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-ink/10">
+              <div className="h-full rounded-full bg-gradient-to-r from-brass via-gold to-emerald-500" style={{ width: `${serviceReview.score}%` }} />
+            </div>
+          </div>
+        ) : null}
         <div className="mt-5">
           <h3 className="font-bold text-ink">Documentos del servicio</h3>
           <p className="mt-1 text-sm text-ink/55">Documentos útiles para ensayo y servicio, sin subir archivos a la nube.</p>
@@ -766,18 +757,32 @@ export function MusicianView() {
         </div>
       </Modal>
 
-      <Modal open={Boolean(replaceTarget)} title="Sustitucion rapida" onClose={() => setReplaceTarget(null)} wide>
+      <Modal open={Boolean(replaceTarget)} title="Sustitución inteligente" onClose={() => setReplaceTarget(null)} wide>
         <div className="space-y-4">
-          <p className="text-sm text-ink/60">Reemplazar: <strong>{replaceTarget?.title}</strong>. Las sugerencias priorizan tema, categoría, tonalidad, Keynote completado y rotación.</p>
+          <div className="overflow-hidden rounded-[1.75rem] border border-brass/25 bg-[linear-gradient(135deg,rgba(255,255,255,0.82),rgba(182,148,95,0.12))] p-4 shadow-soft backdrop-blur-xl dark:bg-white/8">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-brass">Canto actual</p>
+                <h3 className="mt-1 text-2xl font-black text-ink">{replaceTarget?.title}</h3>
+                <p className="mt-1 text-sm text-ink/60">
+                  {replaceTarget?.full?.mainTheme || "Sin tema"} · {replaceTarget?.full?.category || "sin categoría"} · {replaceTarget?.full?.keyWithCapo || replaceTarget?.full?.mainKey || "Sin tono"}
+                </p>
+              </div>
+              <ScoreBadge score={replacementSuggestions[0]?.score || 0} label="Mejor compatibilidad" />
+            </div>
+            <p className="mt-3 text-sm leading-6 text-ink/62">
+              Las sugerencias comparan tema, categoría, tonalidad, Keynote, PDF disponible y rotación reciente.
+            </p>
+          </div>
           <div className="grid gap-3 md:grid-cols-2">
-            {replacementSuggestions.map(({ song }) => (
-              <button key={song.id} type="button" onClick={() => confirmReplacement(song)} className="rounded-2xl border border-ink/10 bg-white p-4 text-left transition hover:border-brass/50 hover:bg-brass/5">
-                <p className="font-bold text-ink">{song.title}</p>
-                <p className="mt-1 text-sm text-ink/55">{song.mainTheme || "Sin tema"} · {song.category || "sin categoría"}</p>
-                <p className="mt-2 text-sm font-semibold text-ink">{Number(song.capo || 0) > 0 ? `Capo ${song.capo} · Suena en ${song.keyWithCapo || song.mainKey || "--"}` : `Sin capo · Tono ${song.mainKey || "--"}`}</p>
-                <p className="mt-2 text-xs text-ink/55">Keynote {song.keynoteReviewStatus || "pendiente"} - {getSongPdfUrl(song) ? "PDF disponible" : "Sin PDF registrado"}</p>
-                <p className="mt-1 text-xs text-ink/45">{realUsageBySong.get(song.id)?.lastSchedule ? `Última vez: ${formatScheduleDateWithService(realUsageBySong.get(song.id).lastSchedule)}` : song.lastUsedAt ? `Última vez: ${formatDate(song.lastUsedAt)}` : "Sin historial"}</p>
-              </button>
+            {replacementSuggestions.map((item) => (
+              <RecommendationCard
+                key={item.song.id}
+                item={{ ...item, label: "Compatibilidad de sustitución" }}
+                actionLabel="Sustituir"
+                onAdd={confirmReplacement}
+                onView={(song) => window.open(`#/repertorio/${song.id}`, "_blank", "noopener,noreferrer")}
+              />
             ))}
           </div>
           {!replacementSuggestions.length ? <p className="rounded-2xl bg-ink/5 p-4 text-sm text-ink/55">No hay sugerencias disponibles fuera de esta programación.</p> : null}

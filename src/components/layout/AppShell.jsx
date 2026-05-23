@@ -69,7 +69,7 @@ export function AppShell() {
   const [updateHidden, setUpdateHidden] = useState(false);
   const seenInternalNotifications = useRef(new Set());
   const initializedInternalNotifications = useRef(false);
-  const pageTitle = pageNames[location.pathname] || "Roca Eterna Música";
+  const pageTitle = location.pathname === "/inteligente" ? "Centro Inteligente" : pageNames[location.pathname] || "Roca Eterna Música";
   const themeMode = profile?.themeMode || localStorage.getItem("roca-eterna-theme-mode") || "system";
   const effectiveTheme = getEffectiveThemeMode(themeMode);
   const logoSrc = getInstitutionalLogo(settings, effectiveTheme === "dark" ? appDarkLogo : appLogo, themeMode);
