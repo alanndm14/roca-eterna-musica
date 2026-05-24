@@ -1,10 +1,10 @@
 {
-  "version": "0.9.94",
+  "version": "0.9.95",
   "date": "2026-05-23",
   "critical": false,
   "changes": [
-    "Centro Inteligente más limpio y compacto",
-    "Score con puntos a favor y en contra más claros",
-    "Revisión inteligente con riesgo por color"
+    "Notificaciones internas por encima de toda la app",
+    "Revisión inteligente unificada en Programación y Músicos",
+    "Score sin YouTube ni Spotify como criterio"
   ]
 }
