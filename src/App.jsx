@@ -24,7 +24,7 @@ import { Songs } from "./pages/Songs";
 import { Stats } from "./pages/Stats";
 import { Unauthorized } from "./pages/Unauthorized";
 import { appVersion } from "./data/changelog";
-import { activateLatestAppVersion, compareVersions, fetchLatestVersion, getInstalledVersion, wasUpdateDismissed } from "./services/appUpdate";
+import { activateLatestAppVersion, compareVersions, fetchLatestVersion, getInstalledVersion, markInstalledVersion, wasUpdateDismissed } from "./services/appUpdate";
 
 function SilentStartupFrame() {
   return <div className="min-h-screen bg-stonewash" aria-hidden="true" />;
@@ -86,9 +86,11 @@ function DataReady({ children }) {
         const hasUpdate = latest?.version
           && compareVersions(latest.version, appVersion) > 0
           && (!wasUpdateDismissed(latest.version) || latest.critical);
+        if (!hasUpdate) markInstalledVersion(appVersion);
         setUpdateCheck({ checked: true, update: hasUpdate ? { ...latest, installedVersion: installed || appVersion } : null });
       })
       .catch(() => {
+        markInstalledVersion(appVersion);
         if (!cancelled) setUpdateCheck({ checked: true, update: null });
       });
     return () => {

@@ -1,34 +1,97 @@
-import { Eye, GitCompare, Plus, X } from "lucide-react";
+import { Eye, Plus, X } from "lucide-react";
 import { Button } from "../ui/Button";
-import { ScoreBadge } from "./ScoreBadge";
-import { ReasonChips } from "./ReasonChips";
 
-export function RecommendationCard({ item, onAdd, onView, onCompare, onDismiss, onExplain, actionLabel = "Agregar a programación" }) {
-  const song = item.song || item;
+function compactLabel(text = "") {
+  const value = String(text || "").toLowerCase();
+  if (value.includes("tema principal")) return "Coincide con tema";
+  if (value.includes("tema adicional")) return "Tema adicional";
+  if (value.includes("letra") || value.includes("pdf:")) return "Letra coincide";
+  if (value.includes("keynote listo")) return "Keynote listo";
+  if (value.includes("pdf listo")) return "PDF listo";
+  if (value.includes("poco usado")) return "Poco usado";
+  if (value.includes("sin historial") || value.includes("sin uso reciente")) return "Sin uso reciente";
+  if (value.includes("encaja")) return "Buena posición";
+  if (value.includes("himno")) return "Himno";
+  if (value.includes("tonalidad")) return "Tono cercano";
+  return String(text || "").replace(/:.+$/, "").slice(0, 34);
+}
+
+function compactWarning(text = "") {
+  const value = String(text || "").toLowerCase();
+  if (value.includes("youtube")) return "Sin YouTube";
+  if (value.includes("spotify")) return "Sin Spotify";
+  if (value.includes("keynote")) return "Keynote pendiente";
+  if (value.includes("pdf")) return "Sin PDF";
+  if (value.includes("uso") || value.includes("usó") || value.includes("uso reciente")) return "Uso reciente";
+  if (value.includes("tema")) return "Tema débil";
+  if (value.includes("tono")) return "Falta tono";
+  return String(text || "").replace(/:.+$/, "").slice(0, 34);
+}
+
+function getVisibleChips(item = {}) {
+  const positives = (item.scoreDetails?.positives || [])
+    .filter((entry) => !String(entry.label || "").toLowerCase().includes("base"))
+    .map((entry) => ({ label: compactLabel(entry.label), tone: "good" }));
+  const penalties = (item.scoreDetails?.penalties || [])
+    .map((entry) => ({ label: compactWarning(entry.label), tone: "warn" }));
+  const combined = [...positives, ...penalties];
+  const seen = new Set();
+  return combined.filter((chip) => {
+    if (!chip.label || seen.has(chip.label)) return false;
+    seen.add(chip.label);
+    return true;
+  }).slice(0, 4);
+}
+
+function ScoreMiniBar({ score = 0 }) {
+  const normalized = Math.max(0, Math.min(100, Number(score) || 0));
+  const tone = normalized >= 82 ? "bg-emerald-500" : normalized >= 62 ? "bg-brass" : "bg-yellow-500";
   return (
-    <article className="flex h-full flex-col rounded-[1.25rem] border border-white/60 bg-white/78 p-4 shadow-soft backdrop-blur-xl dark:border-white/10 dark:bg-white/8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-ink/10 dark:bg-white/14">
+      <div className={`h-full rounded-full ${tone}`} style={{ width: `${normalized}%` }} />
+    </div>
+  );
+}
+
+export function RecommendationCard({ item, onAdd, onView, onDismiss, onExplain, actionLabel = "Agregar a programación" }) {
+  const song = item.song || item;
+  const chips = getVisibleChips(item);
+  return (
+    <article className="flex h-full min-h-0 flex-col rounded-[1.1rem] border border-white/55 bg-white/82 p-3.5 shadow-soft backdrop-blur-xl dark:border-white/10 dark:bg-white/9">
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs font-bold uppercase tracking-wide text-brass">{item.label || "Recomendación"}</p>
-          <h3 className="mt-1 text-lg font-black text-ink">{song.title}</h3>
-          <p className="mt-1 text-sm text-ink/60">
-            {song.mainTheme || "Sin tema"} · {song.category || "Sin categoría"} · {song.keyWithCapo || song.mainKey || "Sin tono"}
-          </p>
-          <p className="mt-2 text-xs text-ink/45">
-            Capo {song.capo || 0} · Keynote {song.keynoteReviewStatus || "pendiente"} · {item.usage?.lastUsedAt ? `Última vez: ${item.usage.lastUsedAt}` : "Sin historial"}
+          <p className="truncate text-xs font-bold uppercase tracking-wide text-brass">{item.label || "Recomendación"}</p>
+          <h3 className="mt-1 truncate text-base font-black text-ink">{song.title}</h3>
+          <p className="mt-1 truncate text-xs font-semibold text-ink/55">
+            {song.category || "Sin categoría"} · {song.keyWithCapo || song.mainKey || "Sin tono"}
           </p>
         </div>
-        <ScoreBadge score={item.score} compact />
+        <div className="w-20 shrink-0 text-right">
+          <span className="text-2xl font-black text-ink">{Math.round(Number(item.score) || 0)}%</span>
+          <ScoreMiniBar score={item.score} />
+        </div>
       </div>
-      <div className="mt-4">
-        <ReasonChips reasons={item.reasons} warnings={item.warnings} />
+
+      <div className="mt-3 flex min-h-7 flex-wrap gap-1.5">
+        {chips.length ? chips.map((chip) => (
+          <span
+            key={`${chip.tone}-${chip.label}`}
+            className={chip.tone === "good"
+              ? "rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-bold text-emerald-800 dark:bg-emerald-400/12 dark:text-emerald-100"
+              : "rounded-full bg-amber-500/14 px-2.5 py-1 text-[11px] font-bold text-amber-800 dark:bg-amber-400/14 dark:text-amber-100"}
+          >
+            {chip.label}
+          </span>
+        )) : <span className="text-xs font-semibold text-ink/45">Sin datos suficientes</span>}
       </div>
-      <div className="mt-auto flex flex-wrap gap-2 pt-4">
-        {onAdd ? <Button onClick={() => onAdd(song)}><Plus className="h-4 w-4" />{actionLabel}</Button> : null}
-        {onView ? <Button variant="secondary" onClick={() => onView(song)}><Eye className="h-4 w-4" />Ver detalle</Button> : null}
-        {onCompare ? <Button variant="subtle" onClick={() => onCompare(song)}><GitCompare className="h-4 w-4" />Comparar</Button> : null}
-        {onExplain ? <Button variant="subtle" onClick={() => onExplain(item)}>¿Cómo se calculó?</Button> : null}
-        {onDismiss ? <Button variant="subtle" onClick={() => onDismiss(song)}><X className="h-4 w-4" />Descartar</Button> : null}
+
+      <div className="mt-auto pt-3">
+        {onAdd ? <Button className="h-9 w-full px-3 text-xs" onClick={() => onAdd(song)}><Plus className="h-4 w-4" />{actionLabel}</Button> : null}
+        <div className="mt-2 grid grid-cols-3 gap-1.5">
+          {onView ? <Button className="h-8 px-2 text-[11px]" variant="secondary" onClick={() => onView(song)}><Eye className="h-3.5 w-3.5" />Detalle</Button> : null}
+          {onExplain ? <Button className="h-8 px-2 text-[11px]" variant="subtle" onClick={() => onExplain(item)}>Ver score</Button> : null}
+          {onDismiss ? <Button className="h-8 px-2 text-[11px]" variant="subtle" onClick={() => onDismiss(song)}><X className="h-3.5 w-3.5" />Descartar</Button> : null}
+        </div>
       </div>
     </article>
   );

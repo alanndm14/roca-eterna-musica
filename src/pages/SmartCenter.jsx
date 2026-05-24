@@ -867,36 +867,45 @@ export function SmartCenter() {
         ) : null}
       </Modal>
 
-      <Modal open={Boolean(scoreHelpItem)} title="¿Cómo se calculó el score?" onClose={() => setScoreHelpItem(null)}>
+      <Modal open={Boolean(scoreHelpItem)} title="Ver score" onClose={() => setScoreHelpItem(null)}>
         {scoreHelpItem ? (
           <div className="space-y-4">
-            <div className="rounded-2xl bg-ink/5 p-4">
-              <p className="font-black text-ink">{scoreHelpItem.song.title} — {scoreHelpItem.scoreDetails?.finalScore ?? scoreHelpItem.score}%</p>
-              <p className="mt-2 text-sm leading-6 text-ink/62">Este desglose es específico para este canto, los temas elegidos y la posición donde se propuso.</p>
+            <div className="rounded-2xl bg-ink/5 p-4 dark:bg-white/8">
+              <p className="text-xs font-bold uppercase tracking-wide text-brass">Score final</p>
+              <p className="mt-1 text-2xl font-black text-ink">{scoreHelpItem.song.title} - {scoreHelpItem.scoreDetails?.finalScore ?? scoreHelpItem.score}%</p>
+              <div className="mt-3 grid gap-2 text-sm font-semibold text-ink/62 sm:grid-cols-2">
+                <span>{scoreHelpItem.usageSummary?.recent || "Sin historial reciente"}</span>
+                <span>{scoreHelpItem.usageSummary?.monthly || "Uso mensual: sin datos"}</span>
+              </div>
             </div>
             <div>
               <p className="font-bold text-ink">A favor</p>
               <ul className="mt-2 space-y-1 text-sm text-ink/65">
-                {(scoreHelpItem.scoreDetails?.positives || []).map((item) => <li key={`${item.points}-${item.label}`}>+{item.points} {item.label}</li>)}
+                {(scoreHelpItem.scoreDetails?.positives || [])
+                  .filter((item) => !String(item.label || "").toLowerCase().includes("base"))
+                  .map((item) => <li key={`${item.points}-${item.label}`}>+{item.points} {item.label}</li>)}
               </ul>
             </div>
-            <div>
-              <p className="font-bold text-ink">En contra</p>
-              <ul className="mt-2 space-y-1 text-sm text-ink/65">
-                {(scoreHelpItem.scoreDetails?.penalties || []).length ? scoreHelpItem.scoreDetails.penalties.map((item) => <li key={`${item.points}-${item.label}`}>{item.points} {item.label}</li>) : <li>Sin penalizaciones importantes detectadas.</li>}
-              </ul>
-            </div>
+            {(scoreHelpItem.scoreDetails?.penalties || []).length ? (
+              <div>
+                <p className="font-bold text-ink">En contra</p>
+                <ul className="mt-2 space-y-1 text-sm text-ink/65">
+                  {scoreHelpItem.scoreDetails.penalties.map((item) => <li key={`${item.points}-${item.label}`}>{item.points} {item.label}</li>)}
+                </ul>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-emerald-300 bg-emerald-50 p-3 text-sm font-bold text-emerald-800 dark:border-emerald-400/30 dark:bg-emerald-500/12 dark:text-emerald-100">
+                Sin puntos en contra.
+              </div>
+            )}
             {scoreHelpItem.scoreDetails?.warnings?.length ? (
               <div>
                 <p className="font-bold text-ink">Notas</p>
                 <ul className="mt-2 space-y-1 text-sm text-ink/65">
-                  {scoreHelpItem.scoreDetails.warnings.map((warning) => <li key={warning}>• {warning}</li>)}
+                  {scoreHelpItem.scoreDetails.warnings.map((warning) => <li key={warning}>- {warning}</li>)}
                 </ul>
               </div>
             ) : null}
-            <div className="rounded-2xl border border-ink/10 p-3 text-sm font-bold text-ink/70 dark:border-white/10">
-              Total calculado: {scoreHelpItem.scoreDetails?.rawScore ?? scoreHelpItem.score}% · Resultado visible: {scoreHelpItem.scoreDetails?.finalScore ?? scoreHelpItem.score}%
-            </div>
           </div>
         ) : null}
       </Modal>

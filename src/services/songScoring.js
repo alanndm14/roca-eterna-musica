@@ -1,6 +1,8 @@
 import { getSongPdfUrl, normalizeSearchText } from "./songUtils";
 
 const dayMs = 24 * 60 * 60 * 1000;
+const recentStrongDays = 14;
+const recentWindowDays = 30;
 const keyOrder = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const keyAliases = { DB: "C#", EB: "D#", GB: "F#", AB: "G#", BB: "A#" };
 
@@ -113,13 +115,16 @@ export function buildUsageIndex(schedules = [], now = new Date()) {
       if (!entry.songId) return;
       if (countedInSchedule.has(entry.songId)) return;
       countedInSchedule.add(entry.songId);
-      const current = usage.get(entry.songId) || { count: 0, monthCount: 0, lastUsedAt: "", lastSchedule: null, usedInPreviousService: false };
+      const current = usage.get(entry.songId) || { count: 0, monthCount: 0, recent30Count: 0, lastUsedAt: "", lastUsedDays: null, lastSchedule: null, usedInPreviousService: false };
       if (!isFuture) {
+        const daysFromService = Math.floor((now.getTime() - scheduleDate.getTime()) / dayMs);
         current.count += 1;
         if (String(schedule.date).startsWith(currentMonth)) current.monthCount += 1;
+        if (daysFromService >= 0 && daysFromService <= recentWindowDays) current.recent30Count += 1;
         if (!current.lastSchedule || `${schedule.date}${schedule.time || ""}` > `${current.lastSchedule.date}${current.lastSchedule.time || ""}`) {
           current.lastSchedule = schedule;
           current.lastUsedAt = schedule.date;
+          current.lastUsedDays = daysFromService;
         }
         if (previousService?.id && schedule.id === previousService.id) current.usedInPreviousService = true;
       }
@@ -193,6 +198,10 @@ function addUniqueReason(list, reason) {
   if (reason && !list.includes(reason)) list.push(reason);
 }
 
+function pluralizeUse(count = 0) {
+  return `${count} ${count === 1 ? "vez" : "veces"}`;
+}
+
 export function songHasPdf(song = {}) {
   return Boolean(getSongPdfUrl(song) || song.localPdfPath || song.drivePdfUrl || song.pdfUrl || song.chordsUrl);
 }
@@ -245,7 +254,7 @@ export function scoreSong(song = {}, options = {}, context = {}) {
     if (mainTheme.includes(normalizedPrimaryTheme) || fullThemeText.includes(normalizedPrimaryTheme)) {
       addPositive(25, `Tema principal coincide: ${primaryTheme}`);
     } else {
-      addWarning(`No coincide directamente con el tema principal: ${primaryTheme}`);
+      addPenalty(10, `No coincide bien con el tema: ${primaryTheme}`);
     }
   }
 
@@ -268,6 +277,8 @@ export function scoreSong(song = {}, options = {}, context = {}) {
     const slotWords = slotThemes[slot.intent] || slotThemes[slot.id] || [];
     if (hasThemeMatch(song, slotWords)) {
       addPositive(14, `Encaja con ${slot.role}`);
+    } else {
+      addPenalty(6, `Encaja poco con ${slot.role}`);
     }
     if (slot.id === "apertura") {
       if (isHymn(song)) {
@@ -299,27 +310,36 @@ export function scoreSong(song = {}, options = {}, context = {}) {
   } else if (options.onlyKeynoteReady) {
     addPenalty(100, "Keynote pendiente");
   } else {
-    addPenalty(4, "Keynote pendiente");
+    addPenalty(8, "Keynote pendiente");
   }
   if (songHasPdf(song)) {
-    addPositive(10, "Tiene PDF o ruta disponible");
+    addPositive(10, "PDF listo");
   } else {
-    addPenalty(5, "Falta PDF o ruta local");
+    addPenalty(10, "Falta PDF o ruta");
+  }
+  if (!song.youtubeUrl && !song.youtube) {
+    addPenalty(3, "Sin YouTube");
+  }
+  if (!song.spotifyUrl && !song.spotify) {
+    addPenalty(3, "Sin Spotify");
   }
   if (!usage.lastUsedAt) {
     addPositive(10, "Sin historial reciente");
   } else {
     const daysSince = Math.floor((Date.now() - new Date(`${usage.lastUsedAt}T00:00:00`).getTime()) / dayMs);
-    if (daysSince >= 30) {
-      addPositive(10, `No se usa desde hace ${daysSince} días`);
-    } else if (daysSince < 14 && options.avoidRecent) {
-      addPenalty(15, `Se usó hace ${daysSince} días`);
+    if (daysSince > recentWindowDays) {
+      addPositive(10, `Sin uso reciente: hace ${daysSince} dias`);
+    } else if (daysSince < recentStrongDays && options.avoidRecent) {
+      addPenalty(15, `Se uso hace ${daysSince} dias`);
+    } else if (daysSince <= recentWindowDays && options.avoidRecent) {
+      addPenalty(7, `Uso reciente: hace ${daysSince} dias`);
     }
   }
-  if ((usage.monthCount || 0) === 0) {
-    addPositive(8, "Poco usado este mes");
-  } else if ((usage.monthCount || 0) >= 2) {
-    addPenalty(8, "Ya se usó varias veces este mes");
+  const recentUses = usage.recent30Count ?? usage.monthCount ?? 0;
+  if (recentUses <= 1) {
+    addPositive(8, "Poco usado");
+  } else if (recentUses >= 3) {
+    addPenalty(8, "Muy usado en los ultimos 30 dias");
   }
   if (options.preferredKey) {
     const distance = keyDistance(song.keyWithCapo || song.mainKey, options.preferredKey);
@@ -338,6 +358,9 @@ export function scoreSong(song = {}, options = {}, context = {}) {
   if (!song.mainKey && !song.keyWithCapo) {
     addPenalty(10, "Falta tono definido");
   }
+  if (!song.mainTheme) {
+    addPenalty(8, "Falta tema principal");
+  }
   if (options.includeHymns === false && isHymn(song)) {
     addPenalty(20, "Es himno y el filtro lo evita");
   }
@@ -345,6 +368,14 @@ export function scoreSong(song = {}, options = {}, context = {}) {
   const total = clampScore(score);
   scoreDetails.rawScore = score;
   scoreDetails.finalScore = total;
+  const daysSince = usage.lastUsedAt
+    ? Math.floor((Date.now() - new Date(`${usage.lastUsedAt}T00:00:00`).getTime()) / dayMs)
+    : null;
+  const usageForDisplay = {
+    ...usage,
+    recent30Count: recentUses,
+    lastUsedDays: daysSince
+  };
   return {
     song,
     score: total,
@@ -352,7 +383,11 @@ export function scoreSong(song = {}, options = {}, context = {}) {
     reasons: reasons.slice(0, 6),
     warnings: warnings.slice(0, 5),
     scoreDetails,
-    usage,
+    usage: usageForDisplay,
+    usageSummary: {
+      recent: daysSince === null ? "Sin historial reciente" : `Uso reciente: hace ${daysSince} dias`,
+      monthly: `Uso mensual: ${pluralizeUse(recentUses)} en los ultimos 30 dias`
+    },
     slot
   };
 }
@@ -511,9 +546,9 @@ export function reviewServiceSchedule(schedule = {}, songs = [], schedules = [])
       score -= 8;
       groups.rotation.items.push(`${title}: usado en el servicio anterior`);
     }
-    if ((usage?.monthCount || 0) > 1) {
+    if ((usage?.recent30Count || usage?.monthCount || 0) >= 3) {
       score -= 5;
-      groups.rotation.items.push(`${title}: repetido este mes`);
+      groups.rotation.items.push(`${title}: muy usado en los últimos 30 días`);
     }
     const theme = song.mainTheme || "Sin tema";
     themes.set(theme, (themes.get(theme) || 0) + 1);

@@ -1,6 +1,29 @@
-export const appVersion = "0.9.93";
+export const appVersion = "0.9.94";
 
 export const changelog = [
+  {
+    version: "0.9.94",
+    date: "2026-05-23",
+    title: "Centro Inteligente más claro",
+    added: [
+      "Reglas visibles para historial reciente y poco uso",
+      "Riesgo de la revisión inteligente con colores por nivel",
+      "Aviso de actualización reforzado antes de la bienvenida"
+    ],
+    changed: [
+      "Tarjetas de candidatos más compactas y minimalistas",
+      "Modal de score con un solo resultado final y desglose útil",
+      "El score muestra puntos a favor y en contra con mayor consistencia"
+    ],
+    fixed: [
+      "La revisión inteligente mejora contraste en modo oscuro",
+      "Se quitaron textos redundantes de las recomendaciones",
+      "La versión instalada se sincroniza cuando no hay actualización pendiente"
+    ],
+    pending: [
+      "Ajustar pesos con más historial real si el equipo quiere una rotación más estricta"
+    ]
+  },
   {
     version: "0.9.93",
     date: "2026-05-23",

@@ -1,10 +1,10 @@
 {
-  "version": "0.9.93",
+  "version": "0.9.94",
   "date": "2026-05-23",
   "critical": false,
   "changes": [
-    "Navegación reducida reorganizada",
-    "Programación Inteligente inicia sin datos predeterminados",
-    "Indexación OCR persistente con fingerprint"
+    "Centro Inteligente más limpio y compacto",
+    "Score con puntos a favor y en contra más claros",
+    "Revisión inteligente con riesgo por color"
   ]
 }
