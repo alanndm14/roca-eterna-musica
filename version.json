@@ -1,10 +1,10 @@
 {
-  "version": "0.9.92",
+  "version": "0.9.93",
   "date": "2026-05-23",
   "critical": false,
   "changes": [
-    "OCR automático gratuito para PDFs locales",
-    "Centro Inteligente con temas múltiples organizados",
-    "Ajustes visuales de tarjetas, score y navegación"
+    "Navegación reducida reorganizada",
+    "Programación Inteligente inicia sin datos predeterminados",
+    "Indexación OCR persistente con fingerprint"
   ]
 }
