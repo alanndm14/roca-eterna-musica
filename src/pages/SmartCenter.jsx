@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { BrainCircuit, CalendarCheck2, GitCompareArrows, Lightbulb, ListChecks, RefreshCw, Search, Shuffle, Wand2 } from "lucide-react";
+import { CalendarCheck2, GitCompareArrows, Lightbulb, ListChecks, RefreshCw, Search, Shuffle, Sparkles, Wand2 } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Field, Input, Select } from "../components/ui/Field";
 import { Modal } from "../components/ui/Modal";
@@ -13,7 +13,7 @@ import { ScoreBadge } from "../components/smart/ScoreBadge";
 import { ReasonChips } from "../components/smart/ReasonChips";
 import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
-import { getCurrentOrNextSchedule, todayString } from "../services/dateUtils";
+import { getCurrentOrNextSchedule } from "../services/dateUtils";
 import {
   buildUsageIndex,
   clampScore,
@@ -43,10 +43,10 @@ const tabItems = [
 ];
 
 const defaultOptions = {
-  serviceType: "Domingo AM",
-  theme: "adoración",
+  serviceType: "",
+  theme: "",
   category: "",
-  count: 5,
+  count: 4,
   includeHymns: true,
   avoidRecent: true,
   onlyKeynoteReady: false,
@@ -131,14 +131,14 @@ export function SmartCenter() {
   const nextSchedule = getCurrentOrNextSchedule(schedules) || schedules[0] || null;
   const [activeTab, setActiveTab] = useState("programar");
   const [planningMode, setPlanningMode] = useState("create");
-  const [draftDate, setDraftDate] = useState(todayString());
+  const [draftDate, setDraftDate] = useState("");
   const [leaderChoice, setLeaderChoice] = useState("");
   const [manualLeader, setManualLeader] = useState("");
   const [blockGenerated, setBlockGenerated] = useState(false);
   const [options, setOptions] = useState(defaultOptions);
   const [selectedScheduleId, setSelectedScheduleId] = useState("");
   const [replacementSongId, setReplacementSongId] = useState("");
-  const [intentQuery, setIntentQuery] = useState("adoración en tono G");
+  const [intentQuery, setIntentQuery] = useState("");
   const [dismissed, setDismissed] = useState([]);
   const [status, setStatus] = useState("");
   const [blockOverrides, setBlockOverrides] = useState({});
@@ -152,8 +152,8 @@ export function SmartCenter() {
 
   const existingSchedule = schedules.find((schedule) => schedule.id === selectedScheduleId) || nextSchedule;
   const selectedSchedule = planningMode === "existing" ? existingSchedule : null;
-  const selectedServiceType = options.serviceType || inferSmartServiceType(existingSchedule || {});
-  const effectiveCount = isManualCountService(selectedServiceType) ? Number(options.count || 4) : getSmartServiceDefaultCount(selectedServiceType);
+  const selectedServiceType = options.serviceType || (planningMode === "existing" && existingSchedule ? inferSmartServiceType(existingSchedule) : "");
+  const effectiveCount = selectedServiceType ? (isManualCountService(selectedServiceType) ? Number(options.count || 4) : getSmartServiceDefaultCount(selectedServiceType)) : 0;
   const selectedLeader = leaderChoice === "Otro" ? manualLeader : leaderChoice;
   const newScheduleConflict = schedules.find((schedule) =>
     !schedule.deleted
@@ -247,7 +247,7 @@ export function SmartCenter() {
   const generateForNextService = () => {
     if (!nextSchedule) {
       setPlanningMode("create");
-      setDraftDate(todayString());
+      setDraftDate("");
       setBlockGenerated(false);
       setStatus("Elige fecha, servicio y tema para crear una programación nueva.");
       return;
@@ -268,6 +268,18 @@ export function SmartCenter() {
   };
 
   const createBlock = () => {
+    if (planningMode === "create" && !draftDate) {
+      setStatus("Elige una fecha para crear el bloque.");
+      return;
+    }
+    if (!selectedServiceType) {
+      setStatus("Selecciona el tipo de servicio.");
+      return;
+    }
+    if (!primaryTheme.trim()) {
+      setStatus("Escribe o selecciona un tema principal.");
+      return;
+    }
     setOptions((current) => ({ ...current, seed: current.seed + 1 }));
     setBlockOverrides({});
     setBlockGenerated(true);
@@ -392,7 +404,7 @@ export function SmartCenter() {
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
             <div className="inline-flex items-center gap-2 rounded-full border border-brass/25 bg-brass/12 px-3 py-1 text-xs font-bold uppercase tracking-wide text-brass">
-              <BrainCircuit className="h-4 w-4" />
+              <Sparkles className="h-4 w-4" />
               Análisis musical del servicio
             </div>
             <h1 className="mt-4 text-3xl font-black tracking-normal text-ink md:text-4xl">Centro Inteligente</h1>
@@ -415,11 +427,11 @@ export function SmartCenter() {
               </div>
               <div>
                 <p className="text-xs font-bold uppercase tracking-wide text-ink/45">{planningMode === "create" ? "Servicio seleccionado" : "Servicio sugerido"}</p>
-                <p className="mt-1 font-black text-ink">{nextSchedule ? inferSmartServiceType(nextSchedule) : selectedServiceType}</p>
+                <p className="mt-1 font-black text-ink">{planningMode === "existing" && nextSchedule ? inferSmartServiceType(nextSchedule) : selectedServiceType || "Sin seleccionar"}</p>
               </div>
               <div>
                 <p className="text-xs font-bold uppercase tracking-wide text-ink/45">Cantos sugeridos</p>
-                <p className="mt-1 font-black text-ink">{effectiveCount}</p>
+                <p className="mt-1 font-black text-ink">{effectiveCount || "--"}</p>
               </div>
               <div>
                 <p className="text-xs font-bold uppercase tracking-wide text-ink/45">Preparación</p>
@@ -447,7 +459,7 @@ export function SmartCenter() {
               >
                 <Icon className="h-4 w-4" />
                 {tab.label}
-                {tab.primary ? <span className="rounded-full bg-brass px-2 py-0.5 text-[10px] font-black text-ink">Inteligente</span> : null}
+                {tab.primary ? <span className="rounded-full bg-brass px-2 py-0.5 text-[10px] font-black text-ink">Especial</span> : null}
               </button>
             );
           })}
@@ -495,6 +507,7 @@ export function SmartCenter() {
                 )}
                 <Field label="Tipo de servicio">
                   <Select value={selectedServiceType} onChange={(event) => updateServiceType(event.target.value)}>
+                    <option value="">Seleccionar servicio</option>
                     {smartServiceTypes.map((type) => <option key={type} value={type}>{type}</option>)}
                   </Select>
                 </Field>
@@ -579,7 +592,7 @@ export function SmartCenter() {
               <SmartPanel>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-wide text-brass">{selectedServiceType} · Tema: {suggestedBlock.theme}</p>
+                    <p className="text-xs font-bold uppercase tracking-wide text-brass">{selectedServiceType || "Sin servicio"} · Tema: {primaryTheme || "sin tema"}</p>
                     <h3 className="text-xl font-black text-ink">Bloque sugerido</h3>
                   </div>
                   <ScoreBadge score={suggestedBlock.score} label="Bloque" />

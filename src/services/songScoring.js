@@ -67,29 +67,16 @@ export function getServiceSlots(serviceType = "Domingo AM", count) {
     ];
     return special.slice(0, Math.max(1, Math.min(desiredCount, special.length)));
   }
-  if (serviceType === "Miércoles de oración") {
-    return [
-      { id: "apertura", role: "Apertura sencilla", intent: "apertura", description: "Congregacional y fácil de entrar." },
-      { id: "oracion", role: "Oración / enfoque", intent: "oracion", description: "Prepara un ambiente de oración." },
-      { id: "despues_predicacion", role: "Respuesta final", intent: "despues_predicacion", description: "Cierre de entrega o respuesta." }
-    ].slice(0, desiredCount);
-  }
-  if (serviceType === "Domingo PM") {
-    return [
-      { id: "apertura", role: "Apertura", intent: "apertura", description: "Preferentemente himno o congregacional." },
-      { id: "congregacional", role: "Congregacional", intent: "congregacional", description: "Canto fuerte para unir a la iglesia." },
-      { id: "enfoque", role: "Enfoque / adoración", intent: "enfoque", description: "Conecta con el tema del servicio." },
-      { id: "despues_predicacion", role: "Después de predicación", intent: "despues_predicacion", description: "Solo un canto de respuesta." }
-    ].slice(0, desiredCount);
-  }
-  const normal = [
-    { id: "apertura", role: "Apertura", intent: "apertura", description: "Preferentemente himno o congregacional fuerte." },
-    { id: "congregacional", role: "Congregacional", intent: "congregacional", description: "Canto congregacional para afirmar el servicio." },
-    { id: "enfoque", role: "Enfoque / adoración", intent: "enfoque", description: "Centro temático del bloque." },
-    { id: "antes_predicacion", role: "Antes de predicación", intent: "antes_predicacion", description: "Prepara el corazón para la Palabra." },
-    { id: "despues_predicacion", role: "Después de predicación", intent: "despues_predicacion", description: "Solo un canto de respuesta." }
-  ];
-  return normal.slice(0, Math.max(1, Math.min(desiredCount, 5)));
+  const countLimit = Math.max(1, Math.min(desiredCount, 8));
+  return Array.from({ length: countLimit }, (_, index) => {
+    if (index === 0) {
+      return { id: "apertura", role: "Apertura", intent: "apertura", description: "Inicio congregacional del servicio." };
+    }
+    if (index === countLimit - 1) {
+      return { id: "despues_predicacion", role: "Después de la prédica", intent: "despues_predicacion", description: "Único canto de respuesta después de la prédica." };
+    }
+    return { id: `antes_predicacion_${index}`, role: "Antes de la prédica", intent: serviceType === "Miércoles de oración" ? "oracion" : "antes_predicacion", description: "Canto antes de la prédica." };
+  });
 }
 
 export function parseThemeInput(value = "") {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { appLogo, fallbackAppLogo } from "../../assets/logo";
+import { appVersion } from "../../data/changelog";
 
 export function WelcomeSplash({
   profile,
@@ -71,6 +72,14 @@ export function WelcomeSplash({
           transition={{ delay: 1.18, duration: 0.45 }}
         >
           Preparando tu repertorio...
+        </motion.p>
+        <motion.p
+          className="mt-3 text-xs font-bold uppercase tracking-wide text-ink/40"
+          initial={reduceMotion ? false : { opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1.28, duration: 0.4 }}
+        >
+          v{appVersion}
         </motion.p>
         <motion.div
           className="mx-auto mt-6 h-0.5 w-40 origin-left rounded-full bg-brass"

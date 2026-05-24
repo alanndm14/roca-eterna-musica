@@ -1,6 +1,29 @@
-export const appVersion = "0.9.92";
+export const appVersion = "0.9.93";
 
 export const changelog = [
+  {
+    version: "0.9.93",
+    date: "2026-05-23",
+    title: "Navegación reducida y OCR persistente",
+    added: [
+      "Versión visible en la bienvenida inicial",
+      "Pantalla de actualización disponible antes de la bienvenida",
+      "Fingerprint de PDF para reutilizar índices OCR ya guardados"
+    ],
+    changed: [
+      "En vista reducida la barra muestra Inicio, Programación, Centro Inteligente, Músicos y Más",
+      "Repertorio se movió al menú Más en móvil/ancho reducido",
+      "Programación Inteligente inicia sin fecha, servicio ni temas predeterminados"
+    ],
+    fixed: [
+      "Panel de notificaciones más compacto y alineado en móvil y PC",
+      "Posiciones de cantos se ajustan dinámicamente y solo el último queda después de la prédica",
+      "Centro Inteligente mantiene brillo visual sin repetir textos innecesarios"
+    ],
+    pending: [
+      "Probar OCR persistente con PDFs escaneados pesados en celulares de gama baja"
+    ]
+  },
   {
     version: "0.9.92",
     date: "2026-05-23",

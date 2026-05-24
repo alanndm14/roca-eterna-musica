@@ -19,7 +19,7 @@ import { deleteObject, getDownloadURL, ref, uploadBytes } from "firebase/storage
 import { db, isFirebaseConfigured, storage } from "../lib/firebase";
 import { sampleSchedules, sampleSettings, sampleSongs, sampleThemes, sampleUsers } from "../data/mockData";
 import { canonicalThemeKey, normalizeSong, normalizeThemeName, resolveAppLogoForNotification } from "../services/songUtils";
-import { extractLocalPdfText } from "../services/pdfTextIndex";
+import { extractLocalPdfText, fingerprintLocalPdf } from "../services/pdfTextIndex";
 import { sendExternalPush } from "../services/externalPush";
 import { useAuth } from "./useAuth";
 
@@ -870,6 +870,7 @@ export function MusicDataProvider({ children }) {
     const results = {
       found: 0,
       indexed: 0,
+      reused: 0,
       failed: 0,
       noText: 0,
       missing: 0,
@@ -884,8 +885,23 @@ export function MusicDataProvider({ children }) {
     for (const song of candidates) {
       current += 1;
       onProgress?.({ current, total: candidates.length, songTitle: song.title, pdfPath: song.localPdfPath, ...results });
+      let prefetched = null;
+      try {
+        prefetched = await fingerprintLocalPdf(song.localPdfPath);
+      } catch (error) {
+        prefetched = null;
+      }
+      const existingFingerprint = song.textFingerprint || song.pdfTextFingerprint || "";
+      const hasExistingIndex = Boolean(song.indexedTextAvailable || song.pdfSearchText || (song.pdfSearchTokens || []).length);
+      if (!options.force && prefetched?.fingerprint && existingFingerprint === prefetched.fingerprint && hasExistingIndex) {
+        results.reused += 1;
+        results.found += 1;
+        onProgress?.({ current, total: candidates.length, songTitle: song.title, pdfPath: song.localPdfPath, reusedCurrent: true, ...results });
+        continue;
+      }
       const extracted = await extractLocalPdfText(song.localPdfPath, {
         enableOcr: Boolean(options.enableOcr),
+        prefetched,
         onOcrProgress: (ocrProgress) => onProgress?.({ current, total: candidates.length, songTitle: song.title, pdfPath: song.localPdfPath, ocrProgress, ...results })
       });
       const status = extracted.status === "failed" ? "error" : extracted.status;
@@ -905,6 +921,10 @@ export function MusicDataProvider({ children }) {
         pdfSearchTokens: extracted.tokens || [],
         pdfIndexStatus: status,
         pdfIndexMethod: extracted.method || "",
+        searchIndexVersion: "2026-05-ocr-v2",
+        indexedTextAvailable: status === "indexed",
+        indexSource: extracted.method === "ocr" ? "ocr" : status === "indexed" ? "pdf-text" : status,
+        textFingerprint: extracted.fingerprint || prefetched?.fingerprint || "",
         pdfIndexMessage: extracted.message,
         pdfIndexError: status === "error" ? extracted.message : "",
         pdfIndexUrl: extracted.resolvedUrl || "",
@@ -943,7 +963,7 @@ export function MusicDataProvider({ children }) {
       entityType: "pdf",
       entityId: "local-pdf-index",
       entityName: "Indice de PDFs locales",
-      summary: `Indexacion PDF: ${results.indexed} indexados, ${results.ocrItems.length} con OCR, ${results.noText} sin texto, ${results.missing} no encontrados, ${results.failed} con error`,
+      summary: `Indexacion PDF: ${results.indexed} indexados, ${results.reused} reutilizados, ${results.ocrItems.length} con OCR, ${results.noText} sin texto, ${results.missing} no encontrados, ${results.failed} con error`,
       afterData: results
     });
     return results;

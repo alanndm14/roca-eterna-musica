@@ -28,9 +28,19 @@ export const navItems = [
 export const getVisibleNavItems = (role = "viewer") =>
   navItems.filter((item) => item.roles.includes(role || "viewer"));
 
-export const getMobilePrimaryItems = (role = "viewer") => getVisibleNavItems(role).slice(0, 4);
+const mobilePrimaryOrder = ["/", "/programacion", "/inteligente", "/musicos"];
+
+export const getMobilePrimaryItems = (role = "viewer") => {
+  const visible = getVisibleNavItems(role);
+  return mobilePrimaryOrder
+    .map((path) => visible.find((item) => item.path === path))
+    .filter(Boolean)
+    .slice(0, 4);
+};
 export const getMobileExtraItems = (role = "viewer") =>
-  getVisibleNavItems(role).slice(4).map((item) => (item.path === "/configuracion" ? { ...item, icon: UsersRound } : item));
+  getVisibleNavItems(role)
+    .filter((item) => !getMobilePrimaryItems(role).some((primary) => primary.path === item.path))
+    .map((item) => (item.path === "/configuracion" ? { ...item, icon: UsersRound } : item));
 
 export const mobilePrimaryItems = getMobilePrimaryItems("admin");
 export const mobileExtraItems = getMobileExtraItems("admin");

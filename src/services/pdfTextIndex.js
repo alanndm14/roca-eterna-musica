@@ -14,6 +14,35 @@ export function buildPdfSearchTokens(text = "") {
   return [...new Set(normalizeTokenText(text).split(" ").filter((token) => token.length > 2))].slice(0, 700);
 }
 
+async function hashArrayBuffer(buffer) {
+  if (globalThis.crypto?.subtle) {
+    const hash = await globalThis.crypto.subtle.digest("SHA-256", buffer);
+    return [...new Uint8Array(hash)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  }
+  let hash = 0;
+  const view = new Uint8Array(buffer);
+  for (let index = 0; index < view.length; index += 1) {
+    hash = ((hash << 5) - hash + view[index]) | 0;
+  }
+  return `fallback-${view.length}-${Math.abs(hash)}`;
+}
+
+export async function fingerprintLocalPdf(localPdfPath) {
+  const url = resolvePublicPdfPath(localPdfPath);
+  if (!url) return { status: "missing", fingerprint: "", message: "Sin ruta PDF local." };
+  const { buffer, diagnosis } = await fetchValidPdfArrayBuffer(localPdfPath);
+  const fingerprint = await hashArrayBuffer(buffer);
+  return {
+    status: "found",
+    fingerprint,
+    buffer,
+    diagnosis,
+    resolvedUrl: diagnosis.finalUrl,
+    statusHttp: diagnosis.status,
+    contentType: diagnosis.contentType
+  };
+}
+
 async function extractTextWithOcr(document, onOcrProgress) {
   if (typeof window === "undefined" || typeof window.document === "undefined") {
     return { text: "", pages: 0 };
@@ -51,7 +80,8 @@ export async function extractLocalPdfText(localPdfPath, options = {}) {
     const worker = await import("pdfjs-dist/build/pdf.worker.min.mjs?url");
     pdfjsLib.GlobalWorkerOptions.workerSrc = worker.default;
 
-    const { buffer, diagnosis } = await fetchValidPdfArrayBuffer(localPdfPath);
+    const prefetched = options.prefetched || await fingerprintLocalPdf(localPdfPath);
+    const { buffer, diagnosis } = prefetched;
     const document = await pdfjsLib.getDocument({ data: buffer }).promise;
     const pages = [];
 
@@ -81,10 +111,11 @@ export async function extractLocalPdfText(localPdfPath, options = {}) {
         resolvedUrl: diagnosis.finalUrl,
         statusHttp: diagnosis.status,
         contentType: diagnosis.contentType,
-        method: "ocr"
+        method: "ocr",
+        fingerprint: prefetched.fingerprint || ""
       };
     }
-    return { status: "indexed", text, tokens, message: "PDF indexado correctamente.", resolvedUrl: diagnosis.finalUrl, statusHttp: diagnosis.status, contentType: diagnosis.contentType, method: "text" };
+    return { status: "indexed", text, tokens, message: "PDF indexado correctamente.", resolvedUrl: diagnosis.finalUrl, statusHttp: diagnosis.status, contentType: diagnosis.contentType, method: "text", fingerprint: prefetched.fingerprint || "" };
   } catch (error) {
     const diagnosis = error.diagnosis;
     return {

@@ -1,8 +1,11 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useCallback, useEffect, useState } from "react";
+import { RefreshCw, Sparkles } from "lucide-react";
+import { motion } from "framer-motion";
 import { AppShell } from "./components/layout/AppShell";
 import { OnboardingGuide } from "./components/ui/OnboardingGuide";
 import { WelcomeSplash } from "./components/ui/WelcomeSplash";
+import { Button } from "./components/ui/Button";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
 import { MusicDataProvider, useMusicData } from "./hooks/useMusicData";
 import { appDarkLogo, appLogo } from "./assets/logo";
@@ -20,6 +23,8 @@ import { SongDetail } from "./pages/SongDetail";
 import { Songs } from "./pages/Songs";
 import { Stats } from "./pages/Stats";
 import { Unauthorized } from "./pages/Unauthorized";
+import { appVersion } from "./data/changelog";
+import { activateLatestAppVersion, compareVersions, fetchLatestVersion, getInstalledVersion, wasUpdateDismissed } from "./services/appUpdate";
 
 function SilentStartupFrame() {
   return <div className="min-h-screen bg-stonewash" aria-hidden="true" />;
@@ -41,6 +46,7 @@ function DataReady({ children }) {
   const [welcomeReady, setWelcomeReady] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [guideChecked, setGuideChecked] = useState(false);
+  const [updateCheck, setUpdateCheck] = useState({ checked: false, update: null });
 
   useEffect(() => {
     const openGuide = () => setShowGuide(true);
@@ -71,6 +77,33 @@ function DataReady({ children }) {
     document.documentElement.classList.toggle("dark", effectiveTheme === "dark");
   }, [effectiveTheme]);
 
+  useEffect(() => {
+    let cancelled = false;
+    fetchLatestVersion()
+      .then((latest) => {
+        if (cancelled) return;
+        const installed = getInstalledVersion();
+        const hasUpdate = latest?.version
+          && compareVersions(latest.version, appVersion) > 0
+          && (!wasUpdateDismissed(latest.version) || latest.critical);
+        setUpdateCheck({ checked: true, update: hasUpdate ? { ...latest, installedVersion: installed || appVersion } : null });
+      })
+      .catch(() => {
+        if (!cancelled) setUpdateCheck({ checked: true, update: null });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!updateCheck.checked) {
+    return <div className="min-h-screen bg-stonewash" aria-hidden="true" />;
+  }
+
+  if (updateCheck.update) {
+    return <StartupUpdateScreen update={updateCheck.update} />;
+  }
+
   if (loading || !welcomeReady) {
     return (
       <WelcomeSplash
@@ -97,6 +130,34 @@ function DataReady({ children }) {
         role={profile?.role || "viewer"}
       />
     </>
+  );
+}
+
+function StartupUpdateScreen({ update }) {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-stonewash p-5 text-ink">
+      <motion.section
+        className="w-full max-w-xl rounded-[2rem] border border-brass/35 bg-white p-6 shadow-2xl dark:border-brass/25 dark:bg-zinc-900"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.25 }}
+      >
+        <div className="inline-flex items-center gap-2 rounded-full bg-brass/12 px-3 py-1 text-xs font-black uppercase tracking-wide text-brass">
+          <Sparkles className="h-4 w-4" />
+          Actualización disponible
+        </div>
+        <h1 className="mt-4 text-2xl font-black text-ink">Hay una nueva versión de Roca Eterna Música.</h1>
+        <p className="mt-2 text-sm leading-6 text-ink/65">Actualiza antes de cargar la app para usar la versión más reciente.</p>
+        <ul className="mt-4 space-y-2 text-sm font-semibold text-ink/70">
+          {(update.changes || []).slice(0, 3).map((change) => <li key={change}>- {change}</li>)}
+        </ul>
+        <p className="mt-4 text-xs font-bold text-ink/45">Instalada: {update.installedVersion || appVersion} · Disponible: {update.version}</p>
+        <Button className="mt-5 w-full" onClick={() => activateLatestAppVersion(update.version)}>
+          <RefreshCw className="h-4 w-4" />
+          Actualizar ahora
+        </Button>
+      </motion.section>
+    </div>
   );
 }
 

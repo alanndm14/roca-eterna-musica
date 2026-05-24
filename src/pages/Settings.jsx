@@ -77,6 +77,7 @@ export function Settings() {
   const [isIndexingPdfs, setIsIndexingPdfs] = useState(false);
   const [pdfIndexProgress, setPdfIndexProgress] = useState(null);
   const [enablePdfOcr, setEnablePdfOcr] = useState(false);
+  const [forcePdfReindex, setForcePdfReindex] = useState(false);
   const [logoTest, setLogoTest] = useState(null);
   const [pushStatus, setPushStatus] = useState("");
   const [pushDiagnostic, setPushDiagnostic] = useState(null);
@@ -348,9 +349,9 @@ export function Settings() {
   const runPdfIndex = async () => {
     setIsIndexingPdfs(true);
     setPdfIndexResult(null);
-    setPdfIndexProgress({ current: 0, total: songs.filter((item) => item.localPdfPath).length, songTitle: "", found: 0, indexed: 0, noText: 0, missing: 0, failed: 0, ocrItems: [] });
+    setPdfIndexProgress({ current: 0, total: songs.filter((item) => item.localPdfPath).length, songTitle: "", found: 0, indexed: 0, reused: 0, noText: 0, missing: 0, failed: 0, ocrItems: [] });
     try {
-      const result = await indexLocalPdfTexts(setPdfIndexProgress, { enableOcr: enablePdfOcr });
+      const result = await indexLocalPdfTexts(setPdfIndexProgress, { enableOcr: enablePdfOcr, force: forcePdfReindex });
       setPdfIndexResult(result);
     } finally {
       setIsIndexingPdfs(false);
@@ -831,6 +832,10 @@ export function Settings() {
               </span>
             </span>
           </label>
+          <label className="mt-3 flex items-start gap-3 rounded-2xl bg-ink/5 p-3 text-sm font-semibold text-ink/70">
+            <input className="mt-1" type="checkbox" checked={forcePdfReindex} onChange={(event) => setForcePdfReindex(event.target.checked)} disabled={isIndexingPdfs} />
+            <span>Forzar reindexación aunque el PDF no haya cambiado</span>
+          </label>
           <Button className="mt-4" variant="secondary" isLoading={isIndexingPdfs} disabled={isIndexingPdfs} onClick={runPdfIndex}>
             <FileSearch className="h-4 w-4" />
             {isIndexingPdfs ? "Indexando PDFs..." : enablePdfOcr ? "Indexar PDFs con OCR automático" : "Indexar textos de PDFs locales"}
@@ -852,7 +857,7 @@ export function Settings() {
               ) : null}
               {pdfIndexProgress.pdfPath ? <p className="mt-1 break-all text-xs text-ink/45">PDF: {pdfIndexProgress.pdfPath}</p> : null}
               <p className="mt-2 text-xs font-semibold text-ink/50">
-                Encontrados {pdfIndexProgress.found || 0} - Indexados {pdfIndexProgress.indexed || 0} - OCR {(pdfIndexProgress.ocrItems || []).length} - Sin texto {pdfIndexProgress.noText || 0} - No encontrados {pdfIndexProgress.missing || 0} - Errores {pdfIndexProgress.failed || 0}
+                Encontrados {pdfIndexProgress.found || 0} - Indexados {pdfIndexProgress.indexed || 0} - Reutilizados {pdfIndexProgress.reused || 0} - OCR {(pdfIndexProgress.ocrItems || []).length} - Sin texto {pdfIndexProgress.noText || 0} - No encontrados {pdfIndexProgress.missing || 0} - Errores {pdfIndexProgress.failed || 0}
               </p>
             </div>
           ) : null}
@@ -1353,7 +1358,7 @@ function PdfIndexSummary({ result }) {
   return (
     <div className="mt-4 space-y-3">
       <p className="text-sm font-semibold text-ink/60">
-        Encontrados {result.found}, indexados {result.indexed}, con OCR {(result.ocrItems || []).length}, sin texto {result.noText}, no encontrados {result.missing}, errores {result.failed}
+        Encontrados {result.found}, indexados {result.indexed}, reutilizados {result.reused || 0}, con OCR {(result.ocrItems || []).length}, sin texto {result.noText}, no encontrados {result.missing}, errores {result.failed}
       </p>
       <PdfIndexList title="Indexados correctamente" items={result.indexedItems} />
       <PdfIndexList title="Indexados con OCR" items={result.ocrItems} />

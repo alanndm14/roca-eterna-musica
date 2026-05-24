@@ -403,15 +403,18 @@ export function AppShell() {
                   ) : null}
                 </Button>
                 {notificationsOpen ? (
-                  <div className="absolute right-0 top-12 z-50 w-[min(360px,calc(100vw-2rem))] rounded-3xl border border-ink/10 bg-white p-3 shadow-2xl dark:border-white/10 dark:bg-zinc-900">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="font-bold text-ink">Notificaciones</p>
-                      <Button variant="subtle" className="h-9 px-3 text-xs" onClick={markAllNotificationsRead}>
+                  <div className="fixed inset-x-3 top-20 z-50 max-h-[calc(100dvh-7rem)] overflow-hidden rounded-3xl border border-ink/10 bg-white p-3 shadow-2xl dark:border-white/10 dark:bg-zinc-900 sm:absolute sm:inset-auto sm:right-0 sm:top-12 sm:w-[min(380px,calc(100vw-2rem))]">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <p className="font-bold text-ink">Notificaciones</p>
+                        <p className="text-xs text-ink/45">{unreadNotifications.length} sin leer</p>
+                      </div>
+                      <Button variant="subtle" className="h-9 shrink-0 px-3 text-xs" onClick={markAllNotificationsRead}>
                         <CheckCheck className="h-3.5 w-3.5" />
                         Marcar todas
                       </Button>
                     </div>
-                    <div className="mt-3 max-h-80 space-y-2 overflow-auto">
+                    <div className="mt-3 max-h-[calc(100dvh-12rem)] space-y-2 overflow-y-auto pr-1 sm:max-h-80">
                       {targetedNotifications.length ? targetedNotifications.slice(0, 12).map((item) => {
                         const unread = !(item.readBy || []).includes(profile?.uid);
                         const Icon = item.type === "new_song" ? Music2 : item.type === "new_schedule" || item.type === "updated_schedule" ? CalendarDays : Bell;
@@ -421,14 +424,14 @@ export function AppShell() {
                             key={item.id}
                             type="button"
                             onClick={() => openNotification(item)}
-                            className={`grid w-full grid-cols-[2.5rem_1fr] gap-3 rounded-2xl border p-3 text-left transition ${entityDeleted ? "cursor-default border-transparent bg-ink/5 opacity-65 dark:bg-white/5" : unread ? "border-brass/30 bg-brass/12 hover:border-brass/45 hover:bg-brass/5" : "border-transparent bg-ink/5 hover:border-brass/45 hover:bg-brass/5 dark:bg-white/7"}`}
+                            className={`grid w-full min-w-0 grid-cols-[2.5rem_minmax(0,1fr)] gap-3 rounded-2xl border p-3 text-left transition ${entityDeleted ? "cursor-default border-transparent bg-ink/5 opacity-65 dark:bg-white/5" : unread ? "border-brass/30 bg-brass/12 hover:border-brass/45 hover:bg-brass/5" : "border-transparent bg-ink/5 hover:border-brass/45 hover:bg-brass/5 dark:bg-white/7"}`}
                           >
                             <span className={`grid h-10 w-10 place-items-center rounded-2xl ${unread ? "bg-brass text-white" : "bg-ink/10 text-ink/65 dark:bg-white/10"}`}>
                               <Icon className="h-4 w-4" />
                             </span>
                             <span className="min-w-0">
-                              <span className="flex items-center justify-between gap-2">
-                                <span className="text-sm font-bold text-ink">{entityDeleted ? (item.scheduleId ? "Programación eliminada" : item.songId ? "Canto eliminado" : item.title) : item.title}</span>
+                              <span className="flex min-w-0 items-center justify-between gap-2">
+                                <span className="truncate text-sm font-bold text-ink">{entityDeleted ? (item.scheduleId ? "Programación eliminada" : item.songId ? "Canto eliminado" : item.title) : item.title}</span>
                                 {unread ? <span className="h-2 w-2 rounded-full bg-brass" aria-label="No leída" /> : null}
                               </span>
                               <span className="mt-1 block text-xs leading-5 text-ink/60">{entityDeleted ? "Esta novedad ya no está activa." : item.message}</span>

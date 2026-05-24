@@ -50,7 +50,7 @@ export function BottomNav() {
                   ) : null}
                   <item.icon className="h-5 w-5" />
                   <span className="flex-1">{item.label}</span>
-                  {isSmart ? <span className="rounded-full bg-brass px-2 py-0.5 text-[10px] font-black text-ink">Inteligente</span> : null}
+                  {isSmart ? <span className="rounded-full bg-brass px-2 py-0.5 text-[10px] font-black text-ink">Especial</span> : null}
                 </NavLink>
               );})}
               <button type="button" onClick={openGuide} className="flex min-h-12 items-center gap-3 rounded-2xl bg-ink/5 px-4 text-left text-sm font-semibold text-ink">
@@ -73,12 +73,19 @@ export function BottomNav() {
               to={item.path}
               end={item.path === "/"}
               data-tour={item.tourId}
-              className={({ isActive }) =>
-                `flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl text-[11px] font-semibold transition ${
-                  isActive ? "bg-ink text-white" : "text-ink/55"
-                }`
-              }
+              className={({ isActive }) => {
+                const isSmart = item.path === "/inteligente";
+                return `relative flex min-h-14 flex-col items-center justify-center gap-1 overflow-hidden rounded-2xl text-[11px] font-semibold transition ${
+                  isActive ? (isSmart ? "bg-brass text-ink shadow-soft" : "bg-ink text-white") : isSmart ? "text-brass" : "text-ink/55"
+                }`;
+              }}
             >
+              {item.path === "/inteligente" ? (
+                <>
+                  <span className="pointer-events-none absolute right-3 top-2 h-1.5 w-1.5 animate-pulse rounded-full bg-brass" />
+                  <span className="pointer-events-none absolute bottom-2 left-4 h-1 w-1 animate-pulse rounded-full bg-brass/70 [animation-delay:600ms]" />
+                </>
+              ) : null}
               <item.icon className="h-5 w-5" />
               {item.label}
             </NavLink>
