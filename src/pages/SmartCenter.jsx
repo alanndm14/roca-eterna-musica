@@ -127,7 +127,7 @@ export function SmartCenter() {
   const navigate = useNavigate();
   const reduceMotion = useReducedMotion();
   const { profile, canEdit } = useAuth();
-  const { songs, schedules, themes, saveSchedule, replaceScheduleSong } = useMusicData();
+  const { songs, schedules, themes, saveSchedule, replaceScheduleSong, indexLocalPdfTexts } = useMusicData();
   const nextSchedule = getCurrentOrNextSchedule(schedules) || schedules[0] || null;
   const [activeTab, setActiveTab] = useState("programar");
   const [planningMode, setPlanningMode] = useState("create");
@@ -141,6 +141,10 @@ export function SmartCenter() {
   const [intentQuery, setIntentQuery] = useState("");
   const [dismissed, setDismissed] = useState([]);
   const [status, setStatus] = useState("");
+  const [planningError, setPlanningError] = useState("");
+  const [isIndexingTexts, setIsIndexingTexts] = useState(false);
+  const [indexProgress, setIndexProgress] = useState(null);
+  const [indexResult, setIndexResult] = useState(null);
   const [blockOverrides, setBlockOverrides] = useState({});
   const [alternativeSlot, setAlternativeSlot] = useState(null);
   const [compareItem, setCompareItem] = useState(null);
@@ -268,22 +272,35 @@ export function SmartCenter() {
   };
 
   const createBlock = () => {
+    setPlanningError("");
     if (planningMode === "create" && !draftDate) {
-      setStatus("Elige una fecha para crear el bloque.");
+      setPlanningError("Selecciona una fecha para crear el bloque.");
       return;
     }
     if (!selectedServiceType) {
-      setStatus("Selecciona el tipo de servicio.");
+      setPlanningError("Selecciona el tipo de servicio.");
       return;
     }
     if (!primaryTheme.trim()) {
-      setStatus("Escribe o selecciona un tema principal.");
+      setPlanningError("Escribe o selecciona un tema principal.");
       return;
     }
     setOptions((current) => ({ ...current, seed: current.seed + 1 }));
     setBlockOverrides({});
     setBlockGenerated(true);
     setStatus(`Bloque sugerido para ${selectedServiceType} con ${effectiveCount} canto(s).`);
+  };
+
+  const indexPdfTextsFromSmartCenter = async () => {
+    setIsIndexingTexts(true);
+    setIndexResult(null);
+    try {
+      const result = await indexLocalPdfTexts(setIndexProgress, { enableOcr: true, force: false });
+      setIndexResult(result);
+      setStatus(`Indexación lista: ${result.indexed} indexados, ${result.reused || 0} reutilizados.`);
+    } finally {
+      setIsIndexingTexts(false);
+    }
   };
 
   const regenerateBlock = () => {
@@ -554,6 +571,31 @@ export function SmartCenter() {
                     {options.includePdfText && songsWithIndexedText < songs.length ? <span className="block text-xs font-medium text-ink/55">Algunos cantos no tienen texto indexado; la búsqueda puede ser incompleta.</span> : null}
                   </span>
                 </label>
+                {options.includePdfText ? (
+                  <div className="rounded-2xl border border-brass/20 bg-brass/10 p-3 text-sm text-ink">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="font-semibold">
+                        Letras/PDF indexados: {songsWithIndexedText} de {songs.length}
+                        <span className="block text-xs font-medium text-ink/55">El ?ndice se guarda en Firestore por canto y se reutiliza si el PDF no cambi?.</span>
+                      </p>
+                      {songsWithIndexedText < songs.length ? (
+                        <Button variant="secondary" className="h-9 px-3 text-xs" onClick={indexPdfTextsFromSmartCenter} disabled={isIndexingTexts}>
+                          {isIndexingTexts ? "Indexando..." : "Indexar ahora"}
+                        </Button>
+                      ) : null}
+                    </div>
+                    {indexProgress ? (
+                      <p className="mt-2 text-xs font-semibold text-ink/55">
+                        {indexProgress.current || 0}/{indexProgress.total || 0} ? Indexados {indexProgress.indexed || 0} ? Reutilizados {indexProgress.reused || 0} ? OCR {(indexProgress.ocrItems || []).length}
+                      </p>
+                    ) : null}
+                    {indexResult ? (
+                      <p className="mt-2 text-xs font-semibold text-ink/55">
+                        Listo: {indexResult.indexed} indexados, {indexResult.reused || 0} reutilizados, {indexResult.failed || 0} errores.
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
                 {isManualCountService(selectedServiceType) ? (
                   <Field label="Número de cantos">
                     <Input type="number" min="1" max="8" value={options.count} onChange={(event) => updateOption("count", Number(event.target.value || 4))} />
@@ -576,6 +618,11 @@ export function SmartCenter() {
                   Solo con Keynote listo
                 </label>
                 <div className="grid gap-2">
+                  {planningError ? (
+                    <p className="rounded-2xl border border-red-300 bg-red-50 p-3 text-sm font-bold text-red-800 dark:border-red-400/35 dark:bg-red-500/12 dark:text-red-100">
+                      {planningError}
+                    </p>
+                  ) : null}
                   {!blockGenerated ? (
                     <Button onClick={createBlock}><Wand2 className="h-4 w-4" />Crear bloque sugerido</Button>
                   ) : (
@@ -871,8 +918,7 @@ export function SmartCenter() {
         {scoreHelpItem ? (
           <div className="space-y-4">
             <div className="rounded-2xl bg-ink/5 p-4 dark:bg-white/8">
-              <p className="text-xs font-bold uppercase tracking-wide text-brass">Score final</p>
-              <p className="mt-1 text-2xl font-black text-ink">{scoreHelpItem.song.title} - {scoreHelpItem.scoreDetails?.finalScore ?? scoreHelpItem.score}%</p>
+              <p className="text-2xl font-black text-ink">{scoreHelpItem.song.title} - {scoreHelpItem.scoreDetails?.finalScore ?? scoreHelpItem.score}%</p>
               <div className="mt-3 grid gap-2 text-sm font-semibold text-ink/62 sm:grid-cols-2">
                 <span>{scoreHelpItem.usageSummary?.recent || "Sin historial reciente"}</span>
                 <span>{scoreHelpItem.usageSummary?.monthly || "Uso mensual: sin datos"}</span>

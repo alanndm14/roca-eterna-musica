@@ -210,6 +210,10 @@ export function songHasListeningLink(song = {}) {
   return Boolean(song.youtubeUrl || song.spotifyUrl || song.youtube || song.spotify);
 }
 
+function songHasLocalPdf(song = {}) {
+  return Boolean(song.localPdfPath);
+}
+
 export function scoreSong(song = {}, options = {}, context = {}) {
   const usage = context.usageIndex?.usage?.get(song.id) || {};
   const scheduledIds = context.scheduledIds || new Set();
@@ -317,11 +321,15 @@ export function scoreSong(song = {}, options = {}, context = {}) {
   } else {
     addPenalty(10, "Falta PDF o ruta");
   }
-  if (!song.youtubeUrl && !song.youtube) {
-    addPenalty(3, "Sin YouTube");
+  if (songHasLocalPdf(song)) {
+    addPositive(5, "PDF local listo");
+  } else {
+    addPenalty(4, "Falta PDF local");
   }
-  if (!song.spotifyUrl && !song.spotify) {
-    addPenalty(3, "Sin Spotify");
+  if (song.pdfReviewStatus === "completado") {
+    addPositive(6, "Revisión PDF lista");
+  } else {
+    addPenalty(5, "Falta revisión PDF");
   }
   if (!usage.lastUsedAt) {
     addPositive(10, "Sin historial reciente");
@@ -379,7 +387,7 @@ export function scoreSong(song = {}, options = {}, context = {}) {
   return {
     song,
     score: total,
-    label: total >= 82 ? "Muy recomendado" : total >= 62 ? "Recomendado" : "Útil con reservas",
+    label: total >= 90 ? "Muy recomendado" : total >= 80 ? "Recomendado" : total >= 65 ? "Útil" : total >= 50 ? "Con reservas" : "Poco conveniente",
     reasons: reasons.slice(0, 6),
     warnings: warnings.slice(0, 5),
     scoreDetails,
@@ -497,6 +505,7 @@ export function reviewServiceSchedule(schedule = {}, songs = [], schedules = [])
   const alerts = [];
   const groups = {
     links: { title: "Faltan enlaces", severity: "warning", items: [] },
+    listening: { title: "Enlaces de escucha", severity: "info", items: [] },
     files: { title: "Faltan archivos", severity: "warning", items: [] },
     reviews: { title: "Faltan revisiones", severity: "important", items: [] },
     musicData: { title: "Datos musicales incompletos", severity: "warning", items: [] },
@@ -536,11 +545,8 @@ export function reviewServiceSchedule(schedule = {}, songs = [], schedules = [])
       score -= 4;
       groups.musicData.items.push(`${title}: sin tema principal`);
     }
-    if (!song.youtubeUrl) groups.links.items.push(`${title}: sin YouTube`);
-    if (!song.spotifyUrl) groups.links.items.push(`${title}: sin Spotify`);
-    if (!songHasListeningLink(song)) {
-      alerts.push({ severity: "info", title: "Sin enlace de escucha", message: `${title} no tiene YouTube o Spotify.` });
-    }
+    if (!song.youtubeUrl && !song.youtube) groups.listening.items.push(`${title}: sin YouTube`);
+    if (!song.spotifyUrl && !song.spotify) groups.listening.items.push(`${title}: sin Spotify`);
     const usage = usageIndex.usage.get(entry.songId);
     if (usage?.usedInPreviousService) {
       score -= 8;

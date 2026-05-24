@@ -8,6 +8,7 @@ import { Field, Input, Select, Textarea } from "../components/ui/Field";
 import { Modal } from "../components/ui/Modal";
 import { RecommendationCard } from "../components/smart/RecommendationCard";
 import { ScoreBadge } from "../components/smart/ScoreBadge";
+import { ServiceReviewPanel } from "../components/smart/ServiceReviewPanel";
 import { SongNameLink } from "../components/ui/SongNameLink";
 import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
@@ -135,6 +136,7 @@ export function MusicianView() {
   const [temporaryMergedPdf, setTemporaryMergedPdf] = useState(null);
   const [temporaryMergedPdfUrl, setTemporaryMergedPdfUrl] = useState("");
   const [programDraft, setProgramDraft] = useState([]);
+  const [serviceReviewOpen, setServiceReviewOpen] = useState(false);
   const selectedServiceRef = useRef(null);
   const today = todayString();
   const [pickerDate, setPickerDate] = useState(today);
@@ -464,17 +466,8 @@ export function MusicianView() {
           </div>
         </div>
         {serviceReview ? (
-          <div className="mt-4 overflow-hidden rounded-3xl border border-brass/20 bg-[linear-gradient(135deg,rgba(255,255,255,0.82),rgba(182,148,95,0.12))] p-4 shadow-soft backdrop-blur-xl dark:border-brass/25 dark:bg-white/8">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-brass">Revisión inteligente</p>
-                <h4 className="mt-1 text-lg font-black text-ink">{serviceReview.status}</h4>
-                <p className="mt-1 text-sm text-ink/60">
-                  {serviceReview.alerts[0]?.message || "No hay alertas importantes para este servicio."}
-                </p>
-              </div>
-              <ScoreBadge score={serviceReview.score} label="Preparación" />
-            </div>
+          <div className="mt-4">
+            <ServiceReviewPanel review={serviceReview} compact interactive open={serviceReviewOpen} onToggle={() => setServiceReviewOpen((current) => !current)} />
           </div>
         ) : null}
         <div className="mt-5">

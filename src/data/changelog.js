@@ -1,6 +1,29 @@
-export const appVersion = "0.9.94";
+export const appVersion = "0.9.95";
 
 export const changelog = [
+  {
+    version: "0.9.95",
+    date: "2026-05-23",
+    title: "Revisión inteligente unificada",
+    added: [
+      "Panel de notificaciones internas en portal global",
+      "Indexación de letras/PDF desde Centro Inteligente",
+      "Revisión compacta clickeable en Programación y Músicos"
+    ],
+    changed: [
+      "YouTube y Spotify quedan como datos informativos, no afectan score ni preparación",
+      "Tarjetas de recomendaciones con etiqueta variable por porcentaje",
+      "Avisos de Programación Inteligente aparecen junto al botón de acción"
+    ],
+    fixed: [
+      "La campana ya no queda por detrás de las secciones",
+      "La barra de riesgo/preparación usa la misma escala visual en todas las vistas",
+      "Modo oscuro con mayor contraste en tarjetas, barras y avisos"
+    ],
+    pending: [
+      "Afinar pesos del score con retroalimentación de músicos después de usarlo en servicios reales"
+    ]
+  },
   {
     version: "0.9.94",
     date: "2026-05-23",

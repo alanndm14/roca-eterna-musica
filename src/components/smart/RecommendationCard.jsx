@@ -8,6 +8,8 @@ function compactLabel(text = "") {
   if (value.includes("letra") || value.includes("pdf:")) return "Letra coincide";
   if (value.includes("keynote listo")) return "Keynote listo";
   if (value.includes("pdf listo")) return "PDF listo";
+  if (value.includes("pdf local")) return "PDF local";
+  if (value.includes("revisión pdf") || value.includes("revision pdf")) return "PDF revisado";
   if (value.includes("poco usado")) return "Poco usado";
   if (value.includes("sin historial") || value.includes("sin uso reciente")) return "Sin uso reciente";
   if (value.includes("encaja")) return "Buena posición";
@@ -28,6 +30,15 @@ function compactWarning(text = "") {
   return String(text || "").replace(/:.+$/, "").slice(0, 34);
 }
 
+function recommendationTone(score = 0) {
+  const value = Number(score) || 0;
+  if (value >= 90) return { label: "Muy recomendado", chip: "bg-emerald-500/12 text-emerald-800 dark:bg-emerald-400/14 dark:text-emerald-100", bar: "bg-emerald-500" };
+  if (value >= 80) return { label: "Recomendado", chip: "bg-brass/16 text-brass dark:bg-brass/18 dark:text-brass", bar: "bg-brass" };
+  if (value >= 65) return { label: "Útil", chip: "bg-yellow-500/14 text-yellow-800 dark:bg-yellow-400/16 dark:text-yellow-100", bar: "bg-yellow-500" };
+  if (value >= 50) return { label: "Con reservas", chip: "bg-orange-500/14 text-orange-800 dark:bg-orange-400/16 dark:text-orange-100", bar: "bg-orange-500" };
+  return { label: "Poco conveniente", chip: "bg-red-500/12 text-red-800 dark:bg-red-400/16 dark:text-red-100", bar: "bg-red-500" };
+}
+
 function getVisibleChips(item = {}) {
   const positives = (item.scoreDetails?.positives || [])
     .filter((entry) => !String(entry.label || "").toLowerCase().includes("base"))
@@ -45,10 +56,10 @@ function getVisibleChips(item = {}) {
 
 function ScoreMiniBar({ score = 0 }) {
   const normalized = Math.max(0, Math.min(100, Number(score) || 0));
-  const tone = normalized >= 82 ? "bg-emerald-500" : normalized >= 62 ? "bg-brass" : "bg-yellow-500";
+  const tone = recommendationTone(normalized);
   return (
     <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-ink/10 dark:bg-white/14">
-      <div className={`h-full rounded-full ${tone}`} style={{ width: `${normalized}%` }} />
+      <div className={`h-full rounded-full ${tone.bar}`} style={{ width: `${normalized}%` }} />
     </div>
   );
 }
@@ -56,11 +67,12 @@ function ScoreMiniBar({ score = 0 }) {
 export function RecommendationCard({ item, onAdd, onView, onDismiss, onExplain, actionLabel = "Agregar a programación" }) {
   const song = item.song || item;
   const chips = getVisibleChips(item);
+  const tone = recommendationTone(item.score);
   return (
     <article className="flex h-full min-h-0 flex-col rounded-[1.1rem] border border-white/55 bg-white/82 p-3.5 shadow-soft backdrop-blur-xl dark:border-white/10 dark:bg-white/9">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-xs font-bold uppercase tracking-wide text-brass">{item.label || "Recomendación"}</p>
+          <p className={`inline-flex max-w-full truncate rounded-full px-2.5 py-1 text-[11px] font-black uppercase tracking-wide ${tone.chip}`}>{tone.label}</p>
           <h3 className="mt-1 truncate text-base font-black text-ink">{song.title}</h3>
           <p className="mt-1 truncate text-xs font-semibold text-ink/55">
             {song.category || "Sin categoría"} · {song.keyWithCapo || song.mainKey || "Sin tono"}

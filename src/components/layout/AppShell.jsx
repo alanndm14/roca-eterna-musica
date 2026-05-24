@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Bell, CalendarDays, CheckCheck, HelpCircle, Music2, PanelLeftClose, PanelLeftOpen, RefreshCw, Sparkles } from "lucide-react";
@@ -56,6 +57,89 @@ const relativeTime = (value) => {
   if (hours < 24) return `hace ${hours} h`;
   return date.toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" });
 };
+
+function NotificationsPortal({
+  open,
+  onClose,
+  unreadCount,
+  notifications,
+  profile,
+  onOpenNotification,
+  onMarkAllRead,
+  isNotificationEntityDeleted
+}) {
+  useEffect(() => {
+    if (!open) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [onClose, open]);
+
+  if (!open || typeof document === "undefined") return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[12000]" aria-label="Panel de notificaciones">
+      <button
+        type="button"
+        className="absolute inset-0 bg-ink/25 backdrop-blur-[1px] dark:bg-black/45"
+        onClick={onClose}
+        aria-label="Cerrar notificaciones"
+      />
+      <aside className="absolute inset-x-3 bottom-20 top-auto max-h-[min(76dvh,620px)] overflow-hidden rounded-3xl border border-ink/10 bg-white p-3 shadow-2xl dark:border-white/12 dark:bg-zinc-950 sm:bottom-auto sm:right-5 sm:left-auto sm:top-20 sm:w-[min(400px,calc(100vw-2rem))]">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="font-bold text-ink">Notificaciones</p>
+            <p className="text-xs text-ink/45">{unreadCount} sin leer</p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="subtle" className="h-9 shrink-0 px-3 text-xs" onClick={onMarkAllRead}>
+              <CheckCheck className="h-3.5 w-3.5" />
+              Marcar todas
+            </Button>
+            <Button variant="subtle" className="h-9 px-3 text-xs" onClick={onClose}>Cerrar</Button>
+          </div>
+        </div>
+        <div className="mt-3 max-h-[calc(min(76dvh,620px)-5rem)] space-y-2 overflow-y-auto overscroll-contain pr-1">
+          {notifications.length ? notifications.slice(0, 12).map((item) => {
+            const unread = !(item.readBy || []).includes(profile?.uid);
+            const Icon = item.type === "new_song" ? Music2 : item.type === "new_schedule" || item.type === "updated_schedule" ? CalendarDays : Bell;
+            const entityDeleted = isNotificationEntityDeleted(item);
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => onOpenNotification(item)}
+                className={`grid w-full min-w-0 grid-cols-[2.5rem_minmax(0,1fr)] gap-3 rounded-2xl border p-3 text-left transition ${entityDeleted ? "cursor-default border-transparent bg-ink/5 opacity-65 dark:bg-white/5" : unread ? "border-brass/30 bg-brass/12 hover:border-brass/45 hover:bg-brass/5" : "border-transparent bg-ink/5 hover:border-brass/45 hover:bg-brass/5 dark:bg-white/7"}`}
+              >
+                <span className={`grid h-10 w-10 place-items-center rounded-2xl ${unread ? "bg-brass text-white" : "bg-ink/10 text-ink/65 dark:bg-white/10"}`}>
+                  <Icon className="h-4 w-4" />
+                </span>
+                <span className="min-w-0">
+                  <span className="flex min-w-0 items-center justify-between gap-2">
+                    <span className="truncate text-sm font-bold text-ink">{entityDeleted ? (item.scheduleId ? "Programación eliminada" : item.songId ? "Canto eliminado" : item.title) : item.title}</span>
+                    {unread ? <span className="h-2 w-2 rounded-full bg-brass" aria-label="No leída" /> : null}
+                  </span>
+                  <span className="mt-1 block text-xs leading-5 text-ink/60">{entityDeleted ? "Esta novedad ya no está activa." : item.message}</span>
+                  <span className="mt-2 block text-[11px] text-ink/40">
+                    {item.createdAt ? new Date(item.createdAt.seconds ? item.createdAt.seconds * 1000 : item.createdAt).toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" }) : ""}
+                  </span>
+                </span>
+              </button>
+            );
+          }) : <p className="rounded-2xl bg-ink/5 p-3 text-sm text-ink/55">No hay notificaciones.</p>}
+        </div>
+      </aside>
+    </div>,
+    document.body
+  );
+}
 
 export function AppShell() {
   const location = useLocation();
@@ -402,53 +486,21 @@ export function AppShell() {
                     </span>
                   ) : null}
                 </Button>
-                {notificationsOpen ? (
-                  <div className="fixed inset-x-3 top-20 z-50 max-h-[calc(100dvh-7rem)] overflow-hidden rounded-3xl border border-ink/10 bg-white p-3 shadow-2xl dark:border-white/10 dark:bg-zinc-900 sm:absolute sm:inset-auto sm:right-0 sm:top-12 sm:w-[min(380px,calc(100vw-2rem))]">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div>
-                        <p className="font-bold text-ink">Notificaciones</p>
-                        <p className="text-xs text-ink/45">{unreadNotifications.length} sin leer</p>
-                      </div>
-                      <Button variant="subtle" className="h-9 shrink-0 px-3 text-xs" onClick={markAllNotificationsRead}>
-                        <CheckCheck className="h-3.5 w-3.5" />
-                        Marcar todas
-                      </Button>
-                    </div>
-                    <div className="mt-3 max-h-[calc(100dvh-12rem)] space-y-2 overflow-y-auto pr-1 sm:max-h-80">
-                      {targetedNotifications.length ? targetedNotifications.slice(0, 12).map((item) => {
-                        const unread = !(item.readBy || []).includes(profile?.uid);
-                        const Icon = item.type === "new_song" ? Music2 : item.type === "new_schedule" || item.type === "updated_schedule" ? CalendarDays : Bell;
-                        const entityDeleted = isNotificationEntityDeleted(item);
-                        return (
-                          <button
-                            key={item.id}
-                            type="button"
-                            onClick={() => openNotification(item)}
-                            className={`grid w-full min-w-0 grid-cols-[2.5rem_minmax(0,1fr)] gap-3 rounded-2xl border p-3 text-left transition ${entityDeleted ? "cursor-default border-transparent bg-ink/5 opacity-65 dark:bg-white/5" : unread ? "border-brass/30 bg-brass/12 hover:border-brass/45 hover:bg-brass/5" : "border-transparent bg-ink/5 hover:border-brass/45 hover:bg-brass/5 dark:bg-white/7"}`}
-                          >
-                            <span className={`grid h-10 w-10 place-items-center rounded-2xl ${unread ? "bg-brass text-white" : "bg-ink/10 text-ink/65 dark:bg-white/10"}`}>
-                              <Icon className="h-4 w-4" />
-                            </span>
-                            <span className="min-w-0">
-                              <span className="flex min-w-0 items-center justify-between gap-2">
-                                <span className="truncate text-sm font-bold text-ink">{entityDeleted ? (item.scheduleId ? "Programación eliminada" : item.songId ? "Canto eliminado" : item.title) : item.title}</span>
-                                {unread ? <span className="h-2 w-2 rounded-full bg-brass" aria-label="No leída" /> : null}
-                              </span>
-                              <span className="mt-1 block text-xs leading-5 text-ink/60">{entityDeleted ? "Esta novedad ya no está activa." : item.message}</span>
-                              <span className="mt-2 block text-[11px] text-ink/40">
-                                {item.createdAt ? new Date(item.createdAt.seconds ? item.createdAt.seconds * 1000 : item.createdAt).toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" }) : ""}
-                              </span>
-                            </span>
-                          </button>
-                        );
-                      }) : <p className="rounded-2xl bg-ink/5 p-3 text-sm text-ink/55">No hay notificaciones.</p>}
-                    </div>
-                  </div>
-                ) : null}
+              </div>
               </div>
             </div>
-          </div>
         </header>
+
+        <NotificationsPortal
+          open={notificationsOpen}
+          onClose={() => setNotificationsOpen(false)}
+          unreadCount={unreadNotifications.length}
+          notifications={targetedNotifications}
+          profile={profile}
+          onOpenNotification={openNotification}
+          onMarkAllRead={markAllNotificationsRead}
+          isNotificationEntityDeleted={isNotificationEntityDeleted}
+        />
 
         <div className="mx-auto max-w-7xl min-w-0 px-4 py-5 md:px-8 md:py-6">
           {availableUpdate && !updateHidden ? (
