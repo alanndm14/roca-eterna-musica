@@ -19,7 +19,9 @@ import { getReplacementCandidates, reviewServiceSchedule } from "../services/sma
 import { cleanupExpiredTemporaryServicePdfs, deleteTemporaryServicePdf, getTemporaryServicePdf, saveTemporaryServicePdf } from "../services/temporaryServicePdfStore";
 import {
   SPECIAL_PROGRAM_TYPES,
+  SPECIAL_SONG_POSITIONS,
   SpecialProgramDocument,
+  buildSpecialProgramFromSchedule,
   emptySpecialProgramItem,
   isSpecialService,
   normalizeSpecialProgramItems
@@ -40,6 +42,18 @@ const toLocalDateString = (date) => {
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 };
+
+function getScheduledSongOptions(schedule = {}, songs = []) {
+  return (schedule.songs || []).map((entry, index) => {
+    const fullSong = songs.find((song) => song.id === entry.songId);
+    return {
+      id: entry.songId || `${entry.titleSnapshot}-${index}`,
+      songId: entry.songId || "",
+      title: entry.titleSnapshot || fullSong?.title || "Canto",
+      fullSong
+    };
+  });
+}
 
 function MusicianScheduleCalendar({ schedules, selectedDate, onSelectDate }) {
   const [cursor, setCursor] = useState(() => new Date(`${selectedDate || todayString()}T00:00:00`));
@@ -186,6 +200,8 @@ export function MusicianView() {
   );
   const activePdfSong = serviceSongs[activePdfIndex] || serviceSongs[0];
   const selectedIsSpecial = isSpecialService(selectedSchedule);
+  const scheduledProgramSongs = useMemo(() => getScheduledSongOptions(selectedSchedule, songs), [selectedSchedule, songs]);
+  const specialProgramExists = normalizeSpecialProgramItems(selectedSchedule?.specialProgram || []).length > 0;
   const serviceReview = useMemo(
     () => selectedSchedule ? reviewServiceSchedule(selectedSchedule, songs, schedules) : null,
     [schedules, selectedSchedule, songs]
@@ -339,7 +355,7 @@ export function MusicianView() {
 
   const openSpecialProgramEditor = () => {
     const items = normalizeSpecialProgramItems(selectedSchedule?.specialProgram || []);
-    setProgramDraft(items.length ? items : [emptySpecialProgramItem(1)]);
+    setProgramDraft(items.length ? items : buildSpecialProgramFromSchedule(selectedSchedule));
     setShowSpecialProgramEditor(true);
   };
 
@@ -348,8 +364,9 @@ export function MusicianView() {
       if (itemIndex !== index) return item;
       const next = { ...item, [field]: value };
       if (field === "songId" && value) {
+        const option = getScheduledSongOptions(selectedSchedule, songs).find((entry) => entry.songId === value);
         const song = songs.find((entry) => entry.id === value);
-        if (song && !next.title) next.title = song.title;
+        if (option || song) next.title = option?.title || song?.title || next.title;
       }
       return next;
     }));
@@ -516,12 +533,12 @@ export function MusicianView() {
               {canEdit ? (
                 <Button variant="secondary" onClick={openSpecialProgramEditor}>
                   <Pencil className="h-4 w-4" />
-                  Editar programa
+                  {specialProgramExists ? "Editar programa especial" : "Crear programa especial"}
                 </Button>
               ) : null}
               <Button variant="secondary" onClick={viewSpecialProgram}>
                 <Eye className="h-4 w-4" />
-                Ver programa
+                Ver programa especial
               </Button>
             </div>
           </div>
@@ -627,7 +644,7 @@ export function MusicianView() {
         </div>
       </Modal>
 
-      <Modal open={showSpecialProgramEditor} title="Editar programa especial" onClose={() => setShowSpecialProgramEditor(false)} wide>
+      <Modal open={showSpecialProgramEditor} title={specialProgramExists ? "Editar programa especial" : "Crear programa especial"} onClose={() => setShowSpecialProgramEditor(false)} wide>
         <div className="space-y-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm leading-6 text-ink/60">Agrega el orden completo del servicio especial. Esto no reemplaza la lista normal de cantos.</p>
@@ -653,12 +670,19 @@ export function MusicianView() {
                   </Field>
                 </div>
                 {item.type === "Canto" ? (
-                  <Field label="Canto relacionado opcional" className="mt-3">
-                    <Select value={item.songId || ""} onChange={(event) => updateProgramItem(index, "songId", event.target.value)}>
-                      <option value="">Sin canto relacionado</option>
-                      {songs.map((song) => <option key={song.id} value={song.id}>{song.title}</option>)}
-                    </Select>
-                  </Field>
+                  <div className="mt-3 grid gap-3 md:grid-cols-2">
+                    <Field label="Canto de esta programación">
+                      <Select value={item.songId || ""} onChange={(event) => updateProgramItem(index, "songId", event.target.value)}>
+                        <option value="">Selecciona un canto programado</option>
+                        {scheduledProgramSongs.map((song) => <option key={song.id} value={song.songId}>{song.title}</option>)}
+                      </Select>
+                    </Field>
+                    <Field label="Posición musical">
+                      <Select value={item.position || "Antes de la prédica"} onChange={(event) => updateProgramItem(index, "position", event.target.value)}>
+                        {SPECIAL_SONG_POSITIONS.map((position) => <option key={position} value={position}>{position}</option>)}
+                      </Select>
+                    </Field>
+                  </div>
                 ) : null}
                 <Field label="Notas opcionales" className="mt-3">
                   <Textarea value={item.notes || ""} onChange={(event) => updateProgramItem(index, "notes", event.target.value)} />
@@ -747,8 +771,8 @@ export function MusicianView() {
         </div>
       </Modal>
 
-      <Modal open={Boolean(replaceTarget)} title="Sustitución inteligente" onClose={() => setReplaceTarget(null)} wide>
-        <div className="space-y-4">
+      <Modal open={Boolean(replaceTarget)} title="Sustitución inteligente" onClose={() => setReplaceTarget(null)} wide panelClassName="flex max-h-[92dvh] flex-col pb-[calc(env(safe-area-inset-bottom)+1rem)] md:max-h-[90dvh]">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain pr-1 touch-pan-y">
           <div className="overflow-hidden rounded-[1.75rem] border border-brass/25 bg-[linear-gradient(135deg,rgba(255,255,255,0.82),rgba(182,148,95,0.12))] p-4 shadow-soft backdrop-blur-xl dark:bg-white/8">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -764,7 +788,7 @@ export function MusicianView() {
               Las sugerencias comparan tema, categoría, tonalidad, Keynote, PDF disponible y rotación reciente.
             </p>
           </div>
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid gap-3 pb-4 md:grid-cols-2">
             {replacementSuggestions.map((item) => (
               <RecommendationCard
                 key={item.song.id}

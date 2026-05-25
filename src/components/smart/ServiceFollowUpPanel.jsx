@@ -18,11 +18,13 @@ function buildInitialFollowUp(schedule = {}) {
   const existing = schedule.serviceFollowUp || {};
   const songs = {};
   (schedule.songs || []).forEach((entry) => {
+    const existingSong = existing.songs?.[entry.songId || entry.titleSnapshot] || {};
     songs[entry.songId || entry.titleSnapshot] = {
       ...songDefault,
-      ...(existing.songs?.[entry.songId || entry.titleSnapshot] || {}),
+      ...existingSong,
       songId: entry.songId || "",
-      title: entry.titleSnapshot || "Canto"
+      title: entry.titleSnapshot || "Canto",
+      notes: existingSong.notes || existingSong.resourceIssues || ""
     };
   });
   return {
@@ -85,22 +87,13 @@ export function ServiceFollowUpPanel({ schedule, canEdit = false, onSave, onClos
       </div>
 
       <div className="mt-4 grid gap-3 md:grid-cols-2">
-        <Field label="¿Cómo estuvo el servicio?">
+        <Field label="Resumen del servicio">
           <Textarea value={draft.overall} onChange={(event) => update("overall", event.target.value)} disabled={!canEdit} />
         </Field>
-        <Field label="Qué salió bien">
-          <Textarea value={draft.wentWell} onChange={(event) => update("wentWell", event.target.value)} disabled={!canEdit} />
-        </Field>
-        <Field label="Qué faltó mejorar">
-          <Textarea value={draft.needsImprovement} onChange={(event) => update("needsImprovement", event.target.value)} disabled={!canEdit} />
-        </Field>
-        <Field label="Notas para próximos servicios">
+        <Field label="Mejoras para próximos servicios">
           <Textarea value={draft.nextServiceNotes} onChange={(event) => update("nextServiceNotes", event.target.value)} disabled={!canEdit} />
         </Field>
       </div>
-      <Field label="Observaciones generales" className="mt-3">
-        <Textarea value={draft.generalObservations} onChange={(event) => update("generalObservations", event.target.value)} disabled={!canEdit} />
-      </Field>
 
       <div className="mt-5 grid gap-3">
         <p className="text-sm font-black uppercase tracking-wide text-ink/45">Notas por canto</p>
@@ -140,14 +133,9 @@ export function ServiceFollowUpPanel({ schedule, canEdit = false, onSave, onClos
                   </Select>
                 </Field>
               </div>
-              <div className="mt-3 grid gap-3 md:grid-cols-2">
-                <Field label="Problemas con PDF/Keynote">
-                  <Textarea value={songDraft.resourceIssues} onChange={(event) => updateSong(key, "resourceIssues", event.target.value)} disabled={!canEdit} />
-                </Field>
-                <Field label="Notas libres">
-                  <Textarea value={songDraft.notes} onChange={(event) => updateSong(key, "notes", event.target.value)} disabled={!canEdit} />
-                </Field>
-              </div>
+              <Field label="Notas del canto" className="mt-3">
+                <Textarea value={songDraft.notes} onChange={(event) => updateSong(key, "notes", event.target.value)} disabled={!canEdit} />
+              </Field>
             </article>
           );
         })}

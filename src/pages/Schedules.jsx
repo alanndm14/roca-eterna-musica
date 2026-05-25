@@ -17,8 +17,10 @@ import { downloadBlob } from "../services/mergeServicePdfs";
 import { reviewServiceSchedule } from "../services/smartRecommendations";
 import {
   SPECIAL_PROGRAM_TYPES,
+  SPECIAL_SONG_POSITIONS,
   SpecialProgramDocument,
   SpecialProgramFourUpDocument,
+  buildSpecialProgramFromSchedule,
   emptySpecialProgramItem,
   getSpecialProgramFileName,
   isSpecialService,
@@ -405,20 +407,20 @@ function ScheduleCard({
               {canEdit ? (
                 <Button variant="secondary" onClick={() => onEditSpecialProgram(schedule)}>
                   <Edit3 className="h-4 w-4" />
-                  Editar programa
+                  {normalizeSpecialProgramItems(schedule.specialProgram || []).length ? "Editar programa especial" : "Crear programa especial"}
                 </Button>
               ) : null}
               <Button variant="secondary" onClick={() => onViewSpecialProgram(schedule)}>
                 <Eye className="h-4 w-4" />
-                Ver programa
+                Vista previa
               </Button>
               <Button onClick={() => onPrintSpecialProgram(schedule)}>
                 <Printer className="h-4 w-4" />
-                Imprimir programa
+                Imprimir programa especial
               </Button>
               <Button variant="secondary" onClick={() => onPrintSpecialProgramFourUp(schedule)}>
                 <Download className="h-4 w-4" />
-                4 programas por hoja
+                2 programas por hoja
               </Button>
             </div>
           </div>
@@ -503,7 +505,7 @@ export function Schedules() {
   const openSpecialProgramEditor = (schedule) => {
     const items = normalizeSpecialProgramItems(schedule?.specialProgram || []);
     setSpecialProgramSchedule(schedule);
-    setProgramDraft(items.length ? items : [emptySpecialProgramItem(1)]);
+    setProgramDraft(items.length ? items : buildSpecialProgramFromSchedule(schedule));
   };
 
   const updateProgramItem = (index, field, value) => {
@@ -511,8 +513,9 @@ export function Schedules() {
       if (itemIndex !== index) return item;
       const next = { ...item, [field]: value };
       if (field === "songId" && value) {
+        const option = getScheduledSongOptions(specialProgramSchedule, songs).find((entry) => entry.songId === value);
         const song = songs.find((entry) => entry.id === value);
-        if (song && !next.title) next.title = song.title;
+        if (option || song) next.title = option?.title || song?.title || next.title;
       }
       return next;
     }));
@@ -563,8 +566,11 @@ export function Schedules() {
 
   const printSpecialProgramFourUp = async (schedule) => {
     const blob = await pdf(<SpecialProgramFourUpDocument schedule={schedule} songs={songs} settings={settings} />).toBlob();
-    downloadBlob(blob, getSpecialProgramFileName(schedule, " 4 por hoja"));
+    downloadBlob(blob, getSpecialProgramFileName(schedule, " 2 por hoja"));
   };
+
+  const scheduledProgramSongs = getScheduledSongOptions(specialProgramSchedule, songs);
+  const specialProgramExists = normalizeSpecialProgramItems(specialProgramSchedule?.specialProgram || []).length > 0;
 
   return (
     <div className="space-y-5">
@@ -661,7 +667,7 @@ export function Schedules() {
           }}
         />
       </Modal>
-      <Modal open={Boolean(specialProgramSchedule)} title="Editar programa especial" onClose={() => setSpecialProgramSchedule(null)} wide>
+      <Modal open={Boolean(specialProgramSchedule)} title={specialProgramExists ? "Editar programa especial" : "Crear programa especial"} onClose={() => setSpecialProgramSchedule(null)} wide>
         <div className="space-y-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm leading-6 text-ink/60">Agrega el orden completo del servicio especial. Esto no reemplaza la lista normal de cantos.</p>
@@ -687,12 +693,19 @@ export function Schedules() {
                   </Field>
                 </div>
                 {item.type === "Canto" ? (
-                  <Field label="Canto relacionado opcional" className="mt-3">
-                    <Select value={item.songId || ""} onChange={(event) => updateProgramItem(index, "songId", event.target.value)}>
-                      <option value="">Sin canto relacionado</option>
-                      {songs.map((song) => <option key={song.id} value={song.id}>{song.title}</option>)}
-                    </Select>
-                  </Field>
+                  <div className="mt-3 grid gap-3 md:grid-cols-2">
+                    <Field label="Canto de esta programación">
+                      <Select value={item.songId || ""} onChange={(event) => updateProgramItem(index, "songId", event.target.value)}>
+                        <option value="">Selecciona un canto programado</option>
+                        {scheduledProgramSongs.map((song) => <option key={song.id} value={song.songId}>{song.title}</option>)}
+                      </Select>
+                    </Field>
+                    <Field label="Posición musical">
+                      <Select value={item.position || "Antes de la prédica"} onChange={(event) => updateProgramItem(index, "position", event.target.value)}>
+                        {SPECIAL_SONG_POSITIONS.map((position) => <option key={position} value={position}>{position}</option>)}
+                      </Select>
+                    </Field>
+                  </div>
                 ) : null}
                 <Field label="Notas opcionales" className="mt-3">
                   <Textarea value={item.notes || ""} onChange={(event) => updateProgramItem(index, "notes", event.target.value)} />
@@ -722,4 +735,16 @@ export function Schedules() {
       </Modal>
     </div>
   );
+}
+
+function getScheduledSongOptions(schedule = {}, songs = []) {
+  return (schedule.songs || []).map((entry, index) => {
+    const fullSong = songs.find((song) => song.id === entry.songId);
+    return {
+      id: entry.songId || `${entry.titleSnapshot}-${index}`,
+      songId: entry.songId || "",
+      title: entry.titleSnapshot || fullSong?.title || "Canto",
+      fullSong
+    };
+  });
 }

@@ -1,6 +1,29 @@
-export const appVersion = "0.9.96";
+export const appVersion = "0.9.97";
 
 export const changelog = [
+  {
+    version: "0.9.97",
+    date: "2026-05-25",
+    title: "Programas especiales y Vista de músicos",
+    added: [
+      "Programa especial en hoja carta horizontal con 2 copias por hoja",
+      "Posiciones musicales simples para servicios especiales: Apertura, Antes de la prédica y Después de la prédica",
+      "Editor especial que arranca desde los cantos ya incluidos en la programación"
+    ],
+    changed: [
+      "El selector de canto del programa especial solo muestra cantos de esa programación",
+      "La Vista de músicos mantiene solo acciones simples para ver o editar el programa especial",
+      "El seguimiento del servicio fusiona comentarios abiertos para que la evaluación sea más rápida"
+    ],
+    fixed: [
+      "Corrección del scroll en Sustitución inteligente desde Vista de músicos",
+      "La impresión especial usa el programa guardado o genera uno básico desde la programación",
+      "El snapshot de cierre toma notas desde los campos visibles del seguimiento"
+    ],
+    pending: [
+      "Validar el formato impreso con una impresora real antes de producir muchos programas"
+    ]
+  },
   {
     version: "0.9.96",
     date: "2026-05-25",

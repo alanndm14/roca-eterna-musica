@@ -12,9 +12,15 @@ export const SPECIAL_PROGRAM_TYPES = [
   "Ofrendas",
   "Predicación",
   "Santa cena",
-  "Avisos",
+  "Anuncios",
   "Participación especial",
   "Otro"
+];
+
+export const SPECIAL_SONG_POSITIONS = [
+  "Apertura",
+  "Antes de la prédica",
+  "Después de la prédica"
 ];
 
 const specialWords = /(especial|aniversario|congreso|vigilia|evento|conferencia|santa cena especial|retiro|campamento)/i;
@@ -33,21 +39,47 @@ export function emptySpecialProgramItem(order = 1) {
     type: "Canto",
     title: "",
     notes: "",
-    songId: ""
+    songId: "",
+    position: "Antes de la prédica"
   };
+}
+
+export function getSpecialSongPosition(index = 0, total = 1, item = {}) {
+  if (SPECIAL_SONG_POSITIONS.includes(item.position)) return item.position;
+  if (index === 0) return "Apertura";
+  if (index === Math.max(0, total - 1)) return "Después de la prédica";
+  return "Antes de la prédica";
 }
 
 export function normalizeSpecialProgramItems(items = []) {
   return (Array.isArray(items) ? items : [])
-    .map((item, index) => ({
+    .map((item, index, source) => ({
       order: Number(item.order || index + 1),
-      type: item.type || "Otro",
+      type: item.type === "Avisos" ? "Anuncios" : item.type || "Otro",
       title: item.title || item.description || "",
       notes: item.notes || "",
-      songId: item.songId || ""
+      songId: item.songId || "",
+      position: getSpecialSongPosition(index, source.length, item)
     }))
     .sort((a, b) => a.order - b.order)
     .map((item, index) => ({ ...item, order: index + 1 }));
+}
+
+export function buildSpecialProgramFromSchedule(schedule = {}) {
+  const scheduleSongs = Array.isArray(schedule.songs) ? schedule.songs : [];
+  return normalizeSpecialProgramItems(scheduleSongs.map((entry, index) => ({
+    order: index + 1,
+    type: "Canto",
+    title: entry.titleSnapshot || "",
+    notes: entry.notes || "",
+    songId: entry.songId || "",
+    position: getSpecialSongPosition(index, scheduleSongs.length)
+  })));
+}
+
+export function getSpecialProgramItems(schedule = {}) {
+  const savedItems = normalizeSpecialProgramItems(schedule?.specialProgram || []);
+  return savedItems.length ? savedItems : buildSpecialProgramFromSchedule(schedule);
 }
 
 export function getSpecialProgramFileName(schedule, suffix = "") {
@@ -57,6 +89,17 @@ export function getSpecialProgramFileName(schedule, suffix = "") {
 
 function getLogoUrl(settings = {}) {
   return resolvePublicAssetUrl(settings.logoLightUrl || "icons/roca-eterna-logo-light.png");
+}
+
+function getScheduleTheme(schedule = {}) {
+  const directTheme = schedule.theme || schedule.mainTheme || schedule.serviceTheme || "";
+  if (directTheme) return directTheme;
+  const match = String(schedule.generalNotes || "").match(/Tema sugerido:\s*([^.\n]+)/i);
+  return match?.[1]?.trim() || "";
+}
+
+function getScheduleNotes(schedule = {}) {
+  return schedule.specialProgramNotes || schedule.programNotes || schedule.generalNotes || "";
 }
 
 const styles = StyleSheet.create({
@@ -148,14 +191,14 @@ const styles = StyleSheet.create({
   },
   miniGrid: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12
+    gap: 14,
+    height: "100%"
   },
   miniCard: {
-    width: "48%",
-    height: "48%",
-    border: "1px solid #d9d2c7",
-    padding: 12
+    flex: 1,
+    height: "100%",
+    border: "1.2px solid #b6945f",
+    padding: 14
   },
   miniHeader: {
     flexDirection: "row",
@@ -181,6 +224,14 @@ const styles = StyleSheet.create({
     fontSize: 7.5,
     marginBottom: 3,
     lineHeight: 1.25
+  },
+  miniNotes: {
+    marginTop: 6,
+    paddingTop: 5,
+    borderTop: "1px solid #eee4d4",
+    fontSize: 7,
+    color: "#555",
+    lineHeight: 1.25
   }
 });
 
@@ -194,10 +245,17 @@ function itemTitle(item, songs = []) {
 }
 
 function ProgramContent({ schedule, songs, settings, compact = false }) {
-  const items = normalizeSpecialProgramItems(schedule?.specialProgram || []);
+  const items = getSpecialProgramItems(schedule);
   const logo = getLogoUrl(settings);
   const title = getServiceDisplayLabel(schedule);
-  const meta = `${formatDate(schedule?.date)}${schedule?.time ? ` · ${schedule.time}` : ""}${schedule?.leader ? ` · ${schedule.leader}` : ""}`;
+  const theme = getScheduleTheme(schedule);
+  const notes = getScheduleNotes(schedule);
+  const meta = [
+    formatDate(schedule?.date),
+    schedule?.time,
+    schedule?.leader ? `Líder: ${schedule.leader}` : "",
+    theme ? `Tema: ${theme}` : ""
+  ].filter(Boolean).join(" · ");
   const churchName = settings?.churchName || "";
   const showChurchSubtitle = churchName && churchName.toLowerCase() !== "roca eterna";
 
@@ -215,9 +273,10 @@ function ProgramContent({ schedule, songs, settings, compact = false }) {
         </View>
         {items.map((item) => (
           <Text key={`${item.order}-${item.type}-${item.title}`} style={styles.miniItem}>
-            {item.order}. {itemTitle(item, songs)}
+            {item.order}. {item.type === "Canto" ? `${item.position}: ` : ""}{itemTitle(item, songs)}
           </Text>
         ))}
+        {notes ? <Text style={styles.miniNotes}>{notes}</Text> : null}
       </View>
     );
   }
@@ -239,12 +298,14 @@ function ProgramContent({ schedule, songs, settings, compact = false }) {
           <View style={styles.itemBody}>
             <Text style={styles.itemType}>{item.type}</Text>
             <Text style={styles.itemTitle}>{itemTitle(item, songs)}</Text>
+            {item.type === "Canto" ? <Text style={styles.notes}>{item.position}</Text> : null}
             {item.notes ? <Text style={styles.notes}>{item.notes}</Text> : null}
           </View>
         </View>
       )) : (
         <Text style={styles.notes}>Aún no hay elementos en el programa especial.</Text>
       )}
+      {notes ? <Text style={styles.notes}>{notes}</Text> : null}
       <Text style={styles.footer}>Programa generado desde Roca Eterna Música.</Text>
     </>
   );
@@ -262,10 +323,10 @@ export function SpecialProgramDocument({ schedule, songs, settings }) {
 
 export function SpecialProgramFourUpDocument({ schedule, songs, settings }) {
   return (
-    <Document title={getSpecialProgramFileName(schedule, " 4 por hoja").replace(".pdf", "")}>
-      <Page size="LETTER" style={styles.miniPage}>
+    <Document title={getSpecialProgramFileName(schedule, " 2 por hoja").replace(".pdf", "")}>
+      <Page size="LETTER" orientation="landscape" style={styles.miniPage}>
         <View style={styles.miniGrid}>
-          {[0, 1, 2, 3].map((copy) => (
+          {[0, 1].map((copy) => (
             <View key={copy} style={styles.miniCard}>
               <ProgramContent schedule={schedule} songs={songs} settings={settings} compact />
             </View>

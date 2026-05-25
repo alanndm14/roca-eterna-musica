@@ -1,10 +1,10 @@
 {
-  "version": "0.9.96",
+  "version": "0.9.97",
   "date": "2026-05-25",
   "critical": false,
   "changes": [
-    "Filtros avanzados en Historial",
-    "Calendario para seleccionar programaciones en Centro Inteligente",
-    "Correcciones en seguimiento, bienvenida y notificaciones"
+    "Programa especial en hoja horizontal con 2 copias",
+    "Editor especial cargando los cantos ya programados",
+    "Mejoras de scroll en sustitución y seguimiento más simple"
   ]
 }

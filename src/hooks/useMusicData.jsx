@@ -756,7 +756,7 @@ export function MusicDataProvider({ children }) {
       status: "cerrada",
       serviceReviewSnapshot: {
         ...snapshot,
-        notes: followUp.generalObservations || before.serviceReviewSnapshot?.notes || ""
+        notes: followUp.overall || followUp.nextServiceNotes || followUp.generalObservations || before.serviceReviewSnapshot?.notes || ""
       },
       serviceFollowUp: {
         ...(before.serviceFollowUp || {}),
