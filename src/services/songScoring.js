@@ -1,4 +1,5 @@
 import { getSongPdfUrl, normalizeSearchText } from "./songUtils";
+import { formatScheduleDateWithService, getEstimatedServiceEndDate, getScheduleStartDate } from "./dateUtils";
 
 const dayMs = 24 * 60 * 60 * 1000;
 const recentStrongDays = 14;
@@ -13,6 +14,52 @@ export function clampScore(score) {
   const value = Number(score);
   if (!Number.isFinite(value)) return 0;
   return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+const closedStatuses = new Set(["realizado", "realizada", "cerrado", "cerrada", "closed", "done"]);
+
+function isDeletedSchedule(schedule = {}) {
+  return Boolean(schedule.deleted || schedule.active === false || schedule.relatedEntityDeleted);
+}
+
+function scheduleKey(schedule = {}) {
+  return `${schedule.date || ""}|${schedule.time || ""}|${schedule.serviceType || ""}|${schedule.serviceLabel || schedule.type || ""}`;
+}
+
+function sameSchedule(left = {}, right = {}) {
+  if (!left || !right) return false;
+  if (left.id && right.id && left.id === right.id) return true;
+  return Boolean(left.date && right.date && scheduleKey(left) === scheduleKey(right));
+}
+
+function scheduleStartMs(schedule = {}) {
+  const start = getScheduleStartDate(schedule);
+  return start?.getTime?.() || null;
+}
+
+function scheduleEndMs(schedule = {}) {
+  const end = getEstimatedServiceEndDate(schedule);
+  return end?.getTime?.() || null;
+}
+
+export function getScheduleReviewMode(schedule = {}, now = new Date()) {
+  const status = normalizeSearchText(schedule.status || "");
+  if (closedStatuses.has(status)) return "closed";
+  const endMs = scheduleEndMs(schedule);
+  const startMs = scheduleStartMs(schedule);
+  if (endMs && endMs <= now.getTime()) return "past";
+  if (startMs && startMs <= now.getTime() && (!endMs || endMs > now.getTime())) return "current";
+  return "future";
+}
+
+export function getPreviousRealService(currentSchedule = {}, allSchedules = []) {
+  const currentStartMs = scheduleStartMs(currentSchedule);
+  if (!currentStartMs) return null;
+  return [...(Array.isArray(allSchedules) ? allSchedules : [])]
+    .filter((schedule) => schedule?.date && !isDeletedSchedule(schedule) && !sameSchedule(schedule, currentSchedule))
+    .map((schedule) => ({ schedule, startMs: scheduleStartMs(schedule) }))
+    .filter((entry) => entry.startMs && entry.startMs < currentStartMs)
+    .sort((a, b) => b.startMs - a.startMs)[0]?.schedule || null;
 }
 
 const serviceDefaults = {
@@ -98,33 +145,76 @@ export function toSongEntry(song = {}, position = "") {
   };
 }
 
-export function buildUsageIndex(schedules = [], now = new Date()) {
-  const usage = new Map();
+export function getRealSongUsage(songId, schedules = [], options = {}) {
+  const now = options.now || new Date();
+  const beforeMs = options.beforeDateTime ? new Date(options.beforeDateTime).getTime() : null;
+  const excludeScheduleId = options.excludeScheduleId || options.currentSchedule?.id || "";
+  const currentSchedule = options.currentSchedule || null;
+  const usage = { count: 0, monthCount: 0, recent30Count: 0, lastUsedAt: "", lastUsedDays: null, lastSchedule: null, lastFollowUp: null, usedInPreviousService: false };
   const currentMonth = now.toISOString().slice(0, 7);
-  const pastSchedules = [...schedules]
-    .filter((schedule) => !schedule.deleted && schedule.date && new Date(`${schedule.date}T${schedule.time || "00:00"}`) <= now)
-    .sort((a, b) => `${b.date}${b.time || ""}`.localeCompare(`${a.date}${a.time || ""}`));
-  const previousService = pastSchedules[0] || null;
+  const previousService = currentSchedule ? getPreviousRealService(currentSchedule, schedules) : null;
+
+  (Array.isArray(schedules) ? schedules : []).forEach((schedule) => {
+    if (!schedule?.date || isDeletedSchedule(schedule)) return;
+    if (excludeScheduleId && schedule.id === excludeScheduleId) return;
+    if (currentSchedule && sameSchedule(schedule, currentSchedule)) return;
+    const startMs = scheduleStartMs(schedule);
+    if (!startMs) return;
+    if (beforeMs && startMs >= beforeMs) return;
+    if (!beforeMs && startMs > now.getTime()) return;
+    const countedInSchedule = new Set((schedule.songs || []).map((entry) => entry.songId).filter(Boolean));
+    if (!countedInSchedule.has(songId)) return;
+
+    const daysFromService = Math.floor((now.getTime() - startMs) / dayMs);
+    usage.count += 1;
+    if (String(schedule.date).startsWith(currentMonth)) usage.monthCount += 1;
+    if (daysFromService >= 0 && daysFromService <= recentWindowDays) usage.recent30Count += 1;
+    if (!usage.lastSchedule || startMs > scheduleStartMs(usage.lastSchedule)) {
+      usage.lastSchedule = schedule;
+      usage.lastUsedAt = schedule.date;
+      usage.lastUsedDays = daysFromService;
+      usage.lastFollowUp = getSongFollowUp(schedule, songId);
+    }
+    if (previousService?.id && schedule.id === previousService.id) usage.usedInPreviousService = true;
+  });
+
+  return usage;
+}
+
+export function buildUsageIndex(schedules = [], now = new Date(), options = {}) {
+  const usage = new Map();
+  const currentSchedule = options.currentSchedule || null;
+  const beforeDateTime = options.beforeDateTime || (currentSchedule ? getScheduleStartDate(currentSchedule)?.toISOString() : "");
+  const previousService = currentSchedule
+    ? getPreviousRealService(currentSchedule, schedules)
+    : [...schedules]
+      .filter((schedule) => !isDeletedSchedule(schedule) && schedule.date && scheduleStartMs(schedule) && scheduleStartMs(schedule) <= now.getTime())
+      .sort((a, b) => (scheduleStartMs(b) || 0) - (scheduleStartMs(a) || 0))[0] || null;
 
   schedules.forEach((schedule) => {
-    if (!schedule.date || schedule.deleted) return;
-    const scheduleDate = new Date(`${schedule.date}T${schedule.time || "00:00"}`);
-    const isFuture = scheduleDate > now;
+    if (!schedule.date || isDeletedSchedule(schedule)) return;
+    if (options.excludeScheduleId && schedule.id === options.excludeScheduleId) return;
+    if (currentSchedule && sameSchedule(schedule, currentSchedule)) return;
+    const startMs = scheduleStartMs(schedule);
+    if (!startMs) return;
+    if (beforeDateTime && startMs >= new Date(beforeDateTime).getTime()) return;
+    const isFuture = startMs > now.getTime();
     const countedInSchedule = new Set();
     (schedule.songs || []).forEach((entry) => {
       if (!entry.songId) return;
       if (countedInSchedule.has(entry.songId)) return;
       countedInSchedule.add(entry.songId);
-      const current = usage.get(entry.songId) || { count: 0, monthCount: 0, recent30Count: 0, lastUsedAt: "", lastUsedDays: null, lastSchedule: null, usedInPreviousService: false };
+      const current = usage.get(entry.songId) || { count: 0, monthCount: 0, recent30Count: 0, lastUsedAt: "", lastUsedDays: null, lastSchedule: null, lastFollowUp: null, usedInPreviousService: false };
       if (!isFuture) {
-        const daysFromService = Math.floor((now.getTime() - scheduleDate.getTime()) / dayMs);
+        const daysFromService = Math.floor((now.getTime() - startMs) / dayMs);
         current.count += 1;
-        if (String(schedule.date).startsWith(currentMonth)) current.monthCount += 1;
+        if (String(schedule.date).startsWith(now.toISOString().slice(0, 7))) current.monthCount += 1;
         if (daysFromService >= 0 && daysFromService <= recentWindowDays) current.recent30Count += 1;
-        if (!current.lastSchedule || `${schedule.date}${schedule.time || ""}` > `${current.lastSchedule.date}${current.lastSchedule.time || ""}`) {
+        if (!current.lastSchedule || startMs > scheduleStartMs(current.lastSchedule)) {
           current.lastSchedule = schedule;
           current.lastUsedAt = schedule.date;
           current.lastUsedDays = daysFromService;
+          current.lastFollowUp = getSongFollowUp(schedule, entry.songId);
         }
         if (previousService?.id && schedule.id === previousService.id) current.usedInPreviousService = true;
       }
@@ -200,6 +290,11 @@ function addUniqueReason(list, reason) {
 
 function pluralizeUse(count = 0) {
   return `${count} ${count === 1 ? "vez" : "veces"}`;
+}
+
+function getSongFollowUp(schedule = {}, songId = "") {
+  if (!songId) return null;
+  return schedule.serviceFollowUp?.songs?.[songId] || null;
 }
 
 export function songHasPdf(song = {}) {
@@ -360,6 +455,16 @@ export function scoreSong(song = {}, options = {}, context = {}) {
   if (usage.usedInPreviousService) {
     addPenalty(25, "Se usó en el servicio anterior");
   }
+  if (usage.lastFollowUp?.result === "no-funciono") {
+    addPenalty(6, "Nota anterior: no funcionó bien");
+  } else if (usage.lastFollowUp?.result === "regular") {
+    addWarning("Nota anterior: funcionó regular");
+  } else if (usage.lastFollowUp?.result === "bien") {
+    addWarning("Nota anterior: funcionó bien");
+  }
+  if (usage.lastFollowUp?.keyComfort === "alta") addWarning("Observación previa: tono alto para la congregación");
+  if (usage.lastFollowUp?.keyComfort === "baja") addWarning("Observación previa: tono bajo para la congregación");
+  if (usage.lastFollowUp?.resourceIssues) addWarning("Observación previa: revisar PDF/Keynote");
   if (scheduledIds.has(song.id)) {
     addPenalty(10, "Ya aparece en la programación seleccionada");
   }
@@ -401,7 +506,11 @@ export function scoreSong(song = {}, options = {}, context = {}) {
 }
 
 export function getSongRecommendations(songs = [], schedules = [], options = {}) {
-  const usageIndex = options.usageIndex || buildUsageIndex(schedules);
+  const usageIndex = options.usageIndex || buildUsageIndex(schedules, new Date(), {
+    currentSchedule: options.currentSchedule,
+    excludeScheduleId: options.currentSchedule?.id,
+    beforeDateTime: options.currentSchedule ? getScheduleStartDate(options.currentSchedule)?.toISOString() : options.beforeDateTime
+  });
   const scheduledIds = new Set((options.currentSchedule?.songs || []).map((entry) => entry.songId).filter(Boolean));
   return songs
     .filter((song) => song?.id && !song.deleted)
@@ -427,7 +536,11 @@ export function createSuggestedServiceBlock(songs = [], schedules = [], options 
   const selected = [];
   const selectedIds = new Set();
   const usedKeys = new Map();
-  const usageIndex = buildUsageIndex(schedules);
+  const usageIndex = buildUsageIndex(schedules, new Date(), {
+    currentSchedule: options.currentSchedule,
+    excludeScheduleId: options.currentSchedule?.id,
+    beforeDateTime: options.currentSchedule ? getScheduleStartDate(options.currentSchedule)?.toISOString() : options.beforeDateTime
+  });
   const seed = Number(options.seed || 0);
   let completedWithFallback = false;
 
@@ -500,6 +613,18 @@ export function getReplacementCandidates(currentSong = {}, songs = [], schedules
 }
 
 export function reviewServiceSchedule(schedule = {}, songs = [], schedules = []) {
+  const mode = getScheduleReviewMode(schedule);
+  if ((mode === "past" || mode === "closed") && schedule.serviceReviewSnapshot?.readinessPercent !== undefined) {
+    return {
+      score: clampScore(schedule.serviceReviewSnapshot.readinessPercent),
+      status: schedule.serviceReviewSnapshot.status || schedule.serviceReviewSnapshot.riskLevel || "Revisión guardada",
+      mode,
+      snapshot: true,
+      subtitle: "Estado al cierre del servicio",
+      alerts: schedule.serviceReviewSnapshot.alerts || [],
+      groups: schedule.serviceReviewSnapshot.groups || []
+    };
+  }
   const songById = new Map(songs.map((song) => [song.id, song]));
   const entries = schedule?.songs || [];
   const alerts = [];
@@ -513,7 +638,12 @@ export function reviewServiceSchedule(schedule = {}, songs = [], schedules = [])
   };
   let score = 100;
   const themes = new Map();
-  const usageIndex = buildUsageIndex(schedules.length ? schedules : [schedule]);
+  const usageIndex = buildUsageIndex(schedules.length ? schedules : [schedule], new Date(), {
+    currentSchedule: schedule,
+    excludeScheduleId: schedule.id,
+    beforeDateTime: getScheduleStartDate(schedule)?.toISOString()
+  });
+  const previousRealService = getPreviousRealService(schedule, schedules.length ? schedules : [schedule]);
 
   entries.forEach((entry) => {
     const song = songById.get(entry.songId) || entry;
@@ -550,7 +680,7 @@ export function reviewServiceSchedule(schedule = {}, songs = [], schedules = [])
     const usage = usageIndex.usage.get(entry.songId);
     if (usage?.usedInPreviousService) {
       score -= 8;
-      groups.rotation.items.push(`${title}: usado en el servicio anterior`);
+      groups.rotation.items.push(`${title}: usado en el servicio anterior (${previousRealService ? formatScheduleDateWithService(previousRealService) : "servicio previo"})`);
     }
     if ((usage?.recent30Count || usage?.monthCount || 0) >= 3) {
       score -= 5;
@@ -583,7 +713,54 @@ export function reviewServiceSchedule(schedule = {}, songs = [], schedules = [])
   return {
     score: finalScore,
     status: finalScore >= 90 ? "Listo" : finalScore >= 70 ? "Casi listo" : finalScore >= 50 ? "Revisar" : "Riesgo alto",
+    mode,
+    snapshot: false,
+    subtitle: mode === "past" ? "Estimación basada en datos actuales" : "Revisión actual",
+    previousService: previousRealService ? {
+      id: previousRealService.id || "",
+      label: formatScheduleDateWithService(previousRealService),
+      date: previousRealService.date || "",
+      time: previousRealService.time || ""
+    } : null,
     alerts,
     groups: Object.values(groups).filter((group) => group.items.length)
+  };
+}
+
+export function createServiceReviewSnapshot(review = {}, schedule = {}, songs = []) {
+  const countItems = (title) => (review.groups || []).find((group) => group.title === title)?.items || [];
+  const songById = new Map(songs.map((song) => [song.id, song]));
+  return {
+    readinessPercent: clampScore(review.score),
+    status: review.status || "",
+    riskLevel: review.status || "",
+    checkedAt: new Date().toISOString(),
+    scheduleId: schedule.id || "",
+    scheduleLabel: formatScheduleDateWithService(schedule),
+    missingKeynote: countItems("Faltan revisiones").filter((item) => normalizeSearchText(item).includes("keynote")).length,
+    missingPdfReview: countItems("Faltan revisiones").filter((item) => normalizeSearchText(item).includes("pdf")).length,
+    missingPdfDrive: countItems("Faltan enlaces").length,
+    missingLocalPdf: countItems("Faltan archivos").length,
+    missingTone: countItems("Datos musicales incompletos").filter((item) => normalizeSearchText(item).includes("tono")).length,
+    missingTheme: countItems("Datos musicales incompletos").filter((item) => normalizeSearchText(item).includes("tema")).length,
+    informationalMissingYoutube: countItems("Enlaces de escucha").filter((item) => normalizeSearchText(item).includes("youtube")).length,
+    informationalMissingSpotify: countItems("Enlaces de escucha").filter((item) => normalizeSearchText(item).includes("spotify")).length,
+    repeatedSongsWarnings: countItems("Rotaci贸n").concat(countItems("Rotacion")),
+    alerts: review.alerts || [],
+    groups: review.groups || [],
+    notes: "",
+    songIssues: (schedule.songs || []).map((entry) => {
+      const song = songById.get(entry.songId) || entry;
+      return {
+        songId: entry.songId || "",
+        title: song.title || entry.titleSnapshot || "Canto",
+        keynotePending: song.keynoteReviewStatus !== "completado",
+        pdfReviewPending: song.pdfReviewStatus !== "completado",
+        missingPdf: !songHasPdf(song) && !entry.pdfUrl,
+        missingLocalPdf: !song.localPdfPath,
+        missingTone: !song.mainKey && !song.keyWithCapo && !entry.keySnapshot,
+        missingTheme: !song.mainTheme
+      };
+    })
   };
 }

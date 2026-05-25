@@ -55,6 +55,7 @@ export function Dashboard() {
   const { songs = [], schedules = [] } = useMusicData();
   const [now, setNow] = useState(() => new Date());
   const [pushPrompt, setPushPrompt] = useState({ checked: false, show: false, status: "" });
+  const [activatingPushPrompt, setActivatingPushPrompt] = useState(false);
   const isViewer = profile?.role === "viewer";
   const upcoming = useMemo(() => getCurrentOrNextSchedule(schedules, now), [schedules, now]);
   const missingPdfLinks = songs.filter((song) => !getSongPdfUrl(song)).length;
@@ -96,12 +97,29 @@ export function Dashboard() {
   }, [profile?.uid, profile?.dismissedPushPromptByUser]);
 
   const activatePushFromPrompt = async () => {
-    const result = await enablePushNotificationsForUser(profile);
-    setPushPrompt({
-      checked: true,
-      show: !(result.supported && (result.tokenObtained || result.firestoreWrite === "permitida")),
-      status: result.reason || (result.supported ? "Notificaciones activadas." : "No se pudieron activar las notificaciones.")
-    });
+    setActivatingPushPrompt(true);
+    try {
+      if (profile?.uid) localStorage.removeItem(`roca-eterna-push-prompt-dismissed-${profile.uid}`);
+      const result = await enablePushNotificationsForUser(profile);
+      const registered = Boolean(
+        result.supported
+        && (result.tokenObtained || result.tokenPath || result.firestoreWrite === "permitida" || result.firestoreWrite === "token existente")
+      );
+      if (registered) {
+        await saveUserPreferences?.({
+          dismissedPushPromptByUser: false,
+          pushNotificationsEnabled: true,
+          pushNotificationsEnabledAt: new Date().toISOString()
+        });
+      }
+      setPushPrompt({
+        checked: true,
+        show: !registered,
+        status: result.reason || (registered ? "Notificaciones activadas en este dispositivo." : "No se pudieron activar las notificaciones.")
+      });
+    } finally {
+      setActivatingPushPrompt(false);
+    }
   };
 
   const dismissPushPrompt = async () => {
@@ -126,7 +144,7 @@ export function Dashboard() {
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button onClick={activatePushFromPrompt}>Activar notificaciones</Button>
+              <Button isLoading={activatingPushPrompt} disabled={activatingPushPrompt} onClick={activatePushFromPrompt}>Activar notificaciones</Button>
               <Button variant="subtle" onClick={dismissPushPrompt}>Ahora no</Button>
             </div>
           </div>

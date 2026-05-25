@@ -27,7 +27,7 @@ export function WelcomeSplash({
 
   return (
     <motion.div
-      className="flex min-h-screen items-center justify-center bg-stonewash p-6 text-ink"
+      className="flex min-h-screen items-center justify-center bg-stonewash p-6 text-ink dark:bg-zinc-950 dark:text-white"
       initial={{ opacity: 0 }}
       animate={{ opacity: leaving ? 0 : 1 }}
       transition={{ duration: reduceMotion ? 0.15 : 0.5, ease: "easeInOut" }}
@@ -66,7 +66,7 @@ export function WelcomeSplash({
           Roca Eterna Música
         </motion.p>
         <motion.p
-          className="mt-2 text-sm font-semibold text-ink/55"
+          className="mt-2 text-sm font-semibold text-ink/55 dark:text-white/65"
           initial={reduceMotion ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 1.18, duration: 0.45 }}
@@ -74,7 +74,7 @@ export function WelcomeSplash({
           Preparando tu repertorio...
         </motion.p>
         <motion.p
-          className="mt-3 text-xs font-bold uppercase tracking-wide text-ink/40"
+          className="mt-3 text-xs font-bold uppercase tracking-wide text-ink/55 dark:text-white/75"
           initial={reduceMotion ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 1.28, duration: 0.4 }}

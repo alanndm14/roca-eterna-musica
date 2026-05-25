@@ -19,7 +19,7 @@ import { Select } from "../components/ui/Field";
 import { SongNameLink, findSongForNavigation } from "../components/ui/SongNameLink";
 import { StatCard } from "../components/ui/StatCard";
 import { useMusicData } from "../hooks/useMusicData";
-import { formatDate, formatScheduleDateWithService } from "../services/dateUtils";
+import { formatDate, formatScheduleDateWithService, getPastSchedules } from "../services/dateUtils";
 import { collectSongThemes, getSongPdfUrl, normalizeThemeName, stripAccents } from "../services/songUtils";
 
 const chartColors = ["#b6945f", "#60717d", "#8e989f", "#d7c7a7", "#6e6251", "#b8b0a4"];
@@ -221,7 +221,7 @@ export function Stats() {
     }))
   ), [filteredSongs]);
 
-  const realSchedules = schedules.filter((schedule) => schedule.status === "realizado" || (schedule.date && schedule.date < new Date().toISOString().slice(0, 10)));
+  const realSchedules = getPastSchedules(schedules).filter((schedule) => !schedule.deleted);
   const programmedSongEntries = realSchedules.flatMap((schedule) => (schedule.songs || []).map((entry) => ({ ...entry, schedule })));
   const programmedThemes = toChartData(countBy(programmedSongEntries, (entry) => {
     const song = findSongForNavigation({ songId: entry.songId, title: entry.titleSnapshot, songs });

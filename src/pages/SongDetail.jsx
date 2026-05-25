@@ -8,7 +8,7 @@ import { FileDiagnosticPanel } from "../components/ui/FileDiagnosticPanel";
 import { Modal } from "../components/ui/Modal";
 import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
-import { formatDate, formatScheduleDateWithService, getCurrentOrNextSchedule, getServiceDisplayLabel } from "../services/dateUtils";
+import { formatDate, formatScheduleDateWithService, getCurrentOrNextSchedule, getPastSchedules, getServiceDisplayLabel } from "../services/dateUtils";
 import { testPublicPdfPath } from "../services/publicPdfTools";
 import {
   getSongExternalChordsUrl,
@@ -61,8 +61,8 @@ export function SongDetail() {
   const externalChordsUrl = getSongExternalChordsUrl(song);
   const lyricsSections = (song.lyricsSections || []).filter((section) => section.text?.trim());
   const themeOptions = collectSongThemes(songs, themes);
-  const usage = schedules
-    .filter((schedule) => schedule.songs?.some((item) => item.songId === song.id))
+  const usage = getPastSchedules(schedules)
+    .filter((schedule) => !schedule.deleted && schedule.songs?.some((item) => item.songId === song.id))
     .sort((a, b) => `${b.date}${b.time || ""}`.localeCompare(`${a.date}${a.time || ""}`));
   const toneSummary = Number(song.capo || 0) > 0
     ? `Capo ${song.capo} · Suena en ${song.keyWithCapo || song.mainKey || "--"}`

@@ -8,6 +8,7 @@ import { Field, Input, Select, Textarea } from "../components/ui/Field";
 import { Modal } from "../components/ui/Modal";
 import { SongNameLink } from "../components/ui/SongNameLink";
 import { ServiceReviewPanel } from "../components/smart/ServiceReviewPanel";
+import { ServiceFollowUpPanel } from "../components/smart/ServiceFollowUpPanel";
 import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
 import { formatDate, todayString } from "../services/dateUtils";
@@ -343,7 +344,9 @@ function ScheduleCard({
   onEditSpecialProgram,
   onViewSpecialProgram,
   onPrintSpecialProgram,
-  onPrintSpecialProgramFourUp
+  onPrintSpecialProgramFourUp,
+  onSaveFollowUp,
+  onCloseService
 }) {
   const special = isSpecialService(schedule);
   const [reviewOpen, setReviewOpen] = useState(false);
@@ -377,6 +380,17 @@ function ScheduleCard({
       <div className="mt-5">
         <ServiceReviewPanel review={review} compact interactive open={reviewOpen} onToggle={() => setReviewOpen((current) => !current)} />
       </div>
+      {review.mode !== "future" || schedule.serviceFollowUp ? (
+        <div className="mt-5">
+          <ServiceFollowUpPanel
+            schedule={schedule}
+            canEdit={canEdit}
+            compact
+            onSave={onSaveFollowUp}
+            onCloseService={onCloseService}
+          />
+        </div>
+      ) : null}
       {special ? (
         <div className="mt-5 rounded-2xl border border-brass/25 bg-brass/10 p-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -429,7 +443,7 @@ function ScheduleCard({
 
 export function Schedules() {
   const { canEdit, canDelete } = useAuth();
-  const { songs, schedules, settings, saveSchedule, deleteSchedule, duplicateSchedule } = useMusicData();
+  const { songs, schedules, settings, saveSchedule, deleteSchedule, duplicateSchedule, saveServiceFollowUp, closeScheduleService } = useMusicData();
   const [editingSchedule, setEditingSchedule] = useState(null);
   const [newScheduleDraft, setNewScheduleDraft] = useState(null);
   const [specialProgramSchedule, setSpecialProgramSchedule] = useState(null);
@@ -627,6 +641,8 @@ export function Schedules() {
               onViewSpecialProgram={viewSpecialProgram}
               onPrintSpecialProgram={printSpecialProgram}
               onPrintSpecialProgramFourUp={printSpecialProgramFourUp}
+              onSaveFollowUp={saveServiceFollowUp}
+              onCloseService={closeScheduleService}
             />
           ))}
         </div>

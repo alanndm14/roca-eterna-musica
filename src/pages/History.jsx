@@ -1,23 +1,33 @@
 import { useMemo, useState } from "react";
-import { Download, LayoutGrid, List } from "lucide-react";
+import { Download, LayoutGrid, List, RotateCcw } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Input, Select } from "../components/ui/Field";
 import { SongNameLink } from "../components/ui/SongNameLink";
+import { ServiceReviewPanel } from "../components/smart/ServiceReviewPanel";
+import { ServiceFollowUpPanel } from "../components/smart/ServiceFollowUpPanel";
+import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
 import { formatDate, formatScheduleDateWithService, getPastSchedules, getServiceDisplayLabel } from "../services/dateUtils";
+import { reviewServiceSchedule } from "../services/smartRecommendations";
 
 const csvEscape = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
 
 export function History() {
-  const { songs, schedules } = useMusicData();
+  const { canEdit } = useAuth();
+  const { songs, schedules, saveServiceFollowUp, closeScheduleService } = useMusicData();
   const [view, setView] = useState("cards");
   const [query, setQuery] = useState("");
   const [serviceType, setServiceType] = useState("all");
   const [dateFilter, setDateFilter] = useState("");
+  const [leaderFilter, setLeaderFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [readinessFilter, setReadinessFilter] = useState("all");
+  const [followUpFilter, setFollowUpFilter] = useState("all");
+  const [songCountFilter, setSongCountFilter] = useState("all");
   const [sort, setSort] = useState("desc");
-  const past = getPastSchedules(schedules).filter((schedule) => schedule.status === "realizado" || schedule.date);
+  const past = getPastSchedules(schedules).filter((schedule) => !schedule.deleted && (schedule.status === "realizado" || schedule.date));
   const withoutAppHistory = songs.filter((song) => !song.lastUsedAt).slice(0, 8);
   const sungBefore = songs.filter((song) => song.sungBefore).length;
   const realUsage = useMemo(() => {
@@ -33,12 +43,25 @@ export function History() {
     });
     return [...counts.values()].sort((a, b) => b.count - a.count).slice(0, 5);
   }, [past]);
+  const pastPending = useMemo(() => past
+    .map((schedule) => ({ schedule, review: reviewServiceSchedule(schedule, songs, schedules) }))
+    .filter((item) => item.review.score < 100)
+    .slice(0, 6), [past, schedules, songs]);
 
+  const scheduleReviews = useMemo(() => {
+    const map = new Map();
+    past.forEach((schedule) => map.set(schedule.id || `${schedule.date}-${schedule.time}`, reviewServiceSchedule(schedule, songs, schedules)));
+    return map;
+  }, [past, schedules, songs]);
+  const getReviewForSchedule = (schedule) => scheduleReviews.get(schedule.id || `${schedule.date}-${schedule.time}`) || reviewServiceSchedule(schedule, songs, schedules);
   const serviceTypes = [...new Set(past.map((schedule) => schedule.serviceType || getServiceDisplayLabel(schedule)).filter(Boolean))];
+  const leaders = [...new Set(past.map((schedule) => schedule.leader).filter(Boolean))].sort((a, b) => a.localeCompare(b, "es"));
   const filtered = useMemo(() => {
     const term = query.trim().toLowerCase();
     const list = past.filter((schedule) => {
       const service = getServiceDisplayLabel(schedule);
+      const review = scheduleReviews.get(schedule.id || `${schedule.date}-${schedule.time}`) || { score: 0 };
+      const songCount = (schedule.songs || []).length;
       const text = [
         schedule.date,
         service,
@@ -51,14 +74,42 @@ export function History() {
       const matchesText = !term || text.includes(term);
       const matchesService = serviceType === "all" || [schedule.serviceType, service, schedule.serviceLabel, schedule.type].includes(serviceType);
       const matchesDate = !dateFilter || schedule.date === dateFilter;
-      return matchesText && matchesService && matchesDate;
+      const matchesLeader = leaderFilter === "all" || schedule.leader === leaderFilter;
+      const matchesStatus = statusFilter === "all"
+        || (statusFilter === "cerrada" && ["cerrada", "realizado"].includes(schedule.status))
+        || schedule.status === statusFilter;
+      const matchesReadiness = readinessFilter === "all"
+        || (readinessFilter === "ready" && review.score >= 90)
+        || (readinessFilter === "pending" && review.score < 100)
+        || (readinessFilter === "risk" && review.score < 70);
+      const matchesFollowUp = followUpFilter === "all"
+        || (followUpFilter === "with" && Boolean(schedule.serviceFollowUp))
+        || (followUpFilter === "without" && !schedule.serviceFollowUp)
+        || (followUpFilter === "snapshot" && Boolean(schedule.serviceReviewSnapshot));
+      const matchesSongCount = songCountFilter === "all"
+        || (songCountFilter === "few" && songCount < 3)
+        || (songCountFilter === "normal" && songCount >= 3 && songCount <= 5)
+        || (songCountFilter === "many" && songCount > 5);
+      return matchesText && matchesService && matchesDate && matchesLeader && matchesStatus && matchesReadiness && matchesFollowUp && matchesSongCount;
     });
     return list.sort((a, b) => {
       const left = `${a.date}${a.time || ""}`;
       const right = `${b.date}${b.time || ""}`;
       return sort === "asc" ? left.localeCompare(right) : right.localeCompare(left);
     });
-  }, [dateFilter, past, query, serviceType, sort]);
+  }, [dateFilter, followUpFilter, leaderFilter, past, query, readinessFilter, scheduleReviews, serviceType, songCountFilter, sort, statusFilter]);
+
+  const clearFilters = () => {
+    setQuery("");
+    setServiceType("all");
+    setDateFilter("");
+    setLeaderFilter("all");
+    setStatusFilter("all");
+    setReadinessFilter("all");
+    setFollowUpFilter("all");
+    setSongCountFilter("all");
+    setSort("desc");
+  };
 
   const exportHistory = () => {
     const songById = new Map(songs.map((song) => [song.id, song]));
@@ -114,12 +165,44 @@ export function History() {
               <option value="desc">Fecha descendente</option>
               <option value="asc">Fecha ascendente</option>
             </Select>
+            <Select value={leaderFilter} onChange={(event) => setLeaderFilter(event.target.value)}>
+              <option value="all">Todos los líderes</option>
+              {leaders.map((leader) => <option key={leader} value={leader}>{leader}</option>)}
+            </Select>
+            <Select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+              <option value="all">Todos los estados</option>
+              <option value="cerrada">Cerrados / realizados</option>
+              <option value="confirmed">Confirmados</option>
+              <option value="realizado">Realizado</option>
+            </Select>
+            <Select value={readinessFilter} onChange={(event) => setReadinessFilter(event.target.value)}>
+              <option value="all">Toda preparación</option>
+              <option value="ready">Listos 90%+</option>
+              <option value="pending">Con pendientes</option>
+              <option value="risk">Riesgo menor a 70%</option>
+            </Select>
+            <Select value={followUpFilter} onChange={(event) => setFollowUpFilter(event.target.value)}>
+              <option value="all">Todo seguimiento</option>
+              <option value="with">Con seguimiento</option>
+              <option value="without">Sin seguimiento</option>
+              <option value="snapshot">Con revisión guardada</option>
+            </Select>
+            <Select value={songCountFilter} onChange={(event) => setSongCountFilter(event.target.value)}>
+              <option value="all">Cualquier cantidad</option>
+              <option value="few">Menos de 3 cantos</option>
+              <option value="normal">3 a 5 cantos</option>
+              <option value="many">Más de 5 cantos</option>
+            </Select>
+            <Button variant="subtle" onClick={clearFilters}><RotateCcw className="h-4 w-4" />Limpiar</Button>
           </div>
         </Card>
 
         {filtered.length && view === "cards" ? filtered.map((schedule) => (
           <Card key={schedule.id}>
             <h2 className="text-xl font-bold text-ink">{formatScheduleDateWithService(schedule)}</h2>
+            <div className="mt-4">
+              <ServiceReviewPanel review={getReviewForSchedule(schedule)} compact />
+            </div>
             <p className="mt-1 text-sm text-ink/55">{schedule.time || "Sin hora"} · {schedule.leader || "Sin líder de adoración"}</p>
             <div className="mt-4 flex flex-wrap gap-2">
               {(schedule.songs || []).map((song, index) => (
@@ -127,6 +210,9 @@ export function History() {
                   <SongNameLink songId={song.songId} title={song.titleSnapshot} songs={songs}>{song.titleSnapshot}</SongNameLink> · {song.keySnapshot}
                 </span>
               ))}
+            </div>
+            <div className="mt-4">
+              <ServiceFollowUpPanel schedule={schedule} canEdit={canEdit} compact onSave={saveServiceFollowUp} onCloseService={closeScheduleService} />
             </div>
           </Card>
         )) : null}
@@ -164,6 +250,20 @@ export function History() {
       </div>
 
       <aside className="space-y-4">
+        <Card>
+          <h3 className="font-bold text-ink">Pendientes detectados en servicios pasados</h3>
+          <div className="mt-4 space-y-3">
+            {pastPending.length ? pastPending.map(({ schedule, review }) => (
+              <div key={schedule.id || `${schedule.date}-${schedule.time}`} className="rounded-2xl bg-ink/5 p-3">
+                <p className="font-bold text-ink">{formatScheduleDateWithService(schedule)}</p>
+                <p className="mt-1 text-sm text-ink/55">Preparación {review.score}%</p>
+                <ul className="mt-2 space-y-1 text-xs font-semibold text-ink/60">
+                  {(review.groups || []).slice(0, 3).map((group) => <li key={group.title}>{group.title}: {group.items.length}</li>)}
+                </ul>
+              </div>
+            )) : <p className="text-sm text-ink/55">No hay pendientes registrados.</p>}
+          </div>
+        </Card>
         <Card>
           <h3 className="font-bold text-ink">Resumen del repertorio</h3>
           <dl className="mt-4 space-y-3 text-sm">

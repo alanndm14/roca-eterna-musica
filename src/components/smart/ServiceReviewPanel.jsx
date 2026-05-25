@@ -79,6 +79,7 @@ export function ServiceReviewPanel({ review, compact = false, interactive = fals
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-xs font-bold uppercase tracking-wide text-brass">Revisión del servicio</p>
+          {review.subtitle ? <p className="mt-1 text-xs font-semibold text-ink/50">{review.subtitle}</p> : null}
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <span className={`rounded-full border px-3 py-1 text-xs font-black uppercase tracking-wide ${risk.badge}`}>{risk.label}</span>
             <span className="text-sm font-bold text-ink/65">Preparación {score}%</span>

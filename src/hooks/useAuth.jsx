@@ -203,7 +203,9 @@ export function AuthProvider({ children }) {
       "blueGrayColor",
       "sidebarCollapsed",
       "onboardingCompleted",
-      "dismissedPushPromptByUser"
+      "dismissedPushPromptByUser",
+      "pushNotificationsEnabled",
+      "pushNotificationsEnabledAt"
     ];
     const payload = Object.fromEntries(
       Object.entries(updates).filter(([key]) => allowedFields.includes(key))

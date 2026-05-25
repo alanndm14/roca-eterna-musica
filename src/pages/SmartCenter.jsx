@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { CalendarCheck2, GitCompareArrows, Lightbulb, ListChecks, RefreshCw, Search, Shuffle, Sparkles, Wand2 } from "lucide-react";
@@ -8,12 +8,13 @@ import { Modal } from "../components/ui/Modal";
 import { SmartGradientBackground, SmartPanel } from "../components/smart/SmartPanel";
 import { RecommendationCard } from "../components/smart/RecommendationCard";
 import { ServiceReviewPanel } from "../components/smart/ServiceReviewPanel";
+import { ServiceFollowUpPanel } from "../components/smart/ServiceFollowUpPanel";
 import { InsightCard } from "../components/smart/InsightCard";
 import { ScoreBadge } from "../components/smart/ScoreBadge";
 import { ReasonChips } from "../components/smart/ReasonChips";
 import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
-import { getCurrentOrNextSchedule } from "../services/dateUtils";
+import { formatDate, getCurrentOrNextSchedule } from "../services/dateUtils";
 import {
   buildUsageIndex,
   clampScore,
@@ -87,6 +88,75 @@ const gapFilterMap = {
   ocr: "ocr-pending"
 };
 
+function SmartScheduleCalendar({ schedules = [], selectedDate = "", selectedId = "", onSelectDate, onSelectSchedule }) {
+  const [cursor, setCursor] = useState(() => new Date(`${selectedDate || new Date().toISOString().slice(0, 10)}T00:00:00`));
+  const year = cursor.getFullYear();
+  const month = cursor.getMonth();
+  const first = new Date(year, month, 1);
+  const start = new Date(first);
+  start.setDate(1 - first.getDay());
+  const days = Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(start);
+    date.setDate(start.getDate() + index);
+    return date;
+  });
+  const byDate = schedules.reduce((acc, schedule) => {
+    if (!schedule.date) return acc;
+    acc[schedule.date] = acc[schedule.date] || [];
+    acc[schedule.date].push(schedule);
+    return acc;
+  }, {});
+  const selectedDaySchedules = [...(byDate[selectedDate] || [])].sort((a, b) => `${a.time || ""}`.localeCompare(`${b.time || ""}`));
+
+  return (
+    <div className="rounded-2xl border border-ink/10 bg-white/55 p-3 dark:border-white/10 dark:bg-white/8">
+      <div className="flex items-center justify-between gap-2">
+        <Button variant="subtle" className="h-9 px-3 text-xs" onClick={() => setCursor(new Date(year, month - 1, 1))}>Anterior</Button>
+        <p className="text-sm font-black text-ink">{new Intl.DateTimeFormat("es-MX", { month: "long", year: "numeric" }).format(cursor)}</p>
+        <Button variant="subtle" className="h-9 px-3 text-xs" onClick={() => setCursor(new Date(year, month + 1, 1))}>Siguiente</Button>
+      </div>
+      <div className="mt-3 grid grid-cols-7 gap-1 text-center text-[10px] font-black uppercase text-ink/40">
+        {["D", "L", "M", "M", "J", "V", "S"].map((day, index) => <span key={`${day}-${index}`}>{day}</span>)}
+      </div>
+      <div className="mt-1 grid grid-cols-7 gap-1">
+        {days.map((day) => {
+          const dateString = day.toISOString().slice(0, 10);
+          const count = byDate[dateString]?.length || 0;
+          const isSelected = selectedDate === dateString;
+          const inMonth = day.getMonth() === month;
+          return (
+            <button
+              key={dateString}
+              type="button"
+              onClick={() => onSelectDate(dateString)}
+              className={`min-h-10 rounded-xl border p-1 text-xs font-bold transition ${isSelected ? "border-brass bg-brass/15 text-brass" : "border-transparent bg-ink/5 text-ink/65 hover:border-brass/35"} ${inMonth ? "" : "opacity-35"}`}
+            >
+              <span>{day.getDate()}</span>
+              {count ? <span className="mt-0.5 block text-[10px] text-brass">{count}</span> : null}
+            </button>
+          );
+        })}
+      </div>
+      <div className="mt-3 space-y-2">
+        <p className="text-xs font-black uppercase tracking-wide text-ink/45">{selectedDate ? formatDate(selectedDate) : "Selecciona una fecha"}</p>
+        {selectedDaySchedules.length ? selectedDaySchedules.map((schedule) => (
+          <button
+            key={schedule.id}
+            type="button"
+            onClick={() => onSelectSchedule(schedule)}
+            className={`w-full rounded-2xl border p-3 text-left transition ${selectedId === schedule.id ? "border-brass bg-brass/12" : "border-ink/10 bg-white/70 hover:border-brass/40 dark:border-white/10 dark:bg-white/7"}`}
+          >
+            <p className="font-bold text-ink">{schedule.serviceLabel || schedule.type || "Servicio"}</p>
+            <p className="mt-1 text-xs text-ink/55">{schedule.time || "Sin hora"} · {schedule.leader || "Sin líder"} · {(schedule.songs || []).length} cantos</p>
+          </button>
+        )) : (
+          <p className="rounded-2xl bg-ink/5 p-3 text-sm text-ink/55">No hay programaciones en esta fecha.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function nextBlockState(block, overrides) {
   if (!Object.keys(overrides).length) return block;
   const items = block.items.map((item) => overrides[item.slot.id] || item);
@@ -127,7 +197,7 @@ export function SmartCenter() {
   const navigate = useNavigate();
   const reduceMotion = useReducedMotion();
   const { profile, canEdit } = useAuth();
-  const { songs, schedules, themes, saveSchedule, replaceScheduleSong, indexLocalPdfTexts } = useMusicData();
+  const { songs, schedules, themes, saveSchedule, replaceScheduleSong, indexLocalPdfTexts, saveServiceFollowUp, closeScheduleService } = useMusicData();
   const nextSchedule = getCurrentOrNextSchedule(schedules) || schedules[0] || null;
   const [activeTab, setActiveTab] = useState("programar");
   const [planningMode, setPlanningMode] = useState("create");
@@ -137,6 +207,7 @@ export function SmartCenter() {
   const [blockGenerated, setBlockGenerated] = useState(false);
   const [options, setOptions] = useState(defaultOptions);
   const [selectedScheduleId, setSelectedScheduleId] = useState("");
+  const [existingDate, setExistingDate] = useState(nextSchedule?.date || "");
   const [replacementSongId, setReplacementSongId] = useState("");
   const [intentQuery, setIntentQuery] = useState("");
   const [dismissed, setDismissed] = useState([]);
@@ -154,7 +225,13 @@ export function SmartCenter() {
   const [scoreHelpItem, setScoreHelpItem] = useState(null);
   const [showAllBalance, setShowAllBalance] = useState(false);
 
-  const existingSchedule = schedules.find((schedule) => schedule.id === selectedScheduleId) || nextSchedule;
+  const schedulesForExistingDate = useMemo(
+    () => schedules.filter((schedule) => !schedule.deleted && schedule.date === existingDate).sort((a, b) => `${a.time || ""}`.localeCompare(`${b.time || ""}`)),
+    [existingDate, schedules]
+  );
+  const existingSchedule = schedules.find((schedule) => schedule.id === selectedScheduleId)
+    || schedulesForExistingDate[0]
+    || nextSchedule;
   const selectedSchedule = planningMode === "existing" ? existingSchedule : null;
   const selectedServiceType = options.serviceType || (planningMode === "existing" && existingSchedule ? inferSmartServiceType(existingSchedule) : "");
   const effectiveCount = selectedServiceType ? (isManualCountService(selectedServiceType) ? Number(options.count || 4) : getSmartServiceDefaultCount(selectedServiceType)) : 0;
@@ -164,7 +241,13 @@ export function SmartCenter() {
     && schedule.date === draftDate
     && inferSmartServiceType(schedule) === selectedServiceType
   );
-  const usageIndex = useMemo(() => buildUsageIndex(schedules), [schedules]);
+  const usageIndex = useMemo(
+    () => buildUsageIndex(schedules, new Date(), {
+      currentSchedule: selectedSchedule,
+      excludeScheduleId: selectedSchedule?.id
+    }),
+    [schedules, selectedSchedule]
+  );
   const themeOptions = useMemo(() => {
     const values = new Set();
     (themes || []).forEach((theme) => values.add(theme.name || theme.label || theme));
@@ -247,6 +330,18 @@ export function SmartCenter() {
       count: isManualCountService(serviceType) ? current.count || 4 : getSmartServiceDefaultCount(serviceType)
     }));
   };
+
+  useEffect(() => {
+    if (planningMode !== "existing") return;
+    if (!existingDate && nextSchedule?.date) setExistingDate(nextSchedule.date);
+  }, [existingDate, nextSchedule?.date, planningMode]);
+
+  useEffect(() => {
+    if (planningMode !== "existing") return;
+    if (!selectedScheduleId && schedulesForExistingDate[0]?.id) {
+      setSelectedScheduleId(schedulesForExistingDate[0].id);
+    }
+  }, [planningMode, schedulesForExistingDate, selectedScheduleId]);
 
   const generateForNextService = () => {
     if (!nextSchedule) {
@@ -516,11 +611,28 @@ export function SmartCenter() {
                     ) : null}
                   </>
                 ) : (
-                  <Field label="Programación existente">
-                    <Select value={existingSchedule?.id || ""} onChange={(event) => { setSelectedScheduleId(event.target.value); setBlockGenerated(false); }}>
-                      {schedules.map((schedule) => <option key={schedule.id} value={schedule.id}>{scheduleLabel(schedule)}</option>)}
-                    </Select>
-                  </Field>
+                  <div className="grid gap-3">
+                    <Field label="Fecha de la programación">
+                      <Input type="date" value={existingDate} onChange={(event) => { setExistingDate(event.target.value); setSelectedScheduleId(""); setBlockGenerated(false); }} />
+                    </Field>
+                    <SmartScheduleCalendar
+                      schedules={schedules.filter((schedule) => !schedule.deleted)}
+                      selectedDate={existingDate}
+                      selectedId={existingSchedule?.id || ""}
+                      onSelectDate={(date) => { setExistingDate(date); setSelectedScheduleId(""); setBlockGenerated(false); }}
+                      onSelectSchedule={(schedule) => {
+                        setSelectedScheduleId(schedule.id);
+                        setExistingDate(schedule.date || existingDate);
+                        setBlockGenerated(false);
+                        const serviceType = inferSmartServiceType(schedule);
+                        setOptions((current) => ({
+                          ...current,
+                          serviceType,
+                          count: isManualCountService(serviceType) ? current.count || 4 : getSmartServiceDefaultCount(serviceType)
+                        }));
+                      }}
+                    />
+                  </div>
                 )}
                 <Field label="Tipo de servicio">
                   <Select value={selectedServiceType} onChange={(event) => updateServiceType(event.target.value)}>
@@ -701,7 +813,14 @@ export function SmartCenter() {
           </motion.section>
         ) : null}
 
-        {activeTab === "revisar" ? <motion.section key="revisar" initial={reduceMotion ? false : { opacity: 0, y: 10 }} animate={reduceMotion ? undefined : { opacity: 1, y: 0 }} exit={reduceMotion ? undefined : { opacity: 0, y: -6 }} transition={{ duration: 0.2 }} className="mt-6"><ServiceReviewPanel review={review} /></motion.section> : null}
+        {activeTab === "revisar" ? (
+          <motion.section key="revisar" initial={reduceMotion ? false : { opacity: 0, y: 10 }} animate={reduceMotion ? undefined : { opacity: 1, y: 0 }} exit={reduceMotion ? undefined : { opacity: 0, y: -6 }} transition={{ duration: 0.2 }} className="mt-6 grid gap-4">
+            <ServiceReviewPanel review={review} />
+            {selectedSchedule ? (
+              <ServiceFollowUpPanel schedule={selectedSchedule} canEdit={canEdit} onSave={saveServiceFollowUp} onCloseService={closeScheduleService} />
+            ) : null}
+          </motion.section>
+        ) : null}
 
         {activeTab === "sustituir" ? (
           <motion.section key="sustituir" initial={reduceMotion ? false : { opacity: 0, y: 10 }} animate={reduceMotion ? undefined : { opacity: 1, y: 0 }} exit={reduceMotion ? undefined : { opacity: 0, y: -6 }} transition={{ duration: 0.2 }} className="mt-6 grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">

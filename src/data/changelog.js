@@ -1,6 +1,29 @@
-export const appVersion = "0.9.95";
+export const appVersion = "0.9.96";
 
 export const changelog = [
+  {
+    version: "0.9.96",
+    date: "2026-05-25",
+    title: "Historial, calendario inteligente y seguimiento",
+    added: [
+      "Filtros avanzados en Historial por líder, estado, preparación, seguimiento y cantidad de cantos",
+      "Selector de calendario para elegir programaciones existentes desde Centro Inteligente",
+      "Seguimiento posterior del servicio con notas generales y por canto"
+    ],
+    changed: [
+      "La invitación de notificaciones registra el dispositivo desde el mismo botón",
+      "La bienvenida muestra la versión con mejor contraste en modo oscuro",
+      "La revisión inteligente excluye la programación actual del historial de uso"
+    ],
+    fixed: [
+      "Corrección del falso aviso de canto usado en el servicio anterior",
+      "Servicios pasados pueden conservar snapshot de preparación al cierre",
+      "Historial y Estadísticas ignoran programaciones eliminadas"
+    ],
+    pending: [
+      "Seguir ajustando filtros según el uso real del historial"
+    ]
+  },
   {
     version: "0.9.95",
     date: "2026-05-23",

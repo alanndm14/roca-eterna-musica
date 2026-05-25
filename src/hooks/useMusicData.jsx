@@ -21,6 +21,7 @@ import { sampleSchedules, sampleSettings, sampleSongs, sampleThemes, sampleUsers
 import { canonicalThemeKey, normalizeSong, normalizeThemeName, resolveAppLogoForNotification } from "../services/songUtils";
 import { extractLocalPdfText, fingerprintLocalPdf } from "../services/pdfTextIndex";
 import { sendExternalPush } from "../services/externalPush";
+import { createServiceReviewSnapshot, reviewServiceSchedule } from "../services/songScoring";
 import { useAuth } from "./useAuth";
 
 const MusicDataContext = createContext(null);
@@ -528,7 +529,7 @@ export function MusicDataProvider({ children }) {
     const before = schedule.id ? schedules.find((item) => item.id === schedule.id) : null;
     const payload = {
       ...schedule,
-      status: "confirmed",
+      status: schedule.status || before?.status || "confirmed",
       songs: schedule.songs || [],
       updatedAt: useLocal ? new Date().toISOString().slice(0, 10) : serverTimestamp()
     };
@@ -713,6 +714,75 @@ export function MusicDataProvider({ children }) {
         isFutureSchedule: true
       });
     }
+  };
+
+  const saveServiceFollowUp = async (scheduleId, followUp = {}) => {
+    const before = schedules.find((item) => item.id === scheduleId);
+    if (!before) return;
+    const updated = {
+      ...before,
+      serviceFollowUp: {
+        ...(before.serviceFollowUp || {}),
+        ...followUp,
+        updatedAt: useLocal ? new Date().toISOString() : serverTimestamp(),
+        updatedBy: profile?.uid || ""
+      },
+      updatedAt: useLocal ? new Date().toISOString().slice(0, 10) : serverTimestamp()
+    };
+    if (useLocal) {
+      setSchedules((current) => current.map((item) => (item.id === scheduleId ? updated : item)));
+    } else {
+      const { id, ...data } = updated;
+      await updateDoc(doc(db, "schedules", id), data);
+    }
+    await logAuditEvent({
+      actionType: "update",
+      entityType: "schedule",
+      entityId: scheduleId,
+      entityName: before.serviceLabel || before.date,
+      summary: `Seguimiento del servicio actualizado: ${before.serviceLabel || before.date}`,
+      beforeData: before,
+      afterData: updated
+    });
+  };
+
+  const closeScheduleService = async (scheduleId, followUp = {}) => {
+    const before = schedules.find((item) => item.id === scheduleId);
+    if (!before) return;
+    const review = reviewServiceSchedule(before, songs, schedules);
+    const snapshot = createServiceReviewSnapshot(review, before, songs);
+    const updated = {
+      ...before,
+      status: "cerrada",
+      serviceReviewSnapshot: {
+        ...snapshot,
+        notes: followUp.generalObservations || before.serviceReviewSnapshot?.notes || ""
+      },
+      serviceFollowUp: {
+        ...(before.serviceFollowUp || {}),
+        ...followUp,
+        closedAt: useLocal ? new Date().toISOString() : serverTimestamp(),
+        closedBy: profile?.uid || ""
+      },
+      closedAt: useLocal ? new Date().toISOString() : serverTimestamp(),
+      closedBy: profile?.uid || "",
+      updatedAt: useLocal ? new Date().toISOString().slice(0, 10) : serverTimestamp()
+    };
+    if (useLocal) {
+      setSchedules((current) => current.map((item) => (item.id === scheduleId ? updated : item)));
+    } else {
+      const { id, ...data } = updated;
+      await updateDoc(doc(db, "schedules", id), data);
+    }
+    await logAuditEvent({
+      actionType: "update",
+      entityType: "schedule",
+      entityId: scheduleId,
+      entityName: before.serviceLabel || before.date,
+      summary: `Servicio cerrado: ${before.serviceLabel || before.date}`,
+      beforeData: before,
+      afterData: updated
+    });
   };
 
   const duplicateSchedule = async (schedule) => {
@@ -1044,6 +1114,8 @@ export function MusicDataProvider({ children }) {
       duplicateSong,
       saveSchedule,
       replaceScheduleSong,
+      saveServiceFollowUp,
+      closeScheduleService,
       deleteSchedule,
       duplicateSchedule,
       saveUser,
