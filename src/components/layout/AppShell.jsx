@@ -189,7 +189,10 @@ export function AppShell() {
   }, [sidebarCollapsed]);
 
   useEffect(() => {
-    markInstalledVersion(appVersion);
+    const installedAtStart = getInstalledVersion();
+    if (compareVersions(appVersion, installedAtStart) >= 0) {
+      markInstalledVersion(appVersion);
+    }
     let cancelled = false;
 
     const checkVersion = async () => {

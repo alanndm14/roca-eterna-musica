@@ -1,6 +1,24 @@
-export const appVersion = "0.9.97";
+export const appVersion = "0.9.98";
 
 export const changelog = [
+  {
+    version: "0.9.98",
+    date: "2026-05-25",
+    title: "Corrección urgente de Programación",
+    added: [],
+    changed: [
+      "La pantalla inicial de actualización ahora respeta la versión marcada al actualizar",
+      "El aviso de actualización evita repetirse antes de entrar a la app"
+    ],
+    fixed: [
+      "Corrección de la caída de la sección Programación",
+      "La app ya no sobrescribe la versión instalada con una versión anterior durante la recarga",
+      "El selector interno de cantos del programa especial tolera que todavía no haya programación seleccionada"
+    ],
+    pending: [
+      "Seguir validando el flujo de actualización en PWA instalada y navegador móvil"
+    ]
+  },
   {
     version: "0.9.97",
     date: "2026-05-25",

@@ -84,7 +84,7 @@ function DataReady({ children }) {
         if (cancelled) return;
         const installed = getInstalledVersion();
         const hasUpdate = latest?.version
-          && compareVersions(latest.version, appVersion) > 0
+          && compareVersions(latest.version, installed || appVersion) > 0
           && (!wasUpdateDismissed(latest.version) || latest.critical);
         if (!hasUpdate) markInstalledVersion(appVersion);
         setUpdateCheck({ checked: true, update: hasUpdate ? { ...latest, installedVersion: installed || appVersion } : null });

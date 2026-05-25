@@ -1,10 +1,10 @@
 {
-  "version": "0.9.97",
+  "version": "0.9.98",
   "date": "2026-05-25",
   "critical": false,
   "changes": [
-    "Programa especial en hoja horizontal con 2 copias",
-    "Editor especial cargando los cantos ya programados",
-    "Mejoras de scroll en sustitución y seguimiento más simple"
+    "Corrección de la sección Programación",
+    "Actualización inicial mostrada una sola vez",
+    "Ajustes de estabilidad después de actualizar"
   ]
 }

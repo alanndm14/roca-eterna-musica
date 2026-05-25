@@ -44,7 +44,7 @@ const toLocalDateString = (date) => {
 };
 
 function getScheduledSongOptions(schedule = {}, songs = []) {
-  return (schedule.songs || []).map((entry, index) => {
+  return (schedule?.songs || []).map((entry, index) => {
     const fullSong = songs.find((song) => song.id === entry.songId);
     return {
       id: entry.songId || `${entry.titleSnapshot}-${index}`,
