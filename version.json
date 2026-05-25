@@ -1,10 +1,10 @@
 {
-  "version": "0.9.95",
-  "date": "2026-05-23",
+  "version": "0.9.96",
+  "date": "2026-05-25",
   "critical": false,
   "changes": [
-    "Notificaciones internas por encima de toda la app",
-    "Revisión inteligente unificada en Programación y Músicos",
-    "Score sin YouTube ni Spotify como criterio"
+    "Filtros avanzados en Historial",
+    "Calendario para seleccionar programaciones en Centro Inteligente",
+    "Correcciones en seguimiento, bienvenida y notificaciones"
   ]
 }
