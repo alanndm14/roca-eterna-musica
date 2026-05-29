@@ -23,6 +23,7 @@ import {
   buildSpecialProgramFromSchedule,
   emptySpecialProgramItem,
   getSpecialProgramFileName,
+  getSpecialProgramTypeDefaultColor,
   isSpecialService,
   normalizeSpecialProgramItems
 } from "../services/specialProgramPdf";
@@ -512,6 +513,11 @@ export function Schedules() {
     setProgramDraft((current) => current.map((item, itemIndex) => {
       if (itemIndex !== index) return item;
       const next = { ...item, [field]: value };
+      if (field === "type") {
+        const previousDefaultColor = getSpecialProgramTypeDefaultColor(item.type);
+        const usesDefaultColor = !item.categoryColor || item.categoryColor.toLowerCase() === previousDefaultColor.toLowerCase();
+        if (usesDefaultColor) next.categoryColor = getSpecialProgramTypeDefaultColor(value);
+      }
       if (field === "songId" && value) {
         const option = getScheduledSongOptions(specialProgramSchedule, songs).find((entry) => entry.songId === value);
         const song = songs.find((entry) => entry.id === value);
@@ -679,7 +685,7 @@ export function Schedules() {
           <div className="max-h-[58vh] space-y-3 overflow-auto pr-1">
             {programDraft.map((item, index) => (
               <div key={`${item.order}-${index}`} className="rounded-2xl border border-ink/10 bg-white p-3">
-                <div className="grid gap-3 md:grid-cols-[80px_180px_1fr]">
+                <div className="grid gap-3 md:grid-cols-[80px_180px_120px_1fr]">
                   <Field label="Orden">
                     <Input value={item.order} readOnly />
                   </Field>
@@ -687,6 +693,9 @@ export function Schedules() {
                     <Select value={item.type} onChange={(event) => updateProgramItem(index, "type", event.target.value)}>
                       {SPECIAL_PROGRAM_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
                     </Select>
+                  </Field>
+                  <Field label="Color">
+                    <Input type="color" value={item.categoryColor || getSpecialProgramTypeDefaultColor(item.type)} onChange={(event) => updateProgramItem(index, "categoryColor", event.target.value)} />
                   </Field>
                   <Field label="Título o descripción">
                     <Input value={item.title || ""} onChange={(event) => updateProgramItem(index, "title", event.target.value)} placeholder="Ej. Oración inicial" />

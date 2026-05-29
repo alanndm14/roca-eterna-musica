@@ -24,6 +24,27 @@ export const SPECIAL_SONG_POSITIONS = [
 ];
 
 const specialWords = /(especial|aniversario|congreso|vigilia|evento|conferencia|santa cena especial|retiro|campamento)/i;
+const brassColor = "#b6945f";
+const navyColor = "#17324f";
+const blackColor = "#161616";
+
+export const SPECIAL_PROGRAM_TYPE_COLORS = {
+  "Predicaci贸n": brassColor,
+  "Participaci贸n especial": navyColor
+};
+
+const normalizeHexColor = (value = "") => {
+  const color = String(value || "").trim();
+  return /^#[0-9a-f]{6}$/i.test(color) ? color : "";
+};
+
+export function getSpecialProgramTypeDefaultColor(type = "") {
+  return SPECIAL_PROGRAM_TYPE_COLORS[type] || blackColor;
+}
+
+export function getSpecialProgramItemColor(item = {}) {
+  return normalizeHexColor(item.categoryColor || item.typeColor || item.color) || getSpecialProgramTypeDefaultColor(item.type);
+}
 
 function cleanPrintableNotes(value = "") {
   return String(value || "")
@@ -48,7 +69,8 @@ export function emptySpecialProgramItem(order = 1) {
     title: "",
     notes: "",
     songId: "",
-    position: "Antes de la prédica"
+    position: SPECIAL_SONG_POSITIONS[1],
+    categoryColor: getSpecialProgramTypeDefaultColor("Canto")
   };
 }
 
@@ -67,7 +89,8 @@ export function normalizeSpecialProgramItems(items = []) {
       title: item.title || item.description || "",
       notes: cleanPrintableNotes(item.notes || ""),
       songId: item.songId || "",
-      position: getSpecialSongPosition(index, source.length, item)
+      position: getSpecialSongPosition(index, source.length, item),
+      categoryColor: getSpecialProgramItemColor(item)
     }))
     .sort((a, b) => a.order - b.order)
     .map((item, index) => ({ ...item, order: index + 1 }));
@@ -81,7 +104,8 @@ export function buildSpecialProgramFromSchedule(schedule = {}) {
     title: entry.titleSnapshot || "",
     notes: cleanPrintableNotes(entry.notes || ""),
     songId: entry.songId || "",
-    position: getSpecialSongPosition(index, scheduleSongs.length)
+    position: getSpecialSongPosition(index, scheduleSongs.length),
+    categoryColor: getSpecialProgramTypeDefaultColor("Canto")
   })));
 }
 
@@ -173,7 +197,6 @@ const styles = StyleSheet.create({
   },
   itemType: {
     fontSize: 10,
-    color: "#777",
     marginBottom: 2,
     textTransform: "uppercase",
     textAlign: "center"
@@ -282,7 +305,6 @@ const styles = StyleSheet.create({
     textAlign: "center"
   },
   miniType: {
-    color: "#b6945f",
     fontWeight: 700,
     textTransform: "uppercase",
     textAlign: "center",
@@ -409,7 +431,7 @@ function ProgramContent({ schedule, songs, settings, compact = false }) {
               style={[styles.miniRow, { paddingVertical: compactType.rowPadding }]}
             >
               <View style={styles.miniRowText}>
-                <Text style={[styles.miniType, { fontSize: compactType.type, lineHeight: compactType.lineHeight }]}>{item.type}</Text>
+                <Text style={[styles.miniType, { color: getSpecialProgramItemColor(item), fontSize: compactType.type, lineHeight: compactType.lineHeight }]}>{item.type}</Text>
                 <Text style={[styles.miniTitle, { fontSize: compactType.title, lineHeight: compactType.lineHeight }]}>
                   {item.order}. {itemTitle(item, songs)}
                 </Text>
@@ -442,7 +464,7 @@ function ProgramContent({ schedule, songs, settings, compact = false }) {
         <View key={`${item.order}-${item.type}-${item.title}`} style={styles.row} wrap={false}>
           <Text style={styles.number}>{item.order}</Text>
           <View style={styles.itemBody}>
-            <Text style={styles.itemType}>{item.type}</Text>
+            <Text style={[styles.itemType, { color: getSpecialProgramItemColor(item) }]}>{item.type}</Text>
             <Text style={styles.itemTitle}>{itemTitle(item, songs)}</Text>
             {item.notes ? <Text style={styles.notes}>{item.notes}</Text> : null}
           </View>

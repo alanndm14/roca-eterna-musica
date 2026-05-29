@@ -1,6 +1,19 @@
-export const appVersion = "0.9.101";
+export const appVersion = "0.9.102";
 
 export const changelog = [
+  {
+    version: "0.9.102",
+    date: "2026-05-29",
+    title: "Colores de programa especial",
+    added: [
+      "Colores editables para las categorías del programa especial"
+    ],
+    changed: [
+      "Los programas imprimibles individual y 2 por hoja muestran el color asignado a cada categoría"
+    ],
+    fixed: [],
+    pending: []
+  },
   {
     version: "0.9.101",
     date: "2026-05-29",
