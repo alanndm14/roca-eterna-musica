@@ -141,7 +141,7 @@ export function toSongEntry(song = {}, position = "") {
     titleSnapshot: song.title || "",
     keySnapshot: song.keyWithCapo || song.mainKey || "",
     pdfUrl: song.pdfPreviewUrl || song.pdfUrl || song.drivePdfUrl || song.chordsUrl || "",
-    notes: position ? `Posición sugerida: ${position}` : ""
+    notes: ""
   };
 }
 

@@ -435,7 +435,7 @@ export function SmartCenter() {
       time: meta.time,
       leader: selectedLeader,
       songs: suggestedBlock.items.map((item) => toSongEntry(item.song, item.role)),
-      generalNotes: `Tema sugerido: ${suggestedBlock.theme}`,
+      generalNotes: "",
       isSpecialService: isManualCountService(selectedServiceType),
       specialProgram: [],
       status: "confirmed"

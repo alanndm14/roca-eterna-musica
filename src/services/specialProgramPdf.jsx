@@ -25,6 +25,14 @@ export const SPECIAL_SONG_POSITIONS = [
 
 const specialWords = /(especial|aniversario|congreso|vigilia|evento|conferencia|santa cena especial|retiro|campamento)/i;
 
+function cleanPrintableNotes(value = "") {
+  return String(value || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !/^tema sugerido:/i.test(line) && !/^posición sugerida:/i.test(line) && !/^posicion sugerida:/i.test(line))
+    .join("\n");
+}
+
 export function isSpecialService(schedule = {}) {
   return Boolean(
     schedule.isSpecialService === true
@@ -57,7 +65,7 @@ export function normalizeSpecialProgramItems(items = []) {
       order: Number(item.order || index + 1),
       type: item.type === "Avisos" ? "Anuncios" : item.type || "Otro",
       title: item.title || item.description || "",
-      notes: item.notes || "",
+      notes: cleanPrintableNotes(item.notes || ""),
       songId: item.songId || "",
       position: getSpecialSongPosition(index, source.length, item)
     }))
@@ -71,7 +79,7 @@ export function buildSpecialProgramFromSchedule(schedule = {}) {
     order: index + 1,
     type: "Canto",
     title: entry.titleSnapshot || "",
-    notes: entry.notes || "",
+    notes: cleanPrintableNotes(entry.notes || ""),
     songId: entry.songId || "",
     position: getSpecialSongPosition(index, scheduleSongs.length)
   })));
@@ -91,15 +99,8 @@ function getLogoUrl(settings = {}) {
   return resolvePublicAssetUrl(settings.logoLightUrl || "icons/roca-eterna-logo-light.png");
 }
 
-function getScheduleTheme(schedule = {}) {
-  const directTheme = schedule.theme || schedule.mainTheme || schedule.serviceTheme || "";
-  if (directTheme) return directTheme;
-  const match = String(schedule.generalNotes || "").match(/Tema sugerido:\s*([^.\n]+)/i);
-  return match?.[1]?.trim() || "";
-}
-
 function getScheduleNotes(schedule = {}) {
-  return schedule.specialProgramNotes || schedule.programNotes || schedule.generalNotes || "";
+  return cleanPrintableNotes(schedule.specialProgramNotes || schedule.programNotes || schedule.generalNotes || "");
 }
 
 const styles = StyleSheet.create({
@@ -324,8 +325,7 @@ function getCompactTypography(items = [], notes = "") {
 function itemTitle(item, songs = []) {
   if (item.type === "Canto" && item.songId) {
     const song = songs.find((entry) => entry.id === item.songId);
-    const tone = song?.keyWithCapo || song?.mainKey || "";
-    return `${item.title || song?.title || "Canto"}${tone ? ` (${tone})` : ""}`;
+    return item.title || song?.title || "Canto";
   }
   return item.title || item.type || "Elemento";
 }
@@ -334,13 +334,11 @@ function ProgramContent({ schedule, songs, settings, compact = false }) {
   const items = getSpecialProgramItems(schedule);
   const logo = getLogoUrl(settings);
   const title = getServiceDisplayLabel(schedule);
-  const theme = getScheduleTheme(schedule);
   const notes = getScheduleNotes(schedule);
   const meta = [
     formatDate(schedule?.date),
     schedule?.time,
-    schedule?.leader ? `Líder: ${schedule.leader}` : "",
-    theme ? `Tema: ${theme}` : ""
+    schedule?.leader ? `Líder: ${schedule.leader}` : ""
   ].filter(Boolean).join(" · ");
   const churchName = settings?.churchName || "";
   const showChurchSubtitle = churchName && churchName.toLowerCase() !== "roca eterna";
@@ -372,11 +370,6 @@ function ProgramContent({ schedule, songs, settings, compact = false }) {
                   <Text style={[styles.miniTitle, { fontSize: compactType.title, lineHeight: compactType.lineHeight }]}>
                     {itemTitle(item, songs)}
                   </Text>
-                  {item.type === "Canto" ? (
-                    <Text style={[styles.miniPosition, { fontSize: compactType.notes, lineHeight: compactType.lineHeight }]}>
-                      {item.position}
-                    </Text>
-                  ) : null}
                   {item.notes ? (
                     <Text style={[styles.miniItem, { fontSize: compactType.notes, lineHeight: compactType.lineHeight }]}>
                       {item.notes}
@@ -409,7 +402,6 @@ function ProgramContent({ schedule, songs, settings, compact = false }) {
           <View style={styles.itemBody}>
             <Text style={styles.itemType}>{item.type}</Text>
             <Text style={styles.itemTitle}>{itemTitle(item, songs)}</Text>
-            {item.type === "Canto" ? <Text style={styles.notes}>{item.position}</Text> : null}
             {item.notes ? <Text style={styles.notes}>{item.notes}</Text> : null}
           </View>
         </View>
