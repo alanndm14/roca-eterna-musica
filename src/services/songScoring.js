@@ -244,6 +244,10 @@ function isHymn(song = {}) {
   return text.includes("himno");
 }
 
+function isChristmasCategory(song = {}) {
+  return normalizeSearchText(song.category || "").includes("navidad");
+}
+
 function songThemeText(song = {}) {
   return normalizeSearchText([
     song.title,
@@ -403,6 +407,20 @@ export function scoreSong(song = {}, options = {}, context = {}) {
 
   if (options.category && normalizeSearchText(song.category) === normalizeSearchText(options.category)) {
     addPositive(12, `Categoría adecuada: ${song.category}`);
+  } else if (options.category) {
+    const targetCategory = normalizeSearchText(options.category);
+    const candidateCategory = normalizeSearchText(song.category || "");
+    const targetIsHymn = targetCategory.includes("himno");
+    const candidateIsHymn = isHymn(song);
+    const targetIsChristmas = targetCategory.includes("navidad");
+    const candidateIsChristmas = candidateCategory.includes("navidad");
+    if (targetIsHymn && !candidateIsHymn) {
+      addPenalty(candidateIsChristmas ? 28 : 14, "No conserva la categoría de himno");
+    } else if (!targetIsChristmas && candidateIsChristmas) {
+      addPenalty(32, "Navidad no es una sustitución natural para esta categoría");
+    } else if (targetCategory && candidateCategory && targetCategory !== candidateCategory) {
+      addPenalty(8, `Categoría distinta: ${song.category || "sin categoría"}`);
+    }
   }
   if (song.keynoteReviewStatus === "completado") {
     addPositive(15, "Keynote listo");
@@ -600,16 +618,26 @@ export function createSuggestedServiceBlock(songs = [], schedules = [], options 
 
 export function getReplacementCandidates(currentSong = {}, songs = [], schedules = [], selectedSchedule = {}, slot = null) {
   const scheduledIds = new Set((selectedSchedule?.songs || []).map((entry) => entry.songId).filter(Boolean));
-  return getSongRecommendations(songs, schedules, {
+  const candidates = getSongRecommendations(songs, schedules, {
     theme: [currentSong.mainTheme, ...(currentSong.otherThemes || [])].filter(Boolean).join(", "),
     category: currentSong.category,
     preferredKey: currentSong.keyWithCapo || currentSong.mainKey,
     avoidRecent: true,
     includeHymns: true,
-    limit: 20,
+    limit: 60,
     slot,
     currentSchedule: selectedSchedule
   }).filter((item) => item.song.id !== currentSong.id && !scheduledIds.has(item.song.id));
+  const currentIsHymn = isHymn(currentSong);
+  const currentIsChristmas = isChristmasCategory(currentSong);
+  const categoryAware = candidates.filter((item) => {
+    if (!currentIsChristmas && isChristmasCategory(item.song)) return item.score >= 88;
+    return true;
+  });
+  if (!currentIsHymn) return categoryAware.slice(0, 20);
+  const hymnCandidates = categoryAware.filter((item) => isHymn(item.song)).slice(0, 2);
+  const seen = new Set(hymnCandidates.map((item) => item.song.id));
+  return [...hymnCandidates, ...categoryAware.filter((item) => !seen.has(item.song.id))].slice(0, 20);
 }
 
 export function reviewServiceSchedule(schedule = {}, songs = [], schedules = []) {

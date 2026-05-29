@@ -58,25 +58,26 @@ function filterGroups(groups = [], showInformative = true) {
 
 export function ServiceReviewPanel({ review, compact = false, interactive = false, open = false, onToggle }) {
   const [openGroups, setOpenGroups] = useState({});
+  const [activeCompactGroup, setActiveCompactGroup] = useState("");
   const groups = review.groups || [];
   const score = Math.max(0, Math.min(100, Number(review.score) || 0));
   const risk = getRiskTone(score);
   const importantGroups = filterGroups(groups);
-  const visibleGroups = compact && !open ? importantGroups.slice(0, 3) : importantGroups;
+  const visibleGroups = compact ? importantGroups.slice(0, 4) : importantGroups;
   return (
     <section
-      onClick={interactive ? onToggle : undefined}
-      onKeyDown={interactive ? (event) => {
+      onClick={interactive && !compact ? onToggle : undefined}
+      onKeyDown={interactive && !compact ? (event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
           onToggle?.();
         }
       } : undefined}
-      role={interactive ? "button" : undefined}
-      tabIndex={interactive ? 0 : undefined}
-      className={`${compact ? "w-full p-4 text-left" : "p-5"} rounded-[1.75rem] border border-white/70 bg-white/86 shadow-soft backdrop-blur-xl transition dark:border-white/12 dark:bg-zinc-950/74 ${interactive ? "hover:border-brass/45 hover:bg-white dark:hover:bg-zinc-950/90" : ""}`}
+      role={interactive && !compact ? "button" : undefined}
+      tabIndex={interactive && !compact ? 0 : undefined}
+      className={`${compact ? "w-full p-3 text-left" : "p-5"} rounded-[1.5rem] border border-white/70 bg-white/88 shadow-soft backdrop-blur-xl transition dark:border-white/12 dark:bg-zinc-950/78 ${interactive ? "hover:border-brass/45 hover:bg-white dark:hover:bg-zinc-950/90" : ""}`}
     >
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-xs font-bold uppercase tracking-wide text-brass">Revisión del servicio</p>
           {review.subtitle ? <p className="mt-1 text-xs font-semibold text-ink/50">{review.subtitle}</p> : null}
@@ -97,20 +98,20 @@ export function ServiceReviewPanel({ review, compact = false, interactive = fals
       </div>
 
       {visibleGroups.length ? (
-        <div className="mt-5 grid gap-3">
+        <div className={`${compact ? "mt-4" : "mt-5"} grid gap-2`}>
           <p className="text-sm font-black text-ink">{compact ? "Resumen" : "Problemas detectados"}</p>
           {visibleGroups.map((group) => {
             const config = alertStyles[group.severity] || alertStyles.info;
             const Icon = config.icon;
-            const expanded = compact ? open : (openGroups[group.title] ?? false);
+            const expanded = compact ? activeCompactGroup === group.title : (openGroups[group.title] ?? false);
             return (
-              <article key={group.title} className={`rounded-2xl border p-3 ${config.className}`}>
+              <article key={group.title} className={`rounded-2xl border ${compact ? "p-2.5" : "p-3"} ${config.className}`}>
                 <button
                   type="button"
                   onClick={(event) => {
                     event.stopPropagation();
                     if (compact) {
-                      onToggle?.();
+                      setActiveCompactGroup((current) => current === group.title ? "" : group.title);
                       return;
                     }
                     setOpenGroups((current) => ({ ...current, [group.title]: !expanded }));
@@ -121,7 +122,7 @@ export function ServiceReviewPanel({ review, compact = false, interactive = fals
                     <Icon className="h-4 w-4 shrink-0" />
                     <span className="min-w-0">
                       <span className="block truncate font-bold">{group.title}</span>
-                      <span className="text-sm opacity-85">{groupSummary(group)}</span>
+                      <span className={`${compact ? "text-xs" : "text-sm"} opacity-85`}>{groupSummary(group)}</span>
                     </span>
                   </span>
                   <ChevronDown className={`h-4 w-4 shrink-0 transition ${expanded ? "rotate-180" : ""}`} />

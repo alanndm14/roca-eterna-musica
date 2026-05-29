@@ -1,6 +1,22 @@
-export const appVersion = "0.9.102";
+export const appVersion = "0.9.103";
 
 export const changelog = [
+  {
+    version: "0.9.103",
+    date: "2026-05-29",
+    title: "Programas y revisión inteligente",
+    added: [],
+    changed: [
+      "Mejor diseño tipográfico para programas especiales impresos",
+      "Sustitución inteligente más estricta con categorías de cantos",
+      "Revisión compacta con grupos desplegables de uno en uno",
+      "Balance del Centro Inteligente más minimalista"
+    ],
+    fixed: [
+      "El botón Actualizar ahora fuerza la recarga de assets nuevos desde el primer intento"
+    ],
+    pending: []
+  },
   {
     version: "0.9.102",
     date: "2026-05-29",

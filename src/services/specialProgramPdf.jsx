@@ -149,8 +149,11 @@ const styles = StyleSheet.create({
     objectFit: "contain"
   },
   church: {
-    fontSize: 22,
-    fontWeight: 700
+    fontFamily: "Times-Bold",
+    fontSize: 20,
+    fontWeight: 700,
+    letterSpacing: 1.2,
+    textTransform: "uppercase"
   },
   churchSubtitle: {
     marginTop: 2,
@@ -160,7 +163,8 @@ const styles = StyleSheet.create({
   },
   event: {
     marginTop: 5,
-    fontSize: 18,
+    fontFamily: "Times-Bold",
+    fontSize: 25,
     color: "#8b6a31",
     fontWeight: 700,
     textAlign: "center"
@@ -191,7 +195,8 @@ const styles = StyleSheet.create({
     width: "100%"
   },
   itemTitle: {
-    fontSize: 14,
+    fontFamily: "Times-Bold",
+    fontSize: 16,
     fontWeight: 700,
     textAlign: "center"
   },
@@ -265,8 +270,10 @@ const styles = StyleSheet.create({
   },
   miniEvent: {
     fontSize: 10,
+    fontFamily: "Times-Bold",
     fontWeight: 700,
-    textAlign: "center"
+    textAlign: "center",
+    letterSpacing: 0.4
   },
   miniMeta: {
     marginTop: 2,
@@ -312,6 +319,7 @@ const styles = StyleSheet.create({
   },
   miniTitle: {
     color: "#161616",
+    fontFamily: "Times-Bold",
     fontWeight: 700,
     textAlign: "center",
     width: "100%"
@@ -433,7 +441,7 @@ function ProgramContent({ schedule, songs, settings, compact = false }) {
               <View style={styles.miniRowText}>
                 <Text style={[styles.miniType, { color: getSpecialProgramItemColor(item), fontSize: compactType.type, lineHeight: compactType.lineHeight }]}>{item.type}</Text>
                 <Text style={[styles.miniTitle, { fontSize: compactType.title, lineHeight: compactType.lineHeight }]}>
-                  {item.order}. {itemTitle(item, songs)}
+                  {itemTitle(item, songs)}
                 </Text>
                 {item.notes ? (
                   <Text style={[styles.miniItem, { fontSize: compactType.notes, lineHeight: compactType.lineHeight }]}>
@@ -462,7 +470,6 @@ function ProgramContent({ schedule, songs, settings, compact = false }) {
       </View>
       {items.length ? items.map((item) => (
         <View key={`${item.order}-${item.type}-${item.title}`} style={styles.row} wrap={false}>
-          <Text style={styles.number}>{item.order}</Text>
           <View style={styles.itemBody}>
             <Text style={[styles.itemType, { color: getSpecialProgramItemColor(item) }]}>{item.type}</Text>
             <Text style={styles.itemTitle}>{itemTitle(item, songs)}</Text>

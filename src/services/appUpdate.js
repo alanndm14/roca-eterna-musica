@@ -50,6 +50,7 @@ export async function activateLatestAppVersion(version = "") {
     await Promise.all((registrations || []).map(async (registration) => {
       registration.waiting?.postMessage?.({ type: "SKIP_WAITING" });
       await registration.update?.();
+      await registration.unregister?.();
     }));
   } catch {
     // La recarga sigue siendo segura aunque el navegador no permita controlar el service worker.
@@ -65,5 +66,12 @@ export async function activateLatestAppVersion(version = "") {
   }
 
   if (version) markInstalledVersion(version);
-  window.location.reload();
+  try {
+    sessionStorage.setItem("roca-eterna-force-update-version", version || appVersion);
+  } catch {
+    // No todos los navegadores permiten sessionStorage en modo privado.
+  }
+  const base = import.meta.env.BASE_URL || "/";
+  const hash = window.location.hash || "";
+  window.location.replace(`${window.location.origin}${base}?update=${Date.now()}${hash}`);
 }

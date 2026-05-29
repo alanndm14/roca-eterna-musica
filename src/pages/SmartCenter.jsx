@@ -282,8 +282,8 @@ export function SmartCenter() {
     [currentReplacementSong, schedules, selectedSchedule, songs]
   );
   const insights = useMemo(() => getRepertoireInsightsSafe(songs, schedules), [schedules, songs]);
-  const visibleInsights = showAllBalance ? insights : insights.slice(0, 5);
-  const gaps = useMemo(() => getPreparationGaps(songs), [songs]);
+  const visibleInsights = showAllBalance ? insights.slice(0, 8) : insights.slice(0, 4);
+  const gaps = useMemo(() => getPreparationGaps(songs).slice(0, 6), [songs]);
   const intentSearch = useMemo(() => searchSongsByIntent(intentQuery, songs, usageIndex), [intentQuery, songs, usageIndex]);
   const alternativeCandidates = useMemo(() => {
     if (!alternativeSlot) return [];
@@ -864,18 +864,18 @@ export function SmartCenter() {
         ) : null}
 
         {activeTab === "balance" ? (
-          <motion.section key="balance" initial={reduceMotion ? false : { opacity: 0, y: 10 }} animate={reduceMotion ? undefined : { opacity: 1, y: 0 }} exit={reduceMotion ? undefined : { opacity: 0, y: -6 }} transition={{ duration: 0.2 }} className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+          <motion.section key="balance" initial={reduceMotion ? false : { opacity: 0, y: 10 }} animate={reduceMotion ? undefined : { opacity: 1, y: 0 }} exit={reduceMotion ? undefined : { opacity: 0, y: -6 }} transition={{ duration: 0.2 }} className="mt-6 grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
             <SmartPanel>
               <div className="flex items-center gap-2">
                 <Lightbulb className="h-5 w-5 text-brass" />
                 <h2 className="text-xl font-black text-ink">Balance del repertorio</h2>
               </div>
-              <div className="mt-5 grid gap-3 md:grid-cols-2">
+              <div className="mt-4 grid gap-2 md:grid-cols-2">
                 {visibleInsights.map((insight) => (
                   <InsightCard key={insight.title} insight={insight} onAction={() => openRepertoireFilter(insight.filter || { q: insight.title })} />
                 ))}
               </div>
-              {insights.length > 5 ? (
+              {insights.length > 4 ? (
                 <Button variant="subtle" className="mt-4" onClick={() => setShowAllBalance((current) => !current)}>
                   {showAllBalance ? "Ver menos" : "Ver más"}
                 </Button>
@@ -883,15 +883,15 @@ export function SmartCenter() {
             </SmartPanel>
             <SmartPanel>
               <h2 className="text-xl font-black text-ink">Qué falta preparar</h2>
-              <div className="mt-4 grid gap-3">
+              <div className="mt-3 grid gap-2">
                 {gaps.map((gap) => (
-                  <div key={gap.key} className="rounded-2xl border border-white/60 bg-white/70 p-3 dark:border-white/10 dark:bg-white/8">
+                  <div key={gap.key} className="rounded-2xl border border-white/60 bg-white/70 p-2.5 dark:border-white/10 dark:bg-white/8">
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="font-bold text-ink">{gap.label}</p>
                         <p className="text-xs text-ink/55">Prioridad {gap.priority}</p>
                       </div>
-                      <p className="text-2xl font-black text-brass">{gap.count}</p>
+                      <p className="text-xl font-black text-brass">{gap.count}</p>
                     </div>
                     <div className="mt-3 h-2 overflow-hidden rounded-full bg-ink/10 dark:bg-white/10">
                       <div className="h-full rounded-full bg-brass" style={{ width: `${Math.min(100, gap.percent)}%` }} />
