@@ -111,68 +111,79 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff"
   },
   header: {
-    flexDirection: "row",
+    flexDirection: "column",
     alignItems: "center",
-    gap: 14,
+    gap: 8,
     borderBottom: "1px solid #b6945f",
     paddingBottom: 14,
-    marginBottom: 20
+    marginBottom: 20,
+    textAlign: "center"
   },
   logo: {
-    width: 56,
-    height: 56,
+    width: 64,
+    height: 64,
     objectFit: "contain"
   },
   church: {
-    fontSize: 18,
+    fontSize: 22,
     fontWeight: 700
   },
   churchSubtitle: {
     marginTop: 2,
-    fontSize: 9,
-    color: "#555"
+    fontSize: 11,
+    color: "#555",
+    textAlign: "center"
   },
   event: {
     marginTop: 5,
-    fontSize: 15,
+    fontSize: 18,
     color: "#8b6a31",
-    fontWeight: 700
+    fontWeight: 700,
+    textAlign: "center"
   },
   meta: {
     marginTop: 3,
-    fontSize: 9,
-    color: "#555"
+    fontSize: 11,
+    color: "#555",
+    textAlign: "center"
   },
   row: {
-    flexDirection: "row",
-    gap: 10,
-    paddingVertical: 8,
-    borderBottom: "1px solid #eeeeee"
+    flexDirection: "column",
+    alignItems: "center",
+    gap: 3,
+    paddingVertical: 10,
+    borderBottom: "1px solid #eeeeee",
+    textAlign: "center"
   },
   number: {
-    width: 24,
-    fontSize: 10,
+    fontSize: 12,
     color: "#8b6a31",
-    fontWeight: 700
+    fontWeight: 700,
+    textAlign: "center"
   },
   itemBody: {
-    flex: 1
+    alignItems: "center",
+    textAlign: "center",
+    width: "100%"
   },
   itemTitle: {
-    fontSize: 11,
-    fontWeight: 700
+    fontSize: 14,
+    fontWeight: 700,
+    textAlign: "center"
   },
   itemType: {
-    fontSize: 8,
+    fontSize: 10,
     color: "#777",
     marginBottom: 2,
-    textTransform: "uppercase"
+    textTransform: "uppercase",
+    textAlign: "center"
   },
   notes: {
     marginTop: 3,
-    fontSize: 9,
+    fontSize: 11,
     color: "#555",
-    lineHeight: 1.35
+    lineHeight: 1.35,
+    textAlign: "center"
   },
   footer: {
     position: "absolute",
@@ -181,8 +192,9 @@ const styles = StyleSheet.create({
     bottom: 24,
     borderTop: "1px solid #eeeeee",
     paddingTop: 8,
-    fontSize: 8,
-    color: "#777"
+    fontSize: 9,
+    color: "#777",
+    textAlign: "center"
   },
   miniPage: {
     padding: 24,
@@ -200,13 +212,16 @@ const styles = StyleSheet.create({
     height: "100%",
     border: "1.2px solid #b6945f",
     padding: 14,
-    justifyContent: "space-between"
+    justifyContent: "space-between",
+    alignItems: "center",
+    textAlign: "center"
   },
   miniHeader: {
-    flexDirection: "row",
+    flexDirection: "column",
     alignItems: "center",
-    gap: 8,
-    marginBottom: 8
+    gap: 4,
+    marginBottom: 8,
+    textAlign: "center"
   },
   miniLogo: {
     width: 28,
@@ -215,44 +230,56 @@ const styles = StyleSheet.create({
   },
   miniEvent: {
     fontSize: 10,
-    fontWeight: 700
+    fontWeight: 700,
+    textAlign: "center"
   },
   miniMeta: {
     marginTop: 2,
     fontSize: 7,
-    color: "#666"
+    color: "#666",
+    textAlign: "center"
   },
   miniItem: {
     fontSize: 7.5,
     marginBottom: 3,
-    lineHeight: 1.25
+    lineHeight: 1.25,
+    textAlign: "center"
   },
   miniBody: {
     flexGrow: 1,
-    marginTop: 3
+    marginTop: 3,
+    width: "100%"
   },
   miniRow: {
-    borderBottom: "0.5px solid #eee4d4"
+    borderBottom: "0.5px solid #eee4d4",
+    alignItems: "center",
+    textAlign: "center"
   },
   miniRowHeader: {
-    flexDirection: "row",
-    gap: 5
+    flexDirection: "column",
+    alignItems: "center",
+    gap: 2,
+    textAlign: "center"
   },
   miniNumber: {
     color: "#8b6a31",
-    fontWeight: 700
+    fontWeight: 700,
+    textAlign: "center"
   },
   miniType: {
     color: "#777",
     fontWeight: 700,
-    textTransform: "uppercase"
+    textTransform: "uppercase",
+    textAlign: "center"
   },
   miniTitle: {
     color: "#161616",
-    fontWeight: 700
+    fontWeight: 700,
+    textAlign: "center"
   },
   miniPosition: {
-    color: "#8b6a31"
+    color: "#8b6a31",
+    textAlign: "center"
   },
   miniNotes: {
     marginTop: 6,
@@ -260,7 +287,8 @@ const styles = StyleSheet.create({
     borderTop: "1px solid #eee4d4",
     fontSize: 7,
     color: "#555",
-    lineHeight: 1.25
+    lineHeight: 1.25,
+    textAlign: "center"
   }
 });
 
@@ -272,51 +300,51 @@ function getCompactTypography(items = [], notes = "") {
 
   if (itemCount <= 5 && textLoad < 420) {
     return {
-      logo: 34,
-      event: 11.5,
-      meta: 7.8,
-      title: 9.5,
-      type: 6.2,
-      notes: 7.4,
-      rowPadding: 5.2,
+      logo: 42,
+      event: 14,
+      meta: 9,
+      title: 12,
+      type: 7.8,
+      notes: 9.2,
+      rowPadding: 7,
       bodyJustify: "space-around",
       lineHeight: 1.28
     };
   }
   if (itemCount <= 9 && textLoad < 760) {
     return {
-      logo: 30,
-      event: 10.2,
-      meta: 7,
-      title: 8.2,
-      type: 5.7,
-      notes: 6.5,
-      rowPadding: 4,
+      logo: 36,
+      event: 12.5,
+      meta: 8,
+      title: 10.5,
+      type: 7,
+      notes: 8.2,
+      rowPadding: 5.4,
       bodyJustify: "space-around",
       lineHeight: 1.22
     };
   }
   if (itemCount <= 14 && textLoad < 1200) {
     return {
-      logo: 26,
-      event: 8.8,
-      meta: 6.2,
-      title: 7.1,
-      type: 5.1,
-      notes: 5.8,
-      rowPadding: 2.8,
+      logo: 30,
+      event: 11,
+      meta: 7,
+      title: 9,
+      type: 6.2,
+      notes: 7,
+      rowPadding: 3.8,
       bodyJustify: "flex-start",
       lineHeight: 1.15
     };
   }
   return {
-    logo: 22,
-    event: 7.6,
-    meta: 5.4,
-    title: 6.2,
-    type: 4.7,
-    notes: 5.1,
-    rowPadding: 2,
+    logo: 26,
+    event: 9.5,
+    meta: 6.2,
+    title: 7.5,
+    type: 5.5,
+    notes: 6.2,
+    rowPadding: 2.8,
     bodyJustify: "flex-start",
     lineHeight: 1.08
   };
@@ -364,11 +392,10 @@ function ProgramContent({ schedule, songs, settings, compact = false }) {
               wrap={false}
             >
               <View style={styles.miniRowHeader}>
-                <Text style={[styles.miniNumber, { fontSize: compactType.title, lineHeight: compactType.lineHeight }]}>{item.order}.</Text>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.miniType, { fontSize: compactType.type, lineHeight: compactType.lineHeight }]}>{item.type}</Text>
                   <Text style={[styles.miniTitle, { fontSize: compactType.title, lineHeight: compactType.lineHeight }]}>
-                    {itemTitle(item, songs)}
+                    {item.order}. {itemTitle(item, songs)}
                   </Text>
                   {item.notes ? (
                     <Text style={[styles.miniItem, { fontSize: compactType.notes, lineHeight: compactType.lineHeight }]}>
