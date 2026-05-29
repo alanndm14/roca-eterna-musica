@@ -1,8 +1,8 @@
 {
-  "version": "0.9.101",
+  "version": "0.9.102",
   "date": "2026-05-29",
   "critical": false,
   "changes": [
-    "Corrección de errores"
+    "Colores editables para categorías del programa especial"
   ]
 }
