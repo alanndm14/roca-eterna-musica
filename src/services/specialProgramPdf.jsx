@@ -229,6 +229,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     textAlign: "center"
   },
+  miniContentRoot: {
+    height: "100%",
+    width: "100%",
+    alignItems: "center",
+    textAlign: "center"
+  },
   miniLogo: {
     width: 28,
     height: 28,
@@ -262,7 +268,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     textAlign: "center",
-    width: "100%"
+    width: "100%",
+    alignSelf: "stretch"
+  },
+  miniRowText: {
+    width: "100%",
+    alignItems: "center",
+    textAlign: "center"
   },
   miniNumber: {
     color: "#8b6a31",
@@ -270,7 +282,7 @@ const styles = StyleSheet.create({
     textAlign: "center"
   },
   miniType: {
-    color: "#777",
+    color: "#b6945f",
     fontWeight: 700,
     textTransform: "uppercase",
     textAlign: "center",
@@ -380,7 +392,7 @@ function ProgramContent({ schedule, songs, settings, compact = false }) {
   if (compact) {
     const compactType = getCompactTypography(items, notes);
     return (
-      <View style={{ height: "100%" }}>
+      <View style={styles.miniContentRoot}>
         <View style={styles.miniHeader}>
           {logo ? <Image src={logo} style={[styles.miniLogo, { width: compactType.logo, height: compactType.logo }]} /> : null}
           <View style={styles.miniHeaderText}>
@@ -396,15 +408,17 @@ function ProgramContent({ schedule, songs, settings, compact = false }) {
               key={`${item.order}-${item.type}-${item.title}`}
               style={[styles.miniRow, { paddingVertical: compactType.rowPadding }]}
             >
-              <Text style={[styles.miniType, { fontSize: compactType.type, lineHeight: compactType.lineHeight }]}>{item.type}</Text>
-              <Text style={[styles.miniTitle, { fontSize: compactType.title, lineHeight: compactType.lineHeight }]}>
-                {item.order}. {itemTitle(item, songs)}
-              </Text>
-              {item.notes ? (
-                <Text style={[styles.miniItem, { fontSize: compactType.notes, lineHeight: compactType.lineHeight }]}>
-                  {item.notes}
+              <View style={styles.miniRowText}>
+                <Text style={[styles.miniType, { fontSize: compactType.type, lineHeight: compactType.lineHeight }]}>{item.type}</Text>
+                <Text style={[styles.miniTitle, { fontSize: compactType.title, lineHeight: compactType.lineHeight }]}>
+                  {item.order}. {itemTitle(item, songs)}
                 </Text>
-              ) : null}
+                {item.notes ? (
+                  <Text style={[styles.miniItem, { fontSize: compactType.notes, lineHeight: compactType.lineHeight }]}>
+                    {item.notes}
+                  </Text>
+                ) : null}
+              </View>
             </View>
           ))}
         </View>
