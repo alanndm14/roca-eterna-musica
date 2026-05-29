@@ -1,6 +1,25 @@
-export const appVersion = "0.9.98";
+export const appVersion = "0.9.99";
 
 export const changelog = [
+  {
+    version: "0.9.99",
+    date: "2026-05-28",
+    title: "Push y programas especiales",
+    added: [],
+    changed: [
+      "El envío de push por nueva programación se dispara antes de la auditoría para evitar bloqueos",
+      "El formato de 2 programas por hoja muestra tipo, acción, posición y notas",
+      "El texto de los programas por media hoja ajusta tamaño y espaciado según la cantidad de elementos"
+    ],
+    fixed: [
+      "La auditoría ya no puede impedir que se intente enviar la notificación de una nueva programación",
+      "El formato compacto del programa especial deja de ocultar detalles importantes",
+      "La media hoja mantiene su marco completo y reparte mejor el contenido"
+    ],
+    pending: [
+      "Probar un envío real de push en producción con un dispositivo registrado activo"
+    ]
+  },
   {
     version: "0.9.98",
     date: "2026-05-25",

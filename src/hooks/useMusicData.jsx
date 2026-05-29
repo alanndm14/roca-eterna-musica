@@ -197,6 +197,18 @@ export function MusicDataProvider({ children }) {
     await addDoc(collection(db, "auditLogs"), payload);
   };
 
+  const logAuditEventBestEffort = (event) => {
+    Promise.resolve()
+      .then(() => logAuditEvent(event))
+      .catch((error) => {
+        console.warn("[Audit] No se pudo registrar auditoría.", {
+          entityType: event?.entityType || "",
+          entityId: event?.entityId || "",
+          message: error?.message || String(error)
+        });
+      });
+  };
+
   const dispatchInternalNotification = (notification) => {
     if (typeof window === "undefined" || !notification?.id) return;
     window.dispatchEvent(new CustomEvent("roca-eterna-internal-notification", { detail: notification }));
@@ -258,6 +270,33 @@ export function MusicDataProvider({ children }) {
           message: error?.message || String(error)
         });
       });
+  };
+
+  const notifyScheduleCreatedBestEffort = (schedulePayload, scheduleId) => {
+    if (!isFutureSchedule(schedulePayload) || !scheduleId) return;
+    const pushNotificationId = `schedule-created-${scheduleId}`;
+    const notificationPayload = {
+      type: "new_schedule",
+      title: "Nueva programación",
+      message: formatSchedulePushBody(schedulePayload),
+      entityType: "schedule",
+      entityId: scheduleId,
+      scheduleId,
+      isFutureSchedule: true,
+      pushNotificationId
+    };
+    showInAppNovelty(notificationPayload);
+    createNotificationBestEffort(notificationPayload);
+    sendPushBestEffort({
+      type: "new_schedule",
+      title: "Nueva programación",
+      body: formatSchedulePushBody(schedulePayload),
+      url: "/#/programacion",
+      scheduleId,
+      notificationId: pushNotificationId,
+      icon: resolveAppLogoForNotification(settings, "light"),
+      badge: resolveAppLogoForNotification(settings, "light")
+    }, { tipoEvento: "schedule_created", eventoGuardado: true, novedadInternaCreada: true });
   };
 
   const createNotification = async (notification) => {
@@ -549,32 +588,8 @@ export function MusicDataProvider({ children }) {
             createdBy: profile.uid
           }
         ]);
-        await logAuditEvent({ actionType: "create", entityType: "schedule", entityId: id, entityName: payload.serviceLabel || payload.date, summary: `Programación creada: ${payload.serviceLabel || payload.date}`, afterData: payload });
-        if (isFutureSchedule(payload)) {
-          const pushNotificationId = `schedule-created-${id}`;
-          const notificationPayload = {
-            type: "new_schedule",
-            title: "Nueva programación",
-            message: formatSchedulePushBody(payload),
-            entityType: "schedule",
-            entityId: id,
-            scheduleId: id,
-            isFutureSchedule: true,
-            pushNotificationId
-          };
-          showInAppNovelty(notificationPayload);
-          createNotificationBestEffort(notificationPayload);
-          sendPushBestEffort({
-            type: "new_schedule",
-            title: "Nueva programación",
-            body: formatSchedulePushBody(payload),
-            url: "/#/programacion",
-            scheduleId: id,
-            notificationId: pushNotificationId,
-            icon: resolveAppLogoForNotification(settings, "light"),
-            badge: resolveAppLogoForNotification(settings, "light")
-          }, { tipoEvento: "schedule_created", eventoGuardado: true, novedadInternaCreada: true });
-        }
+        notifyScheduleCreatedBestEffort(payload, id);
+        logAuditEventBestEffort({ actionType: "create", entityType: "schedule", entityId: id, entityName: payload.serviceLabel || payload.date, summary: `Programación creada: ${payload.serviceLabel || payload.date}`, afterData: payload });
       }
       return;
     }
@@ -589,32 +604,8 @@ export function MusicDataProvider({ children }) {
         createdAt: serverTimestamp(),
         createdBy: profile.uid
       });
-      await logAuditEvent({ actionType: "create", entityType: "schedule", entityId: created.id, entityName: payload.serviceLabel || payload.date, summary: `Programación creada: ${payload.serviceLabel || payload.date}`, afterData: payload });
-      if (isFutureSchedule(payload)) {
-        const pushNotificationId = `schedule-created-${created.id}`;
-        const notificationPayload = {
-          type: "new_schedule",
-          title: "Nueva programación",
-          message: formatSchedulePushBody(payload),
-          entityType: "schedule",
-          entityId: created.id,
-          scheduleId: created.id,
-          isFutureSchedule: true,
-          pushNotificationId
-        };
-        showInAppNovelty(notificationPayload);
-        createNotificationBestEffort(notificationPayload);
-        sendPushBestEffort({
-          type: "new_schedule",
-          title: "Nueva programación",
-          body: formatSchedulePushBody(payload),
-          url: "/#/programacion",
-          scheduleId: created.id,
-          notificationId: pushNotificationId,
-          icon: resolveAppLogoForNotification(settings, "light"),
-          badge: resolveAppLogoForNotification(settings, "light")
-        }, { tipoEvento: "schedule_created", eventoGuardado: true, novedadInternaCreada: true });
-      }
+      notifyScheduleCreatedBestEffort(payload, created.id);
+      logAuditEventBestEffort({ actionType: "create", entityType: "schedule", entityId: created.id, entityName: payload.serviceLabel || payload.date, summary: `Programación creada: ${payload.serviceLabel || payload.date}`, afterData: payload });
     }
   };
 

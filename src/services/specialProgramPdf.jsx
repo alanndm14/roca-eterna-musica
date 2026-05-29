@@ -198,7 +198,8 @@ const styles = StyleSheet.create({
     flex: 1,
     height: "100%",
     border: "1.2px solid #b6945f",
-    padding: 14
+    padding: 14,
+    justifyContent: "space-between"
   },
   miniHeader: {
     flexDirection: "row",
@@ -225,6 +226,33 @@ const styles = StyleSheet.create({
     marginBottom: 3,
     lineHeight: 1.25
   },
+  miniBody: {
+    flexGrow: 1,
+    marginTop: 3
+  },
+  miniRow: {
+    borderBottom: "0.5px solid #eee4d4"
+  },
+  miniRowHeader: {
+    flexDirection: "row",
+    gap: 5
+  },
+  miniNumber: {
+    color: "#8b6a31",
+    fontWeight: 700
+  },
+  miniType: {
+    color: "#777",
+    fontWeight: 700,
+    textTransform: "uppercase"
+  },
+  miniTitle: {
+    color: "#161616",
+    fontWeight: 700
+  },
+  miniPosition: {
+    color: "#8b6a31"
+  },
   miniNotes: {
     marginTop: 6,
     paddingTop: 5,
@@ -234,6 +262,64 @@ const styles = StyleSheet.create({
     lineHeight: 1.25
   }
 });
+
+function getCompactTypography(items = [], notes = "") {
+  const itemCount = items.length || 1;
+  const textLoad = items.reduce((total, item) => (
+    total + String(item.title || "").length + String(item.notes || "").length + String(item.type || "").length
+  ), String(notes || "").length);
+
+  if (itemCount <= 5 && textLoad < 420) {
+    return {
+      logo: 34,
+      event: 11.5,
+      meta: 7.8,
+      title: 9.5,
+      type: 6.2,
+      notes: 7.4,
+      rowPadding: 5.2,
+      bodyJustify: "space-around",
+      lineHeight: 1.28
+    };
+  }
+  if (itemCount <= 9 && textLoad < 760) {
+    return {
+      logo: 30,
+      event: 10.2,
+      meta: 7,
+      title: 8.2,
+      type: 5.7,
+      notes: 6.5,
+      rowPadding: 4,
+      bodyJustify: "space-around",
+      lineHeight: 1.22
+    };
+  }
+  if (itemCount <= 14 && textLoad < 1200) {
+    return {
+      logo: 26,
+      event: 8.8,
+      meta: 6.2,
+      title: 7.1,
+      type: 5.1,
+      notes: 5.8,
+      rowPadding: 2.8,
+      bodyJustify: "flex-start",
+      lineHeight: 1.15
+    };
+  }
+  return {
+    logo: 22,
+    event: 7.6,
+    meta: 5.4,
+    title: 6.2,
+    type: 4.7,
+    notes: 5.1,
+    rowPadding: 2,
+    bodyJustify: "flex-start",
+    lineHeight: 1.08
+  };
+}
 
 function itemTitle(item, songs = []) {
   if (item.type === "Canto" && item.songId) {
@@ -260,23 +346,48 @@ function ProgramContent({ schedule, songs, settings, compact = false }) {
   const showChurchSubtitle = churchName && churchName.toLowerCase() !== "roca eterna";
 
   if (compact) {
+    const compactType = getCompactTypography(items, notes);
     return (
-      <View>
+      <View style={{ height: "100%" }}>
         <View style={styles.miniHeader}>
-          {logo ? <Image src={logo} style={styles.miniLogo} /> : null}
+          {logo ? <Image src={logo} style={[styles.miniLogo, { width: compactType.logo, height: compactType.logo }]} /> : null}
           <View>
-            <Text style={styles.miniEvent}>Roca Eterna</Text>
+            <Text style={[styles.miniEvent, { fontSize: compactType.event }]}>Roca Eterna</Text>
             {showChurchSubtitle ? <Text style={styles.miniMeta}>{churchName}</Text> : null}
-            <Text style={styles.miniEvent}>{title}</Text>
-            <Text style={styles.miniMeta}>{meta}</Text>
+            <Text style={[styles.miniEvent, { fontSize: compactType.event }]}>{title}</Text>
+            <Text style={[styles.miniMeta, { fontSize: compactType.meta }]}>{meta}</Text>
           </View>
         </View>
-        {items.map((item) => (
-          <Text key={`${item.order}-${item.type}-${item.title}`} style={styles.miniItem}>
-            {item.order}. {item.type === "Canto" ? `${item.position}: ` : ""}{itemTitle(item, songs)}
-          </Text>
-        ))}
-        {notes ? <Text style={styles.miniNotes}>{notes}</Text> : null}
+        <View style={[styles.miniBody, { justifyContent: compactType.bodyJustify }]}>
+          {items.map((item) => (
+            <View
+              key={`${item.order}-${item.type}-${item.title}`}
+              style={[styles.miniRow, { paddingVertical: compactType.rowPadding }]}
+              wrap={false}
+            >
+              <View style={styles.miniRowHeader}>
+                <Text style={[styles.miniNumber, { fontSize: compactType.title, lineHeight: compactType.lineHeight }]}>{item.order}.</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.miniType, { fontSize: compactType.type, lineHeight: compactType.lineHeight }]}>{item.type}</Text>
+                  <Text style={[styles.miniTitle, { fontSize: compactType.title, lineHeight: compactType.lineHeight }]}>
+                    {itemTitle(item, songs)}
+                  </Text>
+                  {item.type === "Canto" ? (
+                    <Text style={[styles.miniPosition, { fontSize: compactType.notes, lineHeight: compactType.lineHeight }]}>
+                      {item.position}
+                    </Text>
+                  ) : null}
+                  {item.notes ? (
+                    <Text style={[styles.miniItem, { fontSize: compactType.notes, lineHeight: compactType.lineHeight }]}>
+                      {item.notes}
+                    </Text>
+                  ) : null}
+                </View>
+              </View>
+            </View>
+          ))}
+        </View>
+        {notes ? <Text style={[styles.miniNotes, { fontSize: compactType.notes, lineHeight: compactType.lineHeight }]}>{notes}</Text> : null}
       </View>
     );
   }
