@@ -11,6 +11,7 @@ import { getSongPdfUrl } from "../services/songUtils";
 import { diagnosePushNotifications, enablePushNotificationsForUser } from "../services/pushNotifications";
 
 const currentMonth = () => todayString().slice(0, 7);
+const pushAcceptedStorageKey = (uid) => `roca-eterna-push-prompt-accepted-${uid}`;
 
 const formatRemaining = (schedule, now = new Date()) => {
   const start = getScheduleStartDate(schedule);
@@ -84,11 +85,22 @@ export function Dashboard() {
         setPushPrompt((current) => ({ ...current, checked: true, show: false }));
         return;
       }
+      const browserPermissionGranted = Notification.permission === "granted";
+      const userAlreadyAccepted = Boolean(
+        profile.pushNotificationsEnabled
+        || profile.wantsPushNotifications
+        || profile.pushPromptAcceptedAt
+        || localStorage.getItem(pushAcceptedStorageKey(profile.uid)) === "true"
+      );
+      if (browserPermissionGranted || userAlreadyAccepted) {
+        setPushPrompt((current) => ({ ...current, checked: true, show: false }));
+        return;
+      }
       const diagnostic = await diagnosePushNotifications(profile).catch(() => null);
       if (cancelled) return;
-      const permissionGranted = Notification.permission === "granted";
+      const permissionGranted = Notification.permission === "granted" || diagnostic?.browserPermission === "granted";
       const hasRegisteredDevice = Boolean(diagnostic?.tokenPath || diagnostic?.tokenObtained || diagnostic?.firestoreWrite === "token existente" || diagnostic?.firestoreWrite === "permitida");
-      setPushPrompt({ checked: true, show: !permissionGranted || !hasRegisteredDevice, status: "" });
+      setPushPrompt({ checked: true, show: !(permissionGranted || hasRegisteredDevice), status: "" });
     };
     checkPushPrompt();
     return () => {
@@ -101,20 +113,25 @@ export function Dashboard() {
     try {
       if (profile?.uid) localStorage.removeItem(`roca-eterna-push-prompt-dismissed-${profile.uid}`);
       const result = await enablePushNotificationsForUser(profile);
+      const permissionAccepted = result.browserPermission === "granted" || (typeof Notification !== "undefined" && Notification.permission === "granted");
       const registered = Boolean(
         result.supported
         && (result.tokenObtained || result.tokenPath || result.firestoreWrite === "permitida" || result.firestoreWrite === "token existente")
       );
-      if (registered) {
+      if (profile?.uid && (permissionAccepted || registered)) {
+        localStorage.setItem(pushAcceptedStorageKey(profile.uid), "true");
+      }
+      if (permissionAccepted || registered) {
         await saveUserPreferences?.({
           dismissedPushPromptByUser: false,
-          pushNotificationsEnabled: true,
+          wantsPushNotifications: true,
+          pushNotificationsEnabled: registered,
           pushNotificationsEnabledAt: new Date().toISOString()
         });
       }
       setPushPrompt({
         checked: true,
-        show: !registered,
+        show: !(permissionAccepted || registered),
         status: result.reason || (registered ? "Notificaciones activadas en este dispositivo." : "No se pudieron activar las notificaciones.")
       });
     } finally {

@@ -120,8 +120,8 @@ const styles = StyleSheet.create({
     textAlign: "center"
   },
   logo: {
-    width: 64,
-    height: 64,
+    width: 78,
+    height: 78,
     objectFit: "contain"
   },
   church: {
@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
     flex: 1,
     height: "100%",
     border: "1.2px solid #b6945f",
-    padding: 14,
+    padding: 16,
     justifyContent: "space-between",
     alignItems: "center",
     textAlign: "center"
@@ -221,6 +221,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 4,
     marginBottom: 8,
+    width: "100%",
+    textAlign: "center"
+  },
+  miniHeaderText: {
+    width: "100%",
+    alignItems: "center",
     textAlign: "center"
   },
   miniLogo: {
@@ -243,23 +249,20 @@ const styles = StyleSheet.create({
     fontSize: 7.5,
     marginBottom: 3,
     lineHeight: 1.25,
-    textAlign: "center"
+    textAlign: "center",
+    width: "100%"
   },
   miniBody: {
     flexGrow: 1,
     marginTop: 3,
-    width: "100%"
+    width: "100%",
+    alignItems: "center"
   },
   miniRow: {
-    borderBottom: "0.5px solid #eee4d4",
     alignItems: "center",
-    textAlign: "center"
-  },
-  miniRowHeader: {
-    flexDirection: "column",
-    alignItems: "center",
-    gap: 2,
-    textAlign: "center"
+    justifyContent: "center",
+    textAlign: "center",
+    width: "100%"
   },
   miniNumber: {
     color: "#8b6a31",
@@ -270,12 +273,14 @@ const styles = StyleSheet.create({
     color: "#777",
     fontWeight: 700,
     textTransform: "uppercase",
-    textAlign: "center"
+    textAlign: "center",
+    width: "100%"
   },
   miniTitle: {
     color: "#161616",
     fontWeight: 700,
-    textAlign: "center"
+    textAlign: "center",
+    width: "100%"
   },
   miniPosition: {
     color: "#8b6a31",
@@ -288,7 +293,8 @@ const styles = StyleSheet.create({
     fontSize: 7,
     color: "#555",
     lineHeight: 1.25,
-    textAlign: "center"
+    textAlign: "center",
+    width: "100%"
   }
 });
 
@@ -300,53 +306,53 @@ function getCompactTypography(items = [], notes = "") {
 
   if (itemCount <= 5 && textLoad < 420) {
     return {
-      logo: 42,
-      event: 14,
-      meta: 9,
-      title: 12,
-      type: 7.8,
-      notes: 9.2,
-      rowPadding: 7,
+      logo: 54,
+      event: 16,
+      meta: 10,
+      title: 14,
+      type: 8.5,
+      notes: 10,
+      rowPadding: 8.5,
       bodyJustify: "space-around",
-      lineHeight: 1.28
+      lineHeight: 1.35
     };
   }
   if (itemCount <= 9 && textLoad < 760) {
     return {
-      logo: 36,
-      event: 12.5,
-      meta: 8,
-      title: 10.5,
-      type: 7,
-      notes: 8.2,
-      rowPadding: 5.4,
+      logo: 46,
+      event: 14,
+      meta: 9,
+      title: 12,
+      type: 7.8,
+      notes: 9,
+      rowPadding: 6.8,
       bodyJustify: "space-around",
-      lineHeight: 1.22
+      lineHeight: 1.3
     };
   }
   if (itemCount <= 14 && textLoad < 1200) {
     return {
-      logo: 30,
-      event: 11,
-      meta: 7,
-      title: 9,
-      type: 6.2,
-      notes: 7,
-      rowPadding: 3.8,
+      logo: 38,
+      event: 12,
+      meta: 8,
+      title: 10,
+      type: 6.8,
+      notes: 8,
+      rowPadding: 4.8,
       bodyJustify: "flex-start",
-      lineHeight: 1.15
+      lineHeight: 1.22
     };
   }
   return {
-    logo: 26,
-    event: 9.5,
-    meta: 6.2,
-    title: 7.5,
-    type: 5.5,
-    notes: 6.2,
-    rowPadding: 2.8,
+    logo: 32,
+    event: 10.5,
+    meta: 7,
+    title: 8.6,
+    type: 6,
+    notes: 7,
+    rowPadding: 3.4,
     bodyJustify: "flex-start",
-    lineHeight: 1.08
+    lineHeight: 1.14
   };
 }
 
@@ -377,7 +383,7 @@ function ProgramContent({ schedule, songs, settings, compact = false }) {
       <View style={{ height: "100%" }}>
         <View style={styles.miniHeader}>
           {logo ? <Image src={logo} style={[styles.miniLogo, { width: compactType.logo, height: compactType.logo }]} /> : null}
-          <View>
+          <View style={styles.miniHeaderText}>
             <Text style={[styles.miniEvent, { fontSize: compactType.event }]}>Roca Eterna</Text>
             {showChurchSubtitle ? <Text style={styles.miniMeta}>{churchName}</Text> : null}
             <Text style={[styles.miniEvent, { fontSize: compactType.event }]}>{title}</Text>
@@ -389,21 +395,16 @@ function ProgramContent({ schedule, songs, settings, compact = false }) {
             <View
               key={`${item.order}-${item.type}-${item.title}`}
               style={[styles.miniRow, { paddingVertical: compactType.rowPadding }]}
-              wrap={false}
             >
-              <View style={styles.miniRowHeader}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.miniType, { fontSize: compactType.type, lineHeight: compactType.lineHeight }]}>{item.type}</Text>
-                  <Text style={[styles.miniTitle, { fontSize: compactType.title, lineHeight: compactType.lineHeight }]}>
-                    {item.order}. {itemTitle(item, songs)}
-                  </Text>
-                  {item.notes ? (
-                    <Text style={[styles.miniItem, { fontSize: compactType.notes, lineHeight: compactType.lineHeight }]}>
-                      {item.notes}
-                    </Text>
-                  ) : null}
-                </View>
-              </View>
+              <Text style={[styles.miniType, { fontSize: compactType.type, lineHeight: compactType.lineHeight }]}>{item.type}</Text>
+              <Text style={[styles.miniTitle, { fontSize: compactType.title, lineHeight: compactType.lineHeight }]}>
+                {item.order}. {itemTitle(item, songs)}
+              </Text>
+              {item.notes ? (
+                <Text style={[styles.miniItem, { fontSize: compactType.notes, lineHeight: compactType.lineHeight }]}>
+                  {item.notes}
+                </Text>
+              ) : null}
             </View>
           ))}
         </View>
@@ -416,7 +417,7 @@ function ProgramContent({ schedule, songs, settings, compact = false }) {
     <>
       <View style={styles.header}>
         {logo ? <Image src={logo} style={styles.logo} /> : null}
-        <View>
+        <View style={{ width: "100%", alignItems: "center", textAlign: "center" }}>
           <Text style={styles.church}>Roca Eterna</Text>
           {showChurchSubtitle ? <Text style={styles.churchSubtitle}>{churchName}</Text> : null}
           <Text style={styles.event}>{title}</Text>
