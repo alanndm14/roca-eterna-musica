@@ -1,10 +1,8 @@
 {
-  "version": "0.9.99",
-  "date": "2026-05-28",
+  "version": "0.9.100",
+  "date": "2026-05-29",
   "critical": false,
   "changes": [
-    "Push de nueva programación más resistente",
-    "Programa especial 2 por hoja con más detalle",
-    "Ajuste automático de texto en media hoja"
+    "Corrección de errores"
   ]
 }
