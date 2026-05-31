@@ -1,6 +1,19 @@
-export const appVersion = "0.9.103";
+export const appVersion = "0.9.104";
 
 export const changelog = [
+  {
+    version: "0.9.104",
+    date: "2026-05-30",
+    title: "Corrección de carga",
+    added: [],
+    changed: [
+      "La verificación de actualización compara contra la versión real que está corriendo"
+    ],
+    fixed: [
+      "Corrección de casos donde el navegador podía quedarse con una versión vieja después de actualizar"
+    ],
+    pending: []
+  },
   {
     version: "0.9.103",
     date: "2026-05-29",

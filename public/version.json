@@ -1,8 +1,8 @@
 {
-  "version": "0.9.103",
+  "version": "0.9.104",
   "date": "2026-05-29",
   "critical": false,
   "changes": [
-    "Mejoras en programas especiales, sustitución y revisión"
+    "Corrección de carga y actualización de la app"
   ]
 }

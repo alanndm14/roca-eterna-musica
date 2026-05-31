@@ -65,7 +65,6 @@ export async function activateLatestAppVersion(version = "") {
     // Algunos navegadores restringen Cache Storage en modo privado.
   }
 
-  if (version) markInstalledVersion(version);
   try {
     sessionStorage.setItem("roca-eterna-force-update-version", version || appVersion);
   } catch {
