@@ -5,6 +5,13 @@ const invalidTokenCodes = new Set([
   "messaging/registration-token-not-registered",
   "messaging/invalid-registration-token"
 ]);
+const DEFAULT_ALLOWED_ORIGINS = [
+  "https://musica.rocaeternamexico.com.mx",
+  "https://alanndm14.github.io"
+];
+const RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const RATE_LIMIT_MAX_REQUESTS = 20;
+const requestBuckets = new Map();
 
 function initializeAdmin() {
   if (admin.apps.length) return admin.app();
@@ -86,18 +93,64 @@ function logSafe(label, payload) {
   console.log(label, JSON.stringify(payload));
 }
 
+function normalizeOrigin(origin = "") {
+  return String(origin || "").replace(/\/$/, "");
+}
+
+function allowedOrigins() {
+  const raw = process.env.PUSH_ALLOWED_ORIGIN || process.env.PUSH_ALLOWED_ORIGINS || "";
+  const configured = raw
+    .split(",")
+    .map((item) => normalizeOrigin(item.trim()))
+    .filter(Boolean);
+  return new Set(configured.length ? configured : DEFAULT_ALLOWED_ORIGINS);
+}
+
+function isAllowedOrigin(origin = "") {
+  if (!origin) return true;
+  return allowedOrigins().has(normalizeOrigin(origin));
+}
+
+function applyCors(request, response) {
+  const origin = normalizeOrigin(request.headers.origin || "");
+  if (isAllowedOrigin(origin)) {
+  response.setHeader("Access-Control-Allow-Origin", origin || [...allowedOrigins()][0]);
+  response.setHeader("Vary", "Origin");
+  }
+  response.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Firebase-AppCheck");
+}
+
 function appBaseUrl() {
   return (process.env.PUSH_APP_BASE_URL || process.env.PUSH_ALLOWED_ORIGIN || "https://alanndm14.github.io/roca-eterna-musica").replace(/\/$/, "");
 }
 
+function safeInternalUrl(url = "") {
+  const value = String(url || "").trim();
+  if (!value) return "/";
+  if (/^https?:\/\//i.test(value)) {
+    const parsed = new URL(value);
+    const appUrl = new URL(appBaseUrl());
+    if (parsed.origin !== appUrl.origin) {
+      const error = new Error("La URL de la notificacion debe pertenecer a la app.");
+      error.status = 400;
+      error.stage = "validate_payload";
+      throw error;
+    }
+    return `${parsed.pathname}${parsed.search}${parsed.hash}` || "/";
+  }
+  if (value.startsWith("/") || value.startsWith("#/")) return value;
+  return `/${value}`;
+}
+
 function absoluteAppUrl(url = "") {
-  if (/^https?:\/\//i.test(url)) return url;
+  const safeUrl = safeInternalUrl(url);
   const base = appBaseUrl();
-  if (!url) return `${base}/`;
-  if (url.startsWith("/#/")) return `${base}${url}`;
-  if (url.startsWith("#/")) return `${base}/${url}`;
-  if (url.startsWith("/")) return `${base}${url}`;
-  return `${base}/${url}`;
+  if (!safeUrl) return `${base}/`;
+  if (safeUrl.startsWith("/#/")) return `${base}${safeUrl}`;
+  if (safeUrl.startsWith("#/")) return `${base}/${safeUrl}`;
+  if (safeUrl.startsWith("/")) return `${base}${safeUrl}`;
+  return `${base}/${safeUrl}`;
 }
 
 function publicIconUrl() {
@@ -120,16 +173,64 @@ async function verifyRequester(request) {
   return admin.auth().verifyIdToken(idToken);
 }
 
+async function verifyAppCheckIfRequired(request) {
+  if (process.env.REQUIRE_APP_CHECK !== "true") return;
+  const appCheckToken = request.headers["x-firebase-appcheck"] || "";
+  if (!appCheckToken) {
+    const error = new Error("Falta token de App Check.");
+    error.status = 401;
+    error.stage = "verify_app_check";
+    throw error;
+  }
+  await admin.appCheck().verifyToken(appCheckToken);
+}
+
 async function checkRole(decoded) {
   const requesterSnap = await admin.firestore().doc(`users/${decoded.uid}`).get();
   const requester = requesterSnap.data();
-  if (!requester?.active || !["admin", "editor"].includes(requester.role)) {
+  if (!requester?.active || requester.email !== decoded.email || !["admin", "editor"].includes(requester.role)) {
     const error = new Error("No autorizado para enviar push.");
     error.status = 403;
     error.stage = "check_role";
     throw error;
   }
   return requester;
+}
+
+function enforceRateLimit(uid = "") {
+  const key = uid || "anonymous";
+  const now = Date.now();
+  const bucket = requestBuckets.get(key) || [];
+  const recent = bucket.filter((timestamp) => now - timestamp < RATE_LIMIT_WINDOW_MS);
+  if (recent.length >= RATE_LIMIT_MAX_REQUESTS) {
+    const error = new Error("Demasiados intentos de envio push. Espera un minuto.");
+    error.status = 429;
+    error.stage = "rate_limit";
+    throw error;
+  }
+  recent.push(now);
+  requestBuckets.set(key, recent);
+}
+
+function validatePayload(payload = {}) {
+  const title = String(payload.title || "").trim();
+  const body = String(payload.body || "").trim();
+  const type = String(payload.type || "other");
+  const mode = String(payload.mode || "broadcast");
+  if (!allowedTypes.has(type)) {
+    return { ok: false, code: "INVALID_TYPE", message: "Tipo de notificacion no permitido." };
+  }
+  if (!title || !body) {
+    return { ok: false, code: "MISSING_TITLE_BODY", message: "Faltan titulo o mensaje." };
+  }
+  if (title.length > 160 || body.length > 500) {
+    return { ok: false, code: "PAYLOAD_TOO_LONG", message: "Titulo o mensaje demasiado largo." };
+  }
+  if (!["broadcast", "self_test", "self_test_data_only"].includes(mode)) {
+    return { ok: false, code: "INVALID_MODE", message: "Modo de envio no permitido." };
+  }
+  safeInternalUrl(payload.url || "/");
+  return { ok: true };
 }
 
 async function reserveNotificationSend(notificationId, requesterUid) {
@@ -268,7 +369,7 @@ async function sendToTokens(entries, payload) {
       const badge = payload.badge || icon;
       const data = stringData({
         type: payload.type || "other",
-        url: payload.url || "/roca-eterna-musica/",
+        url: safeInternalUrl(payload.url || "/"),
         title: payload.title,
         body: payload.body,
         icon,
@@ -331,12 +432,13 @@ async function sendToTokens(entries, payload) {
 }
 
 export default async function handler(request, response) {
-  response.setHeader("Access-Control-Allow-Origin", process.env.PUSH_ALLOWED_ORIGIN || "*");
-  response.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  applyCors(request, response);
 
   if (request.method === "OPTIONS") return response.status(204).end();
   if (request.method !== "POST") return sendJson(response, 405, { ok: false, stage: "method", message: "Metodo no permitido." });
+  if (!isAllowedOrigin(request.headers.origin || "")) {
+    return sendJson(response, 403, { ok: false, stage: "origin", message: "Origen no permitido." });
+  }
 
   let stage = "initialize_admin";
   let notificationId = "";
@@ -346,6 +448,9 @@ export default async function handler(request, response) {
 
     stage = "verify_id_token";
     const decoded = await verifyRequester(request);
+    stage = "verify_app_check";
+    await verifyAppCheckIfRequired(request);
+    enforceRateLimit(decoded.uid);
 
     const {
       mode = "broadcast",
@@ -366,8 +471,8 @@ export default async function handler(request, response) {
     stage = "check_role";
     await checkRole(decoded);
 
-    if (!allowedTypes.has(type)) return sendJson(response, 400, { ok: false, stage: "validate_payload", code: "INVALID_TYPE", message: "Tipo de notificacion no permitido." });
-    if (!title || !body) return sendJson(response, 400, { ok: false, stage: "validate_payload", code: "MISSING_TITLE_BODY", message: "Faltan titulo o mensaje." });
+    const payloadValidation = validatePayload({ mode, type, title, body, url });
+    if (!payloadValidation.ok) return sendJson(response, 400, { ok: false, stage: "validate_payload", ...payloadValidation });
 
     if (mode !== "self_test") {
       stage = "dedupe";

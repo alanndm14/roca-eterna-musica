@@ -1,8 +1,10 @@
 {
-  "version": "0.9.104",
-  "date": "2026-05-29",
+  "version": "0.9.105",
+  "date": "2026-06-03",
   "critical": false,
   "changes": [
-    "Corrección de carga y actualización de la app"
+    "Mejoras en Centro Inteligente",
+    "Busqueda en letras/PDF y rotacion mas clara",
+    "Orden manual con arrastre en programaciones"
   ]
 }

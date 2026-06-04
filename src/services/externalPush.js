@@ -1,4 +1,5 @@
-import { auth, pushServerUrl } from "../lib/firebase";
+import { getToken as getAppCheckToken } from "firebase/app-check";
+import { appCheck, auth, pushServerUrl } from "../lib/firebase";
 
 const LAST_AUTO_KEY = "roca-eterna-last-auto-push";
 const LAST_TEST_KEY = "roca-eterna-last-test-push";
@@ -49,12 +50,21 @@ export async function sendExternalPush(payload = {}, options = {}) {
 
   try {
     const idToken = await auth.currentUser.getIdToken();
+    const headers = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${idToken}`
+    };
+    if (appCheck) {
+      try {
+        const appCheckResult = await getAppCheckToken(appCheck, false);
+        if (appCheckResult?.token) headers["X-Firebase-AppCheck"] = appCheckResult.token;
+      } catch {
+        // App Check no debe bloquear push hasta que se active enforcement en backend.
+      }
+    }
     const response = await fetch(pushServerUrl, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${idToken}`
-      },
+      headers,
       body: JSON.stringify(payload)
     });
     const body = await parseJsonSafely(response);

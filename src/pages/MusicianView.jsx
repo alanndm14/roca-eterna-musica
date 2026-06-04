@@ -6,6 +6,7 @@ import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Field, Input, Select, Textarea } from "../components/ui/Field";
 import { Modal } from "../components/ui/Modal";
+import { SortableList, SortableHandle } from "../components/ui/SortableList";
 import { RecommendationCard } from "../components/smart/RecommendationCard";
 import { ScoreBadge } from "../components/smart/ScoreBadge";
 import { ServiceReviewPanel } from "../components/smart/ServiceReviewPanel";
@@ -659,10 +660,17 @@ export function MusicianView() {
               Agregar elemento
             </Button>
           </div>
-          <div className="max-h-[58vh] space-y-3 overflow-auto pr-1">
-            {programDraft.map((item, index) => (
-              <div key={`${item.order}-${index}`} className="rounded-2xl border border-ink/10 bg-white p-3">
-                <div className="grid gap-3 md:grid-cols-[80px_180px_120px_1fr]">
+          <div className="max-h-[58vh] overflow-auto pr-1">
+            <SortableList
+              items={programDraft}
+              getId={(item, index) => `${item.songId || item.title || item.type || "item"}-${index}`}
+              onReorder={(items) => setProgramDraft(normalizeSpecialProgramItems(items))}
+              className="space-y-3"
+            >
+            {(item, index, dragHandleProps) => (
+              <div className="rounded-2xl border border-ink/10 bg-white p-3">
+                <div className="grid gap-3 md:grid-cols-[48px_80px_180px_120px_1fr]">
+                  <div className="pt-6"><SortableHandle {...dragHandleProps} /></div>
                   <Field label="Orden">
                     <Input value={item.order} readOnly />
                   </Field>
@@ -705,7 +713,8 @@ export function MusicianView() {
                   </Button>
                 </div>
               </div>
-            ))}
+            )}
+            </SortableList>
           </div>
           <div className="flex justify-end gap-3">
             <Button variant="secondary" onClick={() => setShowSpecialProgramEditor(false)}>Cancelar</Button>
@@ -725,9 +734,12 @@ export function MusicianView() {
               <p className="text-sm text-ink/55">Los archivos se procesan solo en tu navegador. No se suben a la nube.</p>
             </div>
           </div>
-          <div className="max-h-72 space-y-2 overflow-auto">
-            {localFiles.length ? localFiles.map((item, index) => (
-              <div key={item.id} className="grid gap-2 rounded-2xl bg-ink/5 p-3 sm:grid-cols-[1fr_auto] sm:items-center">
+          <div className="max-h-72 overflow-auto">
+            {localFiles.length ? (
+              <SortableList items={localFiles} getId={(item) => item.id} onReorder={setLocalFiles} className="space-y-2">
+              {(item, index, dragHandleProps) => (
+              <div className="grid gap-2 rounded-2xl bg-ink/5 p-3 sm:grid-cols-[42px_1fr_auto] sm:items-center">
+                <SortableHandle {...dragHandleProps} />
                 <p className="truncate text-sm font-semibold text-ink">{index + 1}. {item.file.name}</p>
                 <div className="flex gap-1">
                   <Button variant="subtle" className="h-10 w-10 px-0" disabled={index === 0} onClick={() => moveLocalFile(index, -1)} aria-label="Subir"><ArrowUp className="h-4 w-4" /></Button>
@@ -735,7 +747,9 @@ export function MusicianView() {
                   <Button variant="danger" className="h-10 w-10 px-0" onClick={() => setLocalFiles((current) => current.filter((file) => file.id !== item.id))} aria-label="Eliminar"><Trash2 className="h-4 w-4" /></Button>
                 </div>
               </div>
-            )) : <p className="rounded-2xl bg-ink/5 p-4 text-sm text-ink/55">Selecciona varios archivos PDF para unirlos en el orden deseado.</p>}
+              )}
+              </SortableList>
+            ) : <p className="rounded-2xl bg-ink/5 p-4 text-sm text-ink/55">Selecciona varios archivos PDF para unirlos en el orden deseado.</p>}
           </div>
           <div className="flex justify-end gap-3">
             <Button variant="secondary" onClick={() => setShowLocalMerge(false)}>Cancelar</Button>

@@ -5,6 +5,7 @@ import { CalendarCheck2, GitCompareArrows, Lightbulb, ListChecks, RefreshCw, Sea
 import { Button } from "../components/ui/Button";
 import { Field, Input, Select } from "../components/ui/Field";
 import { Modal } from "../components/ui/Modal";
+import { SortableList, SortableHandle } from "../components/ui/SortableList";
 import { SmartGradientBackground, SmartPanel } from "../components/smart/SmartPanel";
 import { RecommendationCard } from "../components/smart/RecommendationCard";
 import { ServiceReviewPanel } from "../components/smart/ServiceReviewPanel";
@@ -22,6 +23,7 @@ import {
   getPreparationGaps,
   getReplacementCandidates,
   getRepertoireInsights,
+  getServiceSlots,
   getSlotAlternatives,
   getSmartServiceDefaultCount,
   getSongRecommendations,
@@ -53,6 +55,7 @@ const defaultOptions = {
   onlyKeynoteReady: false,
   preferredKey: "",
   includePdfText: false,
+  pdfSearchQuery: "",
   seed: 0
 };
 
@@ -167,6 +170,30 @@ function nextBlockState(block, overrides) {
   };
 }
 
+const blockItemId = (item) => `${item.slot?.id || "slot"}-${item.song?.id || item.songId || item.role}`;
+
+function applyManualBlockOrder(block, orderIds, serviceType, options, usageIndex, selectedSchedule) {
+  if (!block?.items?.length) return block;
+  const byId = new Map(block.items.map((item) => [blockItemId(item), item]));
+  const ordered = orderIds.length
+    ? [...orderIds.map((id) => byId.get(id)).filter(Boolean), ...block.items.filter((item) => !orderIds.includes(blockItemId(item)))]
+    : block.items;
+  const normalService = serviceType !== "Servicio especial";
+  const slots = normalService ? getServiceSlots(serviceType, ordered.length) : block.slots;
+  const scheduledIds = new Set((selectedSchedule?.songs || []).map((entry) => entry.songId).filter(Boolean));
+  const items = ordered.map((item, index) => {
+    const slot = normalService ? (slots[index] || item.slot) : item.slot;
+    const scored = scoreSong(item.song, { ...options, serviceType, slot }, { usageIndex, scheduledIds });
+    return { ...item, ...scored, role: slot.role, slot, energy: slot.intent };
+  });
+  return {
+    ...block,
+    slots,
+    items,
+    score: items.length ? clampScore(items.reduce((sum, item) => sum + item.score, 0) / items.length) : 0
+  };
+}
+
 function songFactRows(song = {}, item = {}) {
   return [
     ["Tema", song.mainTheme || "Sin tema"],
@@ -217,6 +244,7 @@ export function SmartCenter() {
   const [indexProgress, setIndexProgress] = useState(null);
   const [indexResult, setIndexResult] = useState(null);
   const [blockOverrides, setBlockOverrides] = useState({});
+  const [blockOrder, setBlockOrder] = useState([]);
   const [alternativeSlot, setAlternativeSlot] = useState(null);
   const [compareItem, setCompareItem] = useState(null);
   const [compareSongId, setCompareSongId] = useState("");
@@ -270,7 +298,10 @@ export function SmartCenter() {
     () => createSuggestedServiceBlock(songs, schedules, { ...options, count: effectiveCount, serviceType: selectedServiceType, currentSchedule: selectedSchedule }),
     [effectiveCount, options, schedules, selectedSchedule, selectedServiceType, songs]
   );
-  const suggestedBlock = useMemo(() => nextBlockState(rawBlock, blockOverrides), [blockOverrides, rawBlock]);
+  const suggestedBlock = useMemo(
+    () => applyManualBlockOrder(nextBlockState(rawBlock, blockOverrides), blockOrder, selectedServiceType, options, usageIndex, selectedSchedule),
+    [blockOrder, blockOverrides, options, rawBlock, selectedSchedule, selectedServiceType, usageIndex]
+  );
   const review = useMemo(
     () => selectedSchedule ? reviewServiceSchedule(selectedSchedule, songs, schedules) : { score: 0, status: "Sin programación", alerts: [], groups: [] },
     [schedules, selectedSchedule, songs]
@@ -296,6 +327,7 @@ export function SmartCenter() {
 
   const updateOption = (key, value) => {
     setBlockOverrides({});
+    setBlockOrder([]);
     if (key !== "seed") setBlockGenerated(false);
     setOptions((current) => ({ ...current, [key]: value }));
   };
@@ -323,6 +355,7 @@ export function SmartCenter() {
 
   const updateServiceType = (serviceType) => {
     setBlockOverrides({});
+    setBlockOrder([]);
     setBlockGenerated(false);
     setOptions((current) => ({
       ...current,
@@ -361,6 +394,7 @@ export function SmartCenter() {
       seed: current.seed + 1
     }));
     setBlockOverrides({});
+    setBlockOrder([]);
     setBlockGenerated(true);
     setActiveTab("programar");
     setStatus(`Bloque generado para ${scheduleLabel(nextSchedule)}.`);
@@ -382,6 +416,7 @@ export function SmartCenter() {
     }
     setOptions((current) => ({ ...current, seed: current.seed + 1 }));
     setBlockOverrides({});
+    setBlockOrder([]);
     setBlockGenerated(true);
     setStatus(`Bloque sugerido para ${selectedServiceType} con ${effectiveCount} canto(s).`);
   };
@@ -405,6 +440,7 @@ export function SmartCenter() {
     }
     setOptions((current) => ({ ...current, seed: current.seed + 1 }));
     setBlockOverrides({});
+    setBlockOrder([]);
     setStatus("Generando una alternativa con los mismos criterios.");
   };
 
@@ -589,7 +625,7 @@ export function SmartCenter() {
               </div>
               <div className="mt-5 grid gap-4">
                 <Field label="Modo">
-                  <Select value={planningMode} onChange={(event) => { setPlanningMode(event.target.value); setBlockGenerated(false); setBlockOverrides({}); }}>
+                  <Select value={planningMode} onChange={(event) => { setPlanningMode(event.target.value); setBlockGenerated(false); setBlockOverrides({}); setBlockOrder([]); }}>
                     <option value="create">Crear nueva programación</option>
                     <option value="existing">Usar programación existente</option>
                   </Select>
@@ -684,6 +720,16 @@ export function SmartCenter() {
                   </span>
                 </label>
                 {options.includePdfText ? (
+                  <Field label="Palabra o frase en letras/PDF">
+                    <Input
+                      value={options.pdfSearchQuery || ""}
+                      onChange={(event) => updateOption("pdfSearchQuery", event.target.value)}
+                      placeholder="Ej. gracia sublime, cruz, redencion"
+                    />
+                    <span className="mt-2 block text-xs font-semibold text-ink/45">Si lo dejas vacio, se usaran los temas del servicio.</span>
+                  </Field>
+                ) : null}
+                {options.includePdfText ? (
                   <div className="rounded-2xl border border-brass/20 bg-brass/10 p-3 text-sm text-ink">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <p className="font-semibold">
@@ -757,9 +803,14 @@ export function SmartCenter() {
                   <ScoreBadge score={suggestedBlock.score} label="Bloque" />
                 </div>
                 <div className="mt-4 grid gap-3">
-                  {blockGenerated && suggestedBlock.items.length ? suggestedBlock.items.map((item, index) => (
-                    <article key={`${item.slot.id}-${item.song.id}`} className="rounded-2xl border border-white/60 bg-white/74 p-3 shadow-soft dark:border-white/10 dark:bg-white/8 sm:p-4">
-                      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_190px] lg:items-start">
+                  {blockGenerated && suggestedBlock.items.length ? (
+                    <SortableList items={suggestedBlock.items} getId={blockItemId} onReorder={(items) => setBlockOrder(items.map(blockItemId))} className="grid gap-3">
+                      {(item, index, dragHandleProps) => (
+                    <article className="rounded-2xl border border-white/60 bg-white/74 p-3 shadow-soft dark:border-white/10 dark:bg-white/8 sm:p-4">
+                      <div className="grid gap-3 lg:grid-cols-[42px_minmax(0,1fr)_190px] lg:items-start">
+                        <div className="flex items-start">
+                          <SortableHandle {...dragHandleProps} />
+                        </div>
                         <div className="min-w-0 overflow-hidden">
                           <p className="text-xs font-bold uppercase tracking-wide text-brass">{index + 1}. {item.role}</p>
                           <h4 className="mt-1 text-lg font-black text-ink">{item.song.title}</h4>
@@ -774,7 +825,9 @@ export function SmartCenter() {
                         </div>
                       </div>
                     </article>
-                  )) : (
+                      )}
+                    </SortableList>
+                  ) : (
                     <EmptySmartState title={blockGenerated ? "No hay suficientes datos" : "Listo para generar"} message={blockGenerated ? "No se pudo formar un bloque. Revisa que los cantos tengan tema, tono y preparación." : "Elige fecha, servicio y temas. Luego crea el bloque sugerido."} action={blockGenerated ? "Ir a repertorio" : ""} onAction={() => navigate("/repertorio")} />
                   )}
                 </div>
@@ -1039,9 +1092,16 @@ export function SmartCenter() {
             <div className="rounded-2xl bg-ink/5 p-4 dark:bg-white/8">
               <p className="text-2xl font-black text-ink">{scoreHelpItem.song.title} - {scoreHelpItem.scoreDetails?.finalScore ?? scoreHelpItem.score}%</p>
               <div className="mt-3 grid gap-2 text-sm font-semibold text-ink/62 sm:grid-cols-2">
-                <span>{scoreHelpItem.usageSummary?.recent || "Sin historial reciente"}</span>
+                <span>{scoreHelpItem.usageSummary?.lastUse || scoreHelpItem.usageSummary?.recent || "Sin historial reciente"}</span>
                 <span>{scoreHelpItem.usageSummary?.monthly || "Uso mensual: sin datos"}</span>
               </div>
+              <p className="mt-2 text-xs font-bold text-ink/50">{scoreHelpItem.usageSummary?.rotationImpact || "Rotacion sin impacto negativo."}</p>
+              <p className="mt-1 text-xs font-semibold text-ink/45">Rotacion: 0-14 dias penaliza fuerte, 15-30 dias penaliza moderado, 0-1 usos en 30 dias cuenta como poco usado, 3 o mas usos penaliza.</p>
+              {scoreHelpItem.scoreDetails?.pdfMatch ? (
+                <p className="mt-2 rounded-xl bg-brass/12 px-3 py-2 text-xs font-bold text-brass">
+                  Coincide en letra/PDF: "{scoreHelpItem.scoreDetails.pdfMatch.snippet}"
+                </p>
+              ) : null}
             </div>
             <div>
               <p className="font-bold text-ink">A favor</p>

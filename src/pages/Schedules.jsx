@@ -6,6 +6,7 @@ import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Field, Input, Select, Textarea } from "../components/ui/Field";
 import { Modal } from "../components/ui/Modal";
+import { SortableList, SortableHandle } from "../components/ui/SortableList";
 import { SongNameLink } from "../components/ui/SongNameLink";
 import { ServiceReviewPanel } from "../components/smart/ServiceReviewPanel";
 import { ServiceFollowUpPanel } from "../components/smart/ServiceFollowUpPanel";
@@ -237,9 +238,15 @@ function ScheduleForm({ initialSchedule, songs, onSubmit, onCancel }) {
             {!songResults.length ? <p className="p-3 text-sm text-ink/55">No se encontraron cantos.</p> : null}
           </div>
 
-          <div className="mt-4 space-y-3">
-            {(schedule.songs || []).map((song, index) => (
-              <div key={`${song.songId}-${index}`} className="grid gap-3 rounded-2xl border border-ink/10 bg-stonewash p-3 md:grid-cols-[48px_1fr_90px_1fr_112px]">
+          <SortableList
+            items={schedule.songs || []}
+            getId={(song, index) => `${song.songId || song.titleSnapshot}-${index}`}
+            onReorder={(items) => update("songs", items)}
+            className="mt-4 space-y-3"
+          >
+            {(song, index, dragHandleProps) => (
+              <div className="grid gap-3 rounded-2xl border border-ink/10 bg-stonewash p-3 md:grid-cols-[48px_48px_1fr_90px_1fr_112px]">
+                <SortableHandle {...dragHandleProps} />
                 <div className="flex h-11 items-center justify-center rounded-xl bg-ink text-sm font-bold text-white">{index + 1}</div>
                 <Input value={song.titleSnapshot} onChange={(event) => updateSong(index, "titleSnapshot", event.target.value)} />
                 <Input value={song.keySnapshot} onChange={(event) => updateSong(index, "keySnapshot", event.target.value)} />
@@ -250,8 +257,8 @@ function ScheduleForm({ initialSchedule, songs, onSubmit, onCancel }) {
                   <Button variant="danger" className="h-11 w-9 px-0" onClick={() => update("songs", schedule.songs.filter((_, currentIndex) => currentIndex !== index))} aria-label="Quitar"><Trash2 className="h-4 w-4" /></Button>
                 </div>
               </div>
-            ))}
-          </div>
+            )}
+          </SortableList>
         </section>
 
         <Field label="Notas generales">
@@ -682,10 +689,17 @@ export function Schedules() {
               Agregar elemento
             </Button>
           </div>
-          <div className="max-h-[58vh] space-y-3 overflow-auto pr-1">
-            {programDraft.map((item, index) => (
-              <div key={`${item.order}-${index}`} className="rounded-2xl border border-ink/10 bg-white p-3">
-                <div className="grid gap-3 md:grid-cols-[80px_180px_120px_1fr]">
+          <div className="max-h-[58vh] overflow-auto pr-1">
+            <SortableList
+              items={programDraft}
+              getId={(item, index) => `${item.songId || item.title || item.type || "item"}-${index}`}
+              onReorder={(items) => setProgramDraft(normalizeSpecialProgramItems(items))}
+              className="space-y-3"
+            >
+            {(item, index, dragHandleProps) => (
+              <div className="rounded-2xl border border-ink/10 bg-white p-3">
+                <div className="grid gap-3 md:grid-cols-[48px_80px_180px_120px_1fr]">
+                  <div className="pt-6"><SortableHandle {...dragHandleProps} /></div>
                   <Field label="Orden">
                     <Input value={item.order} readOnly />
                   </Field>
@@ -728,7 +742,8 @@ export function Schedules() {
                   </Button>
                 </div>
               </div>
-            ))}
+            )}
+            </SortableList>
           </div>
           <div className="flex justify-end gap-3">
             <Button variant="secondary" onClick={() => setSpecialProgramSchedule(null)}>Cancelar</Button>

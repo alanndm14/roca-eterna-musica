@@ -268,10 +268,30 @@ function songIndexedText(song = {}) {
   ].filter(Boolean).join(" ");
 }
 
-function findIndexedTextMatch(song = {}, themes = []) {
+function splitSearchTerms(value = "") {
+  return String(value || "")
+    .split(/[,;/]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function findIndexedTextMatch(song = {}, searchValue = "", options = {}) {
   const rawText = songIndexedText(song);
   const normalizedText = normalizeSearchText(rawText);
-  const matchedTheme = themes.find((theme) => theme && normalizedText.includes(normalizeSearchText(theme)));
+  const terms = Array.isArray(searchValue) ? searchValue : splitSearchTerms(searchValue);
+  const cleanedTerms = terms
+    .map((term) => String(term || "").trim())
+    .filter((term) => normalizeSearchText(term).length >= 2);
+  if (!rawText || !cleanedTerms.length) return null;
+  let matchKind = "partial";
+  let matchedTheme = cleanedTerms.find((term) => normalizedText.includes(normalizeSearchText(term)));
+  if (!matchedTheme && options.allowWordMatches !== false) {
+    const words = cleanedTerms.flatMap((term) => normalizeSearchText(term).split(/\s+/)).filter((word) => word.length >= 4);
+    const matchedWord = words.find((word) => normalizedText.includes(word));
+    if (matchedWord) matchedTheme = matchedWord;
+  } else if (matchedTheme) {
+    matchKind = "exact";
+  }
   if (!matchedTheme) return null;
   const words = String(rawText || "").replace(/\s+/g, " ").trim();
   const normalizedTheme = normalizeSearchText(matchedTheme);
@@ -280,7 +300,7 @@ function findIndexedTextMatch(song = {}, themes = []) {
   const snippet = index >= 0
     ? words.slice(Math.max(0, index - 28), Math.min(words.length, index + String(matchedTheme).length + 36)).trim()
     : String(matchedTheme);
-  return { theme: matchedTheme, snippet };
+  return { theme: matchedTheme, snippet, kind: matchKind };
 }
 
 function hasThemeMatch(song = {}, themes = []) {
@@ -294,6 +314,21 @@ function addUniqueReason(list, reason) {
 
 function pluralizeUse(count = 0) {
   return `${count} ${count === 1 ? "vez" : "veces"}`;
+}
+
+function describeLastUse(usage = {}) {
+  if (!usage?.lastUsedAt) return "Sin historial previo";
+  if (usage.lastUsedDays === 0) return `Usado hoy (${usage.lastUsedAt})`;
+  if (usage.lastUsedDays === 1) return `Usado hace 1 dia (${usage.lastUsedAt})`;
+  return `Usado hace ${usage.lastUsedDays} dias (${usage.lastUsedAt})`;
+}
+
+function describeRecentImpact(usage = {}) {
+  const days = usage?.lastUsedDays;
+  if (days === null || days === undefined) return "Sin penalizacion por historial";
+  if (days <= recentStrongDays) return "Penalizacion fuerte por uso en los ultimos 14 dias";
+  if (days <= recentWindowDays) return "Penalizacion moderada por uso entre 15 y 30 dias";
+  return "Sin penalizacion por uso reciente";
 }
 
 function getSongFollowUp(schedule = {}, songId = "") {
@@ -367,10 +402,12 @@ export function scoreSong(song = {}, options = {}, context = {}) {
   });
   additionalMatches.slice(0, 3).forEach((theme) => addPositive(10, `Tema adicional coincide: ${theme}`));
 
-  if (options.includePdfText) {
-    const pdfMatch = findIndexedTextMatch(song, themes);
+  const pdfSearchValue = options.pdfSearchQuery || (options.includePdfText ? options.theme : "");
+  if (options.includePdfText && pdfSearchValue) {
+    const pdfMatch = findIndexedTextMatch(song, pdfSearchValue);
     if (pdfMatch) {
-      addPositive(pdfMatch.theme === primaryTheme ? 10 : 6, `Coincidencia en letra/PDF: "${pdfMatch.snippet}"`);
+      addPositive(pdfMatch.kind === "exact" ? 15 : 6, `Coincidencia en letra/PDF: "${pdfMatch.snippet}"`);
+      scoreDetails.pdfMatch = pdfMatch;
     } else if (!songIndexedText(song)) {
       addWarning("Sin texto indexado de PDF para comparar");
     }
@@ -450,7 +487,7 @@ export function scoreSong(song = {}, options = {}, context = {}) {
     const daysSince = Math.floor((Date.now() - new Date(`${usage.lastUsedAt}T00:00:00`).getTime()) / dayMs);
     if (daysSince > recentWindowDays) {
       addPositive(10, `Sin uso reciente: hace ${daysSince} dias`);
-    } else if (daysSince < recentStrongDays && options.avoidRecent) {
+    } else if (daysSince <= recentStrongDays && options.avoidRecent) {
       addPenalty(15, `Se uso hace ${daysSince} dias`);
     } else if (daysSince <= recentWindowDays && options.avoidRecent) {
       addPenalty(7, `Uso reciente: hace ${daysSince} dias`);
@@ -517,7 +554,9 @@ export function scoreSong(song = {}, options = {}, context = {}) {
     usage: usageForDisplay,
     usageSummary: {
       recent: daysSince === null ? "Sin historial reciente" : `Uso reciente: hace ${daysSince} dias`,
-      monthly: `Uso mensual: ${pluralizeUse(recentUses)} en los ultimos 30 dias`
+      monthly: `Uso mensual: ${pluralizeUse(recentUses)} en los ultimos 30 dias`,
+      lastUse: describeLastUse(usageForDisplay),
+      rotationImpact: describeRecentImpact(usageForDisplay)
     },
     slot
   };
@@ -709,6 +748,12 @@ export function reviewServiceSchedule(schedule = {}, songs = [], schedules = [])
     if (usage?.usedInPreviousService) {
       score -= 8;
       groups.rotation.items.push(`${title}: usado en el servicio anterior (${previousRealService ? formatScheduleDateWithService(previousRealService) : "servicio previo"})`);
+    } else if (usage?.lastUsedAt && (usage.lastUsedDays ?? 999) <= recentStrongDays) {
+      score -= 6;
+      groups.rotation.items.push(`${title}: ${describeLastUse(usage)}. Impacto: penalizacion fuerte por uso reciente.`);
+    } else if (usage?.lastUsedAt && (usage.lastUsedDays ?? 999) <= recentWindowDays) {
+      score -= 3;
+      groups.rotation.items.push(`${title}: ${describeLastUse(usage)}. Impacto: penalizacion moderada por rotacion.`);
     }
     if ((usage?.recent30Count || usage?.monthCount || 0) >= 3) {
       score -= 5;

@@ -1,6 +1,24 @@
-export const appVersion = "0.9.104";
+export const appVersion = "0.9.105";
 
 export const changelog = [
+  {
+    version: "0.9.105",
+    date: "2026-06-03",
+    title: "Centro Inteligente y seguridad",
+    added: [
+      "Busqueda independiente en letras/PDF para recomendaciones",
+      "Orden manual con arrastre en bloques sugeridos, programaciones y programas especiales"
+    ],
+    changed: [
+      "Rotacion con reglas visibles de 14 y 30 dias",
+      "Score con coincidencias de letra/PDF y uso reciente mas claro",
+      "Reglas de seguridad y backend push endurecidas"
+    ],
+    fixed: [
+      "Correcciones de validacion y consistencia en revision inteligente"
+    ],
+    pending: []
+  },
   {
     version: "0.9.104",
     date: "2026-05-30",

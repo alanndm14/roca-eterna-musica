@@ -73,6 +73,89 @@ service cloud.firestore {
       return isAuthorized() && (role() == "admin" || role() == "editor");
     }
 
+    function validShortString(value, maxSize) {
+      return value is string && value.size() > 0 && value.size() <= maxSize;
+    }
+
+    function validOptionalString(value, maxSize) {
+      return value == null || (value is string && value.size() <= maxSize);
+    }
+
+    function validOptionalList(value, maxSize) {
+      return value == null || (value is list && value.size() <= maxSize);
+    }
+
+    function validSongData() {
+      return request.resource.data.keys().hasAll(["title"])
+        && validShortString(request.resource.data.title, 160)
+        && validOptionalString(request.resource.data.get("mainKey", null), 24)
+        && validOptionalString(request.resource.data.get("keyWithCapo", null), 24)
+        && validOptionalString(request.resource.data.get("mainTheme", null), 80)
+        && validOptionalString(request.resource.data.get("category", null), 80)
+        && validOptionalString(request.resource.data.get("localPdfPath", null), 500)
+        && validOptionalString(request.resource.data.get("drivePdfUrl", null), 1000)
+        && validOptionalString(request.resource.data.get("youtubeUrl", null), 1000)
+        && validOptionalString(request.resource.data.get("spotifyUrl", null), 1000)
+        && validOptionalList(request.resource.data.get("tags", null), 80)
+        && validOptionalList(request.resource.data.get("otherThemes", null), 40)
+        && validOptionalList(request.resource.data.get("lyricsSections", null), 200);
+    }
+
+    function validScheduleSongs() {
+      return request.resource.data.get("songs", null) == null
+        || (
+          request.resource.data.get("songs", null) is list
+          && request.resource.data.get("songs", null).size() <= 80
+        );
+    }
+
+    function validScheduleData() {
+      return request.resource.data.keys().hasAll(["date"])
+        && validShortString(request.resource.data.date, 20)
+        && validOptionalString(request.resource.data.get("time", null), 20)
+        && validOptionalString(request.resource.data.get("type", null), 120)
+        && validOptionalString(request.resource.data.get("serviceType", null), 120)
+        && validOptionalString(request.resource.data.get("serviceLabel", null), 160)
+        && validOptionalString(request.resource.data.get("leader", null), 160)
+        && validOptionalString(request.resource.data.get("status", null), 60)
+        && validOptionalString(request.resource.data.get("generalNotes", null), 4000)
+        && validScheduleSongs();
+    }
+
+    function validThemeData() {
+      return request.resource.data.keys().hasAll(["name"])
+        && validShortString(request.resource.data.name, 80)
+        && (request.resource.data.get("active", null) == null || request.resource.data.get("active", null) is bool)
+        && (request.resource.data.get("ignored", null) == null || request.resource.data.get("ignored", null) is bool);
+    }
+
+    function validNotificationData() {
+      return request.resource.data.keys().hasAll(["type", "title", "message", "createdByUid", "createdByEmail"])
+        && request.resource.data.createdByUid == request.auth.uid
+        && request.resource.data.createdByEmail == request.auth.token.email
+        && request.resource.data.type in ["new_song", "new_schedule", "updated_schedule", "other"]
+        && validShortString(request.resource.data.title, 160)
+        && validOptionalString(request.resource.data.get("message", null), 1000)
+        && validOptionalString(request.resource.data.get("entityType", null), 40)
+        && validOptionalString(request.resource.data.get("entityId", null), 160)
+        && validOptionalString(request.resource.data.get("scheduleId", null), 160)
+        && validOptionalString(request.resource.data.get("songId", null), 160)
+        && validOptionalList(request.resource.data.get("targetRoles", null), 5)
+        && validOptionalList(request.resource.data.get("targetUsers", null), 200);
+    }
+
+    function validAuditData() {
+      return request.resource.data.performedByUid == request.auth.uid
+        && request.resource.data.performedByEmail == request.auth.token.email
+        && request.resource.data.actionType is string
+        && request.resource.data.actionType.size() <= 80
+        && request.resource.data.entityType is string
+        && request.resource.data.entityType.size() <= 80
+        && validOptionalString(request.resource.data.get("entityId", null), 200)
+        && validOptionalString(request.resource.data.get("entityName", null), 300)
+        && validOptionalString(request.resource.data.get("summary", null), 1000);
+    }
+
     function canWriteOwnDeviceToken(userId) {
       return signedIn()
         && request.auth.uid == userId
@@ -140,19 +223,19 @@ service cloud.firestore {
 
     match /songs/{songId} {
       allow read: if isAuthorized();
-      allow create, update: if isEditor();
+      allow create, update: if isEditor() && validSongData();
       allow delete: if isAdmin();
     }
 
     match /schedules/{scheduleId} {
       allow read: if isAuthorized();
-      allow create, update: if isEditor();
+      allow create, update: if isEditor() && validScheduleData();
       allow delete: if isAdmin();
     }
 
     match /themes/{themeId} {
       allow read: if isAuthorized();
-      allow create, update: if isEditor();
+      allow create, update: if isEditor() && validThemeData();
       allow delete: if isAdmin();
     }
 
@@ -163,15 +246,13 @@ service cloud.firestore {
 
     match /auditLogs/{logId} {
       allow read: if isAdmin();
-      allow create: if isEditor()
-        && request.resource.data.performedByUid == request.auth.uid
-        && request.resource.data.performedByEmail == request.auth.token.email;
+      allow create: if isEditor() && validAuditData();
       allow update, delete: if false;
     }
 
     match /notifications/{notificationId} {
       allow read: if isAuthorized();
-      allow create: if isEditor();
+      allow create: if isEditor() && validNotificationData();
       allow update: if isAuthorized()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["readBy"]);
       allow update: if isEditor()

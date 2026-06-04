@@ -303,6 +303,10 @@ El repo tambien incluye un workflow en `.github/workflows/deploy-pages.yml`. En 
 
 Para mover la app a un subdominio de la iglesia, usa la guia exacta en `docs/dominio-propio.md`.
 
+## Seguridad
+
+La guia de reglas, App Check, Vercel y GitHub esta en `docs/seguridad.md`.
+
 ## PWA instalable
 
 La app esta configurada como PWA para GitHub Pages bajo `/roca-eterna-musica/`.

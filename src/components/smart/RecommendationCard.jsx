@@ -96,6 +96,9 @@ export function RecommendationCard({ item, onAdd, onView, onDismiss, onExplain, 
           </span>
         )) : <span className="text-xs font-semibold text-ink/45">Sin datos suficientes</span>}
       </div>
+      <p className="mt-2 truncate text-[11px] font-semibold text-ink/45">
+        {item.usageSummary?.lastUse || item.usageSummary?.recent || "Sin historial previo"} · {item.usageSummary?.monthly || "0 usos en 30 dias"}
+      </p>
 
       <div className="mt-auto pt-3">
         {onAdd ? <Button className="h-9 w-full px-3 text-xs" onClick={() => onAdd(song)}><Plus className="h-4 w-4" />{actionLabel}</Button> : null}
