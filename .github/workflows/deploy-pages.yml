@@ -87,6 +87,7 @@ jobs:
 
       - name: Build
         env:
+          PAGES_CUSTOM_DOMAIN: ${{ secrets.PAGES_CUSTOM_DOMAIN }}
           VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
           VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
           VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
@@ -99,6 +100,18 @@ jobs:
           VITE_INITIAL_ADMIN_EMAILS: ${{ secrets.VITE_INITIAL_ADMIN_EMAILS }}
           VITE_ENABLE_DEMO_MODE: ${{ secrets.VITE_ENABLE_DEMO_MODE }}
         run: npm run build
+
+      - name: Prepare custom domain
+        shell: bash
+        env:
+          PAGES_CUSTOM_DOMAIN: ${{ secrets.PAGES_CUSTOM_DOMAIN }}
+        run: |
+          if [ -n "${PAGES_CUSTOM_DOMAIN:-}" ]; then
+            echo "$PAGES_CUSTOM_DOMAIN" > dist/CNAME
+            echo "Dominio propio configurado para GitHub Pages: $PAGES_CUSTOM_DOMAIN"
+          else
+            echo "Sin dominio propio; se conserva /roca-eterna-musica/."
+          fi
 
       - name: Verify public assets copied
         shell: bash

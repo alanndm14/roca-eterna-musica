@@ -2,9 +2,14 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
+const customDomain = Boolean(process.env.PAGES_CUSTOM_DOMAIN || process.env.VITE_CUSTOM_DOMAIN === "true");
+const appBase = customDomain ? "/" : "/roca-eterna-musica/";
+const withBase = (path) => `${appBase}${path}`.replace(/\/{2,}/g, "/");
+
 export default defineConfig({
-  // Debe coincidir con el nombre del repositorio en GitHub Pages.
-  base: "/roca-eterna-musica/",
+  // GitHub Pages sin dominio propio usa /roca-eterna-musica/.
+  // Cuando se configure PAGES_CUSTOM_DOMAIN, el build usa / para el subdominio.
+  base: appBase,
   plugins: [
     react(),
     VitePWA({
@@ -41,29 +46,29 @@ export default defineConfig({
         background_color: "#f6f5f2",
         display: "standalone",
         orientation: "portrait-primary",
-        start_url: "/roca-eterna-musica/",
-        scope: "/roca-eterna-musica/",
+        start_url: appBase,
+        scope: appBase,
         icons: [
           {
-            src: "/roca-eterna-musica/icons/pwa-192.png",
+            src: withBase("icons/pwa-192.png"),
             sizes: "192x192",
             type: "image/png",
             purpose: "any"
           },
           {
-            src: "/roca-eterna-musica/icons/pwa-512.png",
+            src: withBase("icons/pwa-512.png"),
             sizes: "512x512",
             type: "image/png",
             purpose: "any"
           },
           {
-            src: "/roca-eterna-musica/icons/pwa-maskable-192.png",
+            src: withBase("icons/pwa-maskable-192.png"),
             sizes: "192x192",
             type: "image/png",
             purpose: "maskable"
           },
           {
-            src: "/roca-eterna-musica/icons/pwa-maskable-512.png",
+            src: withBase("icons/pwa-maskable-512.png"),
             sizes: "512x512",
             type: "image/png",
             purpose: "maskable"

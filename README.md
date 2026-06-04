@@ -299,6 +299,10 @@ npm run deploy
 
 El repo tambien incluye un workflow en `.github/workflows/deploy-pages.yml`. En cada push a `main`, GitHub Actions instala dependencias, verifica de forma segura que los secrets de Firebase existan, ejecuta `npm run build` con esas variables, verifica que `dist/pdfs/Glorificate.pdf` y los iconos PWA actuales existan, y publica `dist` en la rama `gh-pages`.
 
+## Dominio propio
+
+Para mover la app a un subdominio de la iglesia, usa la guia exacta en `docs/dominio-propio.md`.
+
 ## PWA instalable
 
 La app esta configurada como PWA para GitHub Pages bajo `/roca-eterna-musica/`.
