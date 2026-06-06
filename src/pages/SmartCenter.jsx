@@ -56,6 +56,7 @@ const defaultOptions = {
   preferredKey: "",
   includePdfText: false,
   pdfSearchQuery: "",
+  recommendationMode: "theme",
   seed: 0
 };
 
@@ -288,19 +289,28 @@ export function SmartCenter() {
   const selectedThemes = parseThemeInput(options.theme);
   const primaryTheme = selectedThemes[0] || "";
   const additionalThemes = selectedThemes.slice(1);
+  const recommendationMode = options.recommendationMode || "theme";
+  const usesThemeCriteria = recommendationMode !== "pdf";
+  const usesPdfCriteria = recommendationMode !== "theme";
+  const effectiveSmartOptions = useMemo(() => ({
+    ...options,
+    theme: usesThemeCriteria ? options.theme : "",
+    includePdfText: usesPdfCriteria,
+    allowThemeFallback: usesThemeCriteria
+  }), [options, usesPdfCriteria, usesThemeCriteria]);
   const songsWithIndexedText = useMemo(() => songs.filter((song) => song.pdfSearchText || song.pdfOcrText || song.pdfText || song.lyricsText).length, [songs]);
   const recommendations = useMemo(
-    () => getSongRecommendations(songs, schedules, { ...options, serviceType: selectedServiceType, currentSchedule: selectedSchedule, limit: 20, usageIndex })
+    () => getSongRecommendations(songs, schedules, { ...effectiveSmartOptions, serviceType: selectedServiceType, currentSchedule: selectedSchedule, limit: 20, usageIndex })
       .filter((item) => !dismissed.includes(item.song.id)),
-    [dismissed, options, schedules, selectedSchedule, selectedServiceType, songs, usageIndex]
+    [dismissed, effectiveSmartOptions, schedules, selectedSchedule, selectedServiceType, songs, usageIndex]
   );
   const rawBlock = useMemo(
-    () => createSuggestedServiceBlock(songs, schedules, { ...options, count: effectiveCount, serviceType: selectedServiceType, currentSchedule: selectedSchedule }),
-    [effectiveCount, options, schedules, selectedSchedule, selectedServiceType, songs]
+    () => createSuggestedServiceBlock(songs, schedules, { ...effectiveSmartOptions, count: effectiveCount, serviceType: selectedServiceType, currentSchedule: selectedSchedule }),
+    [effectiveCount, effectiveSmartOptions, schedules, selectedSchedule, selectedServiceType, songs]
   );
   const suggestedBlock = useMemo(
-    () => applyManualBlockOrder(nextBlockState(rawBlock, blockOverrides), blockOrder, selectedServiceType, options, usageIndex, selectedSchedule),
-    [blockOrder, blockOverrides, options, rawBlock, selectedSchedule, selectedServiceType, usageIndex]
+    () => applyManualBlockOrder(nextBlockState(rawBlock, blockOverrides), blockOrder, selectedServiceType, effectiveSmartOptions, usageIndex, selectedSchedule),
+    [blockOrder, blockOverrides, effectiveSmartOptions, rawBlock, selectedSchedule, selectedServiceType, usageIndex]
   );
   const review = useMemo(
     () => selectedSchedule ? reviewServiceSchedule(selectedSchedule, songs, schedules) : { score: 0, status: "Sin programación", alerts: [], groups: [] },
@@ -320,16 +330,28 @@ export function SmartCenter() {
     if (!alternativeSlot) return [];
     const selectedIds = new Set(suggestedBlock.items.map((item) => item.song.id));
     selectedIds.delete(suggestedBlock.items.find((item) => item.slot.id === alternativeSlot.id)?.song.id);
-    return getSlotAlternatives(songs, schedules, { ...options, serviceType: selectedServiceType, currentSchedule: selectedSchedule }, alternativeSlot, selectedIds).slice(0, 8);
-  }, [alternativeSlot, options, schedules, selectedSchedule, selectedServiceType, songs, suggestedBlock.items]);
+    return getSlotAlternatives(songs, schedules, { ...effectiveSmartOptions, serviceType: selectedServiceType, currentSchedule: selectedSchedule }, alternativeSlot, selectedIds).slice(0, 8);
+  }, [alternativeSlot, effectiveSmartOptions, schedules, selectedSchedule, selectedServiceType, songs, suggestedBlock.items]);
   const compareTargetSong = songs.find((song) => song.id === compareSongId) || recommendations.find((item) => item.song.id !== compareItem?.song?.id)?.song || null;
-  const compareTargetItem = compareTargetSong ? scoreSong(compareTargetSong, { ...options, serviceType: selectedServiceType }, { usageIndex }) : null;
+  const compareTargetItem = compareTargetSong ? scoreSong(compareTargetSong, { ...effectiveSmartOptions, serviceType: selectedServiceType }, { usageIndex }) : null;
 
   const updateOption = (key, value) => {
     setBlockOverrides({});
     setBlockOrder([]);
     if (key !== "seed") setBlockGenerated(false);
     setOptions((current) => ({ ...current, [key]: value }));
+  };
+
+  const updateRecommendationMode = (recommendationMode) => {
+    setBlockOverrides({});
+    setBlockOrder([]);
+    setBlockGenerated(false);
+    setPlanningError("");
+    setOptions((current) => ({
+      ...current,
+      recommendationMode,
+      includePdfText: recommendationMode !== "theme"
+    }));
   };
 
   const updateThemes = (nextThemes) => {
@@ -381,7 +403,7 @@ export function SmartCenter() {
       setPlanningMode("create");
       setDraftDate("");
       setBlockGenerated(false);
-      setStatus("Elige fecha, servicio y tema para crear una programación nueva.");
+      setStatus("Elige fecha, servicio y criterios para crear una programación nueva.");
       return;
     }
     const serviceType = inferSmartServiceType(nextSchedule);
@@ -410,8 +432,12 @@ export function SmartCenter() {
       setPlanningError("Selecciona el tipo de servicio.");
       return;
     }
-    if (!primaryTheme.trim()) {
+    if (usesThemeCriteria && !primaryTheme.trim()) {
       setPlanningError("Escribe o selecciona un tema principal.");
+      return;
+    }
+    if (usesPdfCriteria && !(options.pdfSearchQuery || "").trim()) {
+      setPlanningError("Escribe una palabra o frase para buscar en letras/PDF.");
       return;
     }
     setOptions((current) => ({ ...current, seed: current.seed + 1 }));
@@ -588,8 +614,8 @@ export function SmartCenter() {
             </div>
           </SmartPanel>
           <SmartPanel>
-            <p className="text-xs font-bold uppercase tracking-wide text-brass">Tema actual</p>
-              <p className="mt-1 text-lg font-black text-ink">{selectedThemes.join(" + ") || "Sin tema elegido"}</p>
+            <p className="text-xs font-bold uppercase tracking-wide text-brass">{usesThemeCriteria ? "Tema actual" : "Búsqueda en letra/PDF"}</p>
+              <p className="mt-1 text-lg font-black text-ink">{usesThemeCriteria ? (selectedThemes.join(" + ") || "Sin tema elegido") : (options.pdfSearchQuery || "Sin frase elegida")}</p>
             <p className="mt-1 text-sm text-ink/60">{songs.length} cantos · {schedules.length} programaciones analizadas</p>
           </SmartPanel>
         </div>
@@ -676,6 +702,15 @@ export function SmartCenter() {
                     {smartServiceTypes.map((type) => <option key={type} value={type}>{type}</option>)}
                   </Select>
                 </Field>
+                <Field label="Crear recomendaciones por">
+                  <Select value={recommendationMode} onChange={(event) => updateRecommendationMode(event.target.value)}>
+                    <option value="theme">Tema</option>
+                    <option value="pdf">Letra/PDF</option>
+                    <option value="both">Tema y letra/PDF</option>
+                  </Select>
+                </Field>
+                {usesThemeCriteria ? (
+                  <>
                 <Field label="Tema principal">
                   <Input value={primaryTheme} onChange={(event) => updatePrimaryTheme(event.target.value)} placeholder="cruz" />
                 </Field>
@@ -712,13 +747,12 @@ export function SmartCenter() {
                     </div>
                   </div>
                 ) : null}
-                <label className="flex items-start gap-2 rounded-2xl bg-white/55 p-3 text-sm font-semibold text-ink dark:bg-white/8">
-                  <input className="mt-1" type="checkbox" checked={options.includePdfText} onChange={(event) => updateOption("includePdfText", event.target.checked)} />
+                {usesThemeCriteria && usesPdfCriteria ? <div className="flex items-start gap-2 rounded-2xl bg-white/55 p-3 text-sm font-semibold text-ink dark:bg-white/8">
                   <span>
                     Buscar también en letras/PDF
                     {options.includePdfText && songsWithIndexedText < songs.length ? <span className="block text-xs font-medium text-ink/55">Algunos cantos no tienen texto indexado; la búsqueda puede ser incompleta.</span> : null}
                   </span>
-                </label>
+                </div> : null}
                 {options.includePdfText ? (
                   <Field label="Palabra o frase en letras/PDF">
                     <Input
@@ -729,7 +763,19 @@ export function SmartCenter() {
                     <span className="mt-2 block text-xs font-semibold text-ink/45">Si lo dejas vacio, se usaran los temas del servicio.</span>
                   </Field>
                 ) : null}
-                {options.includePdfText ? (
+                  </>
+                ) : null}
+                {!usesThemeCriteria && usesPdfCriteria ? (
+                  <Field label="Palabra o frase en letras/PDF">
+                    <Input
+                      value={options.pdfSearchQuery || ""}
+                      onChange={(event) => updateOption("pdfSearchQuery", event.target.value)}
+                      placeholder="Ej. gracia sublime, cruz, redención"
+                    />
+                    <span className="mt-2 block text-xs font-semibold text-ink/45">No necesitas elegir un tema; el score usará la coincidencia en la letra/PDF.</span>
+                  </Field>
+                ) : null}
+                {usesPdfCriteria ? (
                   <div className="rounded-2xl border border-brass/20 bg-brass/10 p-3 text-sm text-ink">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <p className="font-semibold">
@@ -797,7 +843,9 @@ export function SmartCenter() {
               <SmartPanel>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-wide text-brass">{selectedServiceType || "Sin servicio"} · Tema: {primaryTheme || "sin tema"}</p>
+                    <p className="text-xs font-bold uppercase tracking-wide text-brass">
+                      {selectedServiceType || "Sin servicio"} · {usesThemeCriteria ? `Tema: ${primaryTheme || "sin tema"}` : `Letra/PDF: ${options.pdfSearchQuery || "sin búsqueda"}`}
+                    </p>
                     <h3 className="text-xl font-black text-ink">Bloque sugerido</h3>
                   </div>
                   <ScoreBadge score={suggestedBlock.score} label="Bloque" />
@@ -828,7 +876,7 @@ export function SmartCenter() {
                       )}
                     </SortableList>
                   ) : (
-                    <EmptySmartState title={blockGenerated ? "No hay suficientes datos" : "Listo para generar"} message={blockGenerated ? "No se pudo formar un bloque. Revisa que los cantos tengan tema, tono y preparación." : "Elige fecha, servicio y temas. Luego crea el bloque sugerido."} action={blockGenerated ? "Ir a repertorio" : ""} onAction={() => navigate("/repertorio")} />
+                    <EmptySmartState title={blockGenerated ? "No hay suficientes datos" : "Listo para generar"} message={blockGenerated ? "No se pudo formar un bloque. Revisa los datos y criterios elegidos." : "Elige fecha, servicio y criterios. Luego crea el bloque sugerido."} action={blockGenerated ? "Ir a repertorio" : ""} onAction={() => navigate("/repertorio")} />
                   )}
                 </div>
                 <div className="mt-4 flex flex-wrap gap-2">

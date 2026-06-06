@@ -1,10 +1,10 @@
 {
-  "version": "0.9.105",
-  "date": "2026-06-03",
+  "version": "0.9.106",
+  "date": "2026-06-06",
   "critical": false,
   "changes": [
-    "Mejoras en Centro Inteligente",
-    "Busqueda en letras/PDF y rotacion mas clara",
-    "Orden manual con arrastre en programaciones"
+    "Avisos claros cuando cambia una programacion",
+    "Notificacion de cantos nuevos al programarlos por primera vez",
+    "Programacion inteligente por tema, letra/PDF o ambos"
   ]
 }

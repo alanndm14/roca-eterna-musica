@@ -588,7 +588,11 @@ export function getSlotAlternatives(songs = [], schedules = [], options = {}, sl
 export function createSuggestedServiceBlock(songs = [], schedules = [], options = {}) {
   const serviceType = options.serviceType || inferSmartServiceType(options.currentSchedule || {});
   const fallbackThemes = serviceDefaults[serviceType]?.preferredThemeFallbacks || serviceDefaults["Servicio especial"].preferredThemeFallbacks;
-  const themeValue = parseThemeInput(options.theme).length ? options.theme : fallbackThemes.slice(0, 2).join(", ");
+  const themeValue = parseThemeInput(options.theme).length
+    ? options.theme
+    : options.allowThemeFallback === false
+      ? ""
+      : fallbackThemes.slice(0, 2).join(", ");
   const slots = getServiceSlots(serviceType, options.count);
   const selected = [];
   const selectedIds = new Set();
@@ -650,7 +654,13 @@ export function createSuggestedServiceBlock(songs = [], schedules = [], options 
       "Solo un canto después de predicación",
       options.includeHymns ? "Puede abrir con himno si conviene" : "Prioriza cantos no himnos",
       allKeynoteReady ? "Todos tienen Keynote listo" : "Revisa cantos con Keynote pendiente",
-      completedWithFallback ? "No hubo suficientes cantos para todas las posiciones" : `Tema trabajado: ${usedThemeText}`
+      completedWithFallback
+        ? "No hubo suficientes cantos para todas las posiciones"
+        : usedThemeText
+          ? `Tema trabajado: ${usedThemeText}`
+          : options.pdfSearchQuery
+            ? `Busqueda en letra/PDF: ${options.pdfSearchQuery}`
+            : "Bloque basado en preparacion y rotacion"
     ]
   };
 }

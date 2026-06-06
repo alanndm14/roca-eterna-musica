@@ -46,6 +46,78 @@ const formatSchedulePushBody = (schedule = {}) => {
   return `${schedule.serviceLabel || schedule.type || "Servicio"} · ${date} · ${schedule.time || "Sin hora"}`;
 };
 
+const formatScheduleShortLabel = (schedule = {}) => {
+  const date = schedule.date
+    ? new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "long" }).format(new Date(`${schedule.date}T00:00:00`))
+    : "sin fecha";
+  return `${schedule.serviceLabel || schedule.type || "Servicio"} ${date}`;
+};
+
+const toDateMs = (value) => {
+  if (!value) return null;
+  if (value?.toDate) return value.toDate().getTime();
+  if (typeof value === "object" && Number.isFinite(value.seconds)) return value.seconds * 1000;
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const isRecentlyCreatedSong = (song = {}, days = 30) => {
+  const createdMs = toDateMs(song.createdAt);
+  if (!createdMs) return false;
+  const age = Date.now() - createdMs;
+  return age >= 0 && age <= days * 24 * 60 * 60 * 1000;
+};
+
+const scheduleEntryId = (entry = {}) => entry.songId || entry.titleSnapshot || "";
+
+const simpleHash = (value = "") => {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+};
+
+const summarizeTitles = (titles = [], singularVerb = "Se agrego", pluralVerb = "Se agregaron") => {
+  const clean = titles.filter(Boolean);
+  if (!clean.length) return "";
+  if (clean.length === 1) return `${singularVerb}: ${clean[0]}`;
+  return `${pluralVerb}: ${clean.slice(0, 3).join(", ")}${clean.length > 3 ? ` y ${clean.length - 3} mas` : ""}`;
+};
+
+const buildScheduleChange = (before = {}, after = {}) => {
+  if (!before?.id || !after) return { relevant: false, summary: "", signature: "", addedEntries: [] };
+  const beforeEntries = before.songs || [];
+  const afterEntries = after.songs || [];
+  const beforeIds = beforeEntries.map(scheduleEntryId);
+  const afterIds = afterEntries.map(scheduleEntryId);
+  const beforeSet = new Set(beforeIds);
+  const afterSet = new Set(afterIds);
+  const addedEntries = afterEntries.filter((entry) => !beforeSet.has(scheduleEntryId(entry)));
+  const removedEntries = beforeEntries.filter((entry) => !afterSet.has(scheduleEntryId(entry)));
+  const commonBefore = beforeIds.filter((id) => afterSet.has(id));
+  const commonAfter = afterIds.filter((id) => beforeSet.has(id));
+  const parts = [];
+
+  if (beforeEntries.length !== afterEntries.length) parts.push(`Cantidad de cantos: ${beforeEntries.length} a ${afterEntries.length}`);
+  const addedSummary = summarizeTitles(addedEntries.map((entry) => entry.titleSnapshot || entry.songId));
+  const removedSummary = summarizeTitles(removedEntries.map((entry) => entry.titleSnapshot || entry.songId), "Se quito", "Se quitaron");
+  if (addedSummary) parts.push(addedSummary);
+  if (removedSummary) parts.push(removedSummary);
+  if (JSON.stringify(commonBefore) !== JSON.stringify(commonAfter)) parts.push("Cambio el orden de los cantos");
+  if (before.date !== after.date) parts.push(`Cambio la fecha a ${after.date || "sin fecha"}`);
+  if (before.time !== after.time) parts.push(`Cambio la hora a ${after.time || "sin hora"}`);
+  if ((before.leader || "") !== (after.leader || "")) parts.push(`Cambio el lider a ${after.leader || "sin definir"}`);
+
+  return {
+    relevant: parts.length > 0,
+    summary: parts.join(". "),
+    signature: JSON.stringify({ beforeSongs: beforeIds, afterSongs: afterIds, date: after.date || "", time: after.time || "", leader: after.leader || "" }),
+    addedEntries
+  };
+};
+
 const loadLocalData = () => {
   try {
     const saved = localStorage.getItem(storageKey);
@@ -299,6 +371,83 @@ export function MusicDataProvider({ children }) {
     }, { tipoEvento: "schedule_created", eventoGuardado: true, novedadInternaCreada: true });
   };
 
+  const getFirstUseRecentSongs = (addedEntries = [], scheduleId = "") => {
+    const previouslyScheduledIds = new Set();
+    schedules.forEach((schedule) => {
+      if (!schedule || schedule.id === scheduleId || schedule.deleted || schedule.active === false) return;
+      (schedule.songs || []).forEach((entry) => {
+        if (entry.songId) previouslyScheduledIds.add(entry.songId);
+      });
+    });
+    return addedEntries
+      .map((entry) => songs.find((song) => song.id === entry.songId))
+      .filter((song) => song?.id && isRecentlyCreatedSong(song) && !previouslyScheduledIds.has(song.id));
+  };
+
+  const notifyNewSongsScheduledBestEffort = (schedulePayload, scheduleId, addedEntries = []) => {
+    if (!isFutureSchedule(schedulePayload) || !scheduleId) return;
+    const newSongs = getFirstUseRecentSongs(addedEntries, scheduleId);
+    if (!newSongs.length) return;
+    const serviceLabel = formatScheduleShortLabel(schedulePayload);
+    const songTitles = newSongs.map((song) => song.title).filter(Boolean);
+    const title = newSongs.length === 1 ? `Canto nuevo para ${serviceLabel}` : `Cantos nuevos para ${serviceLabel}`;
+    const message = newSongs.length === 1
+      ? `${songTitles[0]} se agrego por primera vez a una programacion.`
+      : `${songTitles.slice(0, 3).join(", ")}${songTitles.length > 3 ? ` y ${songTitles.length - 3} mas` : ""} se agregaron por primera vez.`;
+    const pushNotificationId = `new-song-scheduled-${scheduleId}-${simpleHash(newSongs.map((song) => song.id).sort().join("|"))}`;
+    const notificationPayload = {
+      type: "new_song",
+      title,
+      message,
+      entityType: "schedule",
+      entityId: scheduleId,
+      scheduleId,
+      songId: newSongs.length === 1 ? newSongs[0].id : "",
+      isFutureSchedule: true,
+      pushNotificationId
+    };
+    showInAppNovelty(notificationPayload);
+    createNotificationBestEffort(notificationPayload);
+    sendPushBestEffort({
+      type: "new_song",
+      title,
+      body: message,
+      url: "/#/programacion",
+      scheduleId,
+      songId: newSongs.length === 1 ? newSongs[0].id : "",
+      notificationId: pushNotificationId,
+      icon: resolveAppLogoForNotification(settings, "light"),
+      badge: resolveAppLogoForNotification(settings, "light")
+    }, { tipoEvento: "new_song_scheduled", eventoGuardado: true, novedadInternaCreada: true });
+  };
+
+  const notifyScheduleUpdatedBestEffort = (schedulePayload, scheduleId, change = {}) => {
+    if (!isFutureSchedule(schedulePayload) || !scheduleId || !change.relevant || !change.summary) return;
+    const pushNotificationId = `schedule-updated-${scheduleId}-${simpleHash(change.signature || change.summary)}`;
+    const notificationPayload = {
+      type: "updated_schedule",
+      title: "Programacion actualizada",
+      message: `${formatScheduleShortLabel(schedulePayload)}: ${change.summary}`,
+      entityType: "schedule",
+      entityId: scheduleId,
+      scheduleId,
+      isFutureSchedule: true,
+      pushNotificationId
+    };
+    showInAppNovelty(notificationPayload);
+    createNotificationBestEffort(notificationPayload);
+    sendPushBestEffort({
+      type: "updated_schedule",
+      title: "Programacion actualizada",
+      body: notificationPayload.message,
+      url: "/#/programacion",
+      scheduleId,
+      notificationId: pushNotificationId,
+      icon: resolveAppLogoForNotification(settings, "light"),
+      badge: resolveAppLogoForNotification(settings, "light")
+    }, { tipoEvento: "schedule_updated", eventoGuardado: true, novedadInternaCreada: true });
+  };
+
   const createNotification = async (notification) => {
     const payload = {
       type: notification.type || "other",
@@ -406,28 +555,6 @@ export function MusicDataProvider({ children }) {
           }
         ]);
         await logAuditEvent({ actionType: "create", entityType: "song", entityId: id, entityName: payload.title, summary: `Canto creado: ${payload.title}`, afterData: payload });
-        const pushNotificationId = `song-created-${id}`;
-        const notificationPayload = {
-          type: "new_song",
-          title: "Nuevo canto en el repertorio",
-          message: payload.title,
-          entityType: "song",
-          entityId: id,
-          songId: id,
-          pushNotificationId
-        };
-        showInAppNovelty(notificationPayload);
-        createNotificationBestEffort(notificationPayload);
-        sendPushBestEffort({
-          type: "new_song",
-          title: "Nuevo canto en el repertorio",
-          body: payload.title,
-          url: `/#/repertorio/${id}`,
-          songId: id,
-          notificationId: pushNotificationId,
-          icon: resolveAppLogoForNotification(settings, "light"),
-          badge: resolveAppLogoForNotification(settings, "light")
-        }, { tipoEvento: "song_created", eventoGuardado: true, novedadInternaCreada: true });
         return id;
       }
     }
@@ -445,28 +572,6 @@ export function MusicDataProvider({ children }) {
         createdBy: profile.uid
       });
       await logAuditEvent({ actionType: "create", entityType: "song", entityId: created.id, entityName: payload.title, summary: `Canto creado: ${payload.title}`, afterData: payload });
-      const pushNotificationId = `song-created-${created.id}`;
-      const notificationPayload = {
-        type: "new_song",
-        title: "Nuevo canto en el repertorio",
-        message: payload.title,
-        entityType: "song",
-        entityId: created.id,
-        songId: created.id,
-        pushNotificationId
-      };
-      showInAppNovelty(notificationPayload);
-      createNotificationBestEffort(notificationPayload);
-      sendPushBestEffort({
-        type: "new_song",
-        title: "Nuevo canto en el repertorio",
-        body: payload.title,
-        url: `/#/repertorio/${created.id}`,
-        songId: created.id,
-        notificationId: pushNotificationId,
-        icon: resolveAppLogoForNotification(settings, "light"),
-        badge: resolveAppLogoForNotification(settings, "light")
-      }, { tipoEvento: "song_created", eventoGuardado: true, novedadInternaCreada: true });
       return created.id;
     }
   };
@@ -566,6 +671,7 @@ export function MusicDataProvider({ children }) {
 
   const saveSchedule = async (schedule) => {
     const before = schedule.id ? schedules.find((item) => item.id === schedule.id) : null;
+    const scheduleChange = before ? buildScheduleChange(before, { ...before, ...schedule, songs: schedule.songs || [] }) : null;
     const payload = {
       ...schedule,
       status: schedule.status || before?.status || "confirmed",
@@ -576,6 +682,8 @@ export function MusicDataProvider({ children }) {
     if (useLocal) {
       if (schedule.id) {
         setSchedules((current) => current.map((item) => (item.id === schedule.id ? { ...item, ...payload } : item)));
+        notifyScheduleUpdatedBestEffort(payload, schedule.id, scheduleChange);
+        notifyNewSongsScheduledBestEffort(payload, schedule.id, scheduleChange?.addedEntries || []);
         await logAuditEvent({ actionType: "update", entityType: "schedule", entityId: schedule.id, entityName: payload.serviceLabel || payload.date, summary: `Programación editada: ${payload.serviceLabel || payload.date}`, beforeData: before, afterData: payload });
       } else {
         const id = makeId("schedule");
@@ -589,6 +697,7 @@ export function MusicDataProvider({ children }) {
           }
         ]);
         notifyScheduleCreatedBestEffort(payload, id);
+        notifyNewSongsScheduledBestEffort(payload, id, payload.songs || []);
         logAuditEventBestEffort({ actionType: "create", entityType: "schedule", entityId: id, entityName: payload.serviceLabel || payload.date, summary: `Programación creada: ${payload.serviceLabel || payload.date}`, afterData: payload });
       }
       return;
@@ -597,6 +706,8 @@ export function MusicDataProvider({ children }) {
     if (schedule.id) {
       const { id, ...data } = payload;
       await updateDoc(doc(db, "schedules", id), data);
+      notifyScheduleUpdatedBestEffort(payload, id, scheduleChange);
+      notifyNewSongsScheduledBestEffort(payload, id, scheduleChange?.addedEntries || []);
       await logAuditEvent({ actionType: "update", entityType: "schedule", entityId: id, entityName: data.serviceLabel || data.date, summary: `Programación editada: ${data.serviceLabel || data.date}`, beforeData: before, afterData: data });
     } else {
       const created = await addDoc(collection(db, "schedules"), {
@@ -605,6 +716,7 @@ export function MusicDataProvider({ children }) {
         createdBy: profile.uid
       });
       notifyScheduleCreatedBestEffort(payload, created.id);
+      notifyNewSongsScheduledBestEffort(payload, created.id, payload.songs || []);
       logAuditEventBestEffort({ actionType: "create", entityType: "schedule", entityId: created.id, entityName: payload.serviceLabel || payload.date, summary: `Programación creada: ${payload.serviceLabel || payload.date}`, afterData: payload });
     }
   };
@@ -696,15 +808,9 @@ export function MusicDataProvider({ children }) {
       afterData: updated
     });
 
-    if (isFutureSchedule(updated)) {
-      await createNotification({
-        type: "updated_schedule",
-        title: "Programación actualizada",
-        message: summary,
-        scheduleId,
-        isFutureSchedule: true
-      });
-    }
+    const change = buildScheduleChange(before, updated);
+    notifyScheduleUpdatedBestEffort(updated, scheduleId, change);
+    notifyNewSongsScheduledBestEffort(updated, scheduleId, change.addedEntries || []);
   };
 
   const saveServiceFollowUp = async (scheduleId, followUp = {}) => {
