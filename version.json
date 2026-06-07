@@ -1,10 +1,10 @@
 {
-  "version": "0.9.106",
+  "version": "0.9.107",
   "date": "2026-06-06",
   "critical": false,
   "changes": [
-    "Avisos claros cuando cambia una programacion",
-    "Notificacion de cantos nuevos al programarlos por primera vez",
-    "Programacion inteligente por tema, letra/PDF o ambos"
+    "Vista viewer mas simple y protegida",
+    "Notas de cantos unificadas con programaciones",
+    "Seguimiento de pendientes musicales entre servicios"
   ]
 }
