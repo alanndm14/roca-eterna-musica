@@ -8,6 +8,7 @@ export {
   getSlotAlternatives,
   getSongRecommendations,
   getSmartServiceDefaultCount,
+  inferThemesFromPdfMatches,
   inferSmartServiceType,
   parseThemeInput,
   reviewServiceSchedule,

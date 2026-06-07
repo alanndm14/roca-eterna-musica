@@ -274,37 +274,61 @@ function songIndexedText(song = {}) {
 
 function splitSearchTerms(value = "") {
   return String(value || "")
-    .split(/[,;/]+/)
+    .split(/[\n,;/]+/)
     .map((item) => item.trim())
     .filter(Boolean);
 }
 
-function findIndexedTextMatch(song = {}, searchValue = "", options = {}) {
+function findIndexedTextMatches(song = {}, searchValue = "", options = {}) {
   const rawText = songIndexedText(song);
   const normalizedText = normalizeSearchText(rawText);
   const terms = Array.isArray(searchValue) ? searchValue : splitSearchTerms(searchValue);
   const cleanedTerms = terms
     .map((term) => String(term || "").trim())
     .filter((term) => normalizeSearchText(term).length >= 2);
-  if (!rawText || !cleanedTerms.length) return null;
-  let matchKind = "partial";
-  let matchedTheme = cleanedTerms.find((term) => normalizedText.includes(normalizeSearchText(term)));
-  if (!matchedTheme && options.allowWordMatches !== false) {
-    const words = cleanedTerms.flatMap((term) => normalizeSearchText(term).split(/\s+/)).filter((word) => word.length >= 4);
-    const matchedWord = words.find((word) => normalizedText.includes(word));
-    if (matchedWord) matchedTheme = matchedWord;
-  } else if (matchedTheme) {
-    matchKind = "exact";
-  }
-  if (!matchedTheme) return null;
+  if (!rawText || !cleanedTerms.length) return [];
   const words = String(rawText || "").replace(/\s+/g, " ").trim();
-  const normalizedTheme = normalizeSearchText(matchedTheme);
   const normalizedWords = normalizeSearchText(words);
-  const index = normalizedWords.indexOf(normalizedTheme);
-  const snippet = index >= 0
-    ? words.slice(Math.max(0, index - 28), Math.min(words.length, index + String(matchedTheme).length + 36)).trim()
-    : String(matchedTheme);
-  return { theme: matchedTheme, snippet, kind: matchKind };
+  const matches = [];
+  cleanedTerms.forEach((term) => {
+    const normalizedTerm = normalizeSearchText(term);
+    let matchedValue = normalizedText.includes(normalizedTerm) ? term : "";
+    let kind = matchedValue ? "exact" : "partial";
+    if (!matchedValue && options.allowWordMatches !== false) {
+      matchedValue = normalizedTerm.split(/\s+/).filter((word) => word.length >= 4).find((word) => normalizedText.includes(word)) || "";
+    }
+    if (!matchedValue) return;
+    const normalizedMatch = normalizeSearchText(matchedValue);
+    const index = normalizedWords.indexOf(normalizedMatch);
+    const snippet = index >= 0
+      ? words.slice(Math.max(0, index - 28), Math.min(words.length, index + String(matchedValue).length + 36)).trim()
+      : String(matchedValue);
+    matches.push({ theme: term, matchedValue, snippet, kind });
+  });
+  return matches;
+}
+
+function findIndexedTextMatch(song = {}, searchValue = "", options = {}) {
+  return findIndexedTextMatches(song, searchValue, options)[0] || null;
+}
+
+export function inferThemesFromPdfMatches(songs = [], searchValue = "") {
+  const counts = new Map();
+  songs.forEach((song) => {
+    const matches = findIndexedTextMatches(song, searchValue);
+    if (!matches.length) return;
+    [song.mainTheme, ...(song.otherThemes || []), ...(song.tags || [])].filter(Boolean).forEach((theme) => {
+      const key = normalizeSearchText(theme);
+      if (!key) return;
+      const current = counts.get(key) || { theme, count: 0 };
+      current.count += Math.max(1, matches.length);
+      counts.set(key, current);
+    });
+  });
+  return [...counts.values()]
+    .sort((a, b) => b.count - a.count || String(a.theme).localeCompare(String(b.theme), "es"))
+    .slice(0, 2)
+    .map((item) => item.theme);
 }
 
 function hasThemeMatch(song = {}, themes = []) {
@@ -432,10 +456,13 @@ export function scoreSong(song = {}, options = {}, context = {}) {
 
   const pdfSearchValue = options.pdfSearchQuery || (options.includePdfText ? options.theme : "");
   if (options.includePdfText && pdfSearchValue) {
-    const pdfMatch = findIndexedTextMatch(song, pdfSearchValue);
-    if (pdfMatch) {
-      addPositive(pdfMatch.kind === "exact" ? 15 : 6, `Coincidencia en letra/PDF: "${pdfMatch.snippet}"`);
-      scoreDetails.pdfMatch = pdfMatch;
+    const pdfTerms = splitSearchTerms(pdfSearchValue);
+    const pdfMatches = findIndexedTextMatches(song, pdfTerms);
+    if (pdfMatches.length) {
+      const pdfPoints = Math.min(25, pdfMatches.reduce((sum, match, index) => sum + (match.kind === "exact" ? (index === 0 ? 15 : 5) : 3), 0));
+      addPositive(pdfPoints, `Coincidencia combinada en letra/PDF: ${pdfMatches.length} de ${pdfTerms.length} término(s)`);
+      scoreDetails.pdfMatch = pdfMatches[0];
+      scoreDetails.pdfMatches = pdfMatches;
     } else if (!songIndexedText(song)) {
       addWarning("Sin texto indexado de PDF para comparar");
     }
@@ -512,7 +539,9 @@ export function scoreSong(song = {}, options = {}, context = {}) {
   if (!usage.lastUsedAt) {
     addPositive(10, "Sin historial reciente");
   } else {
-    const daysSince = Math.floor((Date.now() - new Date(`${usage.lastUsedAt}T00:00:00`).getTime()) / dayMs);
+    const daysSince = Number.isFinite(usage.lastUsedDays)
+      ? usage.lastUsedDays
+      : Math.floor((Date.now() - new Date(`${usage.lastUsedAt}T00:00:00`).getTime()) / dayMs);
     if (daysSince > recentWindowDays) {
       addPositive(10, `Sin uso reciente: hace ${daysSince} dias`);
     } else if (daysSince <= recentStrongDays && options.avoidRecent) {
@@ -566,7 +595,9 @@ export function scoreSong(song = {}, options = {}, context = {}) {
   scoreDetails.rawScore = score;
   scoreDetails.finalScore = total;
   const daysSince = usage.lastUsedAt
-    ? Math.floor((Date.now() - new Date(`${usage.lastUsedAt}T00:00:00`).getTime()) / dayMs)
+    ? (Number.isFinite(usage.lastUsedDays)
+        ? usage.lastUsedDays
+        : Math.floor((Date.now() - new Date(`${usage.lastUsedAt}T00:00:00`).getTime()) / dayMs))
     : null;
   const usageForDisplay = {
     ...usage,
@@ -617,8 +648,13 @@ export function getSlotAlternatives(songs = [], schedules = [], options = {}, sl
 export function createSuggestedServiceBlock(songs = [], schedules = [], options = {}) {
   const serviceType = options.serviceType || inferSmartServiceType(options.currentSchedule || {});
   const fallbackThemes = serviceDefaults[serviceType]?.preferredThemeFallbacks || serviceDefaults["Servicio especial"].preferredThemeFallbacks;
+  const detectedPdfThemes = !parseThemeInput(options.theme).length && options.includePdfText && options.pdfSearchQuery
+    ? inferThemesFromPdfMatches(songs, options.pdfSearchQuery)
+    : [];
   const themeValue = parseThemeInput(options.theme).length
     ? options.theme
+    : detectedPdfThemes.length
+      ? detectedPdfThemes.join(", ")
     : options.allowThemeFallback === false
       ? ""
       : fallbackThemes.slice(0, 2).join(", ");
@@ -626,7 +662,7 @@ export function createSuggestedServiceBlock(songs = [], schedules = [], options 
   const selected = [];
   const selectedIds = new Set();
   const usedKeys = new Map();
-  const usageIndex = buildUsageIndex(schedules, new Date(), {
+  const usageIndex = options.usageIndex || buildUsageIndex(schedules, options.referenceDate || new Date(), {
     currentSchedule: options.currentSchedule,
     excludeScheduleId: options.currentSchedule?.id,
     beforeDateTime: options.currentSchedule ? getScheduleStartDate(options.currentSchedule)?.toISOString() : options.beforeDateTime
@@ -685,6 +721,8 @@ export function createSuggestedServiceBlock(songs = [], schedules = [], options 
       allKeynoteReady ? "Todos tienen Keynote listo" : "Revisa cantos con Keynote pendiente",
       completedWithFallback
         ? "No hubo suficientes cantos para todas las posiciones"
+        : detectedPdfThemes.length
+          ? `Temas sugeridos desde la letra: ${detectedPdfThemes.join(", ")}`
         : usedThemeText
           ? `Tema trabajado: ${usedThemeText}`
           : options.pdfSearchQuery

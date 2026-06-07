@@ -32,6 +32,7 @@ const mobilePrimaryOrder = ["/", "/programacion", "/inteligente", "/musicos"];
 
 export const getMobilePrimaryItems = (role = "viewer") => {
   const visible = getVisibleNavItems(role);
+  if (role === "viewer") return visible;
   return mobilePrimaryOrder
     .map((path) => visible.find((item) => item.path === path))
     .filter(Boolean)

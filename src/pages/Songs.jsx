@@ -404,7 +404,8 @@ export function SongForm({ initialSong, themes = [], keyPreference = "sharps", o
 }
 
 export function Songs() {
-  const { canEdit, canDelete } = useAuth();
+  const { canEdit, canDelete, profile } = useAuth();
+  const isViewer = profile?.role === "viewer";
   const location = useLocation();
   const navigate = useNavigate();
   const { songs, schedules, themes, settings, deleteSong, saveSong } = useMusicData();
@@ -465,6 +466,13 @@ export function Songs() {
       repeated: { smartPreset: "repeated", label: "Repetidos este mes" }
     };
     const aliasFilter = filterMap[filterAlias] || {};
+    if (isViewer) {
+      setFilters((current) => ({
+        ...clearFilterValues,
+        query: query || current.query
+      }));
+      return;
+    }
     setFilters((current) => ({
       ...current,
       query: query || current.query,
@@ -479,7 +487,7 @@ export function Songs() {
       smartPreset: aliasFilter.smartPreset || current.smartPreset,
       smartPresetLabel: aliasFilter.label || current.smartPresetLabel
     }));
-  }, [location.search]);
+  }, [isViewer, location.search]);
 
   const themeOptions = useMemo(() => collectSongThemes(songs, themes), [songs, themes]);
   const keyOptions = useMemo(() => collectSongKeys(songs), [songs]);
@@ -500,7 +508,7 @@ export function Songs() {
   }, [schedules]);
 
   const setFilter = (field, value) => setFilters((current) => ({ ...current, [field]: value }));
-  const clearFilters = () => setFilters({
+  const clearFilterValues = {
     query: "",
     category: "",
     mainTheme: "",
@@ -522,24 +530,27 @@ export function Songs() {
     smartPreset: "",
     smartPresetLabel: "",
     artist: ""
-  });
+  };
+  const clearFilters = () => setFilters(clearFilterValues);
 
   const filteredSongs = useMemo(
     () =>
       songs.filter((song) => {
-        const searchText = [
-          song.title,
-          song.artistOrSource,
-          song.category,
-          song.mainTheme,
-          ...(song.otherThemes || []),
-          ...(song.tags || []),
-          song.mainKey,
-          song.keyWithCapo,
-          song.internalNotes,
-          song.pdfSearchText,
-          ...(song.pdfSearchTokens || [])
-        ].join(" ");
+        const searchText = isViewer
+          ? [song.title, song.pdfSearchText, song.pdfOcrText, song.pdfText, song.lyricsText, ...(song.pdfSearchTokens || [])].join(" ")
+          : [
+              song.title,
+              song.artistOrSource,
+              song.category,
+              song.mainTheme,
+              ...(song.otherThemes || []),
+              ...(song.tags || []),
+              song.mainKey,
+              song.keyWithCapo,
+              song.internalNotes,
+              song.pdfSearchText,
+              ...(song.pdfSearchTokens || [])
+            ].join(" ");
         const matchesQuery = !filters.query || normalizeSearchText(searchText).includes(normalizeSearchText(filters.query));
         const matchesCategory = !filters.category || song.category === filters.category;
         const matchesMainTheme = !filters.mainTheme || song.mainTheme === filters.mainTheme;
@@ -577,9 +588,10 @@ export function Songs() {
           || (filters.smartPreset === "unused-ready" && song.keynoteReviewStatus === "completado" && usageCount === 0)
           || (filters.smartPreset === "hymns-ready" && categoryText.includes("himno") && song.keynoteReviewStatus === "completado")
           || (filters.smartPreset === "repeated" && usageCount >= 2);
+        if (isViewer) return matchesQuery;
         return matchesQuery && matchesCategory && matchesMainTheme && matchesOtherTheme && matchesKey && matchesCapo && matchesMusic && matchesKeynote && matchesPdf && matchesSung && matchesFormat && matchesKeyChange && matchesArtist && matchesLocalPdf && matchesYoutube && matchesSpotify && matchesDriveLink && matchesExternalPdf && matchesMissingLinks && matchesSmartPreset;
       }),
-    [filters, realUsageBySong, songs]
+    [filters, isViewer, realUsageBySong, songs]
   );
 
   const handleDelete = async (song) => {
@@ -667,12 +679,12 @@ export function Songs() {
           ) : null}
         </div>
 
-        <div className="mt-5 grid gap-3 lg:grid-cols-[1.6fr_0.8fr_0.8fr_0.7fr]">
+        <div className={`mt-5 grid gap-3 ${isViewer ? "" : "lg:grid-cols-[1.6fr_0.8fr_0.8fr_0.7fr]"}`}>
           <div className="relative">
             <Search className="absolute left-3 top-3 h-4 w-4 text-ink/35" />
-            <Input className="pl-9" placeholder="Buscar por nombre, fuente, tema, tono o comentario" value={filters.query} onChange={(event) => setFilter("query", event.target.value)} />
+            <Input className="pl-9" placeholder={isViewer ? "Buscar por título o letra del PDF" : "Buscar por nombre, fuente, tema, tono o comentario"} value={filters.query} onChange={(event) => setFilter("query", event.target.value)} />
           </div>
-          <Select value={filters.category} onChange={(event) => setFilter("category", event.target.value)}>
+          {!isViewer ? <><Select value={filters.category} onChange={(event) => setFilter("category", event.target.value)}>
             <option value="">Todas las categorías</option>
             {categories.map((category) => <option key={category}>{category}</option>)}
           </Select>
@@ -683,10 +695,10 @@ export function Songs() {
           <Select value={filters.key} onChange={(event) => setFilter("key", event.target.value)}>
             <option value="">Todos los tonos</option>
             {keyOptions.map((key) => <option key={key}>{key}</option>)}
-          </Select>
+          </Select></> : null}
         </div>
 
-        <details className="mt-4 rounded-2xl border border-ink/10 bg-white p-4 dark:border-white/10 dark:bg-white/5">
+        {!isViewer ? <details className="mt-4 rounded-2xl border border-ink/10 bg-white p-4 dark:border-white/10 dark:bg-white/5">
           <summary className="cursor-pointer text-sm font-bold text-ink">Filtros avanzados</summary>
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <Select value={filters.otherTheme} onChange={(event) => setFilter("otherTheme", event.target.value)}>
@@ -756,7 +768,7 @@ export function Songs() {
             </Select>
             <Input value={filters.artist} onChange={(event) => setFilter("artist", event.target.value)} placeholder="Artista o fuente" />
           </div>
-        </details>
+        </details> : null}
 
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2">
@@ -767,15 +779,15 @@ export function Songs() {
               </button>
             ) : null}
           </div>
-          <div className="flex gap-2">
+          {!isViewer ? <div className="flex gap-2">
             <Button variant={viewMode === "cards" ? "primary" : "secondary"} onClick={() => { setViewMode("cards"); localStorage.setItem("roca-eterna-song-view-mode", "cards"); }}>Tarjetas</Button>
             <Button variant={viewMode === "list" ? "primary" : "secondary"} onClick={() => { setViewMode("list"); localStorage.setItem("roca-eterna-song-view-mode", "list"); }}>Lista</Button>
             <Button variant="secondary" onClick={clearSmartRouteFilter}>Limpiar filtros</Button>
-          </div>
+          </div> : null}
         </div>
       </Card>
 
-      {filteredSongs.length && viewMode === "list" ? (
+      {filteredSongs.length && viewMode === "list" && !isViewer ? (
         <Card className="p-0">
           <div className="overflow-x-auto">
             <table className="min-w-[980px] w-full text-left text-sm">
@@ -844,12 +856,12 @@ export function Songs() {
                     <Link to={`/repertorio/${song.id}`} className="text-lg font-bold text-ink hover:text-brass" onClick={(event) => event.stopPropagation()}>
                       {song.title}
                     </Link>
-                    <p className="mt-1 text-sm text-ink/55">{song.artistOrSource || "Sin fuente"}</p>
+                    {!isViewer ? <p className="mt-1 text-sm text-ink/55">{song.artistOrSource || "Sin fuente"}</p> : null}
                   </div>
-                  <span className="rounded-xl bg-ink px-3 py-1 text-sm font-bold text-white">{song.mainKey || "--"}</span>
+                  {!isViewer ? <span className="rounded-xl bg-ink px-3 py-1 text-sm font-bold text-white">{song.mainKey || "--"}</span> : null}
                 </div>
                 <SearchMatchStrip matches={matchLabels} />
-                <div className="mt-4 flex flex-wrap gap-2">
+                {!isViewer ? <><div className="mt-4 flex flex-wrap gap-2">
                   {song.category ? <span className="rounded-full bg-ink/7 px-3 py-1 text-xs font-semibold text-ink/60">{song.category}</span> : null}
                   {song.mainTheme ? <span className="rounded-full bg-brass/10 px-3 py-1 text-xs font-semibold text-brass">{song.mainTheme}</span> : null}
                   {song.hasKeyChange ? <span className="rounded-full bg-blue-gray/10 px-3 py-1 text-xs font-semibold text-blue-gray">Cambio de tono</span> : null}
@@ -860,7 +872,7 @@ export function Songs() {
                   <ReviewBadge label="Música" value={song.musicReviewStatus} />
                 </div>
                 <p className="mt-4 rounded-2xl bg-ink/5 p-3 text-sm font-semibold text-ink">{toneSummary(song)}</p>
-                <p className="mt-4 line-clamp-2 text-sm leading-6 text-ink/58">{song.internalNotes || "Sin comentarios."}</p>
+                <p className="mt-4 line-clamp-2 text-sm leading-6 text-ink/58">{song.internalNotes || "Sin comentarios."}</p></> : null}
                 <div className="mt-4 flex flex-wrap gap-2">
                   {pdfUrl ? <a onClick={(event) => event.stopPropagation()} className="inline-flex items-center gap-1 rounded-xl bg-brass/12 px-3 py-2 text-xs font-bold text-brass" href={pdfUrl} target="_blank" rel="noreferrer"><FileText className="h-4 w-4" />PDF</a> : null}
                   {youtubeUrl ? <a onClick={(event) => event.stopPropagation()} className="inline-flex items-center gap-1 rounded-xl bg-ink/5 px-3 py-2 text-xs font-bold text-ink" href={youtubeUrl} target="_blank" rel="noreferrer"><Youtube className="h-4 w-4" />YouTube</a> : null}

@@ -11,6 +11,7 @@ export function BottomNav() {
   const [open, setOpen] = useState(false);
   const mobilePrimaryItems = getMobilePrimaryItems(profile?.role || "viewer");
   const mobileExtraItems = getMobileExtraItems(profile?.role || "viewer");
+  const showMore = mobileExtraItems.length > 0;
   const isMoreActive = mobileExtraItems.some((item) => location.pathname === item.path || location.pathname.startsWith(`${item.path}/`));
 
   const openGuide = () => {
@@ -20,7 +21,7 @@ export function BottomNav() {
 
   return (
     <>
-      {open ? (
+      {open && showMore ? (
         <div className="fixed inset-0 z-40 bg-ink/35 backdrop-blur-sm lg:hidden" onClick={() => setOpen(false)}>
           <div className="absolute bottom-20 left-3 right-3 rounded-3xl border border-ink/10 bg-white p-4 shadow-2xl" onClick={(event) => event.stopPropagation()}>
             <div className="mb-3 flex items-center justify-between">
@@ -66,7 +67,10 @@ export function BottomNav() {
         </div>
       ) : null}
       <nav className="mobile-bottom-nav fixed bottom-0 left-0 right-0 z-40 border-t border-ink/10 bg-white/94 px-2 pb-2 pt-1 backdrop-blur lg:hidden">
-        <div className="mx-auto grid max-w-xl grid-cols-5 gap-1">
+        <div
+          className="mx-auto grid max-w-xl gap-1"
+          style={{ gridTemplateColumns: `repeat(${mobilePrimaryItems.length + (showMore ? 1 : 0)}, minmax(0, 1fr))` }}
+        >
           {mobilePrimaryItems.map((item) => (
             <NavLink
               key={item.path}
@@ -87,17 +91,17 @@ export function BottomNav() {
                 </>
               ) : null}
               <item.icon className="h-5 w-5" />
-              {item.label}
+              <span className="max-w-full truncate px-0.5">{item.label}</span>
             </NavLink>
           ))}
-          <button
+          {showMore ? <button
             type="button"
             onClick={() => setOpen((current) => !current)}
             className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl text-[11px] font-semibold transition ${isMoreActive || open ? "bg-ink text-white" : "text-ink/55"}`}
           >
             <MoreHorizontal className="h-5 w-5" />
             Más
-          </button>
+          </button> : null}
         </div>
       </nav>
     </>
