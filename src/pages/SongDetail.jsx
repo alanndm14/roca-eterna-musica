@@ -42,7 +42,8 @@ function StatusPill({ label, value }) {
 export function SongDetail() {
   const { songId } = useParams();
   const navigate = useNavigate();
-  const { canEdit } = useAuth();
+  const { canEdit, profile } = useAuth();
+  const isViewer = profile?.role === "viewer";
   const { songs, schedules, themes, duplicateSong, deleteSong, saveSchedule, saveSong, settings, logAuditEvent } = useMusicData();
   const [showPdf, setShowPdf] = useState(false);
   const [pdfTest, setPdfTest] = useState(null);
@@ -77,7 +78,7 @@ export function SongDetail() {
     titleSnapshot: song.title,
     keySnapshot: song.keyWithCapo || song.mainKey || "",
     pdfUrl,
-    notes: ""
+    notes: song.internalNotes || ""
   });
 
   const nextNormalService = () => {
@@ -153,18 +154,18 @@ export function SongDetail() {
       <Card className="bg-ink text-white">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-brass">{song.category || "normal"}</p>
+            {!isViewer ? <p className="text-sm font-semibold uppercase tracking-wide text-brass">{song.category || "normal"}</p> : null}
             <h2 className="mt-2 text-4xl font-bold tracking-normal">{song.title}</h2>
-            <p className="mt-2 text-white/60">{song.artistOrSource || "Sin fuente registrada"}</p>
-            <div className="mt-5 flex flex-wrap gap-2">
+            {!isViewer ? <p className="mt-2 text-white/60">{song.artistOrSource || "Sin fuente registrada"}</p> : null}
+            {!isViewer ? <div className="mt-5 flex flex-wrap gap-2">
               {song.mainTheme ? <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-brass">{song.mainTheme}</span> : null}
               {(song.otherThemes || []).map((theme) => (
                 <span key={theme} className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white/70">{theme}</span>
               ))}
-            </div>
+            </div> : null}
           </div>
           <div className="flex flex-wrap gap-2">
-            <span className="rounded-2xl bg-white px-4 py-3 text-2xl font-bold text-ink">{song.mainKey || "--"}</span>
+            {!isViewer ? <span className="rounded-2xl bg-white px-4 py-3 text-2xl font-bold text-ink">{song.mainKey || "--"}</span> : null}
             {canEdit ? (
               <>
                 <Button variant="light" onClick={() => setEditingSong(true)}>
@@ -189,7 +190,7 @@ export function SongDetail() {
         </div>
       </Card>
 
-      <div className="grid gap-5 xl:grid-cols-[1fr_380px]">
+      <div className={`grid gap-5 ${isViewer ? "" : "xl:grid-cols-[1fr_380px]"}`}>
         <div className="space-y-5">
           <Card>
             <div className="flex items-center justify-between gap-4">
@@ -204,9 +205,9 @@ export function SongDetail() {
                 <a href={pdfUrl} target="_blank" rel="noreferrer">
                   <Button><ExternalLink className="h-4 w-4" />Abrir PDF</Button>
                 </a>
-                <Button variant="secondary" onClick={copyPdf}><Copy className="h-4 w-4" />Copiar link</Button>
+                {!isViewer ? <Button variant="secondary" onClick={copyPdf}><Copy className="h-4 w-4" />Copiar link</Button> : null}
                 <Button variant="subtle" onClick={() => setShowPdf(true)}>Ver dentro de la app</Button>
-                {song.localPdfPath ? (
+                {song.localPdfPath && !isViewer ? (
                   <Button variant="secondary" onClick={async () => setPdfTest(await testPublicPdfPath(song.localPdfPath))}>
                     <CheckCircle className="h-4 w-4" />
                     Diagnosticar archivo
@@ -216,7 +217,7 @@ export function SongDetail() {
             ) : (
               <p className="mt-4 rounded-2xl bg-ink/5 p-4 text-sm text-ink/58">Este canto todavía no tiene PDF registrado.</p>
             )}
-            <FileDiagnosticPanel result={pdfTest} />
+            {!isViewer ? <FileDiagnosticPanel result={pdfTest} /> : null}
           </Card>
 
           <Card>
@@ -229,10 +230,10 @@ export function SongDetail() {
             </div>
           </Card>
 
-          <Card>
+          {!isViewer ? <Card>
             <h3 className="text-lg font-bold text-ink">Comentario</h3>
             <p className="mt-3 text-sm leading-6 text-ink/62">{song.internalNotes || "Sin comentarios."}</p>
-          </Card>
+          </Card> : null}
 
           {lyricsSections.length ? (
             <Card>
@@ -249,7 +250,7 @@ export function SongDetail() {
           ) : null}
         </div>
 
-        <aside className="space-y-4">
+        {!isViewer ? <aside className="space-y-4">
           <Card>
             <h3 className="font-bold text-ink">Datos musicales</h3>
             <dl className="mt-4 space-y-2">
@@ -285,7 +286,7 @@ export function SongDetail() {
               )) : <p className="text-sm text-ink/55">Sin historial de programación.</p>}
             </div>
           </Card>
-        </aside>
+        </aside> : null}
       </div>
 
       <Modal open={showPdf} title="PDF de letra y acordes" onClose={() => setShowPdf(false)} wide>

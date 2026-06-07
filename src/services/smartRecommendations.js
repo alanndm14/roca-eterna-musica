@@ -4,6 +4,7 @@ export {
   createSuggestedServiceBlock,
   getServiceSlots,
   getReplacementCandidates,
+  getOutstandingSongFollowUps,
   getSlotAlternatives,
   getSongRecommendations,
   getSmartServiceDefaultCount,

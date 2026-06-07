@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { ClipboardCheck, Save } from "lucide-react";
+import { ChevronDown, ClipboardCheck, Save } from "lucide-react";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import { Field, Select, Textarea } from "../ui/Field";
+import { isNoteworthySongFollowUp } from "../../services/songScoring";
 
 const songDefault = {
   experience: "",
@@ -11,7 +12,8 @@ const songDefault = {
   congregationResponse: "normal",
   keyComfort: "comoda",
   resourceIssues: "",
-  notes: ""
+  notes: "",
+  resolved: false
 };
 
 function buildInitialFollowUp(schedule = {}) {
@@ -41,8 +43,14 @@ export function ServiceFollowUpPanel({ schedule, canEdit = false, onSave, onClos
   const initial = useMemo(() => buildInitialFollowUp(schedule), [schedule]);
   const [draft, setDraft] = useState(initial);
   const [saving, setSaving] = useState(false);
+  const [expanded, setExpanded] = useState(!compact);
   const entries = schedule?.songs || [];
   const alreadyClosed = schedule?.status === "cerrada" || schedule?.status === "realizado";
+  const noteworthySongs = Object.values(draft.songs || {}).filter(isNoteworthySongFollowUp);
+  const hasGeneralNotes = Boolean(draft.overall || draft.nextServiceNotes);
+  const visibleEntries = compact && schedule?.serviceFollowUp
+    ? entries.filter((entry) => isNoteworthySongFollowUp(draft.songs?.[entry.songId || entry.titleSnapshot] || {}))
+    : entries;
 
   useEffect(() => {
     setDraft(initial);
@@ -86,7 +94,17 @@ export function ServiceFollowUpPanel({ schedule, canEdit = false, onSave, onClos
         ) : null}
       </div>
 
-      <div className="mt-4 grid gap-3 md:grid-cols-2">
+      {compact ? (
+        <button type="button" onClick={() => setExpanded((current) => !current)} className="mt-4 flex w-full items-center justify-between gap-3 rounded-2xl bg-ink/5 p-3 text-left text-sm text-ink dark:bg-white/7">
+          <span>
+            <span className="block font-bold">{hasGeneralNotes || noteworthySongs.length ? "Ver revisión guardada" : "Agregar revisión del servicio"}</span>
+            <span className="mt-1 block text-xs text-ink/55">{noteworthySongs.length} canto(s) con observaciones</span>
+          </span>
+          <ChevronDown className={`h-4 w-4 transition ${expanded ? "rotate-180" : ""}`} />
+        </button>
+      ) : null}
+
+      {expanded ? <><div className="mt-4 grid gap-3 md:grid-cols-2">
         <Field label="Resumen del servicio">
           <Textarea value={draft.overall} onChange={(event) => update("overall", event.target.value)} disabled={!canEdit} />
         </Field>
@@ -97,7 +115,7 @@ export function ServiceFollowUpPanel({ schedule, canEdit = false, onSave, onClos
 
       <div className="mt-5 grid gap-3">
         <p className="text-sm font-black uppercase tracking-wide text-ink/45">Notas por canto</p>
-        {entries.map((entry, index) => {
+        {visibleEntries.map((entry, index) => {
           const key = entry.songId || entry.titleSnapshot || String(index);
           const songDraft = draft.songs[key] || songDefault;
           return (
@@ -136,9 +154,16 @@ export function ServiceFollowUpPanel({ schedule, canEdit = false, onSave, onClos
               <Field label="Notas del canto" className="mt-3">
                 <Textarea value={songDraft.notes} onChange={(event) => updateSong(key, "notes", event.target.value)} disabled={!canEdit} />
               </Field>
+              {isNoteworthySongFollowUp(songDraft) ? (
+                <label className="mt-3 flex items-center gap-2 text-sm font-semibold text-ink">
+                  <input type="checkbox" checked={songDraft.resolved === true} onChange={(event) => updateSong(key, "resolved", event.target.checked)} disabled={!canEdit} />
+                  Este pendiente ya fue corregido
+                </label>
+              ) : null}
             </article>
           );
         })}
+        {!visibleEntries.length ? <p className="rounded-2xl bg-emerald-500/10 p-3 text-sm font-semibold text-emerald-800 dark:text-emerald-100">No hubo cantos con observaciones pendientes.</p> : null}
       </div>
 
       {canEdit ? (
@@ -153,7 +178,7 @@ export function ServiceFollowUpPanel({ schedule, canEdit = false, onSave, onClos
             </Button>
           ) : null}
         </div>
-      ) : null}
+      ) : null}</> : null}
     </Card>
   );
 }

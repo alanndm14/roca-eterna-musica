@@ -669,6 +669,31 @@ export function MusicDataProvider({ children }) {
     });
   };
 
+  const syncScheduleSongNotes = async (entries = [], previousEntries = null) => {
+    const changes = entries
+      .map((entry) => {
+        const song = songs.find((item) => item.id === entry.songId);
+        const previous = previousEntries?.find((item) => item.songId === entry.songId);
+        if (previousEntries && String(previous?.notes || "") === String(entry.notes || "")) return null;
+        if (!song || String(song.internalNotes || "") === String(entry.notes || "")) return null;
+        return { songId: song.id, internalNotes: entry.notes || "" };
+      })
+      .filter(Boolean);
+    if (!changes.length) return;
+    if (useLocal) {
+      setSongs((current) => current.map((song) => {
+        const change = changes.find((item) => item.songId === song.id);
+        return change ? { ...song, internalNotes: change.internalNotes } : song;
+      }));
+      return;
+    }
+    const batch = writeBatch(db);
+    changes.forEach(({ songId, internalNotes }) => {
+      batch.update(doc(db, "songs", songId), { internalNotes, updatedAt: serverTimestamp() });
+    });
+    await batch.commit();
+  };
+
   const saveSchedule = async (schedule) => {
     const before = schedule.id ? schedules.find((item) => item.id === schedule.id) : null;
     const scheduleChange = before ? buildScheduleChange(before, { ...before, ...schedule, songs: schedule.songs || [] }) : null;
@@ -700,6 +725,7 @@ export function MusicDataProvider({ children }) {
         notifyNewSongsScheduledBestEffort(payload, id, payload.songs || []);
         logAuditEventBestEffort({ actionType: "create", entityType: "schedule", entityId: id, entityName: payload.serviceLabel || payload.date, summary: `Programación creada: ${payload.serviceLabel || payload.date}`, afterData: payload });
       }
+      await syncScheduleSongNotes(payload.songs || [], before?.songs || null);
       return;
     }
 
@@ -719,6 +745,7 @@ export function MusicDataProvider({ children }) {
       notifyNewSongsScheduledBestEffort(payload, created.id, payload.songs || []);
       logAuditEventBestEffort({ actionType: "create", entityType: "schedule", entityId: created.id, entityName: payload.serviceLabel || payload.date, summary: `Programación creada: ${payload.serviceLabel || payload.date}`, afterData: payload });
     }
+    await syncScheduleSongNotes(payload.songs || [], before?.songs || null);
   };
 
   const deleteSchedule = async (scheduleId) => {
@@ -784,7 +811,7 @@ export function MusicDataProvider({ children }) {
             titleSnapshot: newSong.title,
             keySnapshot: newSong.keyWithCapo || newSong.mainKey || "",
             pdfUrl: newSong.pdfPreviewUrl || newSong.pdfUrl || newSong.drivePdfUrl || newSong.chordsUrl || "",
-            notes: entry.notes || ""
+            notes: entry.notes || newSong.internalNotes || ""
           }
         : entry
     ));

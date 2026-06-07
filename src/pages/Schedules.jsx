@@ -10,12 +10,13 @@ import { SortableList, SortableHandle } from "../components/ui/SortableList";
 import { SongNameLink } from "../components/ui/SongNameLink";
 import { ServiceReviewPanel } from "../components/smart/ServiceReviewPanel";
 import { ServiceFollowUpPanel } from "../components/smart/ServiceFollowUpPanel";
+import { SongFollowUpNotice } from "../components/smart/SongFollowUpNotice";
 import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
 import { formatDate, todayString } from "../services/dateUtils";
 import { normalizeSearchText } from "../services/songUtils";
 import { downloadBlob } from "../services/mergeServicePdfs";
-import { reviewServiceSchedule } from "../services/smartRecommendations";
+import { getOutstandingSongFollowUps, reviewServiceSchedule } from "../services/smartRecommendations";
 import {
   SPECIAL_PROGRAM_TYPES,
   SPECIAL_SONG_POSITIONS,
@@ -54,16 +55,20 @@ const blankSchedule = {
 const getService = (value) => serviceOptions.find((item) => item.value === value) || serviceOptions[0];
 const dateWeekday = (date) => (date ? new Date(`${date}T00:00:00`).getDay() : null);
 
-function ScheduleForm({ initialSchedule, songs, onSubmit, onCancel }) {
+function ScheduleForm({ initialSchedule, songs, schedules, onSubmit, onCancel }) {
   const initialService = initialSchedule?.serviceType ? getService(initialSchedule.serviceType) : getService("domingo-manana");
-  const [schedule, setSchedule] = useState({
+  const [schedule, setSchedule] = useState(() => ({
     ...blankSchedule,
     ...initialSchedule,
+    songs: (initialSchedule?.songs || []).map((entry) => ({
+      ...entry,
+      notes: songs.find((song) => song.id === entry.songId)?.internalNotes || entry.notes || ""
+    })),
     serviceType: initialSchedule?.serviceType || initialService.value,
     serviceLabel: initialSchedule?.serviceLabel || initialService.label,
     time: initialSchedule?.time || initialService.time,
     isSpecialService: initialSchedule?.isSpecialService ?? isSpecialService(initialSchedule || { serviceType: initialService.value })
-  });
+  }));
   const initialLeaderChoice = worshipLeaders.includes(initialSchedule?.leader) ? initialSchedule.leader : initialSchedule?.leader ? "Otro" : "";
   const [leaderChoice, setLeaderChoice] = useState(initialLeaderChoice);
   const [manualLeader, setManualLeader] = useState(initialLeaderChoice === "Otro" ? initialSchedule?.leader || "" : "");
@@ -124,7 +129,7 @@ function ScheduleForm({ initialSchedule, songs, onSubmit, onCancel }) {
         titleSnapshot: song.title,
         keySnapshot: song.keyWithCapo || song.mainKey,
         pdfUrl: song.pdfPreviewUrl || song.pdfUrl || song.drivePdfUrl || song.chordsUrl || "",
-        notes: ""
+        notes: song.internalNotes || ""
       }
     ]);
     setSongSearch("");
@@ -230,6 +235,7 @@ function ScheduleForm({ initialSchedule, songs, onSubmit, onCancel }) {
                   <span>
                     <span className="block font-semibold text-ink">{song.title}</span>
                     <span className="text-xs text-ink/55">{song.mainTheme || "Sin tema"} · {capoText}</span>
+                    {getOutstandingSongFollowUps(song.id, schedules, schedule).length ? <span className="mt-1 block text-xs font-bold text-amber-700 dark:text-amber-300">Tiene un pendiente del uso anterior</span> : null}
                   </span>
                   <span className="rounded-full bg-ink/7 px-3 py-1 text-xs font-bold text-ink/55">{alreadyAdded ? "Ya agregado" : "Agregar"}</span>
                 </button>
@@ -443,7 +449,8 @@ function ScheduleCard({
               </p>
               <span className="rounded-xl bg-white px-3 py-1 text-sm font-bold text-ink">{song.keySnapshot}</span>
             </div>
-            <p className="mt-1 text-sm text-ink/55">{song.notes || "Sin notas"}</p>
+            <p className="mt-1 text-sm text-ink/55">{songs.find((item) => item.id === song.songId)?.internalNotes || song.notes || "Sin notas"}</p>
+            <SongFollowUpNotice issues={getOutstandingSongFollowUps(song.songId, schedules, schedule).slice(0, 1)} />
           </div>
         ))}
       </div>
@@ -673,6 +680,7 @@ export function Schedules() {
         <ScheduleForm
           initialSchedule={editingSchedule || newScheduleDraft || blankSchedule}
           songs={songs}
+          schedules={schedules}
           onCancel={closeModal}
           onSubmit={async (schedule) => {
             await saveSchedule(schedule);

@@ -141,7 +141,7 @@ export function toSongEntry(song = {}, position = "") {
     titleSnapshot: song.title || "",
     keySnapshot: song.keyWithCapo || song.mainKey || "",
     pdfUrl: song.pdfPreviewUrl || song.pdfUrl || song.drivePdfUrl || song.chordsUrl || "",
-    notes: ""
+    notes: song.internalNotes || ""
   };
 }
 
@@ -220,6 +220,10 @@ export function buildUsageIndex(schedules = [], now = new Date(), options = {}) 
       }
       usage.set(entry.songId, current);
     });
+  });
+  usage.forEach((item, songId) => {
+    const outstanding = getOutstandingSongFollowUps(songId, schedules, currentSchedule)[0];
+    if (outstanding?.followUp) item.lastFollowUp = outstanding.followUp;
   });
 
   return { usage, previousService };
@@ -333,7 +337,31 @@ function describeRecentImpact(usage = {}) {
 
 function getSongFollowUp(schedule = {}, songId = "") {
   if (!songId) return null;
-  return schedule.serviceFollowUp?.songs?.[songId] || null;
+  const followUp = schedule.serviceFollowUp?.songs?.[songId] || null;
+  return followUp?.resolved === true ? null : followUp;
+}
+
+export function isNoteworthySongFollowUp(followUp = {}) {
+  return Boolean(
+    followUp.notes
+    || followUp.resourceIssues
+    || (followUp.result && followUp.result !== "bien")
+    || (followUp.difficulty && !["normal", "facil"].includes(followUp.difficulty))
+    || (followUp.congregationResponse && followUp.congregationResponse !== "normal" && followUp.congregationResponse !== "bien")
+    || (followUp.keyComfort && followUp.keyComfort !== "comoda")
+  );
+}
+
+export function getOutstandingSongFollowUps(songId = "", schedules = [], currentSchedule = null) {
+  if (!songId) return [];
+  const beforeMs = currentSchedule ? scheduleStartMs(currentSchedule) : Date.now();
+  const history = (Array.isArray(schedules) ? schedules : [])
+    .filter((schedule) => !isDeletedSchedule(schedule) && schedule.id !== currentSchedule?.id && scheduleStartMs(schedule) && scheduleStartMs(schedule) < beforeMs)
+    .map((schedule) => ({ schedule, followUp: schedule.serviceFollowUp?.songs?.[songId] || null }))
+    .filter(({ followUp }) => followUp)
+    .sort((a, b) => (scheduleStartMs(b.schedule) || 0) - (scheduleStartMs(a.schedule) || 0));
+  const latestDecision = history.find(({ followUp }) => followUp.resolved === true || isNoteworthySongFollowUp(followUp));
+  return latestDecision && latestDecision.followUp.resolved !== true ? [latestDecision] : [];
 }
 
 export function songHasPdf(song = {}) {
@@ -520,6 +548,7 @@ export function scoreSong(song = {}, options = {}, context = {}) {
   if (usage.lastFollowUp?.keyComfort === "alta") addWarning("Observación previa: tono alto para la congregación");
   if (usage.lastFollowUp?.keyComfort === "baja") addWarning("Observación previa: tono bajo para la congregación");
   if (usage.lastFollowUp?.resourceIssues) addWarning("Observación previa: revisar PDF/Keynote");
+  if (usage.lastFollowUp?.notes) addWarning(`Nota pendiente del uso anterior: ${String(usage.lastFollowUp.notes).slice(0, 120)}`);
   if (scheduledIds.has(song.id)) {
     addPenalty(10, "Ya aparece en la programación seleccionada");
   }

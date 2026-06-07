@@ -193,7 +193,7 @@ export default function App() {
           <Route index element={<Dashboard />} />
           <Route path="repertorio" element={<Songs />} />
           <Route path="repertorio/:songId" element={<SongDetail />} />
-          <Route path="programacion" element={<Schedules />} />
+          <Route path="programacion" element={<RoleRoute roles={["admin", "editor"]}><Schedules /></RoleRoute>} />
           <Route path="musicos" element={<MusicianView />} />
           <Route path="inteligente" element={<RoleRoute roles={["admin", "editor"]}><SmartCenter /></RoleRoute>} />
           <Route path="historial" element={<RoleRoute roles={["admin", "editor"]}><History /></RoleRoute>} />

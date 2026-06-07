@@ -156,7 +156,7 @@ export function Dashboard() {
               </span>
               <div>
                 <h2 className="text-lg font-bold text-ink">Recibir novedades</h2>
-                <p className="mt-1 text-sm leading-6 text-ink/62">Podemos avisarte cuando se agregue una nueva programación o un nuevo canto al repertorio.</p>
+                <p className="mt-1 text-sm leading-6 text-ink/62">Podemos avisarte cuando haya una nueva programación, cambios importantes o un canto nuevo por preparar.</p>
                 {pushPrompt.status ? <p className="mt-2 text-sm font-semibold text-brass">{pushPrompt.status}</p> : null}
               </div>
             </div>
@@ -197,10 +197,10 @@ export function Dashboard() {
                   </Button>
                 </Link>
               ) : null}
-              <Link to="/programacion">
+              <Link to={canEdit ? "/programacion" : "/musicos"}>
                 <Button variant="darkSubtle">
                   <CalendarPlus className="h-4 w-4" />
-                  {canEdit ? "Nueva programación" : "Ver programación"}
+                  {canEdit ? "Nueva programación" : "Ver próximo servicio"}
                 </Button>
               </Link>
             </div>

@@ -157,7 +157,7 @@ export function buildServiceSongs(schedule, songs, keyPreference = "sharps") {
       capo: Number(full.capo || 0),
       keyWithCapo: full.keyWithCapo || entry.keySnapshot || "",
       hasKeyChange: Boolean(full.hasKeyChange),
-      notes: entry.notes || "",
+      notes: full.internalNotes || entry.notes || "",
       pdfUrl: entry.pdfUrl || getSongPdfUrl(full),
       previewUrl: getSongPreviewUrl(full) || entry.pdfUrl || getSongPdfUrl(full),
       localPdfPath: full.localPdfPath || entry.localPdfPath || "",

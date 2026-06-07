@@ -1,6 +1,24 @@
-export const appVersion = "0.9.106";
+export const appVersion = "0.9.107";
 
 export const changelog = [
+  {
+    version: "0.9.107",
+    date: "2026-06-06",
+    title: "Seguimiento y vistas por rol",
+    added: [
+      "Pendientes musicales que reaparecen hasta marcarse como corregidos",
+      "Filtros de historial para cantos por corregir y pendientes resueltos"
+    ],
+    changed: [
+      "Las notas internas del canto se usan también en las programaciones",
+      "La revisión del servicio tiene mejor contraste en modo oscuro",
+      "Viewer accede a una vista simplificada del repertorio y Músicos"
+    ],
+    fixed: [
+      "Viewer ya no puede abrir la sección Programación ni ver la revisión técnica del servicio"
+    ],
+    pending: []
+  },
   {
     version: "0.9.106",
     date: "2026-06-06",

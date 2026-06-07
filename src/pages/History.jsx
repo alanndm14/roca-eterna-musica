@@ -10,7 +10,7 @@ import { ServiceFollowUpPanel } from "../components/smart/ServiceFollowUpPanel";
 import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
 import { formatDate, formatScheduleDateWithService, getPastSchedules, getServiceDisplayLabel } from "../services/dateUtils";
-import { reviewServiceSchedule } from "../services/smartRecommendations";
+import { isNoteworthySongFollowUp, reviewServiceSchedule } from "../services/songScoring";
 
 const csvEscape = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
 
@@ -85,6 +85,8 @@ export function History() {
       const matchesFollowUp = followUpFilter === "all"
         || (followUpFilter === "with" && Boolean(schedule.serviceFollowUp))
         || (followUpFilter === "without" && !schedule.serviceFollowUp)
+        || (followUpFilter === "issues" && Object.values(schedule.serviceFollowUp?.songs || {}).some((item) => item.resolved !== true && isNoteworthySongFollowUp(item)))
+        || (followUpFilter === "resolved" && Object.values(schedule.serviceFollowUp?.songs || {}).some((item) => item.resolved === true))
         || (followUpFilter === "snapshot" && Boolean(schedule.serviceReviewSnapshot));
       const matchesSongCount = songCountFilter === "all"
         || (songCountFilter === "few" && songCount < 3)
@@ -185,6 +187,8 @@ export function History() {
               <option value="all">Todo seguimiento</option>
               <option value="with">Con seguimiento</option>
               <option value="without">Sin seguimiento</option>
+              <option value="issues">Con cantos por corregir</option>
+              <option value="resolved">Con pendientes corregidos</option>
               <option value="snapshot">Con revisión guardada</option>
             </Select>
             <Select value={songCountFilter} onChange={(event) => setSongCountFilter(event.target.value)}>

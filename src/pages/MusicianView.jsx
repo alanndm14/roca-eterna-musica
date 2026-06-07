@@ -10,13 +10,14 @@ import { SortableList, SortableHandle } from "../components/ui/SortableList";
 import { RecommendationCard } from "../components/smart/RecommendationCard";
 import { ScoreBadge } from "../components/smart/ScoreBadge";
 import { ServiceReviewPanel } from "../components/smart/ServiceReviewPanel";
+import { SongFollowUpNotice } from "../components/smart/SongFollowUpNotice";
 import { SongNameLink } from "../components/ui/SongNameLink";
 import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
 import { formatDate, getCurrentOrNextSchedule, todayString } from "../services/dateUtils";
 import { buildServiceSongs, getServiceDisplayLabel, getServiceFileName } from "../services/serviceSheetPdf";
 import { downloadBlob, getSongPdfSource, mergePdfFiles, mergeServiceLocalPdfs } from "../services/mergeServicePdfs";
-import { getReplacementCandidates, reviewServiceSchedule } from "../services/smartRecommendations";
+import { getOutstandingSongFollowUps, getReplacementCandidates, reviewServiceSchedule } from "../services/smartRecommendations";
 import { cleanupExpiredTemporaryServicePdfs, deleteTemporaryServicePdf, getTemporaryServicePdf, saveTemporaryServicePdf } from "../services/temporaryServicePdfStore";
 import {
   SPECIAL_PROGRAM_TYPES,
@@ -134,7 +135,8 @@ function MusicianScheduleCalendar({ schedules, selectedDate, onSelectDate }) {
 }
 
 export function MusicianView() {
-  const { isAdmin, canEdit } = useAuth();
+  const { isAdmin, canEdit, profile } = useAuth();
+  const isViewer = profile?.role === "viewer";
   const { schedules, songs, settings, replaceScheduleSong, saveSchedule } = useMusicData();
   const [selectedId, setSelectedId] = useState("");
   const [focusMode, setFocusMode] = useState(false);
@@ -489,7 +491,7 @@ export function MusicianView() {
             )}
           </div>
         </div>
-        {serviceReview ? (
+        {serviceReview && !isViewer ? (
           <div className="mt-4">
             <ServiceReviewPanel review={serviceReview} compact interactive open={serviceReviewOpen} onToggle={() => setServiceReviewOpen((current) => !current)} />
           </div>
@@ -573,6 +575,7 @@ export function MusicianView() {
                   ) : null}
                 </div>
                 <p className="mt-2 text-base text-ink/60">{song.notes || "Sin notas para este canto."}</p>
+                <SongFollowUpNotice issues={getOutstandingSongFollowUps(song.entry.songId, schedules, selectedSchedule).slice(0, 1)} />
                 <div className="mt-3 flex flex-wrap gap-2">
                   {song.pdfUrl ? <a className="inline-flex items-center gap-2 rounded-xl bg-brass/12 px-3 py-2 text-sm font-bold text-brass" href={song.pdfUrl} target="_blank" rel="noreferrer">PDF de letra y acordes <ExternalLink className="h-4 w-4" /></a> : null}
                   {song.youtubeUrl ? <a className="inline-flex items-center gap-2 rounded-xl bg-ink/5 px-3 py-2 text-sm font-bold text-ink" href={song.youtubeUrl} target="_blank" rel="noreferrer">YouTube <ExternalLink className="h-4 w-4" /></a> : null}

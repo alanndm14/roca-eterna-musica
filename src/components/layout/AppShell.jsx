@@ -410,7 +410,7 @@ export function AppShell() {
       alert(notification.scheduleId ? "Esta programación ya fue eliminada." : notification.songId ? "Este canto ya fue eliminado." : "Esta novedad ya no está activa.");
       return;
     }
-    if (notification.scheduleId) navigate("/programacion");
+    if (notification.scheduleId) navigate(profile?.role === "viewer" ? "/musicos" : "/programacion");
     if (notification.songId) navigate(`/repertorio/${notification.songId}`);
   };
 
@@ -426,7 +426,7 @@ export function AppShell() {
       return;
     }
     if (novelty.scheduleId) {
-      navigate("/programacion");
+      navigate(profile?.role === "viewer" ? "/musicos" : "/programacion");
     } else if (novelty.songId) {
       navigate(`/repertorio/${novelty.songId}`);
     } else if (url.startsWith("/#/")) {

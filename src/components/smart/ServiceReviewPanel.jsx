@@ -2,10 +2,10 @@ import { useState } from "react";
 import { AlertCircle, CheckCircle2, ChevronDown, Info, ShieldAlert } from "lucide-react";
 
 const alertStyles = {
-  important: { icon: ShieldAlert, className: "border-red-300 bg-red-50 text-red-900 dark:border-red-400/45 dark:bg-red-500/16 dark:text-red-50" },
-  warning: { icon: AlertCircle, className: "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-400/45 dark:bg-amber-500/16 dark:text-amber-50" },
-  info: { icon: Info, className: "border-yellow-300 bg-yellow-50 text-yellow-900 dark:border-yellow-300/40 dark:bg-yellow-400/14 dark:text-yellow-50" },
-  success: { icon: CheckCircle2, className: "border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-400/45 dark:bg-emerald-500/16 dark:text-emerald-50" }
+  important: { icon: ShieldAlert, className: "border-red-300 bg-red-50 text-red-900 dark:border-red-400/55 dark:bg-red-950/70 dark:text-red-100" },
+  warning: { icon: AlertCircle, className: "border-orange-300 bg-orange-50 text-orange-950 dark:border-orange-400/55 dark:bg-orange-950/70 dark:text-orange-100" },
+  info: { icon: Info, className: "border-yellow-300 bg-yellow-50 text-yellow-950 dark:border-yellow-400/50 dark:bg-yellow-950/65 dark:text-yellow-100" },
+  success: { icon: CheckCircle2, className: "border-emerald-300 bg-emerald-50 text-emerald-950 dark:border-emerald-400/50 dark:bg-emerald-950/65 dark:text-emerald-100" }
 };
 
 export function getRiskTone(score = 0) {
@@ -75,7 +75,7 @@ export function ServiceReviewPanel({ review, compact = false, interactive = fals
       } : undefined}
       role={interactive && !compact ? "button" : undefined}
       tabIndex={interactive && !compact ? 0 : undefined}
-      className={`${compact ? "w-full p-3 text-left" : "p-5"} rounded-[1.5rem] border border-white/70 bg-white/88 shadow-soft backdrop-blur-xl transition dark:border-white/12 dark:bg-zinc-950/78 ${interactive ? "hover:border-brass/45 hover:bg-white dark:hover:bg-zinc-950/90" : ""}`}
+      className={`${compact ? "w-full p-3 text-left" : "p-5"} rounded-[1.5rem] border border-ink/10 bg-white shadow-soft transition dark:border-white/16 dark:bg-[#181818] dark:shadow-[0_18px_45px_rgba(0,0,0,0.38)] ${interactive ? "hover:border-brass/45 dark:hover:border-brass/55 dark:hover:bg-[#1d1d1d]" : ""}`}
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -91,7 +91,7 @@ export function ServiceReviewPanel({ review, compact = false, interactive = fals
             <span>Preparación</span>
             <span>{score}%</span>
           </div>
-          <div className="mt-2 h-3 overflow-hidden rounded-full bg-zinc-200 ring-1 ring-black/5 dark:bg-white/12 dark:ring-white/10">
+          <div className="mt-2 h-3 overflow-hidden rounded-full bg-zinc-200 ring-1 ring-black/5 dark:bg-black/55 dark:ring-white/20">
             <div className={`h-full rounded-full ${risk.bar}`} style={{ width: `${score}%` }} />
           </div>
         </div>
