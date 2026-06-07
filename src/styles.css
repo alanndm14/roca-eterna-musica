@@ -80,10 +80,31 @@ textarea {
   isolation: isolate;
 }
 
+.smart-shell > *,
+.smart-shell section,
+.smart-shell article,
+.smart-shell .grid > *,
+.smart-shell .flex > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
 .smart-shell button,
 .smart-shell input,
-.smart-shell select {
+.smart-shell select,
+.smart-shell textarea {
   max-width: 100%;
+}
+
+@media (max-width: 640px) {
+  .smart-shell {
+    border-radius: 1.5rem;
+  }
+
+  .smart-shell section,
+  .smart-shell article {
+    width: 100%;
+  }
 }
 
 .dark .smart-shell .bg-white\/78,

@@ -11,7 +11,7 @@ export function InsightCard({ insight, onAction }) {
   const Icon = iconBySeverity[insight.severity] || Info;
   const tone = insight.severity === "atención" ? "text-yellow-700 bg-yellow-500/12" : insight.severity === "oportunidad" ? "text-brass bg-brass/12" : "text-blue-gray bg-blue-gray/12";
   return (
-    <article className="rounded-2xl border border-white/60 bg-white/74 p-3 shadow-soft backdrop-blur-xl dark:border-white/10 dark:bg-white/8">
+    <article className="min-w-0 max-w-full rounded-2xl border border-white/60 bg-white/74 p-3 shadow-soft backdrop-blur-xl dark:border-white/10 dark:bg-white/8">
       <div className="flex items-start gap-2.5">
         <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl ${tone}`}>
           <Icon className="h-4 w-4" />

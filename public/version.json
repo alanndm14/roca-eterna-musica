@@ -1,10 +1,8 @@
 {
-  "version": "0.9.107",
-  "date": "2026-06-06",
+  "version": "0.9.108",
+  "date": "2026-06-07",
   "critical": false,
   "changes": [
-    "Vista viewer mas simple y protegida",
-    "Notas de cantos unificadas con programaciones",
-    "Seguimiento de pendientes musicales entre servicios"
+    "Correccion de errores visuales"
   ]
 }

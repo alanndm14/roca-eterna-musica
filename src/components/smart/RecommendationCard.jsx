@@ -69,7 +69,7 @@ export function RecommendationCard({ item, onAdd, onView, onDismiss, onExplain, 
   const chips = getVisibleChips(item);
   const tone = recommendationTone(item.score);
   return (
-    <article className="flex h-full min-h-0 flex-col rounded-[1.1rem] border border-white/55 bg-white/82 p-3.5 shadow-soft backdrop-blur-xl dark:border-white/10 dark:bg-white/9">
+    <article className="flex h-full min-h-0 min-w-0 max-w-full flex-col rounded-[1.1rem] border border-white/55 bg-white/82 p-3.5 shadow-soft backdrop-blur-xl dark:border-white/10 dark:bg-white/9">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className={`inline-flex max-w-full truncate rounded-full px-2.5 py-1 text-[11px] font-black uppercase tracking-wide ${tone.chip}`}>{tone.label}</p>
@@ -102,10 +102,10 @@ export function RecommendationCard({ item, onAdd, onView, onDismiss, onExplain, 
 
       <div className="mt-auto pt-3">
         {onAdd ? <Button className="h-9 w-full px-3 text-xs" onClick={() => onAdd(song)}><Plus className="h-4 w-4" />{actionLabel}</Button> : null}
-        <div className="mt-2 grid grid-cols-3 gap-1.5">
+        <div className="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
           {onView ? <Button className="h-8 px-2 text-[11px]" variant="secondary" onClick={() => onView(song)}><Eye className="h-3.5 w-3.5" />Detalle</Button> : null}
           {onExplain ? <Button className="h-8 px-2 text-[11px]" variant="subtle" onClick={() => onExplain(item)}>Ver score</Button> : null}
-          {onDismiss ? <Button className="h-8 px-2 text-[11px]" variant="subtle" onClick={() => onDismiss(song)}><X className="h-3.5 w-3.5" />Descartar</Button> : null}
+          {onDismiss ? <Button className="col-span-2 h-8 px-2 text-[11px] sm:col-span-1" variant="subtle" onClick={() => onDismiss(song)}><X className="h-3.5 w-3.5" />Descartar</Button> : null}
         </div>
       </div>
     </article>
