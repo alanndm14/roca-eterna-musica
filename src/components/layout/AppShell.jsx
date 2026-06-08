@@ -7,7 +7,7 @@ import { appDarkLogo, appLogo, fallbackAppLogo } from "../../assets/logo";
 import { useAuth } from "../../hooks/useAuth";
 import { useMusicData } from "../../hooks/useMusicData";
 import { getEffectiveThemeMode, getInstitutionalLogo } from "../../services/songUtils";
-import { saveLastBackgroundPush, subscribeForegroundPushMessages } from "../../services/pushNotifications";
+import { enablePushNotificationsForUser, saveLastBackgroundPush, subscribeForegroundPushMessages } from "../../services/pushNotifications";
 import { activateLatestAppVersion, compareVersions, dismissUpdate, fetchLatestVersion, getInstalledVersion, markInstalledVersion, wasUpdateDismissed } from "../../services/appUpdate";
 import { appVersion } from "../../data/changelog";
 import { Button } from "../ui/Button";
@@ -153,6 +153,7 @@ export function AppShell() {
   const [updateHidden, setUpdateHidden] = useState(false);
   const seenInternalNotifications = useRef(new Set());
   const initializedInternalNotifications = useRef(false);
+  const refreshedPushRegistration = useRef(false);
   const pageTitle = location.pathname === "/inteligente" ? "Centro Inteligente" : pageNames[location.pathname] || "Roca Eterna Música";
   const themeMode = profile?.themeMode || localStorage.getItem("roca-eterna-theme-mode") || "system";
   const effectiveTheme = getEffectiveThemeMode(themeMode);
@@ -187,6 +188,20 @@ export function AppShell() {
   useEffect(() => {
     localStorage.setItem(sidebarStorageKey, String(sidebarCollapsed));
   }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    if (
+      refreshedPushRegistration.current
+      || !profile?.uid
+      || typeof Notification === "undefined"
+      || Notification.permission !== "granted"
+    ) return;
+    refreshedPushRegistration.current = true;
+    enablePushNotificationsForUser(profile).catch((error) => {
+      console.warn("[FCM] No se pudo renovar el registro de este dispositivo.", error?.message || error);
+      refreshedPushRegistration.current = false;
+    });
+  }, [profile]);
 
   useEffect(() => {
     const installedAtStart = getInstalledVersion();

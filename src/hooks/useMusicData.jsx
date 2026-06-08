@@ -308,7 +308,7 @@ export function MusicDataProvider({ children }) {
     const notificationId = payload.notificationId || "";
     if (notificationId && automaticPushRequests.current.has(notificationId)) {
       console.info("[push] skipped duplicate", { notificationId });
-      return;
+      return Promise.resolve({ skipped: true, duplicate: true, notificationId });
     }
     if (notificationId) automaticPushRequests.current.add(notificationId);
     console.info("[push] automatic send requested", {
@@ -316,9 +316,7 @@ export function MusicDataProvider({ children }) {
       type: payload.type || "",
       entityId: payload.scheduleId || payload.songId || ""
     });
-    Promise.resolve()
-      .then(async () => {
-        const result = await sendExternalPush(payload, {
+    const request = sendExternalPush(payload, {
           kind: "auto",
           meta: {
             eventoGuardado: true,
@@ -327,7 +325,8 @@ export function MusicDataProvider({ children }) {
             pushEnviado: false,
             ...meta
           }
-        });
+        })
+      .then((result) => {
         if (result?.ok === false) {
           console.warn("[Push] No se pudo enviar push externo.", {
             notificationId: payload.notificationId || "",
@@ -335,13 +334,20 @@ export function MusicDataProvider({ children }) {
             message: result.body?.message || result.error || ""
           });
         }
+        if (notificationId && (result?.skipped || result?.ok === false)) {
+          automaticPushRequests.current.delete(notificationId);
+        }
+        return result;
       })
       .catch((error) => {
+        if (notificationId) automaticPushRequests.current.delete(notificationId);
         console.warn("[Push] Error no bloqueante al enviar push externo.", {
           notificationId: payload.notificationId || "",
           message: error?.message || String(error)
         });
+        return { ok: false, error: error?.message || String(error), notificationId };
       });
+    return request;
   };
 
   const notifyScheduleCreatedBestEffort = (schedulePayload, scheduleId) => {

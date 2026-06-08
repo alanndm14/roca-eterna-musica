@@ -49,7 +49,7 @@ export async function sendExternalPush(payload = {}, options = {}) {
   }
 
   try {
-    const idToken = await auth.currentUser.getIdToken();
+    const idToken = await auth.currentUser.getIdToken(true);
     const headers = {
       "Content-Type": "application/json",
       Authorization: `Bearer ${idToken}`
@@ -65,7 +65,8 @@ export async function sendExternalPush(payload = {}, options = {}) {
     const response = await fetch(pushServerUrl, {
       method: "POST",
       headers,
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      keepalive: true
     });
     const body = await parseJsonSafely(response);
     const result = {
