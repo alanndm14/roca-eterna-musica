@@ -255,7 +255,6 @@ export function MusicDataProvider({ children }) {
     const payload = {
       active: false,
       deleted: true,
-      cleanupReason: "test_schedule_notification",
       deletedAt: serverTimestamp()
     };
     setNotifications((current) => current.map((item) => (

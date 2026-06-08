@@ -1,6 +1,17 @@
-export const appVersion = "0.9.114";
+export const appVersion = "0.9.115";
 
 export const changelog = [
+  {
+    version: "0.9.115",
+    date: "2026-06-08",
+    title: "Corrección de notificaciones",
+    added: [],
+    changed: [],
+    fixed: [
+      "Corrección de notificaciones"
+    ],
+    pending: []
+  },
   {
     version: "0.9.114",
     date: "2026-06-08",

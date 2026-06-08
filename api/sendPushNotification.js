@@ -569,16 +569,10 @@ async function sendToBroadcastTopic(payload) {
   const message = {
     topic: BROADCAST_TOPIC,
     data,
-    notification: { title: payload.title, body: payload.body },
     webpush: {
-      notification: {
-        title: payload.title,
-        body: payload.body,
-        icon,
-        badge,
-        tag: data.tag,
-        renotify: false,
-        requireInteraction: false
+      headers: {
+        Urgency: "high",
+        TTL: "86400"
       },
       fcmOptions: { link: absoluteAppUrl(payload.url) }
     }
