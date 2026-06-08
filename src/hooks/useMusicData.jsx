@@ -6,6 +6,7 @@ import {
   deleteDoc,
   doc,
   getDocs,
+  limit,
   onSnapshot,
   orderBy,
   query,
@@ -203,16 +204,6 @@ export function MusicDataProvider({ children }) {
         (snapshotError) => setError(snapshotError.message)
       ),
       onSnapshot(
-        query(collection(db, "users"), orderBy("email")),
-        (snapshot) => setUsers(snapshot.docs.map(withId)),
-        (snapshotError) => setError(snapshotError.message)
-      ),
-      onSnapshot(
-        query(collection(db, "authorizedEmails"), orderBy("email")),
-        (snapshot) => setAuthorizedEmails(snapshot.docs.map(withId)),
-        (snapshotError) => setError(snapshotError.message)
-      ),
-      onSnapshot(
         query(collection(db, "themes"), orderBy("name")),
         (snapshot) => setThemes(snapshot.docs.map(withId)),
         (snapshotError) => setError(snapshotError.message)
@@ -223,16 +214,22 @@ export function MusicDataProvider({ children }) {
         (snapshotError) => setError(snapshotError.message)
       ),
       onSnapshot(
-        query(collection(db, "auditLogs"), orderBy("createdAt", "desc")),
-        (snapshot) => setAuditLogs(snapshot.docs.map(withId)),
-        (snapshotError) => setError(snapshotError.message)
-      ),
-      onSnapshot(
-        query(collection(db, "notifications"), orderBy("createdAt", "desc")),
+        query(collection(db, "notifications"), orderBy("createdAt", "desc"), limit(120)),
         (snapshot) => setNotifications(snapshot.docs.map(withId)),
         (snapshotError) => setError(snapshotError.message)
       )
     ];
+    if (profile.role === "admin") {
+      unsubscribers.push(
+        onSnapshot(query(collection(db, "users"), orderBy("email")), (snapshot) => setUsers(snapshot.docs.map(withId)), (snapshotError) => setError(snapshotError.message)),
+        onSnapshot(query(collection(db, "authorizedEmails"), orderBy("email")), (snapshot) => setAuthorizedEmails(snapshot.docs.map(withId)), (snapshotError) => setError(snapshotError.message)),
+        onSnapshot(query(collection(db, "auditLogs"), orderBy("createdAt", "desc"), limit(250)), (snapshot) => setAuditLogs(snapshot.docs.map(withId)), (snapshotError) => setError(snapshotError.message))
+      );
+    } else {
+      setUsers([]);
+      setAuthorizedEmails([]);
+      setAuditLogs([]);
+    }
 
     setLoading(false);
     return () => unsubscribers.forEach((unsubscribe) => unsubscribe());

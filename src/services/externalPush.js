@@ -36,9 +36,10 @@ export function isPushBackendConfigured() {
 
 export async function sendExternalPush(payload = {}, options = {}) {
   const meta = options.meta || {};
+  const shouldSaveResult = options.kind !== "registration";
   if (!pushServerUrl || !auth?.currentUser) {
     const result = { skipped: true, reason: "Push externo no configurado.", ...meta };
-    saveLastPushResult(options.kind === "test" ? LAST_TEST_KEY : LAST_AUTO_KEY, {
+    if (shouldSaveResult) saveLastPushResult(options.kind === "test" ? LAST_TEST_KEY : LAST_AUTO_KEY, {
       notificationId: payload.notificationId || "",
       scheduleId: payload.scheduleId || "",
       songId: payload.songId || "",
@@ -76,7 +77,7 @@ export async function sendExternalPush(payload = {}, options = {}) {
       pushEnviado: response.ok && body.ok !== false && Number(body.sent || body.enviados || 0) > 0,
       body
     };
-    saveLastPushResult(options.kind === "test" ? LAST_TEST_KEY : LAST_AUTO_KEY, {
+    if (shouldSaveResult) saveLastPushResult(options.kind === "test" ? LAST_TEST_KEY : LAST_AUTO_KEY, {
       ...meta,
       notificationId: payload.notificationId || "",
       scheduleId: payload.scheduleId || "",
@@ -87,7 +88,7 @@ export async function sendExternalPush(payload = {}, options = {}) {
     return result;
   } catch (error) {
     const result = { skipped: false, ok: false, error: error.message, ...meta };
-    saveLastPushResult(options.kind === "test" ? LAST_TEST_KEY : LAST_AUTO_KEY, {
+    if (shouldSaveResult) saveLastPushResult(options.kind === "test" ? LAST_TEST_KEY : LAST_AUTO_KEY, {
       notificationId: payload.notificationId || "",
       scheduleId: payload.scheduleId || "",
       songId: payload.songId || "",
@@ -96,4 +97,16 @@ export async function sendExternalPush(payload = {}, options = {}) {
     });
     return result;
   }
+}
+
+export async function registerPushTokenForBroadcast(token = "", tokenId = "") {
+  if (!token) return { ok: false, skipped: true, reason: "Sin token FCM." };
+  return sendExternalPush({
+    mode: "register_topic",
+    type: "other",
+    title: "Registro de dispositivo",
+    body: "Registro del canal de notificaciones.",
+    token,
+    tokenId
+  }, { kind: "registration" });
 }

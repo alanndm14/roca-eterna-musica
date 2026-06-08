@@ -1,6 +1,7 @@
 import admin from "firebase-admin";
 
 const allowedTypes = new Set(["new_schedule", "new_song", "updated_schedule", "self_test_data_only", "other"]);
+const BROADCAST_TOPIC = "roca-eterna-updates";
 const invalidTokenCodes = new Set([
   "messaging/registration-token-not-registered",
   "messaging/invalid-registration-token"
@@ -121,7 +122,7 @@ function applyCors(request, response) {
   }
   response.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Firebase-AppCheck");
-  response.setHeader("X-Push-Backend-Revision", "push-auto-recovery-20260608");
+  response.setHeader("X-Push-Backend-Revision", "topic-broadcast-20260608");
 }
 
 function appBaseUrl() {
@@ -192,17 +193,33 @@ async function verifyAppCheckIfRequired(request) {
 }
 
 async function checkRole(decoded) {
-  const requesterSnap = await admin.firestore().doc(`users/${decoded.uid}`).get();
-  const requester = requesterSnap.data();
-  const requesterEmail = String(requester?.email || "").trim().toLowerCase();
   const tokenEmail = String(decoded?.email || "").trim().toLowerCase();
-  if (!requester?.active || !requesterEmail || requesterEmail !== tokenEmail || !["admin", "editor"].includes(requester.role)) {
+  const claimedRole = String(decoded?.role || "").trim().toLowerCase();
+  const trustedEmails = new Set(String(process.env.PUSH_ALLOWED_SENDER_EMAILS || "")
+    .split(",")
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean));
+  try {
+    const requesterSnap = await admin.firestore().doc(`users/${decoded.uid}`).get();
+    const requester = requesterSnap.data();
+    const requesterEmail = String(requester?.email || "").trim().toLowerCase();
+    if (requester?.active && requesterEmail && requesterEmail === tokenEmail && ["admin", "editor"].includes(requester.role)) {
+      return requester;
+    }
+  } catch (error) {
+    if (!isQuotaError(error)) throw error;
+    if (["admin", "editor"].includes(claimedRole) || trustedEmails.has(tokenEmail)) {
+      logSafe("Role fallback", { stage: "check_role", uid: decoded.uid, reason: "firestore_quota" });
+      return { active: true, email: tokenEmail, role: claimedRole || "trusted_sender", fallback: true };
+    }
+    throw error;
+  }
+  {
     const error = new Error("No autorizado para enviar push.");
     error.status = 403;
     error.stage = "check_role";
     throw error;
   }
-  return requester;
 }
 
 function enforceRateLimit(uid = "") {
@@ -234,11 +251,26 @@ function validatePayload(payload = {}) {
   if (title.length > 160 || body.length > 500) {
     return { ok: false, code: "PAYLOAD_TOO_LONG", message: "Titulo o mensaje demasiado largo." };
   }
-  if (!["broadcast", "self_test", "self_test_data_only"].includes(mode)) {
+  if (!["broadcast", "self_test", "self_test_data_only", "register_topic"].includes(mode)) {
     return { ok: false, code: "INVALID_MODE", message: "Modo de envio no permitido." };
   }
   safeInternalUrl(payload.url || "/");
   return { ok: true };
+}
+
+async function registerBroadcastTopic(token = "") {
+  if (!token || token.length < 40) {
+    const error = new Error("Token FCM invalido para registrar el dispositivo.");
+    error.status = 400;
+    error.stage = "register_topic";
+    throw error;
+  }
+  const result = await admin.messaging().subscribeToTopic([token], BROADCAST_TOPIC);
+  if (result.failureCount > 0) {
+    const firstError = result.errors?.[0]?.error;
+    throw firstError || new Error("No se pudo registrar el dispositivo en el canal push.");
+  }
+  return result;
 }
 
 async function reserveNotificationSend(notificationId, requesterUid) {
@@ -443,6 +475,54 @@ async function sendToTokens(entries, payload) {
   return result;
 }
 
+async function sendToBroadcastTopic(payload) {
+  const icon = payload.icon || publicIconUrl();
+  const badge = payload.badge || icon;
+  const data = stringData({
+    type: payload.type || "other",
+    url: safeInternalUrl(payload.url || "/"),
+    title: payload.title,
+    body: payload.body,
+    icon,
+    badge,
+    tag: payload.notificationId || payload.scheduleId || payload.songId || payload.type || "roca-eterna-push",
+    scheduleId: payload.scheduleId || "",
+    songId: payload.songId || "",
+    notificationId: payload.notificationId || "",
+    mode: payload.mode || "broadcast"
+  });
+  const message = {
+    topic: BROADCAST_TOPIC,
+    data,
+    notification: { title: payload.title, body: payload.body },
+    webpush: {
+      notification: {
+        title: payload.title,
+        body: payload.body,
+        icon,
+        badge,
+        tag: data.tag,
+        renotify: false,
+        requireInteraction: false
+      },
+      fcmOptions: { link: absoluteAppUrl(payload.url) }
+    }
+  };
+  const messageId = await admin.messaging().send(message);
+  return {
+    stage: "send_fcm_topic",
+    tokensAttempted: 0,
+    sent: 1,
+    failed: 0,
+    invalidTokens: 0,
+    errors: [],
+    quotaExceeded: false,
+    failedPrecondition: false,
+    topic: BROADCAST_TOPIC,
+    messageId
+  };
+}
+
 export default async function handler(request, response) {
   applyCors(request, response);
 
@@ -480,6 +560,19 @@ export default async function handler(request, response) {
     } = request.body || {};
     notificationId = incomingNotificationId || "";
 
+    if (mode === "register_topic") {
+      stage = "register_topic";
+      const topicResult = await registerBroadcastTopic(token);
+      return sendJson(response, 200, {
+        ok: true,
+        stage,
+        registered: true,
+        topic: BROADCAST_TOPIC,
+        successCount: topicResult.successCount,
+        failureCount: topicResult.failureCount
+      });
+    }
+
     stage = "check_role";
     await checkRole(decoded);
 
@@ -488,7 +581,11 @@ export default async function handler(request, response) {
 
     if (mode !== "self_test") {
       stage = "dedupe";
-      const reservation = await reserveNotificationSend(notificationId, decoded.uid);
+      const reservation = await reserveNotificationSend(notificationId, decoded.uid).catch((error) => {
+        if (!isQuotaError(error)) throw error;
+        logSafe("Dedupe fallback", { notificationId, reason: "firestore_quota" });
+        return { reserved: true, duplicate: false, fallback: true };
+      });
       if (reservation.duplicate) {
         return sendJson(response, 200, {
           ok: true,
@@ -507,9 +604,9 @@ export default async function handler(request, response) {
       ? await readSelfTestToken(decoded.uid, token, tokenId)
       : mode === "self_test_data_only"
         ? await readSelfTestToken(decoded.uid, token, tokenId)
-      : await readActiveTokens();
+      : null;
 
-    if (!tokenRead.entries.length) {
+    if (tokenRead && !tokenRead.entries.length) {
       const emptyResult = {
         ok: true,
         stage: "read_tokens",
@@ -525,12 +622,16 @@ export default async function handler(request, response) {
         invalidTokens: 0,
         env
       };
-      await finishNotificationSend(notificationId, emptyResult);
+      await finishNotificationSend(notificationId, emptyResult).catch((error) => {
+        logSafe("Delivery log warning", { notificationId, message: sanitizeError(error).message });
+      });
       return sendJson(response, 200, emptyResult);
     }
 
     stage = "send_fcm";
-    const sendResult = await sendToTokens(tokenRead.entries, { mode, type, title, body, url, scheduleId, songId, notificationId, icon, badge });
+    const sendResult = mode === "broadcast"
+      ? await sendToBroadcastTopic({ mode, type, title, body, url, scheduleId, songId, notificationId, icon, badge })
+      : await sendToTokens(tokenRead.entries, { mode, type, title, body, url, scheduleId, songId, notificationId, icon, badge });
     const partial = sendResult.failed > 0 && sendResult.sent > 0;
     const ok = sendResult.sent > 0 || sendResult.failed === 0;
     const message = sendResult.quotaExceeded
@@ -551,22 +652,25 @@ export default async function handler(request, response) {
       notificationId,
       deduplicated: false,
       message,
-      tokensFound: tokenRead.tokensFound,
-      activeTokens: tokenRead.activeTokens,
-      uniqueTokens: tokenRead.uniqueTokens,
-      duplicateTokens: tokenRead.duplicateTokens,
+      tokensFound: tokenRead?.tokensFound ?? null,
+      activeTokens: tokenRead?.activeTokens ?? null,
+      uniqueTokens: tokenRead?.uniqueTokens ?? null,
+      duplicateTokens: tokenRead?.duplicateTokens ?? null,
       tokensAttempted: sendResult.tokensAttempted,
       sent: sendResult.sent,
       failed: sendResult.failed,
       invalidTokens: sendResult.invalidTokens,
-      truncated: tokenRead.truncated,
+      truncated: tokenRead?.truncated || false,
+      topic: sendResult.topic || "",
       quotaExceeded: sendResult.quotaExceeded,
       failedPrecondition: sendResult.failedPrecondition,
       errors: sendResult.errors.slice(0, 20),
       env
     };
 
-    await finishNotificationSend(notificationId, result);
+    await finishNotificationSend(notificationId, result).catch((error) => {
+      logSafe("Delivery log warning", { notificationId, message: sanitizeError(error).message });
+    });
     logSafe("Push result", {
       stage: result.stage,
       mode: result.mode,

@@ -1,6 +1,7 @@
 import { deleteToken, getMessaging, getToken, isSupported, onMessage } from "firebase/messaging";
 import { collection, doc, getDocs, serverTimestamp, setDoc } from "firebase/firestore";
 import { db, firebaseApp, firebaseVapidKey, isFirebaseConfigured } from "../lib/firebase";
+import { registerPushTokenForBroadcast } from "./externalPush";
 import { resolvePublicAssetUrl } from "./songUtils";
 
 const TOKEN_STORAGE_KEY = "roca-eterna-fcm-token-id";
@@ -401,6 +402,11 @@ export async function enablePushNotificationsForUser(profile) {
   diagnostic.tokenPreview = maskToken(token);
   diagnostic.tokenPath = tokenPath;
 
+  const topicRegistration = await registerPushTokenForBroadcast(token, tokenId).catch((error) => ({
+    ok: false,
+    error: error?.message || String(error)
+  }));
+
   try {
     const previousTokenId = localStorage.getItem(TOKEN_STORAGE_KEY);
     await setDoc(
@@ -427,9 +433,24 @@ export async function enablePushNotificationsForUser(profile) {
       supported: true,
       firestoreWrite: "permitida",
       reason: "Notificaciones del navegador activadas para este dispositivo.",
-      tokenId
+      tokenId,
+      topicRegistered: topicRegistration?.ok === true,
+      topicRegistration
     };
   } catch (error) {
+    if (topicRegistration?.ok === true) {
+      localStorage.setItem(TOKEN_STORAGE_KEY, tokenId);
+      return {
+        ...diagnostic,
+        supported: true,
+        firestoreWrite: "temporalmente no disponible",
+        reason: "Notificaciones activadas. El registro de diagnostico en Firestore se completara despues.",
+        tokenId,
+        topicRegistered: true,
+        topicRegistration,
+        firestoreError: error?.message || String(error)
+      };
+    }
     return {
       ...diagnostic,
       supported: false,
