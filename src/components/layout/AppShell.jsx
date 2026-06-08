@@ -39,8 +39,9 @@ const obsoleteTestSchedulePushIds = new Set([
 const isObsoleteTestScheduleNotification = (item = {}) => {
   const time = item.createdAt?.seconds ? item.createdAt.seconds * 1000 : new Date(item.createdAt || 0).getTime();
   return obsoleteTestSchedulePushIds.has(item.pushNotificationId)
-    || (item.type === "new_schedule"
-      && time >= new Date("2026-06-08T02:00:00.000Z").getTime()
+    || (["new_schedule", "new_song"].includes(item.type)
+      && (item.entityType === "schedule" || item.scheduleId)
+      && time >= new Date("2026-06-07T20:00:00.000Z").getTime()
       && time <= new Date("2026-06-08T04:30:00.000Z").getTime());
 };
 

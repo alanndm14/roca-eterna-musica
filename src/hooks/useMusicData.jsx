@@ -47,7 +47,7 @@ const obsoleteTestSchedulePushIds = new Set([
   "schedule-created-CdcEoVLlCj2amkMliS1e",
   "schedule-created-fPXhEWcME95EnctaLCps"
 ]);
-const testNotificationWindowStart = new Date("2026-06-08T02:00:00.000Z").getTime();
+const testNotificationWindowStart = new Date("2026-06-07T20:00:00.000Z").getTime();
 const testNotificationWindowEnd = new Date("2026-06-08T04:30:00.000Z").getTime();
 const notificationTime = (item = {}) => {
   if (item.createdAt?.seconds) return item.createdAt.seconds * 1000;
@@ -56,7 +56,10 @@ const notificationTime = (item = {}) => {
 const isObsoleteTestScheduleNotification = (item = {}) => {
   const time = notificationTime(item);
   return obsoleteTestSchedulePushIds.has(item.pushNotificationId)
-    || (item.type === "new_schedule" && time >= testNotificationWindowStart && time <= testNotificationWindowEnd);
+    || (["new_schedule", "new_song"].includes(item.type)
+      && (item.entityType === "schedule" || item.scheduleId)
+      && time >= testNotificationWindowStart
+      && time <= testNotificationWindowEnd);
 };
 
 const formatSchedulePushBody = (schedule = {}) => {
