@@ -16,17 +16,27 @@ const FAILED_DELIVERY_RETRY_AFTER_MS = 5 * 60 * 1000;
 const STALE_SENDING_AFTER_MS = 2 * 60 * 1000;
 const requestBuckets = new Map();
 const FCM_OPERATION_TIMEOUT_MS = 12000;
+const FIRESTORE_OPERATION_TIMEOUT_MS = 4000;
 
-function withTimeout(promise, label = "Operacion FCM") {
+function withTimeout(promise, label = "Operacion FCM", options = {}) {
+  const timeoutMs = options.timeoutMs || FCM_OPERATION_TIMEOUT_MS;
   return Promise.race([
     promise,
     new Promise((_, reject) => setTimeout(() => {
       const error = new Error(`${label} excedio el tiempo de espera.`);
-      error.code = "FCM_TIMEOUT";
-      error.stage = "send_fcm";
+      error.code = options.code || "FCM_TIMEOUT";
+      error.stage = options.stage || "send_fcm";
       reject(error);
-    }, FCM_OPERATION_TIMEOUT_MS))
+    }, timeoutMs))
   ]);
+}
+
+function withFirestoreTimeout(promise, stage, label) {
+  return withTimeout(promise, label, {
+    timeoutMs: FIRESTORE_OPERATION_TIMEOUT_MS,
+    code: "FIRESTORE_TIMEOUT",
+    stage
+  });
 }
 
 function initializeAdmin() {
@@ -82,6 +92,11 @@ function isQuotaError(error = {}) {
     || code === "8"
     || message.includes("RESOURCE_EXHAUSTED")
     || message.toLowerCase().includes("quota exceeded");
+}
+
+function isTransientFirestoreError(error = {}) {
+  const code = String(error.code || error.errorInfo?.code || "");
+  return isQuotaError(error) || code === "FIRESTORE_TIMEOUT";
 }
 
 function isPreconditionError(error = {}) {
@@ -215,14 +230,18 @@ async function checkRole(decoded) {
     .map((email) => email.trim().toLowerCase())
     .filter(Boolean));
   try {
-    const requesterSnap = await admin.firestore().doc(`users/${decoded.uid}`).get();
+    const requesterSnap = await withFirestoreTimeout(
+      admin.firestore().doc(`users/${decoded.uid}`).get(),
+      "check_role",
+      "Validacion de permisos en Firestore"
+    );
     const requester = requesterSnap.data();
     const requesterEmail = String(requester?.email || "").trim().toLowerCase();
     if (requester?.active && requesterEmail && requesterEmail === tokenEmail && ["admin", "editor"].includes(requester.role)) {
       return requester;
     }
   } catch (error) {
-    if (!isQuotaError(error)) throw error;
+    if (!isTransientFirestoreError(error)) throw error;
     if (["admin", "editor"].includes(claimedRole) || trustedEmails.has(tokenEmail)) {
       logSafe("Role fallback", { stage: "check_role", uid: decoded.uid, reason: "firestore_quota" });
       return { active: true, email: tokenEmail, role: claimedRole || "trusted_sender", fallback: true };
@@ -326,7 +345,7 @@ async function reserveNotificationSend(notificationId, requesterUid) {
   const ref = admin.firestore().doc(`pushDeliveries/${notificationId}`);
   const now = admin.firestore.FieldValue.serverTimestamp();
 
-  return admin.firestore().runTransaction(async (transaction) => {
+  return withFirestoreTimeout(admin.firestore().runTransaction(async (transaction) => {
     const snap = await transaction.get(ref);
     const previous = snap.data() || {};
     const updatedAtMs = previous.updatedAt?.toMillis?.() || previous.createdAt?.toMillis?.() || 0;
@@ -343,24 +362,24 @@ async function reserveNotificationSend(notificationId, requesterUid) {
       updatedAt: now
     }, { merge: true });
     return { reserved: true, duplicate: false, ref };
-  });
+  }), "dedupe", "Reserva de deduplicacion");
 }
 
 async function finishNotificationSend(notificationId, result) {
   if (!notificationId) return;
-  await admin.firestore().doc(`pushDeliveries/${notificationId}`).set({
+  await withFirestoreTimeout(admin.firestore().doc(`pushDeliveries/${notificationId}`).set({
     status: result.ok && !result.partial ? "sent" : result.sent > 0 ? "partial" : "failed",
     result,
     updatedAt: admin.firestore.FieldValue.serverTimestamp()
-  }, { merge: true });
+  }, { merge: true }), "dedupe", "Registro de resultado push");
 }
 
 async function readActiveTokens() {
-  const tokenSnap = await admin.firestore()
+  const tokenSnap = await withFirestoreTimeout(admin.firestore()
     .collectionGroup("fcmTokens")
     .where("active", "==", true)
     .limit(500)
-    .get();
+    .get(), "read_tokens", "Lectura de tokens activos");
   const entries = [];
   const seenTokens = new Set();
   const tokensFound = tokenSnap.size;
@@ -405,14 +424,22 @@ async function readSelfTestToken(uid, token, tokenId = "") {
   let tokenDoc = null;
   try {
     if (tokenId) {
-      const snap = await admin.firestore().doc(`users/${uid}/fcmTokens/${tokenId}`).get();
+      const snap = await withFirestoreTimeout(
+        admin.firestore().doc(`users/${uid}/fcmTokens/${tokenId}`).get(),
+        "read_tokens",
+        "Lectura del token de prueba"
+      );
       if (snap.exists) tokenDoc = snap;
     } else {
-      const snap = await admin.firestore().collection(`users/${uid}/fcmTokens`).get();
+      const snap = await withFirestoreTimeout(
+        admin.firestore().collection(`users/${uid}/fcmTokens`).get(),
+        "read_tokens",
+        "Lectura de tokens de prueba"
+      );
       tokenDoc = snap.docs.find((docSnap) => docSnap.data()?.token === token) || null;
     }
   } catch (error) {
-    if (!isQuotaError(error)) throw error;
+    if (!isTransientFirestoreError(error)) throw error;
     logSafe("Self test token fallback", { stage: "read_tokens", uid, reason: "firestore_quota" });
     return {
       tokensFound: null,
@@ -661,11 +688,11 @@ export default async function handler(request, response) {
     const payloadValidation = validatePayload({ mode, type, title, body, url });
     if (!payloadValidation.ok) return sendJson(response, 400, { ok: false, stage: "validate_payload", ...payloadValidation });
 
-    if (mode !== "self_test") {
+    if (!["self_test", "broadcast"].includes(mode)) {
       stage = "dedupe";
       const reservation = await reserveNotificationSend(notificationId, decoded.uid).catch((error) => {
-        if (!isQuotaError(error)) throw error;
-        logSafe("Dedupe fallback", { notificationId, reason: "firestore_quota" });
+        if (!isTransientFirestoreError(error)) throw error;
+        logSafe("Dedupe fallback", { notificationId, reason: error.code === "FIRESTORE_TIMEOUT" ? "firestore_timeout" : "firestore_quota" });
         return { reserved: true, duplicate: false, fallback: true };
       });
       if (reservation.duplicate) {
@@ -718,13 +745,8 @@ export default async function handler(request, response) {
         logSafe("Push registry read warning", { code: sanitizeError(error).code, message: sanitizeError(error).message });
         return [];
       });
-      const firestoreTokenRead = await readActiveTokens().catch((error) => {
-        logSafe("Direct token read warning", { code: sanitizeError(error).code, message: sanitizeError(error).message });
-        return null;
-      });
       const directTokens = new Map();
       registryDevices.filter((entry) => entry?.active && entry?.token).forEach((entry) => directTokens.set(entry.token, entry));
-      firestoreTokenRead?.entries?.forEach((entry) => directTokens.set(entry.token, entry));
       if (token) directTokens.set(token, { token, tokenId, uid: decoded.uid, active: true });
       const directEntries = [...directTokens.values()].map((entry) => ({
         token: entry.token,
@@ -784,6 +806,7 @@ export default async function handler(request, response) {
       uniqueTokens: tokenRead?.uniqueTokens ?? null,
       duplicateTokens: tokenRead?.duplicateTokens ?? null,
       tokensAttempted: sendResult.tokensAttempted,
+      registryDevices: sendResult.registryDevices || 0,
       sent: sendResult.sent,
       failed: sendResult.failed,
       invalidTokens: sendResult.invalidTokens,
@@ -795,9 +818,11 @@ export default async function handler(request, response) {
       env
     };
 
-    await finishNotificationSend(notificationId, result).catch((error) => {
-      logSafe("Delivery log warning", { notificationId, message: sanitizeError(error).message });
-    });
+    if (mode !== "broadcast") {
+      await finishNotificationSend(notificationId, result).catch((error) => {
+        logSafe("Delivery log warning", { notificationId, message: sanitizeError(error).message });
+      });
+    }
     logSafe("Push result", {
       stage: result.stage,
       mode: result.mode,
@@ -807,6 +832,7 @@ export default async function handler(request, response) {
       uniqueTokens: result.uniqueTokens,
       duplicateTokens: result.duplicateTokens,
       tokensAttempted: result.tokensAttempted,
+      registryDevices: result.registryDevices,
       sent: result.sent,
       failed: result.failed,
       invalidTokens: result.invalidTokens,
