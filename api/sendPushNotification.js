@@ -362,34 +362,32 @@ async function finishNotificationSend(notificationId, result) {
 }
 
 async function readActiveTokens() {
-  const usersSnap = await admin.firestore().collection("users").get();
+  const tokenSnap = await admin.firestore()
+    .collectionGroup("fcmTokens")
+    .where("active", "==", true)
+    .limit(500)
+    .get();
   const entries = [];
   const seenTokens = new Set();
-  let tokensFound = 0;
+  const tokensFound = tokenSnap.size;
   let activeTokens = 0;
   let duplicateTokens = 0;
 
-  for (const userDoc of usersSnap.docs) {
-    const user = userDoc.data();
-    if (!user?.active) continue;
-    const tokenSnap = await userDoc.ref.collection("fcmTokens").get();
-    tokensFound += tokenSnap.size;
-    for (const tokenDoc of tokenSnap.docs) {
-      const data = tokenDoc.data();
-      if (data.active !== true || !data.token) continue;
-      activeTokens += 1;
-      if (seenTokens.has(data.token)) {
-        duplicateTokens += 1;
-        continue;
-      }
-      seenTokens.add(data.token);
-      entries.push({
-        token: data.token,
-        tokenPreview: maskToken(data.token),
-        refPath: tokenDoc.ref.path,
-        ref: tokenDoc.ref
-      });
+  for (const tokenDoc of tokenSnap.docs) {
+    const data = tokenDoc.data();
+    if (data.active !== true || !data.token) continue;
+    activeTokens += 1;
+    if (seenTokens.has(data.token)) {
+      duplicateTokens += 1;
+      continue;
     }
+    seenTokens.add(data.token);
+    entries.push({
+      token: data.token,
+      tokenPreview: maskToken(data.token),
+      refPath: tokenDoc.ref.path,
+      ref: tokenDoc.ref
+    });
   }
 
   return {
@@ -726,8 +724,13 @@ export default async function handler(request, response) {
         logSafe("Push registry read warning", { code: sanitizeError(error).code, message: sanitizeError(error).message });
         return [];
       });
+      const firestoreTokenRead = await readActiveTokens().catch((error) => {
+        logSafe("Direct token read warning", { code: sanitizeError(error).code, message: sanitizeError(error).message });
+        return null;
+      });
       const directTokens = new Map();
       registryDevices.filter((entry) => entry?.active && entry?.token).forEach((entry) => directTokens.set(entry.token, entry));
+      firestoreTokenRead?.entries?.forEach((entry) => directTokens.set(entry.token, entry));
       if (token) directTokens.set(token, { token, tokenId, uid: decoded.uid, active: true });
       const directEntries = [...directTokens.values()].map((entry) => ({
         token: entry.token,
