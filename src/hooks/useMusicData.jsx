@@ -47,6 +47,17 @@ const obsoleteTestSchedulePushIds = new Set([
   "schedule-created-CdcEoVLlCj2amkMliS1e",
   "schedule-created-fPXhEWcME95EnctaLCps"
 ]);
+const testNotificationWindowStart = new Date("2026-06-08T02:00:00.000Z").getTime();
+const testNotificationWindowEnd = new Date("2026-06-08T04:30:00.000Z").getTime();
+const notificationTime = (item = {}) => {
+  if (item.createdAt?.seconds) return item.createdAt.seconds * 1000;
+  return new Date(item.createdAt || 0).getTime();
+};
+const isObsoleteTestScheduleNotification = (item = {}) => {
+  const time = notificationTime(item);
+  return obsoleteTestSchedulePushIds.has(item.pushNotificationId)
+    || (item.type === "new_schedule" && time >= testNotificationWindowStart && time <= testNotificationWindowEnd);
+};
 
 const formatSchedulePushBody = (schedule = {}) => {
   const date = schedule.date
@@ -250,7 +261,7 @@ export function MusicDataProvider({ children }) {
 
   useEffect(() => {
     if (!profile?.uid || profile.role !== "admin" || useLocal || !notifications.length) return;
-    const obsolete = notifications.filter((item) => obsoleteTestSchedulePushIds.has(item.pushNotificationId) && item.active !== false);
+    const obsolete = notifications.filter((item) => isObsoleteTestScheduleNotification(item) && item.active !== false);
     if (!obsolete.length) return;
     const payload = {
       active: false,
@@ -258,7 +269,7 @@ export function MusicDataProvider({ children }) {
       deletedAt: serverTimestamp()
     };
     setNotifications((current) => current.map((item) => (
-      obsoleteTestSchedulePushIds.has(item.pushNotificationId) ? { ...item, ...payload } : item
+      isObsoleteTestScheduleNotification(item) ? { ...item, ...payload } : item
     )));
     Promise.allSettled(obsolete.map((item) => updateDoc(doc(db, "notifications", item.id), payload)));
   }, [notifications, profile?.role, profile?.uid, useLocal]);

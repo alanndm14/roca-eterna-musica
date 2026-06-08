@@ -29,6 +29,20 @@ const pageNames = {
 
 const sidebarStorageKey = "roca-eterna-sidebar-collapsed";
 const noveltyTypes = new Set(["new_song", "new_schedule", "updated_schedule"]);
+const obsoleteTestSchedulePushIds = new Set([
+  "schedule-created-8Tr8Sa2ulHG89a8Tyd5z",
+  "schedule-created-kcU7yosLAZ8BguQbTmM0",
+  "schedule-created-EByNIYDpNdRvcWqNX5in",
+  "schedule-created-CdcEoVLlCj2amkMliS1e",
+  "schedule-created-fPXhEWcME95EnctaLCps"
+]);
+const isObsoleteTestScheduleNotification = (item = {}) => {
+  const time = item.createdAt?.seconds ? item.createdAt.seconds * 1000 : new Date(item.createdAt || 0).getTime();
+  return obsoleteTestSchedulePushIds.has(item.pushNotificationId)
+    || (item.type === "new_schedule"
+      && time >= new Date("2026-06-08T02:00:00.000Z").getTime()
+      && time <= new Date("2026-06-08T04:30:00.000Z").getTime());
+};
 
 const notificationToNovelty = (notification = {}) => ({
   id: notification.id || notification.pushNotificationId || "",
@@ -162,6 +176,7 @@ export function AppShell() {
   const scheduleIds = useMemo(() => new Set(schedules.map((schedule) => schedule.id)), [schedules]);
   const songIds = useMemo(() => new Set(songs.map((song) => song.id)), [songs]);
   const targetedNotifications = useMemo(() => notifications.filter((item) => {
+    if (isObsoleteTestScheduleNotification(item)) return false;
     const targetUsers = item.targetUsers || [];
     const targetRoles = item.targetRoles || [];
     if (targetUsers.length) return targetUsers.includes(profile?.uid);
