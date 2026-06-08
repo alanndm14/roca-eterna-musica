@@ -357,12 +357,31 @@ async function readSelfTestToken(uid, token, tokenId = "") {
   }
 
   let tokenDoc = null;
-  if (tokenId) {
-    const snap = await admin.firestore().doc(`users/${uid}/fcmTokens/${tokenId}`).get();
-    if (snap.exists) tokenDoc = snap;
-  } else {
-    const snap = await admin.firestore().collection(`users/${uid}/fcmTokens`).get();
-    tokenDoc = snap.docs.find((docSnap) => docSnap.data()?.token === token) || null;
+  try {
+    if (tokenId) {
+      const snap = await admin.firestore().doc(`users/${uid}/fcmTokens/${tokenId}`).get();
+      if (snap.exists) tokenDoc = snap;
+    } else {
+      const snap = await admin.firestore().collection(`users/${uid}/fcmTokens`).get();
+      tokenDoc = snap.docs.find((docSnap) => docSnap.data()?.token === token) || null;
+    }
+  } catch (error) {
+    if (!isQuotaError(error)) throw error;
+    logSafe("Self test token fallback", { stage: "read_tokens", uid, reason: "firestore_quota" });
+    return {
+      tokensFound: null,
+      activeTokens: null,
+      uniqueTokens: 1,
+      duplicateTokens: 0,
+      entries: [{
+        token,
+        tokenPreview: maskToken(token),
+        refPath: "",
+        ref: null
+      }],
+      truncated: false,
+      fallback: true
+    };
   }
 
   if (!tokenDoc) {
@@ -456,11 +475,13 @@ async function sendToTokens(entries, payload) {
       const invalid = isInvalidTokenError(error);
       if (invalid) {
         result.invalidTokens += 1;
-        await entry.ref.set({
-          active: false,
-          invalidatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          invalidReason: sanitized.code || sanitized.message
-        }, { merge: true });
+        if (entry.ref) {
+          await entry.ref.set({
+            active: false,
+            invalidatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            invalidReason: sanitized.code || sanitized.message
+          }, { merge: true });
+        }
       }
       if (isQuotaError(error)) result.quotaExceeded = true;
       if (isPreconditionError(error)) result.failedPrecondition = true;
