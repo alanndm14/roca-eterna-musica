@@ -1,6 +1,22 @@
-export const appVersion = "0.9.119";
+export const appVersion = "0.9.120";
 
 export const changelog = [
+  {
+    version: "0.9.120",
+    date: "2026-06-08",
+    title: "Mejoras del Centro Inteligente",
+    added: [
+      "Método para completar bloques desde cantos elegidos"
+    ],
+    changed: [
+      "Programación Inteligente más limpia con métodos por tema, letra/PDF o cantos base",
+      "Bloques y recomendaciones compactos con rotación y criterios claros"
+    ],
+    fixed: [
+      "La programación actual ya no se considera como servicio anterior"
+    ],
+    pending: []
+  },
   {
     version: "0.9.119",
     date: "2026-06-08",

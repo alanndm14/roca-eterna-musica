@@ -553,8 +553,10 @@ export function scoreSong(song = {}, options = {}, context = {}) {
   const recentUses = usage.recent30Count ?? usage.monthCount ?? 0;
   if (recentUses <= 1) {
     addPositive(8, "Poco usado");
-  } else if (recentUses >= 3) {
-    addPenalty(8, "Muy usado en los ultimos 30 dias");
+  } else if (recentUses === 3) {
+    addPenalty(8, "Usado 3 veces en los ultimos 30 dias");
+  } else if (recentUses >= 4) {
+    addPenalty(12, "Muy usado en los ultimos 30 dias");
   }
   if (options.preferredKey) {
     const distance = keyDistance(song.keyWithCapo || song.mainKey, options.preferredKey);
@@ -565,7 +567,7 @@ export function scoreSong(song = {}, options = {}, context = {}) {
     }
   }
   if (usage.usedInPreviousService) {
-    addPenalty(25, "Se usó en el servicio anterior");
+    addPenalty(20, "Se usó en el servicio anterior");
   }
   if (usage.lastFollowUp?.result === "no-funciono") {
     addPenalty(6, "Nota anterior: no funcionó bien");
@@ -716,7 +718,9 @@ export function createSuggestedServiceBlock(songs = [], schedules = [], options 
     score: selected.length ? clampScore(selected.reduce((sum, item) => sum + item.score, 0) / selected.length) : 0,
     reasons: [
       `Estructura para ${serviceType}`,
-      "Solo un canto después de predicación",
+      serviceType === "Servicio especial"
+        ? "Las posiciones pueden ajustarse al editar el programa especial"
+        : "Solo un canto después de predicación",
       options.includeHymns ? "Puede abrir con himno si conviene" : "Prioriza cantos no himnos",
       allKeynoteReady ? "Todos tienen Keynote listo" : "Revisa cantos con Keynote pendiente",
       completedWithFallback
