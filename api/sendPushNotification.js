@@ -646,13 +646,15 @@ export default async function handler(request, response) {
       }
       const topicResult = topicAttempt.status === "fulfilled" ? topicAttempt.value : { successCount: 0, failureCount: 1 };
       const registryResult = registryAttempt.status === "fulfilled" ? registryAttempt.value : { saved: false, devices: 0 };
+      const registryError = registryAttempt.status === "rejected" ? sanitizeError(registryAttempt.reason) : null;
       logSafe("Topic registration", {
         stage,
         uid: decoded.uid,
         successCount: topicResult.successCount,
         failureCount: topicResult.failureCount,
         registrySaved: registryResult.saved,
-        registryDevices: registryResult.devices
+        registryDevices: registryResult.devices,
+        registryError
       });
       return sendJson(response, 200, {
         ok: true,
@@ -662,7 +664,8 @@ export default async function handler(request, response) {
         successCount: topicResult.successCount,
         failureCount: topicResult.failureCount,
         registrySaved: registryResult.saved,
-        registryDevices: registryResult.devices
+        registryDevices: registryResult.devices,
+        registryError
       });
     }
 
