@@ -288,43 +288,37 @@ async function registerBroadcastTopic(token = "") {
   return result;
 }
 
-function pushRegistryFile() {
-  const bucket = admin.storage().bucket();
-  return bucket.file("private/push-token-registry.json");
-}
-
 async function readPushTokenRegistry() {
-  try {
-    const [contents] = await withTimeout(pushRegistryFile().download(), "Lectura del registro push");
-    const parsed = JSON.parse(contents.toString("utf8"));
-    return Array.isArray(parsed?.devices) ? parsed.devices : [];
-  } catch (error) {
-    const code = Number(error?.code || error?.statusCode || 0);
-    if (code === 404) return [];
-    throw error;
-  }
+  const devices = [];
+  let pageToken;
+  do {
+    const page = await withTimeout(admin.auth().listUsers(1000, pageToken), "Lectura del registro push");
+    page.users.forEach((user) => {
+      const pushTokens = Array.isArray(user.customClaims?.pushTokens) ? user.customClaims.pushTokens : [];
+      pushTokens.forEach((token) => {
+        if (typeof token === "string" && token.length >= 40) {
+          devices.push({ uid: user.uid, token, active: true });
+        }
+      });
+    });
+    pageToken = page.pageToken;
+  } while (pageToken && devices.length < 500);
+  return devices.slice(0, 500);
 }
 
 async function upsertPushTokenRegistry(decoded, token, tokenId = "") {
   if (!token) return { saved: false, devices: 0 };
-  const devices = await readPushTokenRegistry().catch((error) => {
-    logSafe("Push registry read warning", { code: sanitizeError(error).code, message: sanitizeError(error).message });
-    return [];
-  });
-  const next = devices.filter((entry) => entry?.token && entry.token !== token);
-  next.push({
-    uid: decoded.uid,
-    token,
-    tokenId: tokenId || "",
-    active: true,
-    lastSeenAt: new Date().toISOString()
-  });
-  await withTimeout(pushRegistryFile().save(JSON.stringify({ version: 1, devices: next.slice(-500) }), {
-    contentType: "application/json",
-    resumable: false,
-    metadata: { cacheControl: "no-store" }
+  const user = await withTimeout(admin.auth().getUser(decoded.uid), "Lectura del usuario push");
+  const currentClaims = user.customClaims || {};
+  const currentTokens = Array.isArray(currentClaims.pushTokens)
+    ? currentClaims.pushTokens.filter((value) => typeof value === "string" && value.length >= 40 && value !== token)
+    : [];
+  const pushTokens = [...currentTokens, token].slice(-3);
+  await withTimeout(admin.auth().setCustomUserClaims(decoded.uid, {
+    ...currentClaims,
+    pushTokens
   }), "Escritura del registro push");
-  return { saved: true, devices: next.length };
+  return { saved: true, devices: pushTokens.length, tokenId };
 }
 
 async function reserveNotificationSend(notificationId, requesterUid) {
