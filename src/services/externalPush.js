@@ -37,7 +37,10 @@ export function isPushBackendConfigured() {
 export async function sendExternalPush(payload = {}, options = {}) {
   const meta = options.meta || {};
   const shouldSaveResult = options.kind !== "registration";
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), options.timeoutMs || 15000);
   if (!pushServerUrl || !auth?.currentUser) {
+    window.clearTimeout(timeoutId);
     const result = { skipped: true, reason: "Push externo no configurado.", ...meta };
     if (shouldSaveResult) saveLastPushResult(options.kind === "test" ? LAST_TEST_KEY : LAST_AUTO_KEY, {
       notificationId: payload.notificationId || "",
@@ -67,8 +70,10 @@ export async function sendExternalPush(payload = {}, options = {}) {
       method: "POST",
       headers,
       body: JSON.stringify(payload),
-      keepalive: true
+      keepalive: true,
+      signal: controller.signal
     });
+    window.clearTimeout(timeoutId);
     const body = await parseJsonSafely(response);
     const result = {
       skipped: false,
@@ -87,6 +92,7 @@ export async function sendExternalPush(payload = {}, options = {}) {
     });
     return result;
   } catch (error) {
+    window.clearTimeout(timeoutId);
     const result = { skipped: false, ok: false, error: error.message, ...meta };
     if (shouldSaveResult) saveLastPushResult(options.kind === "test" ? LAST_TEST_KEY : LAST_AUTO_KEY, {
       notificationId: payload.notificationId || "",
@@ -108,5 +114,5 @@ export async function registerPushTokenForBroadcast(token = "", tokenId = "") {
     body: "Registro del canal de notificaciones.",
     token,
     tokenId
-  }, { kind: "registration" });
+  }, { kind: "registration", timeoutMs: 7000 });
 }

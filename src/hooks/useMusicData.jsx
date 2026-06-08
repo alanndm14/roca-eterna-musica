@@ -40,6 +40,13 @@ const defaultLocalData = {
 
 const sampleAuditLogs = [];
 const sampleNotifications = [];
+const obsoleteTestSchedulePushIds = new Set([
+  "schedule-created-8Tr8Sa2ulHG89a8Tyd5z",
+  "schedule-created-kcU7yosLAZ8BguQbTmM0",
+  "schedule-created-EByNIYDpNdRvcWqNX5in",
+  "schedule-created-CdcEoVLlCj2amkMliS1e",
+  "schedule-created-fPXhEWcME95EnctaLCps"
+]);
 
 const formatSchedulePushBody = (schedule = {}) => {
   const date = schedule.date
@@ -241,6 +248,22 @@ export function MusicDataProvider({ children }) {
     localStorage.setItem(storageKey, JSON.stringify({ songs, schedules, users, authorizedEmails, themes, settings, auditLogs, notifications }));
   }, [auditLogs, authorizedEmails, notifications, profile, schedules, settings, songs, themes, useLocal, users]);
 
+  useEffect(() => {
+    if (!profile?.uid || profile.role !== "admin" || useLocal || !notifications.length) return;
+    const obsolete = notifications.filter((item) => obsoleteTestSchedulePushIds.has(item.pushNotificationId) && item.active !== false);
+    if (!obsolete.length) return;
+    const payload = {
+      active: false,
+      deleted: true,
+      cleanupReason: "test_schedule_notification",
+      deletedAt: serverTimestamp()
+    };
+    setNotifications((current) => current.map((item) => (
+      obsoleteTestSchedulePushIds.has(item.pushNotificationId) ? { ...item, ...payload } : item
+    )));
+    Promise.allSettled(obsolete.map((item) => updateDoc(doc(db, "notifications", item.id), payload)));
+  }, [notifications, profile?.role, profile?.uid, useLocal]);
+
   const actor = () => ({
     performedByUid: profile?.uid || "",
     performedByName: profile?.preferredDisplayName || profile?.displayName || profile?.email || "",
@@ -319,7 +342,11 @@ export function MusicDataProvider({ children }) {
         console.warn("[Push] No se pudo confirmar la suscripcion antes del envio.", error?.message || error);
         return { ok: false };
       })
-      .then(() => sendExternalPush(payload, {
+      .then((registration) => sendExternalPush({
+        ...payload,
+        token: registration?.token || "",
+        tokenId: registration?.tokenId || ""
+      }, {
           kind: "auto",
           meta: {
             eventoGuardado: true,

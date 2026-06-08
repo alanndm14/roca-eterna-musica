@@ -15,12 +15,26 @@ const RATE_LIMIT_MAX_REQUESTS = 20;
 const FAILED_DELIVERY_RETRY_AFTER_MS = 5 * 60 * 1000;
 const STALE_SENDING_AFTER_MS = 2 * 60 * 1000;
 const requestBuckets = new Map();
+const FCM_OPERATION_TIMEOUT_MS = 12000;
+
+function withTimeout(promise, label = "Operacion FCM") {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => {
+      const error = new Error(`${label} excedio el tiempo de espera.`);
+      error.code = "FCM_TIMEOUT";
+      error.stage = "send_fcm";
+      reject(error);
+    }, FCM_OPERATION_TIMEOUT_MS))
+  ]);
+}
 
 function initializeAdmin() {
   if (admin.apps.length) return admin.app();
   const projectId = process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
+  const storageBucket = process.env.FIREBASE_STORAGE_BUCKET || "";
 
   if (!projectId || !clientEmail || !privateKey) {
     const error = new Error("Firebase Admin no esta configurado en el backend.");
@@ -30,7 +44,8 @@ function initializeAdmin() {
 
   return admin.initializeApp({
     credential: admin.credential.cert({ projectId, clientEmail, privateKey }),
-    projectId
+    projectId,
+    ...(storageBucket ? { storageBucket } : {})
   });
 }
 
@@ -265,12 +280,51 @@ async function registerBroadcastTopic(token = "") {
     error.stage = "register_topic";
     throw error;
   }
-  const result = await admin.messaging().subscribeToTopic([token], BROADCAST_TOPIC);
+  const result = await withTimeout(admin.messaging().subscribeToTopic([token], BROADCAST_TOPIC), "Registro del canal FCM");
   if (result.failureCount > 0) {
     const firstError = result.errors?.[0]?.error;
     throw firstError || new Error("No se pudo registrar el dispositivo en el canal push.");
   }
   return result;
+}
+
+function pushRegistryFile() {
+  const bucket = admin.storage().bucket();
+  return bucket.file("private/push-token-registry.json");
+}
+
+async function readPushTokenRegistry() {
+  try {
+    const [contents] = await withTimeout(pushRegistryFile().download(), "Lectura del registro push");
+    const parsed = JSON.parse(contents.toString("utf8"));
+    return Array.isArray(parsed?.devices) ? parsed.devices : [];
+  } catch (error) {
+    const code = Number(error?.code || error?.statusCode || 0);
+    if (code === 404) return [];
+    throw error;
+  }
+}
+
+async function upsertPushTokenRegistry(decoded, token, tokenId = "") {
+  if (!token) return { saved: false, devices: 0 };
+  const devices = await readPushTokenRegistry().catch((error) => {
+    logSafe("Push registry read warning", { code: sanitizeError(error).code, message: sanitizeError(error).message });
+    return [];
+  });
+  const next = devices.filter((entry) => entry?.token && entry.token !== token);
+  next.push({
+    uid: decoded.uid,
+    token,
+    tokenId: tokenId || "",
+    active: true,
+    lastSeenAt: new Date().toISOString()
+  });
+  await withTimeout(pushRegistryFile().save(JSON.stringify({ version: 1, devices: next.slice(-500) }), {
+    contentType: "application/json",
+    resumable: false,
+    metadata: { cacheControl: "no-store" }
+  }), "Escritura del registro push");
+  return { saved: true, devices: next.length };
 }
 
 async function reserveNotificationSend(notificationId, requesterUid) {
@@ -467,7 +521,7 @@ async function sendToTokens(entries, payload) {
           }
         };
       }
-      await admin.messaging().send(message);
+      await withTimeout(admin.messaging().send(message), "Envio FCM directo");
       result.sent += 1;
     } catch (error) {
       result.failed += 1;
@@ -529,7 +583,7 @@ async function sendToBroadcastTopic(payload) {
       fcmOptions: { link: absoluteAppUrl(payload.url) }
     }
   };
-  const messageId = await admin.messaging().send(message);
+  const messageId = await withTimeout(admin.messaging().send(message), "Envio FCM por canal");
   return {
     stage: "send_fcm_topic",
     tokensAttempted: 0,
@@ -583,12 +637,22 @@ export default async function handler(request, response) {
 
     if (mode === "register_topic") {
       stage = "register_topic";
-      const topicResult = await registerBroadcastTopic(token);
+      const [topicAttempt, registryAttempt] = await Promise.allSettled([
+        registerBroadcastTopic(token),
+        upsertPushTokenRegistry(decoded, token, tokenId)
+      ]);
+      if (topicAttempt.status === "rejected" && registryAttempt.status === "rejected") {
+        throw topicAttempt.reason || registryAttempt.reason;
+      }
+      const topicResult = topicAttempt.status === "fulfilled" ? topicAttempt.value : { successCount: 0, failureCount: 1 };
+      const registryResult = registryAttempt.status === "fulfilled" ? registryAttempt.value : { saved: false, devices: 0 };
       logSafe("Topic registration", {
         stage,
         uid: decoded.uid,
         successCount: topicResult.successCount,
-        failureCount: topicResult.failureCount
+        failureCount: topicResult.failureCount,
+        registrySaved: registryResult.saved,
+        registryDevices: registryResult.devices
       });
       return sendJson(response, 200, {
         ok: true,
@@ -596,7 +660,9 @@ export default async function handler(request, response) {
         registered: true,
         topic: BROADCAST_TOPIC,
         successCount: topicResult.successCount,
-        failureCount: topicResult.failureCount
+        failureCount: topicResult.failureCount,
+        registrySaved: registryResult.saved,
+        registryDevices: registryResult.devices
       });
     }
 
@@ -656,9 +722,49 @@ export default async function handler(request, response) {
     }
 
     stage = "send_fcm";
-    const sendResult = mode === "broadcast"
-      ? await sendToBroadcastTopic({ mode, type, title, body, url, scheduleId, songId, notificationId, icon, badge })
-      : await sendToTokens(tokenRead.entries, { mode, type, title, body, url, scheduleId, songId, notificationId, icon, badge });
+    let sendResult;
+    if (mode === "broadcast") {
+      const broadcastPayload = { mode, type, title, body, url, scheduleId, songId, notificationId, icon, badge };
+      const registryDevices = await readPushTokenRegistry().catch((error) => {
+        logSafe("Push registry read warning", { code: sanitizeError(error).code, message: sanitizeError(error).message });
+        return [];
+      });
+      const directTokens = new Map();
+      registryDevices.filter((entry) => entry?.active && entry?.token).forEach((entry) => directTokens.set(entry.token, entry));
+      if (token) directTokens.set(token, { token, tokenId, uid: decoded.uid, active: true });
+      const directEntries = [...directTokens.values()].map((entry) => ({
+        token: entry.token,
+        tokenPreview: maskToken(entry.token),
+        refPath: "",
+        ref: null
+      }));
+      const [topicAttempt, directAttempt] = await Promise.allSettled([
+        sendToBroadcastTopic(broadcastPayload),
+        directEntries.length ? sendToTokens(directEntries, broadcastPayload) : Promise.resolve(null)
+      ]);
+      const topicResult = topicAttempt.status === "fulfilled" ? topicAttempt.value : null;
+      const directResult = directAttempt.status === "fulfilled" ? directAttempt.value : null;
+      if (!topicResult && !directResult) throw topicAttempt.reason || directAttempt.reason;
+      sendResult = {
+        stage: "send_fcm",
+        tokensAttempted: directResult?.tokensAttempted || 0,
+        sent: (topicResult?.sent || 0) + (directResult?.sent || 0),
+        failed: (topicResult?.failed || 0) + (directResult?.failed || 0),
+        invalidTokens: directResult?.invalidTokens || 0,
+        errors: [
+          ...(topicResult?.errors || []),
+          ...(directResult?.errors || []),
+          ...(topicAttempt.status === "rejected" ? [{ channel: "topic", ...sanitizeError(topicAttempt.reason) }] : [])
+        ],
+        quotaExceeded: Boolean(topicResult?.quotaExceeded || directResult?.quotaExceeded),
+        failedPrecondition: Boolean(topicResult?.failedPrecondition || directResult?.failedPrecondition),
+        topic: topicResult?.topic || "",
+        registryDevices: directEntries.length,
+        directFallback: Boolean(directResult?.sent)
+      };
+    } else {
+      sendResult = await sendToTokens(tokenRead.entries, { mode, type, title, body, url, scheduleId, songId, notificationId, icon, badge });
+    }
     const partial = sendResult.failed > 0 && sendResult.sent > 0;
     const ok = sendResult.sent > 0 || sendResult.failed === 0;
     const message = sendResult.quotaExceeded

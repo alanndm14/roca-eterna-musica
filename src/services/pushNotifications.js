@@ -42,9 +42,12 @@ export async function ensurePushBroadcastSubscription(profile) {
     });
     if (!token) return { ok: false, skipped: true, reason: "No se obtuvo token FCM." };
     const tokenId = tokenIdFromValue(token);
-    const result = await registerPushTokenForBroadcast(token, tokenId);
+    const result = await registerPushTokenForBroadcast(token, tokenId).catch((error) => ({
+      ok: false,
+      error: error?.message || String(error)
+    }));
     if (result?.ok) localStorage.setItem(TOKEN_STORAGE_KEY, tokenId);
-    return { ...result, tokenId };
+    return { ...result, token, tokenId };
   })().finally(() => {
     broadcastRegistrationPromise = null;
   });
