@@ -22,6 +22,7 @@ import { sampleSchedules, sampleSettings, sampleSongs, sampleThemes, sampleUsers
 import { canonicalThemeKey, normalizeSong, normalizeThemeName, resolveAppLogoForNotification } from "../services/songUtils";
 import { extractLocalPdfText, fingerprintLocalPdf } from "../services/pdfTextIndex";
 import { sendExternalPush } from "../services/externalPush";
+import { ensurePushBroadcastSubscription } from "../services/pushNotifications";
 import { createServiceReviewSnapshot, reviewServiceSchedule } from "../services/songScoring";
 import { useAuth } from "./useAuth";
 
@@ -313,7 +314,12 @@ export function MusicDataProvider({ children }) {
       type: payload.type || "",
       entityId: payload.scheduleId || payload.songId || ""
     });
-    const request = sendExternalPush(payload, {
+    const request = ensurePushBroadcastSubscription(profile)
+      .catch((error) => {
+        console.warn("[Push] No se pudo confirmar la suscripcion antes del envio.", error?.message || error);
+        return { ok: false };
+      })
+      .then(() => sendExternalPush(payload, {
           kind: "auto",
           meta: {
             eventoGuardado: true,
@@ -322,7 +328,7 @@ export function MusicDataProvider({ children }) {
             pushEnviado: false,
             ...meta
           }
-        })
+        }))
       .then((result) => {
         if (result?.ok === false) {
           console.warn("[Push] No se pudo enviar push externo.", {

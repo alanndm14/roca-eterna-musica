@@ -8,6 +8,7 @@ const TOKEN_STORAGE_KEY = "roca-eterna-fcm-token-id";
 const LAST_FOREGROUND_KEY = "roca-eterna-last-foreground-push";
 const LAST_BACKGROUND_KEY = "roca-eterna-last-background-push";
 const FOREGROUND_LISTENER_KEY = "roca-eterna-foreground-listener";
+let broadcastRegistrationPromise = null;
 
 const tokenIdFromValue = (token = "") => token.replace(/[^a-zA-Z0-9_-]+/g, "_").slice(0, 120) || `${Date.now()}`;
 
@@ -18,6 +19,38 @@ const maskToken = (token = "") => {
 };
 
 const buildTokenPath = (uid, tokenId) => `users/${uid}/fcmTokens/${tokenId}`;
+
+export async function ensurePushBroadcastSubscription(profile) {
+  if (
+    !profile?.uid
+    || typeof window === "undefined"
+    || !("Notification" in window)
+    || Notification.permission !== "granted"
+    || !firebaseVapidKey
+  ) {
+    return { ok: false, skipped: true, reason: "El dispositivo no tiene permiso push activo." };
+  }
+  if (broadcastRegistrationPromise) return broadcastRegistrationPromise;
+
+  broadcastRegistrationPromise = (async () => {
+    const supported = await isSupported().catch(() => false);
+    if (!supported) return { ok: false, skipped: true, reason: "FCM no es compatible con este navegador." };
+    const registration = await getServiceWorkerRegistration();
+    const token = await getToken(getMessaging(firebaseApp), {
+      vapidKey: firebaseVapidKey,
+      serviceWorkerRegistration: registration || undefined
+    });
+    if (!token) return { ok: false, skipped: true, reason: "No se obtuvo token FCM." };
+    const tokenId = tokenIdFromValue(token);
+    const result = await registerPushTokenForBroadcast(token, tokenId);
+    if (result?.ok) localStorage.setItem(TOKEN_STORAGE_KEY, tokenId);
+    return { ...result, tokenId };
+  })().finally(() => {
+    broadcastRegistrationPromise = null;
+  });
+
+  return broadcastRegistrationPromise;
+}
 
 const pushBaseDiagnostic = (overrides = {}) => ({
   supported: false,

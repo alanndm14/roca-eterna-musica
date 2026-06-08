@@ -563,6 +563,12 @@ export default async function handler(request, response) {
     if (mode === "register_topic") {
       stage = "register_topic";
       const topicResult = await registerBroadcastTopic(token);
+      logSafe("Topic registration", {
+        stage,
+        uid: decoded.uid,
+        successCount: topicResult.successCount,
+        failureCount: topicResult.failureCount
+      });
       return sendJson(response, 200, {
         ok: true,
         stage,
