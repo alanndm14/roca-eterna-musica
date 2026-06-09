@@ -196,6 +196,10 @@ export function AppShell() {
     [targetedNotifications, scheduleIds, songIds]
   );
   const unreadNotifications = activeNotifications.filter((item) => !(item.readBy || []).includes(profile?.uid));
+  const isStaging = import.meta.env.VITE_APP_ENV === "staging"
+    || (typeof window !== "undefined"
+      && window.location.hostname.endsWith(".vercel.app")
+      && window.location.hostname !== "roca-eterna-musica.vercel.app");
   const shellStyle = {
     "--color-brass": hexToRgb(profile?.accentColor || localStorage.getItem("roca-eterna-accent-color") || "#b6945f"),
     "--color-blue-gray": hexToRgb(profile?.blueGrayColor || "#60717d")
@@ -506,6 +510,11 @@ export function AppShell() {
               {useLocal ? (
                 <span className="hidden rounded-full bg-brass/12 px-3 py-1 text-xs font-semibold text-brass sm:inline-flex">
                   Modo demo
+                </span>
+              ) : null}
+              {isStaging ? (
+                <span className="rounded-full border border-amber-400/35 bg-amber-400/12 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-amber-700 dark:text-amber-200">
+                  Staging
                 </span>
               ) : null}
               <Button variant="subtle" className="h-10 w-10 px-0" onClick={openGuide} aria-label="Guía de uso">

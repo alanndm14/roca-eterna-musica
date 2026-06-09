@@ -337,7 +337,7 @@ function MonthCalendar({ schedules, selectedDate, onSelectDate }) {
               {count ? (
                 <span className="mt-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-ink px-1 text-center text-[10px] font-bold text-white sm:mt-2 sm:block sm:h-auto sm:px-2 sm:py-1 sm:text-[11px]">
                   <span className="sm:hidden">{count}</span>
-                  <span className="hidden sm:inline">{count} prog.</span>
+                  <span className="hidden truncate sm:inline">{(byDate[dateString] || []).slice(0, 2).map((schedule) => schedule.serviceLabel || schedule.type || "Servicio").join(" · ")}</span>
                 </span>
               ) : null}
             </button>

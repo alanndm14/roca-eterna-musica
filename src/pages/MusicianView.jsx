@@ -155,6 +155,7 @@ export function MusicianView() {
   const [temporaryMergedPdfUrl, setTemporaryMergedPdfUrl] = useState("");
   const [programDraft, setProgramDraft] = useState([]);
   const [serviceReviewOpen, setServiceReviewOpen] = useState(false);
+  const [schedulePickerOpen, setSchedulePickerOpen] = useState(false);
   const selectedServiceRef = useRef(null);
   const today = todayString();
   const [pickerDate, setPickerDate] = useState(today);
@@ -468,11 +469,19 @@ export function MusicianView() {
       </div>
 
       <Card>
-        <div className="flex items-center gap-2">
-          <CalendarDays className="h-5 w-5 text-brass" />
-          <h3 className="font-bold text-ink">Seleccionar programación</h3>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <CalendarDays className="h-5 w-5 text-brass" />
+            <div>
+              <h3 className="font-bold text-ink">Cambiar servicio</h3>
+              <p className="text-xs text-ink/50">{getServiceDisplayLabel(selectedSchedule)} · {formatDate(selectedSchedule?.date)}</p>
+            </div>
+          </div>
+          <Button variant="subtle" onClick={() => setSchedulePickerOpen((current) => !current)}>
+            {schedulePickerOpen ? "Ocultar calendario" : "Seleccionar otro servicio"}
+          </Button>
         </div>
-        <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_360px]">
+        {schedulePickerOpen ? <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_360px]">
           <MusicianScheduleCalendar schedules={schedules} selectedDate={pickerDate} onSelectDate={setPickerDate} />
           <div className="space-y-3">
             <p className="text-sm font-semibold text-ink/55">{formatDate(pickerDate)}</p>
@@ -490,7 +499,7 @@ export function MusicianView() {
               <p className="rounded-2xl bg-ink/5 p-4 text-sm text-ink/55">No hay programaciones en este día.</p>
             )}
           </div>
-        </div>
+        </div> : null}
         {serviceReview && !isViewer ? (
           <div className="mt-4">
             <ServiceReviewPanel review={serviceReview} compact interactive open={serviceReviewOpen} onToggle={() => setServiceReviewOpen((current) => !current)} />

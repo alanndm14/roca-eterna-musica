@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Download, LayoutGrid, List, RotateCcw } from "lucide-react";
+import { ChevronDown, ChevronUp, Download, LayoutGrid, List, RotateCcw } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -27,9 +27,12 @@ export function History() {
   const [followUpFilter, setFollowUpFilter] = useState("all");
   const [songCountFilter, setSongCountFilter] = useState("all");
   const [sort, setSort] = useState("desc");
+  const [expandedScheduleId, setExpandedScheduleId] = useState("");
   const past = getPastSchedules(schedules).filter((schedule) => !schedule.deleted && (schedule.status === "realizado" || schedule.date));
-  const withoutAppHistory = songs.filter((song) => !song.lastUsedAt).slice(0, 8);
-  const sungBefore = songs.filter((song) => song.sungBefore).length;
+  const usedSongIds = useMemo(() => new Set(past.flatMap((schedule) => (schedule.songs || []).map((entry) => entry.songId).filter(Boolean))), [past]);
+  const activeSongs = songs.filter((song) => !song.deleted);
+  const withoutAppHistory = activeSongs.filter((song) => !usedSongIds.has(song.id)).slice(0, 8);
+  const sungBefore = usedSongIds.size;
   const realUsage = useMemo(() => {
     const counts = new Map();
     past.forEach((schedule) => {
@@ -201,25 +204,44 @@ export function History() {
           </div>
         </Card>
 
-        {filtered.length && view === "cards" ? filtered.map((schedule) => (
-          <Card key={schedule.id}>
-            <h2 className="text-xl font-bold text-ink">{formatScheduleDateWithService(schedule)}</h2>
-            <div className="mt-4">
-              <ServiceReviewPanel review={getReviewForSchedule(schedule)} compact />
-            </div>
-            <p className="mt-1 text-sm text-ink/55">{schedule.time || "Sin hora"} · {schedule.leader || "Sin líder de adoración"}</p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {(schedule.songs || []).map((song, index) => (
-                <span key={`${song.songId}-${index}`} className="rounded-full bg-ink/5 px-3 py-2 text-sm font-semibold text-ink">
-                  <SongNameLink songId={song.songId} title={song.titleSnapshot} songs={songs}>{song.titleSnapshot}</SongNameLink> · {song.keySnapshot}
-                </span>
-              ))}
-            </div>
-            <div className="mt-4">
-              <ServiceFollowUpPanel schedule={schedule} canEdit={canEdit} compact onSave={saveServiceFollowUp} onCloseService={closeScheduleService} />
-            </div>
-          </Card>
-        )) : null}
+        {filtered.length && view === "cards" ? filtered.map((schedule) => {
+          const scheduleKey = schedule.id || `${schedule.date}-${schedule.time}`;
+          const review = getReviewForSchedule(schedule);
+          const expanded = expandedScheduleId === scheduleKey;
+          const noteworthyCount = Object.values(schedule.serviceFollowUp?.songs || {}).filter((item) => isNoteworthySongFollowUp(item)).length;
+          return (
+            <Card key={scheduleKey}>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h2 className="text-lg font-bold text-ink">{formatScheduleDateWithService(schedule)}</h2>
+                  <p className="mt-1 text-sm text-ink/55">{schedule.time || "Sin hora"} · {schedule.leader || "Sin líder de adoración"} · {(schedule.songs || []).length} cantos</p>
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold">
+                    <span className="rounded-full bg-brass/12 px-3 py-1 text-brass">Preparación {review.score}%</span>
+                    <span className="rounded-full bg-ink/5 px-3 py-1 text-ink/60">{review.snapshot ? "Estado al cierre" : "Estimación actual"}</span>
+                    {noteworthyCount ? <span className="rounded-full bg-amber-500/12 px-3 py-1 text-amber-700 dark:text-amber-200">{noteworthyCount} canto(s) con observaciones</span> : null}
+                  </div>
+                </div>
+                <Button variant="secondary" onClick={() => setExpandedScheduleId(expanded ? "" : scheduleKey)}>
+                  {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  {expanded ? "Cerrar detalle" : "Ver detalle"}
+                </Button>
+              </div>
+              {expanded ? (
+                <div className="mt-5 grid gap-4">
+                  <ServiceReviewPanel review={review} compact />
+                  <div className="flex flex-wrap gap-2">
+                    {(schedule.songs || []).map((song, index) => (
+                      <span key={`${song.songId}-${index}`} className="rounded-full bg-ink/5 px-3 py-2 text-sm font-semibold text-ink">
+                        <SongNameLink songId={song.songId} title={song.titleSnapshot} songs={songs}>{song.titleSnapshot}</SongNameLink>{song.keySnapshot ? ` · ${song.keySnapshot}` : ""}
+                      </span>
+                    ))}
+                  </div>
+                  <ServiceFollowUpPanel schedule={schedule} canEdit={canEdit} compact onSave={saveServiceFollowUp} onCloseService={closeScheduleService} />
+                </div>
+              ) : null}
+            </Card>
+          );
+        }) : null}
 
         {filtered.length && view === "list" ? (
           <Card>
@@ -258,20 +280,20 @@ export function History() {
           <h3 className="font-bold text-ink">Pendientes detectados en servicios pasados</h3>
           <div className="mt-4 space-y-3">
             {pastPending.length ? pastPending.map(({ schedule, review }) => (
-              <div key={schedule.id || `${schedule.date}-${schedule.time}`} className="rounded-2xl bg-ink/5 p-3">
+              <button key={schedule.id || `${schedule.date}-${schedule.time}`} type="button" onClick={() => setExpandedScheduleId(schedule.id || `${schedule.date}-${schedule.time}`)} className="w-full rounded-2xl bg-ink/5 p-3 text-left transition hover:bg-brass/10">
                 <p className="font-bold text-ink">{formatScheduleDateWithService(schedule)}</p>
                 <p className="mt-1 text-sm text-ink/55">Preparación {review.score}%</p>
                 <ul className="mt-2 space-y-1 text-xs font-semibold text-ink/60">
                   {(review.groups || []).slice(0, 3).map((group) => <li key={group.title}>{group.title}: {group.items.length}</li>)}
                 </ul>
-              </div>
+              </button>
             )) : <p className="text-sm text-ink/55">No hay pendientes registrados.</p>}
           </div>
         </Card>
         <Card>
           <h3 className="font-bold text-ink">Resumen del repertorio</h3>
           <dl className="mt-4 space-y-3 text-sm">
-            <div className="flex justify-between gap-4 rounded-2xl bg-ink/5 p-3"><dt className="text-ink/55">Cantos totales</dt><dd className="font-bold text-ink">{songs.length}</dd></div>
+            <div className="flex justify-between gap-4 rounded-2xl bg-ink/5 p-3"><dt className="text-ink/55">Cantos totales</dt><dd className="font-bold text-ink">{activeSongs.length}</dd></div>
             <div className="flex justify-between gap-4 rounded-2xl bg-ink/5 p-3"><dt className="text-ink/55">Ya se ha cantado</dt><dd className="font-bold text-ink">{sungBefore}</dd></div>
             <div className="flex justify-between gap-4 rounded-2xl bg-ink/5 p-3"><dt className="text-ink/55">Sin historial</dt><dd className="font-bold text-ink">{withoutAppHistory.length}</dd></div>
           </dl>

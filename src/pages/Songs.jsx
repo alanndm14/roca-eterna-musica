@@ -68,7 +68,7 @@ function ReviewBadge({ label, value }) {
   const reviewing = value === "en revisión";
   return (
     <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${complete ? "bg-brass/15 text-brass" : reviewing ? "bg-blue-gray/15 text-blue-gray" : "bg-ink/7 text-ink/55"}`}>
-      {label}: {value || "pendiente"}
+      {label} {complete ? "✓" : reviewing ? "en revisión" : "pendiente"}
     </span>
   );
 }
@@ -791,7 +791,7 @@ export function Songs() {
         <Card className="p-0">
           <div className="overflow-x-auto">
             <table className="min-w-[980px] w-full text-left text-sm">
-              <thead className="border-b border-ink/10 bg-ink/5 text-xs uppercase tracking-wide text-ink/45">
+              <thead className="sticky top-0 z-10 border-b border-ink/10 bg-stonewash text-xs uppercase tracking-wide text-ink/45">
                 <tr>
                   <th className="px-4 py-3">Titulo</th>
                   <th className="px-4 py-3">Categoria</th>
@@ -818,16 +818,17 @@ export function Songs() {
                       </td>
                       <td className="px-4 py-3 text-ink/60">{song.category || "--"}</td>
                       <td className="px-4 py-3 text-ink/60">{song.mainTheme || "--"}</td>
-                      <td className="px-4 py-3 font-semibold text-ink">{song.mainKey || "--"} / {song.keyWithCapo || "--"}</td>
+                      <td className="px-4 py-3 font-semibold text-ink">{song.mainKey && song.keyWithCapo && song.mainKey !== song.keyWithCapo ? `${song.mainKey} → ${song.keyWithCapo}` : song.mainKey || song.keyWithCapo || "Tono pendiente"}</td>
                       <td className="px-4 py-3 text-ink/60">{Number(song.capo || 0) ? `Capo ${song.capo}` : "Sin capo"}</td>
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap gap-1">
                           {pdfUrl ? <a className="rounded-lg bg-brass/12 px-2 py-1 text-xs font-bold text-brass" href={pdfUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>PDF</a> : null}
                           {youtubeUrl ? <a className="rounded-lg bg-ink/5 px-2 py-1 text-xs font-bold text-ink" href={youtubeUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>YouTube</a> : null}
                           {spotifyUrl ? <a className="rounded-lg bg-ink/5 px-2 py-1 text-xs font-bold text-ink" href={spotifyUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Spotify</a> : null}
+                          {!pdfUrl && !youtubeUrl && !spotifyUrl ? <span className="text-xs font-semibold text-ink/35">—</span> : null}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-xs text-ink/60">PDF {song.pdfReviewStatus || "pendiente"} · Musica {song.musicReviewStatus || "pendiente"} · Keynote {song.keynoteReviewStatus || "pendiente"}</td>
+                      <td className="px-4 py-3 text-xs font-semibold text-ink/60">PDF {song.pdfReviewStatus === "completado" ? "✓" : "pendiente"} · Keynote {song.keynoteReviewStatus === "completado" ? "✓" : "pendiente"} · Música {song.musicReviewStatus === "completado" ? "✓" : "pendiente"}</td>
                       <td className="px-4 py-3">
                         <div className="flex justify-end gap-2">
                           <Button variant="subtle" onClick={() => navigate(`/repertorio/${song.id}`)}>Ver</Button>

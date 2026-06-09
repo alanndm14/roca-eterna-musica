@@ -42,7 +42,7 @@ const getMonthlyTopSongs = (schedules = []) => {
       (schedule.songs || []).forEach((entry) => {
         const key = entry.songId || entry.titleSnapshot;
         if (!key) return;
-        const current = counts.get(key) || { title: entry.titleSnapshot || "Canto", count: 0 };
+        const current = counts.get(key) || { id: entry.songId || "", title: entry.titleSnapshot || "Canto", count: 0 };
         current.count += 1;
         counts.set(key, current);
       });
@@ -65,7 +65,7 @@ export function Dashboard() {
   const topDetail = monthTopSongs.length
     ? monthTopSongs.map((song) => `${song.title} (${song.count})`).join(", ")
     : "Sin datos este mes";
-  const remaining = formatRemaining(upcoming, now);
+  const remaining = upcoming ? formatRemaining(upcoming, now) : "Sin servicio próximo";
   const countdownActive = typeof remaining === "string" && remaining.includes(":");
 
   useEffect(() => {
@@ -189,20 +189,28 @@ export function Dashboard() {
               <p className="mt-5 max-w-3xl text-sm leading-6 text-white/62">No hay programación próxima registrada.</p>
             ) : null}
             <div className="mt-6 flex flex-wrap gap-3">
-              {canEdit ? (
-                <Link to="/repertorio">
-                  <Button variant="light">
-                    <ListPlus className="h-4 w-4" />
-                    Agregar canto
-                  </Button>
-                </Link>
-              ) : null}
               <Link to={canEdit ? "/programacion" : "/musicos"}>
-                <Button variant="darkSubtle">
+                <Button variant={upcoming ? "darkSubtle" : "light"}>
                   <CalendarPlus className="h-4 w-4" />
-                  {canEdit ? "Nueva programación" : "Ver próximo servicio"}
+                  {canEdit ? (upcoming ? "Abrir programación" : "Crear próxima programación") : "Ver próximo servicio"}
                 </Button>
               </Link>
+              {canEdit ? (
+                <>
+                  <Link to="/inteligente">
+                    <Button variant="darkSubtle">
+                      <Sparkles className="h-4 w-4" />
+                      Ir al Centro Inteligente
+                    </Button>
+                  </Link>
+                  <Link to="/repertorio">
+                    <Button variant="darkSubtle">
+                      <ListPlus className="h-4 w-4" />
+                      Agregar canto
+                    </Button>
+                  </Link>
+                </>
+              ) : null}
             </div>
           </div>
         </Card>
@@ -211,7 +219,8 @@ export function Dashboard() {
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-sm font-semibold text-ink/55">Tiempo restante</p>
-              <p className="mt-2 text-5xl font-bold text-ink">{remaining}</p>
+              <p className={`${upcoming ? "text-5xl" : "text-2xl leading-tight"} mt-2 font-bold text-ink`}>{remaining}</p>
+              {!upcoming ? <p className="mt-2 text-sm text-ink/55">Crea una programación para activar el contador.</p> : null}
             </div>
             <div className="rounded-3xl bg-brass/12 p-4 text-brass">
               <Clock className="h-8 w-8" />
@@ -234,10 +243,22 @@ export function Dashboard() {
       {!isViewer ? (
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <StatCard icon={Music2} label="Cantos en repertorio" value={songs.length} detail="Disponibles para programar" />
-          <StatCard icon={FileClock} label="Faltan links de PDF" value={missingPdfLinks} detail="Cantos sin PDF principal registrado" delay={0.05} />
+          <StatCard icon={FileClock} label="PDF principal pendiente" value={missingPdfLinks} detail="Cantos sin PDF Drive o principal registrado" delay={0.05} />
           <StatCard icon={Sparkles} label="Revisión Keynote pendiente" value={keynotePending} detail="Cantos sin Keynote completado" delay={0.1} />
-          <StatCard icon={RotateCcw} label="Más usados este mes" value={monthTopSongs[0]?.count || "--"} detail={topDetail} delay={0.15} />
+          <StatCard icon={RotateCcw} label="Más usados este mes" value={monthTopSongs[0]?.count || "--"} detail={monthTopSongs.length ? topDetail : "Sin historial este mes"} delay={0.15} />
         </section>
+      ) : null}
+      {!isViewer && monthTopSongs.length ? (
+        <Card className="py-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="mr-2 text-sm font-bold text-ink">Más usados este mes</p>
+            {monthTopSongs.map((song) => (
+              <Link key={song.id || song.title} to={song.id ? `/repertorio/${song.id}` : "/historial"} className="rounded-full bg-ink/5 px-3 py-1.5 text-sm font-semibold text-ink transition hover:bg-brass/12 hover:text-brass">
+                {song.title} · {song.count}
+              </Link>
+            ))}
+          </div>
+        </Card>
       ) : null}
     </div>
   );
