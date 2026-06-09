@@ -201,14 +201,17 @@ export function MusicDataProvider({ children }) {
     if (useLocal) {
       const localData = loadLocalData();
       const keyPreference = localData.settings?.keyPreference || sampleSettings.keyPreference;
-      setSongs((localData.songs || sampleSongs).map((song) => normalizeSong(song, keyPreference)));
-      setSchedules(localData.schedules || sampleSchedules);
+      const safeSongs = Array.isArray(localData.songs) ? localData.songs : sampleSongs;
+      const safeSchedules = Array.isArray(localData.schedules) ? localData.schedules : sampleSchedules;
+      const safeNotifications = Array.isArray(localData.notifications) ? localData.notifications : sampleNotifications;
+      setSongs(safeSongs.map((song) => normalizeSong(song, keyPreference)));
+      setSchedules(safeSchedules);
       setUsers(localData.users || sampleUsers);
       setAuthorizedEmails(localData.authorizedEmails || localData.allowedEmails || []);
       setThemes(localData.themes || sampleThemes);
       setSettings(localData.settings || sampleSettings);
       setAuditLogs(localData.auditLogs || sampleAuditLogs);
-      setNotifications(localData.notifications || sampleNotifications);
+      setNotifications(safeNotifications);
       setLoading(false);
       return undefined;
     }

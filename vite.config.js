@@ -3,16 +3,20 @@ import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
 const customDomain = Boolean(process.env.PAGES_CUSTOM_DOMAIN || process.env.VITE_CUSTOM_DOMAIN === "true");
-const appBase = customDomain ? "/" : "/roca-eterna-musica/";
-const withBase = (path) => `${appBase}${path}`.replace(/\/{2,}/g, "/");
 
-export default defineConfig({
-  // GitHub Pages sin dominio propio usa /roca-eterna-musica/.
-  // Cuando se configure PAGES_CUSTOM_DOMAIN, el build usa / para el subdominio.
-  base: appBase,
-  plugins: [
-    react(),
-    VitePWA({
+export default defineConfig(({ mode }) => {
+  const githubPagesWithoutCustomDomain =
+    !customDomain && (mode === "github-pages" || process.env.GITHUB_ACTIONS === "true");
+  const appBase = githubPagesWithoutCustomDomain ? "/roca-eterna-musica/" : "/";
+  const withBase = (path) => `${appBase}${path}`.replace(/\/{2,}/g, "/");
+
+  return {
+    // Vercel, el dominio propio y la preview local sirven desde /.
+    // Solo GitHub Pages sin dominio propio necesita /roca-eterna-musica/.
+    base: appBase,
+    plugins: [
+      react(),
+      VitePWA({
       strategies: "injectManifest",
       srcDir: "src",
       filename: "sw.js",
@@ -75,20 +79,21 @@ export default defineConfig({
           }
         ]
       }
-    })
-  ],
-  build: {
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          firebase: ["firebase/app", "firebase/auth", "firebase/firestore"],
-          react: ["react", "react-dom", "react-router-dom"],
-          motion: ["framer-motion"],
-          icons: ["lucide-react"],
-          charts: ["recharts"],
-          pdf: ["@react-pdf/renderer", "pdf-lib"]
+      })
+    ],
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            firebase: ["firebase/app", "firebase/auth", "firebase/firestore"],
+            react: ["react", "react-dom", "react-router-dom"],
+            motion: ["framer-motion"],
+            icons: ["lucide-react"],
+            charts: ["recharts"],
+            pdf: ["@react-pdf/renderer", "pdf-lib"]
+          }
         }
       }
     }
-  }
+  };
 });

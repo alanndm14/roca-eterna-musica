@@ -27,7 +27,16 @@ import { appVersion } from "./data/changelog";
 import { activateLatestAppVersion, compareVersions, fetchLatestVersion, getInstalledVersion, markInstalledVersion, wasUpdateDismissed } from "./services/appUpdate";
 
 function SilentStartupFrame() {
-  return <div className="min-h-screen bg-stonewash" aria-hidden="true" />;
+  return (
+    <div className="grid min-h-screen place-items-center bg-stonewash px-5 text-ink">
+      <div className="text-center" role="status" aria-live="polite">
+        <p className="text-sm font-black uppercase tracking-widest text-ink/45">Roca Eterna Música</p>
+        <div className="mx-auto mt-4 h-1.5 w-36 overflow-hidden rounded-full bg-ink/10">
+          <div className="h-full w-1/2 animate-pulse rounded-full bg-brass" />
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function ProtectedRoute({ children }) {
@@ -99,7 +108,7 @@ function DataReady({ children }) {
   }, []);
 
   if (!updateCheck.checked) {
-    return <div className="min-h-screen bg-stonewash" aria-hidden="true" />;
+    return <SilentStartupFrame />;
   }
 
   if (updateCheck.update) {
