@@ -567,15 +567,17 @@ export function AppShell() {
                   {profile?.role === "admin" || profile?.role === "editor" ? (
                     <Button variant="secondary" onClick={() => navigate("/actualizaciones")}>Ver cambios</Button>
                   ) : null}
-                  <Button
-                    variant="subtle"
-                    onClick={() => {
-                      dismissUpdate(availableUpdate.version);
-                      setUpdateHidden(true);
-                    }}
-                  >
-                    Después
-                  </Button>
+                  {!availableUpdate.critical ? (
+                    <Button
+                      variant="subtle"
+                      onClick={() => {
+                        dismissUpdate(availableUpdate.version);
+                        setUpdateHidden(true);
+                      }}
+                    >
+                      Después
+                    </Button>
+                  ) : null}
                 </div>
               </div>
             </motion.div>

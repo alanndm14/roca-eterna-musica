@@ -8,7 +8,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
 import { formatDate, getCurrentOrNextSchedule, getEstimatedServiceEndDate, getScheduleStartDate, getServiceDisplayLabel, todayString } from "../services/dateUtils";
 import { getSongPdfUrl } from "../services/songUtils";
-import { enablePushNotificationsForUser, getCurrentPushTokenForUser } from "../services/pushNotifications";
+import { diagnosePushNotifications, enablePushNotificationsForUser, getCurrentPushTokenForUser } from "../services/pushNotifications";
 import { AndroidNotificationPermissionWizard } from "../components/notifications/AndroidNotificationPermissionWizard";
 import { isPushBackendConfigured, sendExternalPush } from "../services/externalPush";
 import { isAndroidDevice } from "../services/notificationDevice";
@@ -77,7 +77,28 @@ export function Dashboard() {
   }, [countdownActive]);
 
   useEffect(() => {
-    setPushPrompt({ checked: Boolean(profile?.uid), show: Boolean(profile?.uid), status: "" });
+    let cancelled = false;
+    const checkPushRegistration = async () => {
+      if (!profile?.uid) {
+        setPushPrompt({ checked: true, show: false, status: "" });
+        return;
+      }
+      const diagnostic = await diagnosePushNotifications(profile).catch(() => null);
+      if (cancelled) return;
+      const permissionGranted = typeof Notification !== "undefined" && Notification.permission === "granted";
+      const deviceRegistered = Boolean(
+        diagnostic?.tokenSaved
+        || diagnostic?.tokenObtained
+        || diagnostic?.tokenPath
+        || diagnostic?.firestoreWrite === "permitida"
+        || diagnostic?.firestoreWrite === "token existente"
+      );
+      setPushPrompt({ checked: true, show: !(permissionGranted && deviceRegistered), status: "" });
+    };
+    checkPushRegistration();
+    return () => {
+      cancelled = true;
+    };
   }, [profile?.uid]);
 
   const completePushActivation = async () => {
@@ -99,7 +120,7 @@ export function Dashboard() {
       }
       setPushPrompt({
         checked: true,
-        show: true,
+        show: !(permissionAccepted && registered),
         status: result.reason || (registered ? "Notificaciones activadas en este dispositivo." : "No se pudieron activar las notificaciones.")
       });
       return result;

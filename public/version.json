@@ -1,8 +1,10 @@
 {
-  "version": "0.9.120",
-  "date": "2026-06-08",
-  "critical": false,
+  "version": "0.9.121",
+  "date": "2026-06-12",
+  "critical": true,
   "changes": [
-    "Mejoras del Centro Inteligente"
+    "Mejoras visuales en Historial, Repertorio y Músicos",
+    "Activación guiada de notificaciones",
+    "Corrección del aviso de recibir novedades"
   ]
 }

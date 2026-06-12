@@ -1,6 +1,21 @@
-export const appVersion = "0.9.120";
+export const appVersion = "0.9.121";
 
 export const changelog = [
+  {
+    version: "0.9.121",
+    date: "2026-06-12",
+    title: "Interfaces y notificaciones",
+    added: [
+      "Activación guiada de notificaciones en dispositivos móviles"
+    ],
+    changed: [
+      "Mejoras visuales en Historial, Repertorio y Vista de músicos"
+    ],
+    fixed: [
+      "El aviso de recibir novedades desaparece cuando el dispositivo ya está registrado"
+    ],
+    pending: []
+  },
   {
     version: "0.9.120",
     date: "2026-06-08",
