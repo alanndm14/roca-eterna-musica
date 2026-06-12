@@ -28,7 +28,7 @@ export function AndroidNotificationPermissionWizard({
     setPermission(currentPermission);
     setResult(null);
     setMessage("");
-    setStep(currentPermission === "denied" || currentPermission === "granted" ? 2 : 1);
+    setStep(currentPermission === "denied" ? 2 : 1);
   }, [open]);
 
   const requestDevicePermissionFromClick = async () => {

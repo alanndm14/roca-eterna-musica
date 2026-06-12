@@ -16,6 +16,7 @@ import { getNotificationDeviceContext, isStagingNotificationFlowEnabled } from "
 
 const currentMonth = () => todayString().slice(0, 7);
 const pushAcceptedStorageKey = (uid) => `roca-eterna-push-prompt-accepted-${uid}`;
+const stagingWizardCompletedStorageKey = (uid) => `roca-eterna-staging-notification-wizard-complete-${uid}`;
 
 const formatRemaining = (schedule, now = new Date()) => {
   const start = getScheduleStartDate(schedule);
@@ -112,7 +113,9 @@ export function Dashboard() {
       const permissionGranted = Notification.permission === "granted" || diagnostic?.browserPermission === "granted";
       const hasRegisteredDevice = Boolean(diagnostic?.tokenPath || diagnostic?.tokenObtained || diagnostic?.firestoreWrite === "token existente" || diagnostic?.firestoreWrite === "permitida");
       const complete = stagingNotificationFlow
-        ? permissionGranted && hasRegisteredDevice
+        ? permissionGranted
+          && hasRegisteredDevice
+          && localStorage.getItem(stagingWizardCompletedStorageKey(profile.uid)) === "true"
         : permissionGranted || hasRegisteredDevice;
       setPushPrompt({ checked: true, show: !complete, status: "" });
     };
@@ -146,6 +149,9 @@ export function Dashboard() {
       const complete = stagingNotificationFlow
         ? permissionAccepted && registered
         : permissionAccepted || registered;
+      if (stagingNotificationFlow && complete && profile?.uid) {
+        localStorage.setItem(stagingWizardCompletedStorageKey(profile.uid), "true");
+      }
       setPushPrompt({
         checked: true,
         show: !complete,
