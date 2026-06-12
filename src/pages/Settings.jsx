@@ -15,6 +15,8 @@ import { cleanupCurrentUserFcmTokens, diagnosePushNotifications, disablePushNoti
 import { appDarkLogo, appLogo, fallbackAppLogo } from "../assets/logo";
 import { activateLatestAppVersion, fetchLatestVersion, getInstalledVersion } from "../services/appUpdate";
 import { appVersion } from "../data/changelog";
+import { AndroidNotificationPermissionWizard } from "../components/notifications/AndroidNotificationPermissionWizard";
+import { getNotificationDeviceContext, isStagingNotificationFlowEnabled } from "../services/stagingNotificationFlow";
 
 const defaultColors = {
   accentColor: "#b6945f",
@@ -88,6 +90,7 @@ export function Settings() {
   const [localNotificationResult, setLocalNotificationResult] = useState(null);
   const [isUpdatingPush, setIsUpdatingPush] = useState(false);
   const [showAdvancedPushDiagnostics, setShowAdvancedPushDiagnostics] = useState(false);
+  const [showAndroidNotificationWizard, setShowAndroidNotificationWizard] = useState(false);
   const [pushCooldownUntil, setPushCooldownUntil] = useState(0);
   const [pushCooldownNow, setPushCooldownNow] = useState(Date.now());
   const [tokenCleanupResult, setTokenCleanupResult] = useState(null);
@@ -132,6 +135,9 @@ export function Settings() {
       tokenOperational: fcmOk || foregroundOk || backgroundOk
     };
   }, [pushDiagnostic, pushTestResult, foregroundPushResult, backgroundPushResult]);
+  const notificationDevice = useMemo(() => getNotificationDeviceContext(), []);
+  const stagingNotificationFlow = isStagingNotificationFlowEnabled(profile, profile?.role);
+  const stagedAndroidNotificationFlow = stagingNotificationFlow && notificationDevice.android;
   const pushCooldownActive = pushCooldownNow < pushCooldownUntil;
   const pushCooldownSeconds = Math.max(0, Math.ceil((pushCooldownUntil - pushCooldownNow) / 1000));
   const applyPushCooldownIfNeeded = (result) => {
@@ -364,10 +370,12 @@ export function Settings() {
       const result = await enablePushNotificationsForUser(profile);
       setPushDiagnostic(result);
       setPushStatus(result.reason || (result.supported ? "Notificaciones del navegador activadas para este dispositivo." : "No se pudieron activar las notificaciones push."));
+      return result;
     } catch (error) {
       const message = error.message || "No se pudo guardar este dispositivo para notificaciones. Revisa permisos de Firestore.";
       setPushDiagnostic({ supported: false, firestoreWrite: "rechazada", error: message });
       setPushStatus(message);
+      return { supported: false, error: message, reason: message };
     } finally {
       setIsUpdatingPush(false);
     }
@@ -400,7 +408,7 @@ export function Settings() {
       setPushDiagnostic(tokenResult);
       if (!tokenResult.supported || !tokenResult.token) {
         setPushStatus(tokenResult.reason || "No se pudo preparar este dispositivo para la prueba push.");
-        return;
+        return tokenResult;
       }
       const result = await sendExternalPush(
         {
@@ -421,9 +429,18 @@ export function Settings() {
       applyPushCooldownIfNeeded(result);
       setForegroundPushResult(getLastForegroundPush());
       setPushStatus(result.ok ? "Push enviado por FCM. Si no aparece en Windows, revisa permisos del navegador/sistema o prueba con la app en segundo plano." : result.body?.message || result.error || "No se pudo enviar el push de prueba.");
+      return result;
     } finally {
       setIsUpdatingPush(false);
     }
+  };
+
+  const handleEnablePush = () => {
+    if (stagedAndroidNotificationFlow) {
+      setShowAndroidNotificationWizard(true);
+      return;
+    }
+    enablePush();
   };
 
   const sendSelfTestDataOnlyPush = async () => {
@@ -513,6 +530,14 @@ export function Settings() {
   };
 
   return (
+    <>
+      <AndroidNotificationPermissionWizard
+        open={showAndroidNotificationWizard}
+        onClose={() => setShowAndroidNotificationWizard(false)}
+        onActivate={enablePush}
+        onTest={sendSelfTestPush}
+        isWorking={isUpdatingPush}
+      />
     <div className="settings-page grid min-w-0 max-w-full gap-5 overflow-x-hidden pb-10 xl:grid-cols-[minmax(0,1fr)_minmax(300px,420px)]">
       <div className="min-w-0 space-y-5">
         <Card>
@@ -975,6 +1000,34 @@ export function Settings() {
                 <dt>Permiso del navegador</dt>
                 <dd className="font-semibold text-ink">{permissionLabel(pushSummary.browserPermission)}</dd>
               </div>
+              {stagedAndroidNotificationFlow ? (
+                <>
+                  <div className="flex justify-between gap-3">
+                    <dt>Permiso general</dt>
+                    <dd className="text-right font-semibold text-ink">{pushDiagnostic?.generalPermission === "no_comprobable" ? "no comprobable" : pushDiagnostic?.generalPermission || "no comprobable"}</dd>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <dt>Permiso del sitio</dt>
+                    <dd className="font-semibold text-ink">{pushDiagnostic?.sitePermission || pushSummary.browserPermission}</dd>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <dt>Service worker</dt>
+                    <dd className="font-semibold text-ink">{pushDiagnostic?.serviceWorkerRegistered ? "registrado" : "sin registrar"}</dd>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <dt>Token FCM</dt>
+                    <dd className="font-semibold text-ink">{pushDiagnostic?.tokenObtained || pushSummary.deviceRegistered ? "obtenido" : "sin token"}</dd>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <dt>Token guardado</dt>
+                    <dd className="font-semibold text-ink">{pushDiagnostic?.tokenSaved || pushSummary.deviceRegistered ? "sí" : "no"}</dd>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <dt>Última prueba</dt>
+                    <dd className="text-right font-semibold text-ink">{foregroundPushResult || backgroundPushResult ? "recibida" : pushTestResult?.ok ? "enviada" : pushTestResult ? "fallida" : "sin probar"}</dd>
+                  </div>
+                </>
+              ) : null}
               <div className="flex justify-between gap-3">
                 <dt>Dispositivo registrado</dt>
                 <dd className="font-semibold text-ink">{yesNoLabel(pushSummary.deviceRegistered)}</dd>
@@ -1005,6 +1058,16 @@ export function Settings() {
             {pushSummary.allOk ? (
               <p className="mt-3 rounded-xl bg-emerald-500/10 p-2 text-xs font-semibold text-emerald-900 dark:text-emerald-100">Push funcionando correctamente en este dispositivo.</p>
             ) : null}
+            {stagedAndroidNotificationFlow && pushSummary.browserPermission === "denied" ? (
+              <p className="mt-3 rounded-xl bg-red-500/10 p-2 text-xs font-semibold leading-5 text-red-800 dark:text-red-100">
+                Las notificaciones están bloqueadas para este sitio. Abre información del sitio, entra a Permisos, Notificaciones y cámbialo a permitir.
+              </p>
+            ) : null}
+            {stagedAndroidNotificationFlow && pushSummary.browserPermission !== "granted" ? (
+              <p className="mt-3 rounded-xl bg-brass/10 p-2 text-xs font-semibold leading-5 text-ink/65">
+                Si Chrome o la app instalada no pueden mostrar avisos, activa sus notificaciones en Ajustes de Android, Notificaciones.
+              </p>
+            ) : null}
           </div>
           <div className="mt-4 grid gap-2">
             {isAdmin ? (
@@ -1022,9 +1085,14 @@ export function Settings() {
                 Solicitar permiso del sitio
               </Button>
             ) : null}
-            <Button className="w-full" variant="secondary" isLoading={isUpdatingPush} disabled={isUpdatingPush} onClick={enablePush}>
+            <Button className="w-full" variant="secondary" isLoading={isUpdatingPush} disabled={isUpdatingPush} onClick={handleEnablePush}>
               Activar notificaciones
             </Button>
+            {stagingNotificationFlow ? (
+              <Button className="w-full" variant="secondary" isLoading={isUpdatingPush} disabled={isUpdatingPush || pushCooldownActive || !isPushBackendConfigured()} onClick={sendSelfTestPush}>
+                {pushCooldownActive ? `Espera ${pushCooldownSeconds}s` : "Enviar prueba a este dispositivo"}
+              </Button>
+            ) : null}
             {isAdmin ? (
               <>
                 <Button className="hidden w-full" variant="secondary" isLoading={isUpdatingPush} disabled={isUpdatingPush || pushCooldownActive || !isPushBackendConfigured()} onClick={sendSelfTestPush}>
@@ -1033,7 +1101,7 @@ export function Settings() {
                 <Button className="hidden w-full" variant="subtle" isLoading={isUpdatingPush} disabled={isUpdatingPush || pushCooldownActive || !isPushBackendConfigured()} onClick={sendSelfTestDataOnlyPush}>
                   {pushCooldownActive ? `Espera ${pushCooldownSeconds}s` : "Enviar prueba FCM data-only"}
                 </Button>
-                <Button className="w-full" variant="subtle" disabled={isUpdatingPush} onClick={reinstallServiceWorker}>
+                <Button className={`${showAdvancedPushDiagnostics ? "w-full" : "hidden w-full"}`} variant="subtle" disabled={isUpdatingPush} onClick={reinstallServiceWorker}>
                   Reinstalar service worker
                 </Button>
                 {showAdvancedPushDiagnostics ? (
@@ -1318,6 +1386,7 @@ export function Settings() {
         ) : null}
       </aside>
     </div>
+    </>
   );
 }
 
