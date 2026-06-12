@@ -28,22 +28,33 @@ export function AndroidNotificationPermissionWizard({
     setPermission(currentPermission);
     setResult(null);
     setMessage("");
-    setStep(currentPermission === "granted" ? 3 : currentPermission === "denied" ? 2 : 1);
+    setStep(currentPermission === "denied" || currentPermission === "granted" ? 2 : 1);
   }, [open]);
 
-  const requestPermissionFromClick = async (nextStep) => {
+  const requestDevicePermissionFromClick = async () => {
     setMessage("");
     const permissionResult = await requestSiteNotificationPermissionOnly();
     setPermission(permissionResult.permissionAfter);
-    if (permissionResult.permissionAfter === "granted") {
-      const activation = await onActivate();
-      setResult(activation);
-      setStep(activation?.supported ? 3 : nextStep);
-      setMessage(activation?.reason || permissionResult.error || "");
+    setStep(2);
+    setMessage(permissionResult.error || (
+      permissionResult.permissionAfter === "granted"
+        ? "Permiso del dispositivo comprobado. Continúa para registrar esta página."
+        : "Todavía falta permitir notificaciones para esta página."
+    ));
+  };
+
+  const requestSitePermissionFromClick = async () => {
+    setMessage("");
+    const permissionResult = await requestSiteNotificationPermissionOnly();
+    setPermission(permissionResult.permissionAfter);
+    if (permissionResult.permissionAfter !== "granted") {
+      setMessage(permissionResult.error || "Todavía falta permitir notificaciones para esta página.");
       return;
     }
-    setStep(nextStep);
-    setMessage(permissionResult.error || "Todavía falta permitir notificaciones para esta página.");
+    const activation = await onActivate();
+    setResult(activation);
+    setStep(activation?.supported ? 3 : 2);
+    setMessage(activation?.reason || "");
   };
 
   return (
@@ -66,7 +77,7 @@ export function AndroidNotificationPermissionWizard({
                 </p>
               </div>
             </div>
-            <Button className="mt-4 w-full" isLoading={isWorking} onClick={() => requestPermissionFromClick(2)}>
+            <Button className="mt-4 w-full" isLoading={isWorking} onClick={requestDevicePermissionFromClick}>
               Continuar
             </Button>
           </section>
@@ -89,7 +100,7 @@ export function AndroidNotificationPermissionWizard({
                 Las notificaciones están bloqueadas para este sitio. Abre información del sitio, entra a Permisos y cambia Notificaciones a Permitir.
               </p>
             ) : (
-              <Button className="mt-4 w-full" isLoading={isWorking} onClick={() => requestPermissionFromClick(2)}>
+              <Button className="mt-4 w-full" isLoading={isWorking} onClick={requestSitePermissionFromClick}>
                 Permitir notificaciones de esta página
               </Button>
             )}

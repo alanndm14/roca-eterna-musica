@@ -24,6 +24,7 @@ import { extractLocalPdfText, fingerprintLocalPdf } from "../services/pdfTextInd
 import { sendExternalPush } from "../services/externalPush";
 import { ensurePushBroadcastSubscription } from "../services/pushNotifications";
 import { createServiceReviewSnapshot, reviewServiceSchedule } from "../services/songScoring";
+import { isStagingEnvironment } from "../services/stagingNotificationFlow";
 import { useAuth } from "./useAuth";
 
 const MusicDataContext = createContext(null);
@@ -360,6 +361,7 @@ export function MusicDataProvider({ children }) {
       })
       .then((registration) => sendExternalPush({
         ...payload,
+        mode: isStagingEnvironment() ? "self_test" : payload.mode,
         token: registration?.token || "",
         tokenId: registration?.tokenId || ""
       }, {
@@ -407,7 +409,8 @@ export function MusicDataProvider({ children }) {
       entityId: scheduleId,
       scheduleId,
       isFutureSchedule: true,
-      pushNotificationId
+      pushNotificationId,
+      ...(isStagingEnvironment() && profile?.uid ? { targetUsers: [profile.uid], targetRoles: [] } : {})
     };
     showInAppNovelty(notificationPayload);
     createNotificationBestEffort(notificationPayload);
@@ -456,7 +459,8 @@ export function MusicDataProvider({ children }) {
       scheduleId,
       songId: newSongs.length === 1 ? newSongs[0].id : "",
       isFutureSchedule: true,
-      pushNotificationId
+      pushNotificationId,
+      ...(isStagingEnvironment() && profile?.uid ? { targetUsers: [profile.uid], targetRoles: [] } : {})
     };
     showInAppNovelty(notificationPayload);
     createNotificationBestEffort(notificationPayload);
@@ -484,7 +488,8 @@ export function MusicDataProvider({ children }) {
       entityId: scheduleId,
       scheduleId,
       isFutureSchedule: true,
-      pushNotificationId
+      pushNotificationId,
+      ...(isStagingEnvironment() && profile?.uid ? { targetUsers: [profile.uid], targetRoles: [] } : {})
     };
     showInAppNovelty(notificationPayload);
     createNotificationBestEffort(notificationPayload);
