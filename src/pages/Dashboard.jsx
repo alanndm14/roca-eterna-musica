@@ -8,11 +8,12 @@ import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
 import { formatDate, getCurrentOrNextSchedule, getEstimatedServiceEndDate, getScheduleStartDate, getServiceDisplayLabel, todayString } from "../services/dateUtils";
 import { getSongPdfUrl } from "../services/songUtils";
-import { diagnosePushNotifications, enablePushNotificationsForUser } from "../services/pushNotifications";
+import { enablePushNotificationsForUser, getCurrentPushTokenForUser } from "../services/pushNotifications";
+import { AndroidNotificationPermissionWizard } from "../components/notifications/AndroidNotificationPermissionWizard";
+import { isPushBackendConfigured, sendExternalPush } from "../services/externalPush";
+import { isAndroidDevice } from "../services/notificationDevice";
 
 const currentMonth = () => todayString().slice(0, 7);
-const pushAcceptedStorageKey = (uid) => `roca-eterna-push-prompt-accepted-${uid}`;
-
 const formatRemaining = (schedule, now = new Date()) => {
   const start = getScheduleStartDate(schedule);
   if (!start) return "--";
@@ -57,6 +58,7 @@ export function Dashboard() {
   const [now, setNow] = useState(() => new Date());
   const [pushPrompt, setPushPrompt] = useState({ checked: false, show: false, status: "" });
   const [activatingPushPrompt, setActivatingPushPrompt] = useState(false);
+  const [showNotificationWizard, setShowNotificationWizard] = useState(false);
   const isViewer = profile?.role === "viewer";
   const upcoming = useMemo(() => getCurrentOrNextSchedule(schedules, now), [schedules, now]);
   const missingPdfLinks = songs.filter((song) => !getSongPdfUrl(song)).length;
@@ -75,52 +77,18 @@ export function Dashboard() {
   }, [countdownActive]);
 
   useEffect(() => {
-    let cancelled = false;
-    const checkPushPrompt = async () => {
-      if (!profile?.uid || profile.dismissedPushPromptByUser || localStorage.getItem(`roca-eterna-push-prompt-dismissed-${profile.uid}`) === "true") {
-        setPushPrompt((current) => ({ ...current, checked: true, show: false }));
-        return;
-      }
-      if (typeof Notification === "undefined") {
-        setPushPrompt((current) => ({ ...current, checked: true, show: false }));
-        return;
-      }
-      const browserPermissionGranted = Notification.permission === "granted";
-      const userAlreadyAccepted = Boolean(
-        profile.pushNotificationsEnabled
-        || profile.wantsPushNotifications
-        || profile.pushPromptAcceptedAt
-        || localStorage.getItem(pushAcceptedStorageKey(profile.uid)) === "true"
-      );
-      if (browserPermissionGranted || userAlreadyAccepted) {
-        setPushPrompt((current) => ({ ...current, checked: true, show: false }));
-        return;
-      }
-      const diagnostic = await diagnosePushNotifications(profile).catch(() => null);
-      if (cancelled) return;
-      const permissionGranted = Notification.permission === "granted" || diagnostic?.browserPermission === "granted";
-      const hasRegisteredDevice = Boolean(diagnostic?.tokenPath || diagnostic?.tokenObtained || diagnostic?.firestoreWrite === "token existente" || diagnostic?.firestoreWrite === "permitida");
-      setPushPrompt({ checked: true, show: !(permissionGranted || hasRegisteredDevice), status: "" });
-    };
-    checkPushPrompt();
-    return () => {
-      cancelled = true;
-    };
-  }, [profile?.uid, profile?.dismissedPushPromptByUser]);
+    setPushPrompt({ checked: Boolean(profile?.uid), show: Boolean(profile?.uid), status: "" });
+  }, [profile?.uid]);
 
-  const activatePushFromPrompt = async () => {
+  const completePushActivation = async () => {
     setActivatingPushPrompt(true);
     try {
-      if (profile?.uid) localStorage.removeItem(`roca-eterna-push-prompt-dismissed-${profile.uid}`);
       const result = await enablePushNotificationsForUser(profile);
       const permissionAccepted = result.browserPermission === "granted" || (typeof Notification !== "undefined" && Notification.permission === "granted");
       const registered = Boolean(
         result.supported
         && (result.tokenObtained || result.tokenPath || result.firestoreWrite === "permitida" || result.firestoreWrite === "token existente")
       );
-      if (profile?.uid && (permissionAccepted || registered)) {
-        localStorage.setItem(pushAcceptedStorageKey(profile.uid), "true");
-      }
       if (permissionAccepted || registered) {
         await saveUserPreferences?.({
           dismissedPushPromptByUser: false,
@@ -131,22 +99,56 @@ export function Dashboard() {
       }
       setPushPrompt({
         checked: true,
-        show: !(permissionAccepted || registered),
+        show: true,
         status: result.reason || (registered ? "Notificaciones activadas en este dispositivo." : "No se pudieron activar las notificaciones.")
       });
+      return result;
+    } catch (error) {
+      const message = error?.message || "No se pudieron activar las notificaciones.";
+      setPushPrompt({ checked: true, show: true, status: message });
+      return { supported: false, reason: message, error: message };
     } finally {
       setActivatingPushPrompt(false);
     }
   };
 
-  const dismissPushPrompt = async () => {
-    if (profile?.uid) localStorage.setItem(`roca-eterna-push-prompt-dismissed-${profile.uid}`, "true");
-    await saveUserPreferences?.({ dismissedPushPromptByUser: true });
+  const activatePushFromPrompt = () => {
+    if (isAndroidDevice()) {
+      setShowNotificationWizard(true);
+      return;
+    }
+    completePushActivation();
+  };
+
+  const sendSelfTest = async () => {
+    if (!isPushBackendConfigured()) return { ok: false, error: "El backend push no está configurado." };
+    const tokenResult = await getCurrentPushTokenForUser(profile);
+    if (!tokenResult.supported || !tokenResult.token) return tokenResult;
+    return sendExternalPush({
+      mode: "self_test",
+      type: "other",
+      title: "Prueba de Roca Eterna Música",
+      body: "Este dispositivo ya puede recibir notificaciones.",
+      url: "/#/",
+      token: tokenResult.token,
+      tokenId: tokenResult.tokenId,
+      notificationId: `dashboard-self-test-${Date.now()}`
+    }, { kind: "test" });
+  };
+
+  const dismissPushPrompt = () => {
     setPushPrompt({ checked: true, show: false, status: "" });
   };
 
   return (
     <div className="space-y-6">
+      <AndroidNotificationPermissionWizard
+        open={showNotificationWizard}
+        onClose={() => setShowNotificationWizard(false)}
+        onActivate={completePushActivation}
+        onTest={sendSelfTest}
+        isWorking={activatingPushPrompt}
+      />
       {pushPrompt.checked && pushPrompt.show ? (
         <Card className="border-brass/25 bg-brass/10">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">

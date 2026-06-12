@@ -3,6 +3,7 @@ import { collection, doc, getDocs, serverTimestamp, setDoc } from "firebase/fire
 import { db, firebaseApp, firebaseVapidKey, isFirebaseConfigured } from "../lib/firebase";
 import { registerPushTokenForBroadcast } from "./externalPush";
 import { resolvePublicAssetUrl } from "./songUtils";
+import { getNotificationDeviceContext } from "./notificationDevice";
 
 const TOKEN_STORAGE_KEY = "roca-eterna-fcm-token-id";
 const LAST_FOREGROUND_KEY = "roca-eterna-last-foreground-push";
@@ -189,6 +190,7 @@ async function checkActiveServiceWorkerFcmSupport(registration) {
 }
 
 async function getRuntimeDiagnostics() {
+  const deviceContext = getNotificationDeviceContext();
   const diagnostic = {
     origin: window.location.origin,
     protocol: window.location.protocol,
@@ -215,7 +217,13 @@ async function getRuntimeDiagnostics() {
     foregroundListenerError: "",
     serviceWorkerScopeWarning: "",
     lastForegroundPush: getLastForegroundPush(),
-    lastBackgroundPush: getLastBackgroundPush()
+    lastBackgroundPush: getLastBackgroundPush(),
+    androidDevice: deviceContext.android,
+    mobileDevice: deviceContext.mobile,
+    standalonePwa: deviceContext.standalone,
+    generalPermission: deviceContext.android ? "no_comprobable" : "no_aplica",
+    sitePermission: typeof Notification === "undefined" ? "no_soportado" : Notification.permission,
+    tokenSaved: Boolean(localStorage.getItem(TOKEN_STORAGE_KEY))
   };
 
   try {
@@ -325,6 +333,13 @@ export async function diagnosePushNotifications(profile) {
       reason: deniedInstructions
     };
   }
+  if (Notification.permission !== "granted") {
+    return {
+      ...diagnostic,
+      supported: true,
+      reason: androidDefaultInstructions
+    };
+  }
 
   try {
     const registration = await getServiceWorkerRegistration();
@@ -342,6 +357,7 @@ export async function diagnosePushNotifications(profile) {
   if (profile?.uid && cachedTokenId) {
     diagnostic.tokenPath = buildTokenPath(profile.uid, cachedTokenId);
     diagnostic.firestoreWrite = "token existente";
+    diagnostic.tokenSaved = true;
   }
 
   return diagnostic;
@@ -374,6 +390,11 @@ export async function enablePushNotificationsForUser(profile) {
     };
   }
 
+  const support = await getPushSupportStatus();
+  Object.assign(diagnostic, support);
+  diagnostic.browserPermission = Notification.permission;
+  if (!support.supported) return diagnostic;
+
   const permission = Notification.permission === "default" ? await Notification.requestPermission() : Notification.permission;
   diagnostic.browserPermission = permission;
   if (permission !== "granted") {
@@ -386,10 +407,6 @@ export async function enablePushNotificationsForUser(profile) {
     };
   }
 
-  const support = await getPushSupportStatus();
-  Object.assign(diagnostic, support);
-  diagnostic.browserPermission = permission;
-  if (!support.supported) return diagnostic;
   Object.assign(diagnostic, await getRuntimeDiagnostics());
 
   let registration = null;
@@ -470,6 +487,7 @@ export async function enablePushNotificationsForUser(profile) {
       firestoreWrite: "permitida",
       reason: "Notificaciones del navegador activadas para este dispositivo.",
       tokenId,
+      tokenSaved: true,
       topicRegistered: topicRegistration?.ok === true,
       topicRegistration
     };
@@ -482,6 +500,7 @@ export async function enablePushNotificationsForUser(profile) {
         firestoreWrite: "temporalmente no disponible",
         reason: "Notificaciones activadas. El registro de diagnostico en Firestore se completara despues.",
         tokenId,
+        tokenSaved: true,
         topicRegistered: true,
         topicRegistration,
         firestoreError: error?.message || String(error)

@@ -15,6 +15,8 @@ import { cleanupCurrentUserFcmTokens, diagnosePushNotifications, disablePushNoti
 import { appDarkLogo, appLogo, fallbackAppLogo } from "../assets/logo";
 import { activateLatestAppVersion, fetchLatestVersion, getInstalledVersion } from "../services/appUpdate";
 import { appVersion } from "../data/changelog";
+import { AndroidNotificationPermissionWizard } from "../components/notifications/AndroidNotificationPermissionWizard";
+import { isAndroidDevice } from "../services/notificationDevice";
 
 const defaultColors = {
   accentColor: "#b6945f",
@@ -87,6 +89,7 @@ export function Settings() {
   const [backgroundPushResult, setBackgroundPushResult] = useState(() => getLastBackgroundPush());
   const [localNotificationResult, setLocalNotificationResult] = useState(null);
   const [isUpdatingPush, setIsUpdatingPush] = useState(false);
+  const [showNotificationWizard, setShowNotificationWizard] = useState(false);
   const [showAdvancedPushDiagnostics, setShowAdvancedPushDiagnostics] = useState(false);
   const [pushCooldownUntil, setPushCooldownUntil] = useState(0);
   const [pushCooldownNow, setPushCooldownNow] = useState(Date.now());
@@ -364,13 +367,23 @@ export function Settings() {
       const result = await enablePushNotificationsForUser(profile);
       setPushDiagnostic(result);
       setPushStatus(result.reason || (result.supported ? "Notificaciones del navegador activadas para este dispositivo." : "No se pudieron activar las notificaciones push."));
+      return result;
     } catch (error) {
       const message = error.message || "No se pudo guardar este dispositivo para notificaciones. Revisa permisos de Firestore.";
       setPushDiagnostic({ supported: false, firestoreWrite: "rechazada", error: message });
       setPushStatus(message);
+      return { supported: false, reason: message, error: message };
     } finally {
       setIsUpdatingPush(false);
     }
+  };
+
+  const handleEnablePush = () => {
+    if (isAndroidDevice()) {
+      setShowNotificationWizard(true);
+      return;
+    }
+    enablePush();
   };
 
   const disablePush = async () => {
@@ -400,7 +413,7 @@ export function Settings() {
       setPushDiagnostic(tokenResult);
       if (!tokenResult.supported || !tokenResult.token) {
         setPushStatus(tokenResult.reason || "No se pudo preparar este dispositivo para la prueba push.");
-        return;
+        return tokenResult;
       }
       const result = await sendExternalPush(
         {
@@ -421,6 +434,11 @@ export function Settings() {
       applyPushCooldownIfNeeded(result);
       setForegroundPushResult(getLastForegroundPush());
       setPushStatus(result.ok ? "Push enviado por FCM. Si no aparece en Windows, revisa permisos del navegador/sistema o prueba con la app en segundo plano." : result.body?.message || result.error || "No se pudo enviar el push de prueba.");
+      return result;
+    } catch (error) {
+      const message = error?.message || "No se pudo enviar la prueba push.";
+      setPushStatus(message);
+      return { ok: false, error: message };
     } finally {
       setIsUpdatingPush(false);
     }
@@ -513,6 +531,14 @@ export function Settings() {
   };
 
   return (
+    <>
+    <AndroidNotificationPermissionWizard
+      open={showNotificationWizard}
+      onClose={() => setShowNotificationWizard(false)}
+      onActivate={enablePush}
+      onTest={sendSelfTestPush}
+      isWorking={isUpdatingPush}
+    />
     <div className="settings-page grid min-w-0 max-w-full gap-5 overflow-x-hidden pb-10 xl:grid-cols-[minmax(0,1fr)_minmax(300px,420px)]">
       <div className="min-w-0 space-y-5">
         <Card>
@@ -1022,7 +1048,7 @@ export function Settings() {
                 Solicitar permiso del sitio
               </Button>
             ) : null}
-            <Button className="w-full" variant="secondary" isLoading={isUpdatingPush} disabled={isUpdatingPush} onClick={enablePush}>
+            <Button className="w-full" variant="secondary" isLoading={isUpdatingPush} disabled={isUpdatingPush} onClick={handleEnablePush}>
               Activar notificaciones
             </Button>
             {isAdmin ? (
@@ -1318,6 +1344,7 @@ export function Settings() {
         ) : null}
       </aside>
     </div>
+    </>
   );
 }
 
