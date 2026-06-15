@@ -9,10 +9,10 @@ const allSteps = [
   { route: "/", target: '[data-tour="nav-inicio"]', title: "Inicio", text: "Proximo servicio, pendientes y accesos rapidos.", roles: ["admin", "editor", "viewer"] },
   { route: "/repertorio", target: '[data-tour="nav-repertorio"]', title: "Repertorio", text: "Consulta cantos, tonos, temas, PDFs y enlaces.", roles: ["admin", "editor", "viewer"] },
   { route: "/repertorio", target: '[data-tour="song-add"]', title: "Agregar canto", text: "Agrega o edita repertorio del ministerio.", roles: ["admin", "editor"] },
-  { route: "/programacion", target: '[data-tour="nav-programacion"]', title: "Programación", text: "Calendario, servicios y cantos en orden.", roles: ["admin", "editor", "viewer"] },
+  { route: "/programacion", target: '[data-tour="nav-programacion"]', title: "Programación", text: "Calendario, servicios y cantos en orden.", roles: ["admin", "editor"] },
   { route: "/programacion", target: '[data-tour="schedule-new"]', title: "Nueva programación", text: "Crea servicios usando la fecha seleccionada.", roles: ["admin", "editor"] },
-  { route: "/musicos", target: '[data-tour="nav-musicos"]', title: "Vista para musicos", text: "Ensayo, PDFs y hoja del servicio.", roles: ["admin", "editor", "viewer"] },
-  { route: "/servicios", target: '[data-tour="nav-servicios"]', title: "Servicios", text: "Calendario, cantos nuevos, PDFs y enlaces.", roles: ["viewer"], viewerTypes: ["medios"] },
+  { route: "/musicos", target: '[data-tour="nav-musicos"]', title: "Vista para musicos", text: "Ensayo, PDFs y hoja del servicio.", roles: ["admin", "editor"] },
+  { route: "/servicios", target: '[data-tour="nav-servicios"]', title: "Servicios", text: "Calendario, cantos nuevos, PDFs y enlaces.", roles: ["viewer"] },
   { route: "/musicos", target: '[data-tour="service-local-merge"]', title: "Unir PDFs", text: "Une PDFs locales publicados en la app.", roles: ["admin", "editor"] },
   { route: "/historial", target: '[data-tour="nav-historial"]', title: "Historial", text: "Consulta servicios pasados registrados.", roles: ["admin", "editor"] },
   { route: "/estadisticas", target: '[data-tour="nav-estadisticas"]', title: "Estadísticas", text: "Analiza repertorio por tema, tono y uso.", roles: ["admin", "editor"] },
@@ -31,7 +31,6 @@ export function OnboardingGuide({ open, onClose, onFinish, logoSrc = appLogo, lo
   const steps = useMemo(() => allSteps.filter((item) => (
     item.roles.includes(role || "viewer")
     && (role !== "viewer" || !item.viewerTypes || item.viewerTypes.includes(viewerType))
-    && !(role === "viewer" && viewerType === "medios" && ["/programacion", "/musicos"].includes(item.route))
   )), [role, viewerType]);
   const step = steps[index];
   const isLast = index === steps.length - 1;

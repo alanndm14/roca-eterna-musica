@@ -29,8 +29,8 @@ const navyColor = "#17324f";
 const blackColor = "#161616";
 
 export const SPECIAL_PROGRAM_TYPE_COLORS = {
-  "Predicaci贸n": brassColor,
-  "Participaci贸n especial": navyColor
+  "Predicación": brassColor,
+  "Participación especial": navyColor
 };
 
 const normalizeHexColor = (value = "") => {

@@ -57,6 +57,8 @@ const notificationTime = (item = {}) => {
 const isObsoleteTestScheduleNotification = (item = {}) => {
   const time = notificationTime(item);
   return obsoleteTestSchedulePushIds.has(item.pushNotificationId)
+    || item.pushNotificationId?.startsWith?.("new-song-scheduled-")
+    || (item.type === "new_song" && (item.entityType === "schedule" || item.scheduleId))
     || (["new_schedule", "new_song"].includes(item.type)
       && (item.entityType === "schedule" || item.scheduleId)
       && time >= testNotificationWindowStart
@@ -67,7 +69,7 @@ const formatSchedulePushBody = (schedule = {}) => {
   const date = schedule.date
     ? new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "long" }).format(new Date(`${schedule.date}T00:00:00`))
     : "Sin fecha";
-  return `${schedule.serviceLabel || schedule.type || "Servicio"} · ${date} · ${schedule.time || "Sin hora"}`;
+  return `${schedule.serviceLabel || schedule.type || "Servicio"} ? ${date} ? ${schedule.time || "Sin hora"}`;
 };
 
 const formatScheduleShortLabel = (schedule = {}) => {
@@ -75,6 +77,22 @@ const formatScheduleShortLabel = (schedule = {}) => {
     ? new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "long" }).format(new Date(`${schedule.date}T00:00:00`))
     : "sin fecha";
   return `${schedule.serviceLabel || schedule.type || "Servicio"} ${date}`;
+};
+
+const plannedServiceLabels = {
+  domingo_am: "domingo AM",
+  domingo_pm: "domingo PM",
+  miercoles: "miércoles de oración",
+  especial: "servicio especial",
+  otro: "servicio"
+};
+
+const formatPlannedNewSongLabel = (plannedSong = {}) => {
+  const service = plannedServiceLabels[plannedSong.serviceType] || plannedSong.serviceType || "servicio";
+  const date = plannedSong.plannedDate
+    ? new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "long" }).format(new Date(`${plannedSong.plannedDate}T00:00:00`))
+    : "sin fecha";
+  return `${service} ${date}`;
 };
 
 const toDateMs = (value) => {
@@ -423,7 +441,7 @@ export function MusicDataProvider({ children }) {
       type: "new_schedule",
       title: "Nueva programación",
       body: formatSchedulePushBody(schedulePayload),
-      url: "/#/programacion",
+      url: `/#/programacion?schedule=${scheduleId}`,
       scheduleId,
       notificationId: pushNotificationId,
       icon: resolveAppLogoForNotification(settings, "light"),
@@ -452,7 +470,7 @@ export function MusicDataProvider({ children }) {
     const songTitles = newSongs.map((song) => song.title).filter(Boolean);
     const title = newSongs.length === 1 ? `Canto nuevo para ${serviceLabel}` : `Cantos nuevos para ${serviceLabel}`;
     const message = newSongs.length === 1
-      ? `${songTitles[0]} se agrego por primera vez a una programacion.`
+      ? `${songTitles[0]} se agrego por primera vez a una programación.`
       : `${songTitles.slice(0, 3).join(", ")}${songTitles.length > 3 ? ` y ${songTitles.length - 3} mas` : ""} se agregaron por primera vez.`;
     const pushNotificationId = `new-song-scheduled-${scheduleId}-${simpleHash(newSongs.map((song) => song.id).sort().join("|"))}`;
     const notificationPayload = {
@@ -472,7 +490,7 @@ export function MusicDataProvider({ children }) {
       type: "new_song",
       title,
       body: message,
-      url: "/#/programacion",
+      url: `/#/programacion?schedule=${scheduleId}`,
       scheduleId,
       songId: newSongs.length === 1 ? newSongs[0].id : "",
       notificationId: pushNotificationId,
@@ -500,7 +518,7 @@ export function MusicDataProvider({ children }) {
       type: "updated_schedule",
       title: "Programacion actualizada",
       body: notificationPayload.message,
-      url: "/#/programacion",
+      url: `/#/programacion?schedule=${scheduleId}`,
       scheduleId,
       notificationId: pushNotificationId,
       icon: resolveAppLogoForNotification(settings, "light"),
@@ -729,6 +747,37 @@ export function MusicDataProvider({ children }) {
     });
   };
 
+  const notifyPlannedNewSongBestEffort = (plannedSongPayload, plannedSongId) => {
+    if (!plannedSongId || plannedSongPayload.status === "estrenado") return;
+    const songId = plannedSongPayload.songId || "";
+    const serviceLabel = formatPlannedNewSongLabel(plannedSongPayload);
+    const title = `Canto nuevo para ${serviceLabel}`;
+    const message = `${plannedSongPayload.songTitle} está planeado para ${serviceLabel}.`;
+    const pushNotificationId = `planned-new-song-${plannedSongId}`;
+    const notificationPayload = {
+      type: "new_song",
+      title,
+      message,
+      entityType: songId ? "song" : "planned_new_song",
+      entityId: songId || plannedSongId,
+      songId,
+      isFutureSchedule: true,
+      pushNotificationId
+    };
+    showInAppNovelty(notificationPayload);
+    createNotificationBestEffort(notificationPayload);
+    sendPushBestEffort({
+      type: "new_song",
+      title,
+      body: message,
+      url: songId ? `/#/repertorio/${songId}` : "/#/servicios",
+      songId,
+      notificationId: pushNotificationId,
+      icon: resolveAppLogoForNotification(settings, "light"),
+      badge: resolveAppLogoForNotification(settings, "light")
+    }, { tipoEvento: "planned_new_song", eventoGuardado: true, novedadInternaCreada: true });
+  };
+
   const assertCanEditPlannedNewSongs = () => {
     if (!["admin", "editor"].includes(profile?.role)) {
       throw new Error("No tienes permiso para modificar cantos nuevos planeados.");
@@ -768,6 +817,7 @@ export function MusicDataProvider({ children }) {
       const created = { ...payload, id, createdAt: new Date().toISOString() };
       setPlannedNewSongs((current) => [...current, created].sort((a, b) => a.plannedDate.localeCompare(b.plannedDate)));
       await logAuditEvent({ actionType: "create", entityType: "planned_new_song", entityId: id, entityName: payload.songTitle, summary: `Canto nuevo planeado creado: ${payload.songTitle}`, afterData: created });
+      notifyPlannedNewSongBestEffort(created, id);
       return id;
     }
 
@@ -778,6 +828,7 @@ export function MusicDataProvider({ children }) {
     }
     const created = await addDoc(collection(db, "plannedNewSongs"), { ...payload, createdAt: serverTimestamp() });
     await logAuditEvent({ actionType: "create", entityType: "planned_new_song", entityId: created.id, entityName: payload.songTitle, summary: `Canto nuevo planeado creado: ${payload.songTitle}`, afterData: payload });
+    notifyPlannedNewSongBestEffort(payload, created.id);
     return created.id;
   };
 
@@ -840,8 +891,7 @@ export function MusicDataProvider({ children }) {
       if (schedule.id) {
         setSchedules((current) => current.map((item) => (item.id === schedule.id ? { ...item, ...payload } : item)));
         notifyScheduleUpdatedBestEffort(payload, schedule.id, scheduleChange);
-        notifyNewSongsScheduledBestEffort(payload, schedule.id, scheduleChange?.addedEntries || []);
-        await logAuditEvent({ actionType: "update", entityType: "schedule", entityId: schedule.id, entityName: payload.serviceLabel || payload.date, summary: `Programación editada: ${payload.serviceLabel || payload.date}`, beforeData: before, afterData: payload });
+        await logAuditEvent({ actionType: "update", entityType: "schedule", entityId: schedule.id, entityName: payload.serviceLabel || payload.date, summary: `Programaci?n editada: ${payload.serviceLabel || payload.date}`, beforeData: before, afterData: payload });
       } else {
         const id = makeId("schedule");
         setSchedules((current) => [
@@ -854,8 +904,7 @@ export function MusicDataProvider({ children }) {
           }
         ]);
         notifyScheduleCreatedBestEffort(payload, id);
-        notifyNewSongsScheduledBestEffort(payload, id, payload.songs || []);
-        logAuditEventBestEffort({ actionType: "create", entityType: "schedule", entityId: id, entityName: payload.serviceLabel || payload.date, summary: `Programación creada: ${payload.serviceLabel || payload.date}`, afterData: payload });
+        logAuditEventBestEffort({ actionType: "create", entityType: "schedule", entityId: id, entityName: payload.serviceLabel || payload.date, summary: `Programaci?n creada: ${payload.serviceLabel || payload.date}`, afterData: payload });
       }
       await syncScheduleSongNotes(payload.songs || [], before?.songs || null);
       return;
@@ -865,8 +914,7 @@ export function MusicDataProvider({ children }) {
       const { id, ...data } = payload;
       await updateDoc(doc(db, "schedules", id), data);
       notifyScheduleUpdatedBestEffort(payload, id, scheduleChange);
-      notifyNewSongsScheduledBestEffort(payload, id, scheduleChange?.addedEntries || []);
-      await logAuditEvent({ actionType: "update", entityType: "schedule", entityId: id, entityName: data.serviceLabel || data.date, summary: `Programación editada: ${data.serviceLabel || data.date}`, beforeData: before, afterData: data });
+      await logAuditEvent({ actionType: "update", entityType: "schedule", entityId: id, entityName: data.serviceLabel || data.date, summary: `Programaci?n editada: ${data.serviceLabel || data.date}`, beforeData: before, afterData: data });
     } else {
       const created = await addDoc(collection(db, "schedules"), {
         ...payload,
@@ -874,8 +922,7 @@ export function MusicDataProvider({ children }) {
         createdBy: profile.uid
       });
       notifyScheduleCreatedBestEffort(payload, created.id);
-      notifyNewSongsScheduledBestEffort(payload, created.id, payload.songs || []);
-      logAuditEventBestEffort({ actionType: "create", entityType: "schedule", entityId: created.id, entityName: payload.serviceLabel || payload.date, summary: `Programación creada: ${payload.serviceLabel || payload.date}`, afterData: payload });
+      logAuditEventBestEffort({ actionType: "create", entityType: "schedule", entityId: created.id, entityName: payload.serviceLabel || payload.date, summary: `Programaci?n creada: ${payload.serviceLabel || payload.date}`, afterData: payload });
     }
     await syncScheduleSongNotes(payload.songs || [], before?.songs || null);
   };
@@ -885,12 +932,12 @@ export function MusicDataProvider({ children }) {
     if (useLocal) {
       setSchedules((current) => current.filter((schedule) => schedule.id !== scheduleId));
       await deactivateRelatedNotifications({ entityType: "schedule", entityId: scheduleId });
-      await logAuditEvent({ actionType: "delete", entityType: "schedule", entityId: scheduleId, entityName: before?.serviceLabel || before?.date || "", summary: `Programación eliminada: ${before?.serviceLabel || before?.date || scheduleId}`, beforeData: before });
+      await logAuditEvent({ actionType: "delete", entityType: "schedule", entityId: scheduleId, entityName: before?.serviceLabel || before?.date || "", summary: `Programaci?n eliminada: ${before?.serviceLabel || before?.date || scheduleId}`, beforeData: before });
       return;
     }
     await deleteDoc(doc(db, "schedules", scheduleId));
     await deactivateRelatedNotifications({ entityType: "schedule", entityId: scheduleId });
-    await logAuditEvent({ actionType: "delete", entityType: "schedule", entityId: scheduleId, entityName: before?.serviceLabel || before?.date || "", summary: `Programación eliminada: ${before?.serviceLabel || before?.date || scheduleId}`, beforeData: before });
+    await logAuditEvent({ actionType: "delete", entityType: "schedule", entityId: scheduleId, entityName: before?.serviceLabel || before?.date || "", summary: `Programaci?n eliminada: ${before?.serviceLabel || before?.date || scheduleId}`, beforeData: before });
   };
 
   const restoreFromAuditLog = async (log) => {
@@ -969,7 +1016,6 @@ export function MusicDataProvider({ children }) {
 
     const change = buildScheduleChange(before, updated);
     notifyScheduleUpdatedBestEffort(updated, scheduleId, change);
-    notifyNewSongsScheduledBestEffort(updated, scheduleId, change.addedEntries || []);
   };
 
   const saveServiceFollowUp = async (scheduleId, followUp = {}) => {
@@ -1404,3 +1450,4 @@ export const useMusicData = () => {
   }
   return context;
 };
+

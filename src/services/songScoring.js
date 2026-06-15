@@ -899,7 +899,7 @@ export function createServiceReviewSnapshot(review = {}, schedule = {}, songs = 
     missingTheme: countItems("Datos musicales incompletos").filter((item) => normalizeSearchText(item).includes("tema")).length,
     informationalMissingYoutube: countItems("Enlaces de escucha").filter((item) => normalizeSearchText(item).includes("youtube")).length,
     informationalMissingSpotify: countItems("Enlaces de escucha").filter((item) => normalizeSearchText(item).includes("spotify")).length,
-    repeatedSongsWarnings: countItems("Rotaci贸n").concat(countItems("Rotacion")),
+    repeatedSongsWarnings: countItems("Rotación").concat(countItems("Rotacion")),
     alerts: review.alerts || [],
     groups: review.groups || [],
     notes: "",

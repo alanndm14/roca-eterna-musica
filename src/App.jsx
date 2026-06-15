@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useCallback, useEffect, useState } from "react";
 import { RefreshCw, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
@@ -178,9 +178,10 @@ function RoleRoute({ roles, children }) {
 
 function ViewerExperienceRoute({ media = false, children }) {
   const { profile } = useAuth();
+  const location = useLocation();
+  if (media && profile?.role !== "viewer") return <Navigate to={`/programacion${location.search || ""}`} replace />;
   if (profile?.role !== "viewer") return children;
-  const isMedia = (profile.viewerType || "corista") === "medios";
-  if (media !== isMedia) return <Navigate to={isMedia ? "/servicios" : "/musicos"} replace />;
+  if (!media) return <Navigate to={`/servicios${location.search || ""}`} replace />;
   return children;
 }
 

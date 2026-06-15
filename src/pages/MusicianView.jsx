@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { pdf } from "@react-pdf/renderer";
 import { ArrowDown, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, Download, ExternalLink, Eye, FileStack, FileText, Maximize2, Minimize2, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "../components/ui/Button";
@@ -147,6 +148,7 @@ function MusicianScheduleCalendar({ schedules, plannedNewSongs = [], selectedDat
 
 export function MusicianView({ mediaMode = false }) {
   const { isAdmin, canEdit, profile } = useAuth();
+  const [searchParams] = useSearchParams();
   const isViewer = profile?.role === "viewer";
   const { schedules, songs, settings, plannedNewSongs = [], replaceScheduleSong, saveSchedule } = useMusicData();
   const [selectedId, setSelectedId] = useState("");
@@ -166,7 +168,7 @@ export function MusicianView({ mediaMode = false }) {
   const [temporaryMergedPdfUrl, setTemporaryMergedPdfUrl] = useState("");
   const [programDraft, setProgramDraft] = useState([]);
   const [serviceReviewOpen, setServiceReviewOpen] = useState(false);
-  const [schedulePickerOpen, setSchedulePickerOpen] = useState(false);
+  const [schedulePickerOpen, setSchedulePickerOpen] = useState(() => Boolean(mediaMode));
   const selectedServiceRef = useRef(null);
   const today = todayString();
   const [pickerDate, setPickerDate] = useState(today);
@@ -178,11 +180,16 @@ export function MusicianView({ mediaMode = false }) {
   }, [schedules, today]);
 
   useEffect(() => {
+    const requestedScheduleId = searchParams.get("schedule");
+    if (requestedScheduleId && schedules.some((schedule) => schedule.id === requestedScheduleId)) {
+      setSelectedId(requestedScheduleId);
+      return;
+    }
     if (!selectedId) {
       const preferred = getCurrentOrNextSchedule(schedules) || scheduleOptions[0];
       if (preferred?.id) setSelectedId(preferred.id);
     }
-  }, [scheduleOptions, schedules, selectedId]);
+  }, [scheduleOptions, schedules, searchParams, selectedId]);
 
   useEffect(() => {
     document.documentElement.classList.toggle("musician-focus", focusMode);
@@ -451,7 +458,7 @@ export function MusicianView({ mediaMode = false }) {
 
   return (
     <div className={`space-y-5 ${focusMode ? "mx-auto max-w-none" : ""}`}>
-      {mediaMode ? (
+      {mediaMode && dayPlannedNewSongs.length ? (
         <Card>
           <h2 className="text-xl font-bold text-ink">Servicios</h2>
           <p className="mt-1 text-sm text-ink/55">Calendario, cantos nuevos, documentos y enlaces para cada servicio.</p>
@@ -497,7 +504,6 @@ export function MusicianView({ mediaMode = false }) {
             <CalendarDays className="h-5 w-5 text-brass" />
             <div>
               <h3 className="font-bold text-ink">Cambiar servicio</h3>
-              <p className="text-xs text-ink/50">{getServiceDisplayLabel(selectedSchedule)} · {formatDate(selectedSchedule?.date)}</p>
             </div>
           </div>
           <Button variant="subtle" onClick={() => setSchedulePickerOpen((current) => !current)}>
@@ -507,7 +513,6 @@ export function MusicianView({ mediaMode = false }) {
         {schedulePickerOpen ? <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_360px]">
           <MusicianScheduleCalendar schedules={schedules} plannedNewSongs={mediaMode ? plannedNewSongs : []} selectedDate={pickerDate} onSelectDate={setPickerDate} />
           <div className="space-y-3">
-            <p className="text-sm font-semibold text-ink/55">{formatDate(pickerDate)}</p>
             {daySchedules.length ? daySchedules.map((schedule) => (
               <button
                 key={schedule.id}
@@ -521,16 +526,16 @@ export function MusicianView({ mediaMode = false }) {
             )) : (
               <p className="rounded-2xl bg-ink/5 p-4 text-sm text-ink/55">No hay programaciones en este día.</p>
             )}
-            {mediaMode ? (
+            {mediaMode && dayPlannedNewSongs.length ? (
               <div className="border-t border-ink/10 pt-3">
                 <p className="text-xs font-black uppercase tracking-wide text-cyan-700 dark:text-cyan-300">Cantos nuevos planeados</p>
                 <div className="mt-2 space-y-2">
-                  {dayPlannedNewSongs.length ? dayPlannedNewSongs.map((item) => (
-                    <div key={item.id} className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-3">
-                      <p className="font-bold text-ink">{item.songTitle}</p>
-                      <p className="mt-1 text-xs font-semibold capitalize text-ink/50">{item.status || "planeado"}</p>
-                    </div>
-                  )) : <p className="text-sm text-ink/50">No hay cantos nuevos planeados para este día.</p>}
+                  {dayPlannedNewSongs.map((item) => (
+	                    <div key={item.id} className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-3">
+	                      <p className="font-bold text-ink">{item.songTitle}</p>
+	                      <p className="mt-1 text-xs text-ink/55">Canto nuevo planeado · {item.serviceType || "servicio"}</p>
+	                      <p className="mt-1 text-xs font-semibold capitalize text-ink/50">{item.status || "planeado"}</p>
+	                    </div>))}
                 </div>
               </div>
             ) : null}
@@ -543,17 +548,11 @@ export function MusicianView({ mediaMode = false }) {
         ) : null}
         <div className="mt-5">
           <h3 className="font-bold text-ink">Documentos del servicio</h3>
-          <p className="mt-1 text-sm text-ink/55">Documentos útiles para ensayo y servicio, sin subir archivos a la nube.</p>
         </div>
         <div className="mt-4 rounded-3xl border border-ink/10 bg-white/80 p-4 dark:border-white/10 dark:bg-white/5">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h4 className="font-bold text-ink">PDF unido del servicio</h4>
-              <p className="mt-1 text-sm text-ink/55">
-                {temporaryMergedPdf
-                  ? `Disponible en este dispositivo desde ${new Date(temporaryMergedPdf.generatedAt).toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" })}.`
-                  : "Este PDF se guarda temporalmente en este dispositivo."}
-              </p>
               {temporaryMergedPdf?.omitted?.length ? (
                 <p className="mt-2 text-xs font-semibold text-brass">Se generó parcial: {temporaryMergedPdf.omitted.length} canto(s) no se pudieron incluir.</p>
               ) : null}
@@ -876,3 +875,4 @@ export function MusicianView({ mediaMode = false }) {
     </div>
   );
 }
+

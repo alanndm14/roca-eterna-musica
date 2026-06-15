@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { BellRing, Database, Download, FileSearch, HelpCircle, Image as ImageIcon, LogOut, Palette, Save, Tags, Trash2, Upload, UserPlus } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
@@ -24,9 +24,9 @@ const defaultColors = {
 };
 
 const formatAccessDate = (value) => {
-  if (!value) return "Sin conexión registrada";
+  if (!value) return "Sin conexi?n registrada";
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "Sin conexión registrada" : date.toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" });
+  return Number.isNaN(date.getTime()) ? "Sin conexi?n registrada" : date.toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" });
 };
 
 const boolLabel = (value) => (value === true ? "si" : value === false ? "no" : "sin confirmar");
@@ -68,6 +68,7 @@ export function Settings() {
   const [newTheme, setNewTheme] = useState("");
   const [themeQuery, setThemeQuery] = useState("");
   const [themeFilter, setThemeFilter] = useState("all");
+  const [showThemes, setShowThemes] = useState(false);
   const [editingTheme, setEditingTheme] = useState(null);
   const [mergeThemeSource, setMergeThemeSource] = useState(null);
   const [mergeThemeTarget, setMergeThemeTarget] = useState("");
@@ -320,7 +321,7 @@ export function Settings() {
 
   const statusForUser = (user) => {
     if (user.active === false) return "inactivo";
-    return users.some((item) => item.email === user.email) ? "activo" : "pendiente de iniciar sesión";
+    return users.some((item) => item.email === user.email) ? "activo" : "pendiente de iniciar sesi?n";
   };
 
   const refreshApp = async () => {
@@ -338,14 +339,14 @@ export function Settings() {
       installPromptEvent.prompt();
       const choice = await installPromptEvent.userChoice;
       setInstallPromptEvent(null);
-      setInstallStatus(choice?.outcome === "accepted" ? "Instalación iniciada." : "Instalación cancelada por ahora.");
+      setInstallStatus(choice?.outcome === "accepted" ? "Instalaci?n iniciada." : "Instalaci?n cancelada por ahora.");
       return;
     }
     const isiOS = /iphone|ipad|ipod/i.test(navigator.userAgent || "");
     setInstallStatus(
       isiOS
         ? "En Safari, toca Compartir y luego Agregar a pantalla de inicio."
-        : "Abre el menú del navegador y elige Instalar app o Agregar a pantalla principal."
+        : "Abre el men? del navegador y elige Instalar app o Agregar a pantalla principal."
     );
   };
 
@@ -490,7 +491,7 @@ export function Settings() {
   const runPersistentLocalNotificationTest = async () => {
     const result = await testLocalNotification({ requireInteraction: true });
     setLocalNotificationResult(result);
-    setPushStatus(result.executed ? "Notificación local persistente ejecutada sin error. Si no aparece, el bloqueo esta en Chrome/Windows/Android." : result.error || "No se pudo ejecutar la notificación persistente.");
+    setPushStatus(result.executed ? "Notificaci?n local persistente ejecutada sin error. Si no aparece, el bloqueo esta en Chrome/Windows/Android." : result.error || "No se pudo ejecutar la notificación persistente.");
   };
 
   const requestSitePermission = async () => {
@@ -640,7 +641,14 @@ export function Settings() {
             <Tags className="h-5 w-5 text-brass" />
             <h2 className="text-xl font-bold text-ink">Temas del repertorio</h2>
           </div>
-          <p className="mt-1 text-sm text-ink/55">Los filtros también incluyen temas detectados automaticamente en el repertorio.</p>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <Button variant="secondary" onClick={() => setShowThemes((current) => !current)}>
+              {showThemes ? "Ocultar temas" : "Mostrar temas"}
+            </Button>
+            <span className="text-sm font-semibold text-ink/55">{themeRows.length} temas visibles</span>
+          </div>
+          {showThemes ? (
+          <>
           <div className="mt-5 grid gap-3 lg:grid-cols-[1fr_220px_320px]">
             <Input placeholder="Buscar tema" value={themeQuery} onChange={(event) => setThemeQuery(event.target.value)} />
             <Select value={themeFilter} onChange={(event) => setThemeFilter(event.target.value)}>
@@ -661,7 +669,6 @@ export function Settings() {
               </div>
             ) : null}
           </div>
-          <div className="mt-4 text-sm font-semibold text-ink/55">{themeRows.length} temas visibles</div>
           <div className="mt-3 overflow-x-auto rounded-2xl border border-ink/10 bg-white dark:border-white/10 dark:bg-white/5">
             <table className="min-w-[820px] w-full text-left text-sm">
               <thead className="border-b border-ink/10 bg-ink/5 text-xs uppercase tracking-wide text-ink/45 dark:border-white/10 dark:bg-white/5 dark:text-white/50">
@@ -735,6 +742,8 @@ export function Settings() {
               <div className="p-6 text-center text-sm font-semibold text-ink/50">No hay temas con esos filtros.</div>
             ) : null}
           </div>
+          </>
+          ) : null}
         </Card>
         ) : null}
 
@@ -852,7 +861,7 @@ export function Settings() {
           <label className="mt-4 flex items-start gap-3 rounded-2xl border border-brass/25 bg-brass/10 p-4 text-sm font-semibold text-ink">
             <input className="mt-1" type="checkbox" checked={enablePdfOcr} onChange={(event) => setEnablePdfOcr(event.target.checked)} disabled={isIndexingPdfs} />
             <span>
-              Usar OCR automático gratuito para PDFs escaneados
+              Usar OCR autom?tico gratuito para PDFs escaneados
               <span className="mt-1 block text-xs font-medium text-ink/55">
                 Se ejecuta en este navegador con Tesseract.js. Puede tardar varios minutos si hay muchos cantos.
               </span>
@@ -860,11 +869,11 @@ export function Settings() {
           </label>
           <label className="mt-3 flex items-start gap-3 rounded-2xl bg-ink/5 p-3 text-sm font-semibold text-ink/70">
             <input className="mt-1" type="checkbox" checked={forcePdfReindex} onChange={(event) => setForcePdfReindex(event.target.checked)} disabled={isIndexingPdfs} />
-            <span>Forzar reindexación aunque el PDF no haya cambiado</span>
+            <span>Forzar reindexaci?n aunque el PDF no haya cambiado</span>
           </label>
           <Button className="mt-4" variant="secondary" isLoading={isIndexingPdfs} disabled={isIndexingPdfs} onClick={runPdfIndex}>
             <FileSearch className="h-4 w-4" />
-            {isIndexingPdfs ? "Indexando PDFs..." : enablePdfOcr ? "Indexar PDFs con OCR automático" : "Indexar textos de PDFs locales"}
+            {isIndexingPdfs ? "Indexando PDFs..." : enablePdfOcr ? "Indexar PDFs con OCR autom?tico" : "Indexar textos de PDFs locales"}
           </Button>
           {pdfIndexProgress ? (
             <div className="mt-4 rounded-2xl border border-ink/10 bg-ink/5 p-4">
@@ -878,7 +887,7 @@ export function Settings() {
               <p className="mt-3 text-sm text-ink/55">{pdfIndexProgress.songTitle ? `Procesando: ${pdfIndexProgress.songTitle}` : "Preparando indice..."}</p>
               {pdfIndexProgress.ocrProgress ? (
                 <p className="mt-1 text-xs font-semibold text-brass">
-                  OCR página {pdfIndexProgress.ocrProgress.pageNumber || "-"} de {pdfIndexProgress.ocrProgress.totalPages || "-"} · {pdfIndexProgress.ocrProgress.phase || "leyendo"} {pdfIndexProgress.ocrProgress.progress ? `${Math.round(pdfIndexProgress.ocrProgress.progress * 100)}%` : ""}
+                  OCR p?gina {pdfIndexProgress.ocrProgress.pageNumber || "-"} de {pdfIndexProgress.ocrProgress.totalPages || "-"} ? {pdfIndexProgress.ocrProgress.phase || "leyendo"} {pdfIndexProgress.ocrProgress.progress ? `${Math.round(pdfIndexProgress.ocrProgress.progress * 100)}%` : ""}
                 </p>
               ) : null}
               {pdfIndexProgress.pdfPath ? <p className="mt-1 break-all text-xs text-ink/45">PDF: {pdfIndexProgress.pdfPath}</p> : null}
@@ -896,8 +905,8 @@ export function Settings() {
         {isAdmin ? (
           <Card data-tour="settings-access">
             <h2 className="text-xl font-bold text-ink">Correos autorizados</h2>
-            <p className="mt-1 text-sm text-ink/55">Autoriza correos antes de que entren con Google. Los usuarios reales aparecen despues de iniciar sesión.</p>
-            <div className="mt-5 grid gap-3 md:grid-cols-[1fr_1fr_140px_160px_120px]">
+            <p className="mt-1 text-sm text-ink/55">Autoriza correos antes de que entren con Google. Los usuarios reales aparecen despues de iniciar sesi?n.</p>
+            <div className="mt-5 grid gap-3 xl:grid-cols-[minmax(260px,1.2fr)_minmax(220px,1fr)_150px_160px_130px]">
               <Input placeholder="correo@gmail.com" value={newUser.email} onChange={(event) => setNewUser((current) => ({ ...current, email: event.target.value }))} />
               <Input placeholder="Nombre visible" value={newUser.displayName} onChange={(event) => setNewUser((current) => ({ ...current, displayName: event.target.value }))} />
               <Select value={newUser.role} onChange={(event) => setNewUser((current) => ({ ...current, role: event.target.value }))}>
@@ -905,10 +914,13 @@ export function Settings() {
                 <option value="editor">editor</option>
                 <option value="admin">admin</option>
               </Select>
-              <Select value={newUser.viewerType || "corista"} disabled={newUser.role !== "viewer"} onChange={(event) => setNewUser((current) => ({ ...current, viewerType: event.target.value }))}>
-                <option value="corista">Corista</option>
-                <option value="medios">Medios</option>
-              </Select>
+              {newUser.role === "viewer" ? (
+                <Select value={newUser.viewerType || "corista"} onChange={(event) => setNewUser((current) => ({ ...current, viewerType: event.target.value }))}>
+                  <option value="corista">Corista</option>
+                  <option value="musico">Músico</option>
+                  <option value="medios">Medios</option>
+                </Select>
+              ) : <div />}
               <Button onClick={async () => {
                 if (!newUser.email) return;
                 await saveAccessUser(newUser);
@@ -921,10 +933,10 @@ export function Settings() {
 
             <div className="mt-5 space-y-3">
               {userRows.map((user) => (
-                <div key={user.id || user.email} className="grid gap-3 rounded-2xl bg-ink/5 p-3 md:grid-cols-[1fr_120px_125px_140px_105px_105px] md:items-center">
-                  <div>
+                <div key={user.id || user.email} className="grid gap-3 rounded-2xl bg-ink/5 p-3 xl:grid-cols-[minmax(300px,1.35fr)_130px_140px_170px_110px_110px] xl:items-center">
+                  <div className="min-w-0">
                     <p className="font-semibold text-ink">{user.displayName || user.email}</p>
-                    <p className="text-sm text-ink/55">{user.email}</p>
+                    <p className="break-all text-sm text-ink/55">{user.email}</p>
                     <p className="text-xs text-ink/45">Última conexion: {formatAccessDate(user.lastSeenAt || user.lastLoginAt || user.lastLogin)}</p>
                   </div>
                   <span className="text-sm font-semibold text-ink/60">{statusForUser(user)}</span>
@@ -933,15 +945,17 @@ export function Settings() {
                     <option value="editor">editor</option>
                     <option value="admin">admin</option>
                   </Select>
-                  <Select
-                    value={user.viewerType || "corista"}
-                    disabled={user.role !== "viewer"}
-                    onChange={(event) => saveAccessUser({ ...user, viewerType: event.target.value })}
-                    aria-label={`Perfil viewer de ${user.email}`}
-                  >
-                    <option value="corista">Corista</option>
-                    <option value="medios">Medios</option>
-                  </Select>
+                  {user.role === "viewer" ? (
+                    <Select
+                      value={user.viewerType || "corista"}
+                      onChange={(event) => saveAccessUser({ ...user, viewerType: event.target.value })}
+                      aria-label={`Perfil viewer de ${user.email}`}
+                    >
+                      <option value="corista">Corista</option>
+                      <option value="musico">Músico</option>
+                      <option value="medios">Medios</option>
+                    </Select>
+                  ) : <span className="text-sm font-semibold text-ink/35">-</span>}
                   <Button variant={user.active !== false ? "secondary" : "danger"} onClick={() => saveAccessUser({ ...user, active: user.active === false })}>
                     {user.active !== false ? "Activo" : "Inactivo"}
                   </Button>
@@ -978,25 +992,25 @@ export function Settings() {
 
       <aside className="min-w-0 space-y-5">
         <Card>
-          <h2 className="text-xl font-bold text-ink">Mi sesión</h2>
+          <h2 className="text-xl font-bold text-ink">Mi sesi?n</h2>
           <dl className="mt-4 space-y-3 text-sm">
             <div className="flex justify-between gap-4"><dt className="text-ink/50">Nombre</dt><dd className="text-right font-semibold text-ink">{profile?.displayName}</dd></div>
             <div className="flex justify-between gap-4"><dt className="text-ink/50">Correo</dt><dd className="text-right font-semibold text-ink">{profile?.email}</dd></div>
-            <div className="flex justify-between gap-4"><dt className="text-ink/50">Rol</dt><dd className="font-semibold text-ink">{profile?.role}</dd></div>
-            {isViewer ? <div className="flex justify-between gap-4"><dt className="text-ink/50">Perfil</dt><dd className="font-semibold capitalize text-ink">{profile?.viewerType || "corista"}</dd></div> : null}
+            {isAdmin ? <div className="flex justify-between gap-4"><dt className="text-ink/50">Rol</dt><dd className="font-semibold text-ink">{profile?.role}</dd></div> : null}
+            {isAdmin && isViewer ? <div className="flex justify-between gap-4"><dt className="text-ink/50">Perfil</dt><dd className="font-semibold capitalize text-ink">{profile?.viewerType || "corista"}</dd></div> : null}
           </dl>
           <Button variant="danger" className="mt-6 w-full" onClick={signOut}>
             <LogOut className="h-4 w-4" />
-            Cerrar sesión
+            Cerrar sesi?n
           </Button>
         </Card>
 
         <Card>
           <h2 className="text-xl font-bold text-ink">Ayuda</h2>
-          <p className="mt-3 text-sm leading-6 text-ink/60">Abre de nuevo la guía interactiva para repasar como usar cada seccion de la app.</p>
+          <p className="mt-3 text-sm leading-6 text-ink/60">Abre de nuevo la gu?a interactiva para repasar como usar cada seccion de la app.</p>
           <Button className="mt-4 w-full" variant="secondary" onClick={() => window.dispatchEvent(new Event("roca-eterna-open-guide"))}>
             <HelpCircle className="h-4 w-4" />
-            Ver guía otra vez
+            Ver gu?a otra vez
           </Button>
         </Card>
 
@@ -1030,7 +1044,7 @@ export function Settings() {
               {pushSummary.lastAttemptFailed ? (
                 <div className="flex justify-between gap-3">
                   <dt>Último intento</dt>
-                  <dd className="text-right font-semibold text-brass">falló: {pushTestResult?.body?.stage || "sin etapa"}</dd>
+                  <dd className="text-right font-semibold text-brass">fall?: {pushTestResult?.body?.stage || "sin etapa"}</dd>
                 </div>
               ) : null}
               <div className="flex justify-between gap-3">
@@ -1098,12 +1112,12 @@ export function Settings() {
                 <p>Prueba FCM: {pushTestResult.ok ? `enviada (${pushTestResult.body?.sent || 0} enviados, ${pushTestResult.body?.failed || 0} fallidos, etapa ${pushTestResult.body?.stage || "sin etapa"})` : pushTestResult.body?.message || pushTestResult.error || "fallo"}.</p>
               ) : null}
               {pushCooldownActive ? <p className="font-semibold text-brass">Pausa temporal por cuota: espera {pushCooldownSeconds}s antes de volver a probar.</p> : null}
-              <p>Recepción: app abierta {foregroundPushResult ? "recibida" : "sin confirmar"}; segundo plano {backgroundPushResult ? "recibida" : "sin confirmar"}.</p>
+              <p>Recepci?n: app abierta {foregroundPushResult ? "recibida" : "sin confirmar"}; segundo plano {backgroundPushResult ? "recibida" : "sin confirmar"}.</p>
             </div>
           ) : null}
           {isAdmin ? (
             <Button className="mt-3 w-full" variant="subtle" onClick={() => setShowAdvancedPushDiagnostics((value) => !value)}>
-              {showAdvancedPushDiagnostics ? "Ocultar diagnóstico avanzado" : "Diagnóstico avanzado"}
+              {showAdvancedPushDiagnostics ? "Ocultar diagn?stico avanzado" : "Diagn?stico avanzado"}
             </Button>
           ) : null}
           {showAdvancedPushDiagnostics && pushDiagnostic ? (
@@ -1208,7 +1222,7 @@ export function Settings() {
                     {pushCooldownActive ? `Espera ${pushCooldownSeconds}s` : "Prueba data-only"}
                   </Button>
                   <Button className="w-full" variant="subtle" disabled={isUpdatingPush} onClick={runPersistentLocalNotificationTest}>
-                    Notificación local persistente
+                    Notificaci?n local persistente
                   </Button>
                   <Button className="w-full" variant="subtle" disabled={isUpdatingPush} onClick={requestSitePermission}>
                     Solicitar permiso del sitio
@@ -1220,7 +1234,7 @@ export function Settings() {
                     permisoAntes: localNotificationResult.permissionBefore,
                     permisoDespues: localNotificationResult.permissionAfter,
                     metodoUsado: localNotificationResult.method || "sin metodo",
-                    notificaciónLocalIntentada: localNotificationResult.attempted ? "si" : "no",
+                    notificacionLocalIntentada: localNotificationResult.attempted ? "si" : "no",
                     notificationApiEjecutadaSinError: localNotificationResult.executed ? "si" : "no",
                     origin: localNotificationResult.origin,
                     href: localNotificationResult.href,
@@ -1244,7 +1258,7 @@ export function Settings() {
                     fallidos: pushTestResult.body?.failed,
                     invalidos: pushTestResult.body?.invalidTokens,
                     avisoForegroundRecibido: foregroundPushResult ? "si" : "no",
-                    ultimaRecepciónForeground: foregroundPushResult?.receivedAt || "",
+                    ultimaRecepcionForeground: foregroundPushResult?.receivedAt || "",
                     code: pushTestResult.body?.code,
                     etapa: pushTestResult.body?.stage,
                     source: pushTestResult.body?.source,
@@ -1253,11 +1267,11 @@ export function Settings() {
                   }, null, 2)}</pre>
                 ) : <p>Sin prueba registrada.</p>}
                 <div className="rounded-xl bg-ink/5 p-2 text-[11px] leading-5 dark:bg-white/10">
-                  <p className="font-semibold text-ink">Recepción foreground</p>
+                  <p className="font-semibold text-ink">Recepci?n foreground</p>
                   <p>{foregroundPushResult ? `Mensaje recibido con la app abierta: ${foregroundPushResult.title}` : "Sin mensaje recibido con la app abierta en este navegador."}</p>
                 </div>
                 <div className="rounded-xl bg-ink/5 p-2 text-[11px] leading-5 dark:bg-white/10">
-                  <p className="font-semibold text-ink">Recepción background / service worker</p>
+                  <p className="font-semibold text-ink">Recepci?n background / service worker</p>
                   <p>{backgroundPushResult ? `Mensaje recibido por service worker: ${backgroundPushResult.title}` : "Sin mensaje background registrado en este navegador."}</p>
                 </div>
                 <p className="pt-2 font-semibold text-ink">Ultimo envio automatico</p>
@@ -1321,7 +1335,7 @@ export function Settings() {
           {installStatus ? <p className="mt-3 rounded-2xl bg-ink/5 p-3 text-sm text-ink/65">{installStatus}</p> : null}
           {!installPromptEvent && !isStandalone ? (
             <p className="mt-3 text-xs leading-5 text-ink/55">
-              Si el botón no abre un permiso de instalación, usa el menú del navegador y elige Instalar app o Agregar a pantalla principal.
+              Si el bot?n no abre un permiso de instalaci?n, usa el men? del navegador y elige Instalar app o Agregar a pantalla principal.
             </p>
           ) : null}
         </Card>
@@ -1332,7 +1346,7 @@ export function Settings() {
           <p className="mt-3 text-sm leading-6 text-ink/60">Limpia caché local y recarga si la PWA muestra una versión vieja.</p>
           <dl className="mt-4 grid gap-2 rounded-2xl bg-ink/5 p-3 text-sm">
             <div className="flex items-center justify-between gap-3">
-              <dt className="text-ink/55">Versión instalada</dt>
+              <dt className="text-ink/55">Versi?n instalada</dt>
               <dd className="font-semibold text-ink">{getInstalledVersion() || appVersion}</dd>
             </div>
             <div className="flex items-center justify-between gap-3">
@@ -1341,7 +1355,7 @@ export function Settings() {
             </div>
             <div className="flex items-center justify-between gap-3">
               <dt className="text-ink/55">Estado</dt>
-              <dd className="font-semibold text-ink">{latestVersion?.version && latestVersion.version !== appVersion ? "actualización disponible" : "actualizado"}</dd>
+              <dd className="font-semibold text-ink">{latestVersion?.version && latestVersion.version !== appVersion ? "actualizaci?n disponible" : "actualizado"}</dd>
             </div>
           </dl>
           <Button className="mt-4 w-full" variant="secondary" onClick={refreshApp}>Actualizar app</Button>
@@ -1425,7 +1439,7 @@ function PdfIndexList({ title, items = [], showUrl = false, fallbackMessage = ""
               <p className="break-all">Ruta guardada: {item.localPdfPath || "--"}</p>
               {showUrl ? <p className="break-all">URL resuelta: {item.resolvedUrl || "--"}</p> : null}
               {item.statusHttp ? <p>Status HTTP: {item.statusHttp}</p> : null}
-              {item.method ? <p>Método: {item.method === "ocr" ? "OCR automático" : "texto seleccionable"}</p> : null}
+              {item.method ? <p>M?todo: {item.method === "ocr" ? "OCR autom?tico" : "texto seleccionable"}</p> : null}
               {(item.message || fallbackMessage) ? <p>{item.message || fallbackMessage}</p> : null}
             </div>
           ))}
@@ -1436,3 +1450,5 @@ function PdfIndexList({ title, items = [], showUrl = false, fallbackMessage = ""
     </div>
   );
 }
+
+

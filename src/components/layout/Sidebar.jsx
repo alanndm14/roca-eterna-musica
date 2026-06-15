@@ -61,13 +61,11 @@ export function Sidebar({ profile, collapsed = false, logoSrc = appLogo, logoAlt
       <div className={`mt-auto rounded-3xl border border-white/10 bg-white/7 ${collapsed ? "px-2 py-3 text-center" : "p-4"}`}>
         {!collapsed ? <p className="text-xs text-white/45">Sesión</p> : null}
         <p className={`mt-1 truncate text-sm font-semibold ${collapsed ? "sr-only" : ""}`}>{visibleName}</p>
-        <p className="mt-2 inline-flex rounded-full bg-brass/20 px-2 py-1 text-xs font-semibold text-brass">
-          {collapsed
-            ? (profile?.role || "viewer").slice(0, 1).toUpperCase()
-            : profile?.role === "viewer"
-              ? `viewer · ${profile?.viewerType || "corista"}`
-              : profile?.role || "viewer"}
-        </p>
+        {profile?.role === "admin" ? (
+          <p className="mt-2 inline-flex rounded-full bg-brass/20 px-2 py-1 text-xs font-semibold text-brass">
+            {collapsed ? "A" : "admin"}
+          </p>
+        ) : null}
       </div>
     </aside>
   );

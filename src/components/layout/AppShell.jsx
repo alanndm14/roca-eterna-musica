@@ -40,6 +40,8 @@ const obsoleteTestSchedulePushIds = new Set([
 const isObsoleteTestScheduleNotification = (item = {}) => {
   const time = item.createdAt?.seconds ? item.createdAt.seconds * 1000 : new Date(item.createdAt || 0).getTime();
   return obsoleteTestSchedulePushIds.has(item.pushNotificationId)
+    || item.pushNotificationId?.startsWith?.("new-song-scheduled-")
+    || (item.type === "new_song" && (item.entityType === "schedule" || item.scheduleId))
     || (["new_schedule", "new_song"].includes(item.type)
       && (item.entityType === "schedule" || item.scheduleId)
       && time >= new Date("2026-06-07T20:00:00.000Z").getTime()
@@ -171,7 +173,7 @@ export function AppShell() {
   const initializedInternalNotifications = useRef(false);
   const refreshedPushRegistration = useRef(false);
   const pageTitle = location.pathname === "/inteligente" ? "Centro Inteligente" : pageNames[location.pathname] || "Roca Eterna Música";
-  const viewerSchedulePath = profile?.role === "viewer" && profile?.viewerType === "medios" ? "/servicios" : "/musicos";
+  const viewerSchedulePath = "/servicios";
   const themeMode = profile?.themeMode || localStorage.getItem("roca-eterna-theme-mode") || "system";
   const effectiveTheme = getEffectiveThemeMode(themeMode);
   const logoSrc = getInstitutionalLogo(settings, effectiveTheme === "dark" ? appDarkLogo : appLogo, themeMode);
@@ -443,7 +445,7 @@ export function AppShell() {
       alert(notification.scheduleId ? "Esta programación ya fue eliminada." : notification.songId ? "Este canto ya fue eliminado." : "Esta novedad ya no está activa.");
       return;
     }
-    if (notification.scheduleId) navigate(profile?.role === "viewer" ? viewerSchedulePath : "/programacion");
+    if (notification.scheduleId) navigate(profile?.role === "viewer" ? `${viewerSchedulePath}?schedule=${notification.scheduleId}` : `/programacion?schedule=${notification.scheduleId}`);
     if (notification.songId) navigate(`/repertorio/${notification.songId}`);
   };
 
@@ -459,7 +461,7 @@ export function AppShell() {
       return;
     }
     if (novelty.scheduleId) {
-      navigate(profile?.role === "viewer" ? viewerSchedulePath : "/programacion");
+      navigate(profile?.role === "viewer" ? `${viewerSchedulePath}?schedule=${novelty.scheduleId}` : `/programacion?schedule=${novelty.scheduleId}`);
     } else if (novelty.songId) {
       navigate(`/repertorio/${novelty.songId}`);
     } else if (url.startsWith("/#/")) {

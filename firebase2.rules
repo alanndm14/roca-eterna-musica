@@ -207,7 +207,7 @@ service cloud.firestore {
         && request.resource.data.role in ["admin", "editor", "viewer"]
         && (
           request.resource.data.role != "viewer"
-          || request.resource.data.get("viewerType", "corista") in ["corista", "medios"]
+          || request.resource.data.get("viewerType", "corista") in ["corista", "musico", "medios"]
         )
         && (
           isBootstrapAdmin()

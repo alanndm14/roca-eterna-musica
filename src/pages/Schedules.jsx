@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { pdf } from "@react-pdf/renderer";
 import { ArrowDown, ArrowUp, CalendarDays, CheckCircle2, Copy, Download, Edit3, Eye, FileText, Music2, Plus, Printer, Search, Trash2 } from "lucide-react";
 import { Button } from "../components/ui/Button";
@@ -585,6 +586,7 @@ function ScheduleCard({
 
 export function Schedules() {
   const { canEdit, canDelete } = useAuth();
+  const [searchParams] = useSearchParams();
   const {
     songs,
     schedules,
@@ -612,6 +614,15 @@ export function Schedules() {
     return [...schedules].filter((schedule) => schedule.date >= today).sort((a, b) => a.date.localeCompare(b.date))[0]?.date || today;
   });
   const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    const scheduleId = searchParams.get("schedule");
+    if (!scheduleId) return;
+    const schedule = schedules.find((item) => item.id === scheduleId);
+    if (!schedule?.date) return;
+    setSelectedDate(schedule.date);
+    setTab("calendar");
+  }, [schedules, searchParams]);
 
   const searchedSchedules = useMemo(() => {
     const term = query.toLowerCase();
@@ -825,26 +836,28 @@ export function Schedules() {
               )) : <p className="text-sm text-ink/55">No hay programaciones para este día.</p>}
               </div>
             </div>
-            <div className="mt-6 border-t border-ink/10 pt-5">
-              <div className="flex items-center gap-2">
-                <Music2 className="h-4 w-4 text-cyan-600 dark:text-cyan-300" />
-                <h4 className="text-xs font-black uppercase tracking-wide text-ink/45">Cantos nuevos planeados</h4>
+            {visiblePlannedNewSongs.length ? (
+              <div className="mt-6 border-t border-ink/10 pt-5">
+                <div className="flex items-center gap-2">
+                  <Music2 className="h-4 w-4 text-cyan-600 dark:text-cyan-300" />
+                  <h4 className="text-xs font-black uppercase tracking-wide text-ink/45">Cantos nuevos planeados</h4>
+                </div>
+                <div className="mt-3 space-y-3">
+                  {visiblePlannedNewSongs.map((item) => (
+                    <PlannedNewSongCard
+                      key={item.id}
+                      item={item}
+                      songs={songs}
+                      canEdit={canEdit}
+                      canDelete={canDelete}
+                      onEdit={setPlannedNewSongDraft}
+                      onMarkIntroduced={markPlannedNewSongIntroduced}
+                      onDelete={removePlannedSong}
+                    />
+                  ))}
+                </div>
               </div>
-              <div className="mt-3 space-y-3">
-                {visiblePlannedNewSongs.length ? visiblePlannedNewSongs.map((item) => (
-                  <PlannedNewSongCard
-                    key={item.id}
-                    item={item}
-                    songs={songs}
-                    canEdit={canEdit}
-                    canDelete={canDelete}
-                    onEdit={setPlannedNewSongDraft}
-                    onMarkIntroduced={markPlannedNewSongIntroduced}
-                    onDelete={removePlannedSong}
-                  />
-                )) : <p className="text-sm text-ink/55">No hay cantos nuevos planeados para este día.</p>}
-              </div>
-            </div>
+            ) : null}
           </Card>
         </div>
       ) : null}
@@ -1015,3 +1028,4 @@ function getScheduledSongOptions(schedule = {}, songs = []) {
     };
   });
 }
+
