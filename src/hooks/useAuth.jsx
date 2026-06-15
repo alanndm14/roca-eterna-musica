@@ -68,7 +68,14 @@ export function AuthProvider({ children }) {
             lastSeenAt: serverTimestamp()
           });
           if (data.active && data.email?.toLowerCase() === email) {
-            setProfile({ uid, id: snap.id, ...data, lastLoginAt: new Date(), lastSeenAt: new Date() });
+            setProfile({
+              uid,
+              id: snap.id,
+              ...data,
+              viewerType: data.role === "viewer" ? data.viewerType || "corista" : null,
+              lastLoginAt: new Date(),
+              lastSeenAt: new Date()
+            });
             setUnauthorized(false);
           } else {
             setProfile(null);
@@ -104,6 +111,7 @@ export function AuthProvider({ children }) {
               email,
               displayName: firebaseUser.displayName || allowed.displayName || email,
               role: allowed.role || "viewer",
+              viewerType: allowed.role === "viewer" ? allowed.viewerType || "corista" : null,
               active: true,
               themeMode: "system",
               accentColor: "#b6945f",

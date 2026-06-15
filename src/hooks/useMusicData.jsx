@@ -1056,6 +1056,7 @@ export function MusicDataProvider({ children }) {
       email,
       displayName: user.displayName || email,
       role: user.role || "viewer",
+      viewerType: (user.role || "viewer") === "viewer" ? user.viewerType || "corista" : null,
       active: Boolean(user.active)
     };
 

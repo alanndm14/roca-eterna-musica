@@ -1,10 +1,8 @@
 {
-  "version": "0.9.122",
+  "version": "0.9.123",
   "date": "2026-06-15",
   "critical": true,
   "changes": [
-    "Cantos nuevos planeados dentro del calendario",
-    "Seguimiento de preparación y estreno de cantos",
-    "Acceso de lectura para todos los usuarios"
+    "Corrección de errores"
   ]
 }

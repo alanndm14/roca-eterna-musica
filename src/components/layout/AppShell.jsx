@@ -20,6 +20,7 @@ const pageNames = {
   "/repertorio": "Repertorio",
   "/programacion": "Programación",
   "/musicos": "Vista para músicos",
+  "/servicios": "Servicios",
   "/historial": "Historial",
   "/estadisticas": "Estadísticas",
   "/configuracion": "Configuración",
@@ -170,6 +171,7 @@ export function AppShell() {
   const initializedInternalNotifications = useRef(false);
   const refreshedPushRegistration = useRef(false);
   const pageTitle = location.pathname === "/inteligente" ? "Centro Inteligente" : pageNames[location.pathname] || "Roca Eterna Música";
+  const viewerSchedulePath = profile?.role === "viewer" && profile?.viewerType === "medios" ? "/servicios" : "/musicos";
   const themeMode = profile?.themeMode || localStorage.getItem("roca-eterna-theme-mode") || "system";
   const effectiveTheme = getEffectiveThemeMode(themeMode);
   const logoSrc = getInstitutionalLogo(settings, effectiveTheme === "dark" ? appDarkLogo : appLogo, themeMode);
@@ -441,7 +443,7 @@ export function AppShell() {
       alert(notification.scheduleId ? "Esta programación ya fue eliminada." : notification.songId ? "Este canto ya fue eliminado." : "Esta novedad ya no está activa.");
       return;
     }
-    if (notification.scheduleId) navigate(profile?.role === "viewer" ? "/musicos" : "/programacion");
+    if (notification.scheduleId) navigate(profile?.role === "viewer" ? viewerSchedulePath : "/programacion");
     if (notification.songId) navigate(`/repertorio/${notification.songId}`);
   };
 
@@ -457,7 +459,7 @@ export function AppShell() {
       return;
     }
     if (novelty.scheduleId) {
-      navigate(profile?.role === "viewer" ? "/musicos" : "/programacion");
+      navigate(profile?.role === "viewer" ? viewerSchedulePath : "/programacion");
     } else if (novelty.songId) {
       navigate(`/repertorio/${novelty.songId}`);
     } else if (url.startsWith("/#/")) {

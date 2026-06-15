@@ -4,7 +4,7 @@ import { getVisibleNavItems } from "./navigation";
 
 export function Sidebar({ profile, collapsed = false, logoSrc = appLogo, logoAlt = "Roca Eterna Música", logoMode = "light" }) {
   const visibleName = profile?.preferredDisplayName || profile?.displayName || profile?.email;
-  const navItems = getVisibleNavItems(profile?.role || "viewer");
+  const navItems = getVisibleNavItems(profile);
 
   return (
     <aside className={`app-sidebar fixed left-0 top-0 hidden h-screen flex-col bg-ink p-5 text-white transition-all duration-200 lg:flex ${collapsed ? "w-20" : "w-72"}`}>
@@ -62,7 +62,11 @@ export function Sidebar({ profile, collapsed = false, logoSrc = appLogo, logoAlt
         {!collapsed ? <p className="text-xs text-white/45">Sesión</p> : null}
         <p className={`mt-1 truncate text-sm font-semibold ${collapsed ? "sr-only" : ""}`}>{visibleName}</p>
         <p className="mt-2 inline-flex rounded-full bg-brass/20 px-2 py-1 text-xs font-semibold text-brass">
-          {collapsed ? (profile?.role || "viewer").slice(0, 1).toUpperCase() : profile?.role || "viewer"}
+          {collapsed
+            ? (profile?.role || "viewer").slice(0, 1).toUpperCase()
+            : profile?.role === "viewer"
+              ? `viewer · ${profile?.viewerType || "corista"}`
+              : profile?.role || "viewer"}
         </p>
       </div>
     </aside>

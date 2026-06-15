@@ -220,7 +220,7 @@ export function Dashboard() {
                   </Button>
                 </Link>
               ) : null}
-              <Link to={canEdit ? "/programacion" : "/musicos"}>
+              <Link to={canEdit ? "/programacion" : profile?.viewerType === "medios" ? "/servicios" : "/musicos"}>
                 <Button variant="darkSubtle">
                   <CalendarPlus className="h-4 w-4" />
                   {canEdit ? "Nueva programación" : "Ver próximo servicio"}

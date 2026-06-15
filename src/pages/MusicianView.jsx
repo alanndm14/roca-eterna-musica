@@ -58,7 +58,7 @@ function getScheduledSongOptions(schedule = {}, songs = []) {
   });
 }
 
-function MusicianScheduleCalendar({ schedules, selectedDate, onSelectDate }) {
+function MusicianScheduleCalendar({ schedules, plannedNewSongs = [], selectedDate, onSelectDate }) {
   const [cursor, setCursor] = useState(() => new Date(`${selectedDate || todayString()}T00:00:00`));
   const year = cursor.getFullYear();
   const month = cursor.getMonth();
@@ -74,6 +74,11 @@ function MusicianScheduleCalendar({ schedules, selectedDate, onSelectDate }) {
     if (!schedule.date) return acc;
     acc[schedule.date] = acc[schedule.date] || [];
     acc[schedule.date].push(schedule);
+    return acc;
+  }, {});
+  const plannedByDate = plannedNewSongs.reduce((acc, item) => {
+    if (!item.plannedDate || item.status === "pospuesto") return acc;
+    acc[item.plannedDate] = (acc[item.plannedDate] || 0) + 1;
     return acc;
   }, {});
   const today = todayString();
@@ -102,6 +107,7 @@ function MusicianScheduleCalendar({ schedules, selectedDate, onSelectDate }) {
         {days.map((day) => {
           const dateString = toLocalDateString(day);
           const count = byDate[dateString]?.length || 0;
+          const plannedCount = plannedByDate[dateString] || 0;
           const isCurrentMonth = day.getMonth() === month;
           const isSelected = selectedDate === dateString;
           const isToday = dateString === today && isCurrentMonth;
@@ -126,6 +132,11 @@ function MusicianScheduleCalendar({ schedules, selectedDate, onSelectDate }) {
                   {count}
                 </span>
               ) : null}
+              {plannedCount ? (
+                <span className="ml-1 mt-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-cyan-500 px-1 text-[9px] font-bold text-white sm:h-5 sm:min-w-5 sm:text-[10px]" title={`${plannedCount} canto(s) nuevo(s) planeado(s)`}>
+                  {plannedCount}
+                </span>
+              ) : null}
             </button>
           );
         })}
@@ -134,10 +145,10 @@ function MusicianScheduleCalendar({ schedules, selectedDate, onSelectDate }) {
   );
 }
 
-export function MusicianView() {
+export function MusicianView({ mediaMode = false }) {
   const { isAdmin, canEdit, profile } = useAuth();
   const isViewer = profile?.role === "viewer";
-  const { schedules, songs, settings, replaceScheduleSong, saveSchedule } = useMusicData();
+  const { schedules, songs, settings, plannedNewSongs = [], replaceScheduleSong, saveSchedule } = useMusicData();
   const [selectedId, setSelectedId] = useState("");
   const [focusMode, setFocusMode] = useState(false);
   const [sheetUrl, setSheetUrl] = useState("");
@@ -193,6 +204,12 @@ export function MusicianView() {
   const daySchedules = useMemo(
     () => schedules.filter((schedule) => schedule.date === pickerDate).sort((a, b) => `${a.time || ""}`.localeCompare(`${b.time || ""}`)),
     [pickerDate, schedules]
+  );
+  const dayPlannedNewSongs = useMemo(
+    () => plannedNewSongs
+      .filter((item) => item.plannedDate === pickerDate && item.status !== "pospuesto")
+      .sort((a, b) => `${a.songTitle || ""}`.localeCompare(`${b.songTitle || ""}`, "es")),
+    [pickerDate, plannedNewSongs]
   );
   const nextSchedule = getCurrentOrNextSchedule(schedules) || scheduleOptions[0];
 
@@ -434,6 +451,12 @@ export function MusicianView() {
 
   return (
     <div className={`space-y-5 ${focusMode ? "mx-auto max-w-none" : ""}`}>
+      {mediaMode ? (
+        <Card>
+          <h2 className="text-xl font-bold text-ink">Servicios</h2>
+          <p className="mt-1 text-sm text-ink/55">Calendario, cantos nuevos, documentos y enlaces para cada servicio.</p>
+        </Card>
+      ) : null}
       <div ref={selectedServiceRef}>
       <Card className="bg-ink text-white">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
@@ -482,7 +505,7 @@ export function MusicianView() {
           </Button>
         </div>
         {schedulePickerOpen ? <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_360px]">
-          <MusicianScheduleCalendar schedules={schedules} selectedDate={pickerDate} onSelectDate={setPickerDate} />
+          <MusicianScheduleCalendar schedules={schedules} plannedNewSongs={mediaMode ? plannedNewSongs : []} selectedDate={pickerDate} onSelectDate={setPickerDate} />
           <div className="space-y-3">
             <p className="text-sm font-semibold text-ink/55">{formatDate(pickerDate)}</p>
             {daySchedules.length ? daySchedules.map((schedule) => (
@@ -498,6 +521,19 @@ export function MusicianView() {
             )) : (
               <p className="rounded-2xl bg-ink/5 p-4 text-sm text-ink/55">No hay programaciones en este día.</p>
             )}
+            {mediaMode ? (
+              <div className="border-t border-ink/10 pt-3">
+                <p className="text-xs font-black uppercase tracking-wide text-cyan-700 dark:text-cyan-300">Cantos nuevos planeados</p>
+                <div className="mt-2 space-y-2">
+                  {dayPlannedNewSongs.length ? dayPlannedNewSongs.map((item) => (
+                    <div key={item.id} className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-3">
+                      <p className="font-bold text-ink">{item.songTitle}</p>
+                      <p className="mt-1 text-xs font-semibold capitalize text-ink/50">{item.status || "planeado"}</p>
+                    </div>
+                  )) : <p className="text-sm text-ink/50">No hay cantos nuevos planeados para este día.</p>}
+                </div>
+              </div>
+            ) : null}
           </div>
         </div> : null}
         {serviceReview && !isViewer ? (
@@ -583,7 +619,7 @@ export function MusicianView() {
                     </Button>
                   ) : null}
                 </div>
-                <p className="mt-2 text-base text-ink/60">{song.notes || "Sin notas para este canto."}</p>
+                {!mediaMode ? <p className="mt-2 text-base text-ink/60">{song.notes || "Sin notas para este canto."}</p> : null}
                 {!isViewer ? <SongFollowUpNotice issues={getOutstandingSongFollowUps(song.entry.songId, schedules, selectedSchedule).slice(0, 1)} /> : null}
                 <div className="mt-3 flex flex-wrap gap-2">
                   {song.pdfUrl ? <a className="inline-flex items-center gap-2 rounded-xl bg-brass/12 px-3 py-2 text-sm font-bold text-brass" href={song.pdfUrl} target="_blank" rel="noreferrer">PDF de letra y acordes <ExternalLink className="h-4 w-4" /></a> : null}
@@ -603,7 +639,7 @@ export function MusicianView() {
         ))}
       </div>
 
-      {selectedSchedule.generalNotes ? (
+      {!mediaMode && selectedSchedule.generalNotes ? (
         <Card>
           <h3 className="font-bold text-ink">Notas generales</h3>
           <p className="mt-2 leading-7 text-ink/62">{selectedSchedule.generalNotes}</p>

@@ -9,8 +9,8 @@ export function BottomNav() {
   const location = useLocation();
   const { profile, signOut } = useAuth();
   const [open, setOpen] = useState(false);
-  const mobilePrimaryItems = getMobilePrimaryItems(profile?.role || "viewer");
-  const mobileExtraItems = getMobileExtraItems(profile?.role || "viewer");
+  const mobilePrimaryItems = getMobilePrimaryItems(profile);
+  const mobileExtraItems = getMobileExtraItems(profile);
   const showMore = mobileExtraItems.length > 0;
   const isMoreActive = mobileExtraItems.some((item) => location.pathname === item.path || location.pathname.startsWith(`${item.path}/`));
 

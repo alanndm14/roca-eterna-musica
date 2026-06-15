@@ -206,6 +206,10 @@ service cloud.firestore {
         && request.resource.data.active == true
         && request.resource.data.role in ["admin", "editor", "viewer"]
         && (
+          request.resource.data.role != "viewer"
+          || request.resource.data.get("viewerType", "corista") in ["corista", "medios"]
+        )
+        && (
           isBootstrapAdmin()
           || (hasAuthorizedEmailDoc() && request.resource.data.role == authorizedEmailDoc().data.role)
           || (hasLegacyAllowedEmailDoc() && request.resource.data.role == legacyAllowedEmailDoc().data.role)

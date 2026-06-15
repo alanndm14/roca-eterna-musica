@@ -130,6 +130,7 @@ function DataReady({ children }) {
         logoAlt={settings?.logoAltText || "Roca Eterna Música"}
         logoMode={effectiveTheme}
         role={profile?.role || "viewer"}
+        viewerType={profile?.viewerType || "corista"}
       />
     </>
   );
@@ -175,6 +176,14 @@ function RoleRoute({ roles, children }) {
   return roles.includes(profile?.role || "viewer") ? children : <Navigate to="/" replace />;
 }
 
+function ViewerExperienceRoute({ media = false, children }) {
+  const { profile } = useAuth();
+  if (profile?.role !== "viewer") return children;
+  const isMedia = (profile.viewerType || "corista") === "medios";
+  if (media !== isMedia) return <Navigate to={isMedia ? "/servicios" : "/musicos"} replace />;
+  return children;
+}
+
 export default function App() {
   return (
     <AuthProvider>
@@ -193,8 +202,9 @@ export default function App() {
           <Route index element={<Dashboard />} />
           <Route path="repertorio" element={<Songs />} />
           <Route path="repertorio/:songId" element={<SongDetail />} />
-          <Route path="programacion" element={<Schedules />} />
-          <Route path="musicos" element={<MusicianView />} />
+          <Route path="programacion" element={<ViewerExperienceRoute><Schedules /></ViewerExperienceRoute>} />
+          <Route path="musicos" element={<ViewerExperienceRoute><MusicianView /></ViewerExperienceRoute>} />
+          <Route path="servicios" element={<ViewerExperienceRoute media><MusicianView mediaMode /></ViewerExperienceRoute>} />
           <Route path="inteligente" element={<RoleRoute roles={["admin", "editor"]}><SmartCenter /></RoleRoute>} />
           <Route path="historial" element={<RoleRoute roles={["admin", "editor"]}><History /></RoleRoute>} />
           <Route path="estadisticas" element={<RoleRoute roles={["admin", "editor"]}><Stats /></RoleRoute>} />

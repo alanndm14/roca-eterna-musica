@@ -64,7 +64,7 @@ export function Settings() {
     accentColor: profile?.accentColor || localStorage.getItem("roca-eterna-accent-color") || defaultColors.accentColor,
     blueGrayColor: profile?.blueGrayColor || defaultColors.blueGrayColor
   });
-  const [newUser, setNewUser] = useState({ email: "", displayName: "", role: "viewer", active: true });
+  const [newUser, setNewUser] = useState({ email: "", displayName: "", role: "viewer", viewerType: "corista", active: true });
   const [newTheme, setNewTheme] = useState("");
   const [themeQuery, setThemeQuery] = useState("");
   const [themeFilter, setThemeFilter] = useState("all");
@@ -897,7 +897,7 @@ export function Settings() {
           <Card data-tour="settings-access">
             <h2 className="text-xl font-bold text-ink">Correos autorizados</h2>
             <p className="mt-1 text-sm text-ink/55">Autoriza correos antes de que entren con Google. Los usuarios reales aparecen despues de iniciar sesión.</p>
-            <div className="mt-5 grid gap-3 md:grid-cols-[1fr_1fr_140px_120px]">
+            <div className="mt-5 grid gap-3 md:grid-cols-[1fr_1fr_140px_160px_120px]">
               <Input placeholder="correo@gmail.com" value={newUser.email} onChange={(event) => setNewUser((current) => ({ ...current, email: event.target.value }))} />
               <Input placeholder="Nombre visible" value={newUser.displayName} onChange={(event) => setNewUser((current) => ({ ...current, displayName: event.target.value }))} />
               <Select value={newUser.role} onChange={(event) => setNewUser((current) => ({ ...current, role: event.target.value }))}>
@@ -905,10 +905,14 @@ export function Settings() {
                 <option value="editor">editor</option>
                 <option value="admin">admin</option>
               </Select>
+              <Select value={newUser.viewerType || "corista"} disabled={newUser.role !== "viewer"} onChange={(event) => setNewUser((current) => ({ ...current, viewerType: event.target.value }))}>
+                <option value="corista">Corista</option>
+                <option value="medios">Medios</option>
+              </Select>
               <Button onClick={async () => {
                 if (!newUser.email) return;
                 await saveAccessUser(newUser);
-                setNewUser({ email: "", displayName: "", role: "viewer", active: true });
+                setNewUser({ email: "", displayName: "", role: "viewer", viewerType: "corista", active: true });
               }}>
                 <UserPlus className="h-4 w-4" />
                 Agregar
@@ -917,7 +921,7 @@ export function Settings() {
 
             <div className="mt-5 space-y-3">
               {userRows.map((user) => (
-                <div key={user.id || user.email} className="grid gap-3 rounded-2xl bg-ink/5 p-3 md:grid-cols-[1fr_140px_130px_105px_105px] md:items-center">
+                <div key={user.id || user.email} className="grid gap-3 rounded-2xl bg-ink/5 p-3 md:grid-cols-[1fr_120px_125px_140px_105px_105px] md:items-center">
                   <div>
                     <p className="font-semibold text-ink">{user.displayName || user.email}</p>
                     <p className="text-sm text-ink/55">{user.email}</p>
@@ -928,6 +932,15 @@ export function Settings() {
                     <option value="viewer">viewer</option>
                     <option value="editor">editor</option>
                     <option value="admin">admin</option>
+                  </Select>
+                  <Select
+                    value={user.viewerType || "corista"}
+                    disabled={user.role !== "viewer"}
+                    onChange={(event) => saveAccessUser({ ...user, viewerType: event.target.value })}
+                    aria-label={`Perfil viewer de ${user.email}`}
+                  >
+                    <option value="corista">Corista</option>
+                    <option value="medios">Medios</option>
                   </Select>
                   <Button variant={user.active !== false ? "secondary" : "danger"} onClick={() => saveAccessUser({ ...user, active: user.active === false })}>
                     {user.active !== false ? "Activo" : "Inactivo"}
@@ -970,6 +983,7 @@ export function Settings() {
             <div className="flex justify-between gap-4"><dt className="text-ink/50">Nombre</dt><dd className="text-right font-semibold text-ink">{profile?.displayName}</dd></div>
             <div className="flex justify-between gap-4"><dt className="text-ink/50">Correo</dt><dd className="text-right font-semibold text-ink">{profile?.email}</dd></div>
             <div className="flex justify-between gap-4"><dt className="text-ink/50">Rol</dt><dd className="font-semibold text-ink">{profile?.role}</dd></div>
+            {isViewer ? <div className="flex justify-between gap-4"><dt className="text-ink/50">Perfil</dt><dd className="font-semibold capitalize text-ink">{profile?.viewerType || "corista"}</dd></div> : null}
           </dl>
           <Button variant="danger" className="mt-6 w-full" onClick={signOut}>
             <LogOut className="h-4 w-4" />
