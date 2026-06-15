@@ -44,7 +44,7 @@ export function SongDetail() {
   const navigate = useNavigate();
   const { canEdit, profile } = useAuth();
   const isViewer = profile?.role === "viewer";
-  const { songs, schedules, themes, duplicateSong, deleteSong, saveSchedule, saveSong, settings, logAuditEvent } = useMusicData();
+  const { songs, schedules, plannedNewSongs = [], themes, duplicateSong, deleteSong, saveSchedule, saveSong, settings, logAuditEvent } = useMusicData();
   const [showPdf, setShowPdf] = useState(false);
   const [pdfTest, setPdfTest] = useState(null);
   const [editingSong, setEditingSong] = useState(false);
@@ -68,6 +68,11 @@ export function SongDetail() {
   const toneSummary = Number(song.capo || 0) > 0
     ? `Capo ${song.capo} · Suena en ${song.keyWithCapo || song.mainKey || "--"}`
     : `Sin capo · Tono ${song.mainKey || song.keyWithCapo || "--"}`;
+  const plannedEntries = (Array.isArray(plannedNewSongs) ? plannedNewSongs : [])
+    .filter((item) => item.songId === song.id)
+    .sort((a, b) => b.plannedDate.localeCompare(a.plannedDate));
+  const activePlannedEntries = plannedEntries.filter((item) => ["planeado", "listo", "pospuesto"].includes(item.status));
+  const introducedEntry = plannedEntries.find((item) => item.status === "estrenado");
 
   const copyPdf = async () => {
     if (pdfUrl) await navigator.clipboard?.writeText(pdfUrl);
@@ -234,6 +239,23 @@ export function SongDetail() {
             <h3 className="text-lg font-bold text-ink">Comentario</h3>
             <p className="mt-3 text-sm leading-6 text-ink/62">{song.internalNotes || "Sin comentarios."}</p>
           </Card> : null}
+
+          {activePlannedEntries.length || introducedEntry ? (
+            <Card>
+              <div className="flex items-center gap-2">
+                <CalendarPlus className="h-5 w-5 text-brass" />
+                <h3 className="text-lg font-bold text-ink">{activePlannedEntries.length ? "Canto nuevo planeado" : "Canto estrenado"}</h3>
+              </div>
+              <div className="mt-4 space-y-2">
+                {(activePlannedEntries.length ? activePlannedEntries : [introducedEntry]).map((item) => (
+                  <div key={item.id} className="rounded-2xl bg-brass/10 p-3 text-sm">
+                    <p className="font-bold text-ink">{item.status === "estrenado" ? `Estrenado el ${formatDate(item.plannedDate)}` : formatDate(item.plannedDate)}</p>
+                    <p className="mt-1 capitalize text-ink/60">{String(item.serviceType || "").replaceAll("_", " ")} · {item.status}</p>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          ) : null}
 
           {lyricsSections.length ? (
             <Card>

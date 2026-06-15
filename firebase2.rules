@@ -122,6 +122,32 @@ service cloud.firestore {
         && validScheduleSongs();
     }
 
+    function validPlannedNewSongData() {
+      return request.resource.data.keys().hasAll([
+          "songId",
+          "songTitle",
+          "plannedDate",
+          "serviceType",
+          "status",
+          "notes",
+          "createdBy",
+          "createdAt",
+          "updatedAt",
+          "introducedAt"
+        ])
+        && (request.resource.data.songId == null || validShortString(request.resource.data.songId, 200))
+        && validShortString(request.resource.data.songTitle, 200)
+        && validShortString(request.resource.data.plannedDate, 20)
+        && request.resource.data.serviceType in ["domingo_am", "domingo_pm", "miercoles", "especial", "otro"]
+        && request.resource.data.status in ["planeado", "listo", "estrenado", "pospuesto"]
+        && validOptionalString(request.resource.data.notes, 2000)
+        && request.resource.data.createdBy is string
+        && request.resource.data.createdBy.size() > 0
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp
+        && (request.resource.data.introducedAt == null || request.resource.data.introducedAt is timestamp);
+    }
+
     function validThemeData() {
       return request.resource.data.keys().hasAll(["name"])
         && validShortString(request.resource.data.name, 80)
@@ -230,6 +256,18 @@ service cloud.firestore {
     match /schedules/{scheduleId} {
       allow read: if isAuthorized();
       allow create, update: if isEditor() && validScheduleData();
+      allow delete: if isAdmin();
+    }
+
+    match /plannedNewSongs/{plannedNewSongId} {
+      allow read: if isAuthorized();
+      allow create: if isEditor()
+        && validPlannedNewSongData()
+        && request.resource.data.createdBy == request.auth.uid;
+      allow update: if isEditor()
+        && validPlannedNewSongData()
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.createdAt == resource.data.createdAt;
       allow delete: if isAdmin();
     }
 

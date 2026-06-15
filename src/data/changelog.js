@@ -1,6 +1,20 @@
-export const appVersion = "0.9.121";
+export const appVersion = "0.9.122";
 
 export const changelog = [
+  {
+    version: "0.9.122",
+    date: "2026-06-15",
+    title: "Cantos nuevos planeados",
+    added: [
+      "Registro de cantos nuevos planeados dentro del calendario de Programación",
+      "Estados Planeado, Listo, Estrenado y Pospuesto"
+    ],
+    changed: [
+      "Programación permite consultar cantos nuevos por día, búsqueda y pestañas"
+    ],
+    fixed: [],
+    pending: []
+  },
   {
     version: "0.9.121",
     date: "2026-06-12",

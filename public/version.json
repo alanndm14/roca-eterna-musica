@@ -1,10 +1,10 @@
 {
-  "version": "0.9.121",
-  "date": "2026-06-12",
+  "version": "0.9.122",
+  "date": "2026-06-15",
   "critical": true,
   "changes": [
-    "Mejoras visuales en Historial, Repertorio y Músicos",
-    "Activación guiada de notificaciones",
-    "Corrección del aviso de recibir novedades"
+    "Cantos nuevos planeados dentro del calendario",
+    "Seguimiento de preparación y estreno de cantos",
+    "Acceso de lectura para todos los usuarios"
   ]
 }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { pdf } from "@react-pdf/renderer";
-import { ArrowDown, ArrowUp, CalendarDays, Copy, Download, Edit3, Eye, FileText, Plus, Printer, Search, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, CalendarDays, CheckCircle2, Copy, Download, Edit3, Eye, FileText, Music2, Plus, Printer, Search, Trash2 } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -51,6 +51,29 @@ const blankSchedule = {
   specialProgram: [],
   status: "confirmed"
 };
+
+const plannedServiceOptions = [
+  { value: "domingo_am", label: "Domingo AM" },
+  { value: "domingo_pm", label: "Domingo PM" },
+  { value: "miercoles", label: "Miércoles" },
+  { value: "especial", label: "Especial" },
+  { value: "otro", label: "Otro" }
+];
+const plannedStatusOptions = [
+  { value: "planeado", label: "Planeado" },
+  { value: "listo", label: "Listo" },
+  { value: "estrenado", label: "Estrenado" },
+  { value: "pospuesto", label: "Pospuesto" }
+];
+const blankPlannedNewSong = {
+  songId: "",
+  songTitle: "",
+  plannedDate: "",
+  serviceType: "",
+  status: "planeado",
+  notes: ""
+};
+const plannedOptionLabel = (options, value) => options.find((option) => option.value === value)?.label || value || "--";
 
 const getService = (value) => serviceOptions.find((item) => item.value === value) || serviceOptions[0];
 const dateWeekday = (date) => (date ? new Date(`${date}T00:00:00`).getDay() : null);
@@ -280,7 +303,96 @@ function ScheduleForm({ initialSchedule, songs, schedules, onSubmit, onCancel })
   );
 }
 
-function MonthCalendar({ schedules, selectedDate, onSelectDate }) {
+function PlannedNewSongForm({ initialValue, songs, onSubmit, onCancel }) {
+  const [draft, setDraft] = useState(() => ({ ...blankPlannedNewSong, ...initialValue }));
+  const [error, setError] = useState("");
+  const update = (field, value) => setDraft((current) => ({ ...current, [field]: value }));
+  const submit = async (event) => {
+    event.preventDefault();
+    const selectedSong = songs.find((song) => song.id === draft.songId);
+    const payload = { ...draft, songTitle: String(selectedSong?.title || draft.songTitle || "").trim() };
+    if (!payload.songTitle || !payload.plannedDate || !payload.serviceType || !payload.status) {
+      setError("Completa canto, fecha, servicio y estado.");
+      return;
+    }
+    setError("");
+    try {
+      await onSubmit(payload);
+    } catch (submitError) {
+      setError(submitError?.message || "No se pudo guardar el canto nuevo planeado.");
+    }
+  };
+  return (
+    <form className="max-h-[76dvh] space-y-4 overflow-y-auto pr-1" onSubmit={submit}>
+      <Field label="Canto existente">
+        <Select value={draft.songId || ""} onChange={(event) => {
+          const songId = event.target.value;
+          const song = songs.find((item) => item.id === songId);
+          setDraft((current) => ({ ...current, songId, songTitle: song?.title || current.songTitle }));
+        }}>
+          <option value="">Escribir nombre manualmente</option>
+          {songs.filter((song) => !song.deleted).map((song) => <option key={song.id} value={song.id}>{song.title}</option>)}
+        </Select>
+      </Field>
+      {!draft.songId ? (
+        <Field label="Nombre del canto">
+          <Input value={draft.songTitle || ""} onChange={(event) => update("songTitle", event.target.value)} placeholder="Nombre del canto nuevo" />
+        </Field>
+      ) : null}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Fecha">
+          <Input type="date" value={draft.plannedDate || ""} onChange={(event) => update("plannedDate", event.target.value)} />
+        </Field>
+        <Field label="Servicio">
+          <Select value={draft.serviceType || ""} onChange={(event) => update("serviceType", event.target.value)}>
+            <option value="">Seleccionar servicio</option>
+            {plannedServiceOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </Select>
+        </Field>
+      </div>
+      <Field label="Estado">
+        <Select value={draft.status || ""} onChange={(event) => update("status", event.target.value)}>
+          {plannedStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </Select>
+      </Field>
+      <Field label="Notas opcionales">
+        <Textarea className="min-h-20" value={draft.notes || ""} onChange={(event) => update("notes", event.target.value)} placeholder="Preparación o acuerdo pendiente" />
+      </Field>
+      {error ? <p className="rounded-xl bg-red-500/10 p-3 text-sm font-semibold text-red-700 dark:text-red-200">{error}</p> : null}
+      <div className="flex flex-wrap justify-end gap-2 border-t border-ink/10 pt-4">
+        <Button type="button" variant="secondary" onClick={onCancel}>Cancelar</Button>
+        <Button type="submit">Guardar</Button>
+      </div>
+    </form>
+  );
+}
+
+function PlannedNewSongCard({ item, songs, canEdit, canDelete, onEdit, onMarkIntroduced, onDelete }) {
+  return (
+    <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/8 p-3 dark:bg-cyan-400/5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <p className="font-bold text-ink">
+            {item.songId ? <SongNameLink songId={item.songId} title={item.songTitle} songs={songs}>{item.songTitle}</SongNameLink> : item.songTitle}
+          </p>
+          <p className="mt-1 text-sm font-semibold text-cyan-700 dark:text-cyan-200">
+            {plannedOptionLabel(plannedServiceOptions, item.serviceType)} · {plannedOptionLabel(plannedStatusOptions, item.status)}
+          </p>
+          {item.notes ? <p className="mt-2 text-sm leading-6 text-ink/60">{item.notes}</p> : null}
+        </div>
+        {canEdit ? (
+          <div className="flex flex-wrap gap-2">
+            <Button variant="subtle" onClick={() => onEdit(item)}><Edit3 className="h-4 w-4" />Editar</Button>
+            {item.status !== "estrenado" ? <Button variant="secondary" onClick={() => onMarkIntroduced(item.id)}><CheckCircle2 className="h-4 w-4" />Marcar como estrenado</Button> : null}
+            {canDelete ? <Button variant="danger" onClick={() => onDelete(item)}><Trash2 className="h-4 w-4" />Eliminar</Button> : null}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function MonthCalendar({ schedules, plannedNewSongs, selectedDate, onSelectDate }) {
   const [cursor, setCursor] = useState(() => new Date(`${selectedDate || todayString()}T00:00:00`));
   const year = cursor.getFullYear();
   const month = cursor.getMonth();
@@ -295,6 +407,11 @@ function MonthCalendar({ schedules, selectedDate, onSelectDate }) {
   const byDate = schedules.reduce((acc, schedule) => {
     acc[schedule.date] = acc[schedule.date] || [];
     acc[schedule.date].push(schedule);
+    return acc;
+  }, {});
+  const plannedByDate = plannedNewSongs.reduce((acc, item) => {
+    acc[item.plannedDate] = acc[item.plannedDate] || [];
+    acc[item.plannedDate].push(item);
     return acc;
   }, {});
   const today = todayString();
@@ -315,6 +432,7 @@ function MonthCalendar({ schedules, selectedDate, onSelectDate }) {
         {days.map((day) => {
           const dateString = day.toISOString().slice(0, 10);
           const count = byDate[dateString]?.length || 0;
+          const plannedCount = plannedByDate[dateString]?.length || 0;
           const isCurrentMonth = day.getMonth() === month;
           const isSelected = selectedDate === dateString;
           const isToday = dateString === today && isCurrentMonth;
@@ -338,6 +456,13 @@ function MonthCalendar({ schedules, selectedDate, onSelectDate }) {
                 <span className="mt-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-ink px-1 text-center text-[10px] font-bold text-white sm:mt-2 sm:block sm:h-auto sm:px-2 sm:py-1 sm:text-[11px]">
                   <span className="sm:hidden">{count}</span>
                   <span className="hidden sm:inline">{count} prog.</span>
+                </span>
+              ) : null}
+              {plannedCount ? (
+                <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-cyan-500/15 px-1.5 py-1 text-[10px] font-bold text-cyan-700 dark:text-cyan-200 sm:px-2 sm:text-[11px]">
+                  <Music2 className="h-3 w-3" />
+                  <span className="sm:hidden">{plannedCount}</span>
+                  <span className="hidden sm:inline">{plannedCount} {plannedCount === 1 ? "nuevo" : "nuevos"}</span>
                 </span>
               ) : null}
             </button>
@@ -393,10 +518,10 @@ function ScheduleCard({
           ) : null}
         </div>
       </div>
-      <div className="mt-5">
+      {canEdit ? <div className="mt-5">
         <ServiceReviewPanel review={review} compact interactive open={reviewOpen} onToggle={() => setReviewOpen((current) => !current)} />
-      </div>
-      {review.mode !== "future" || schedule.serviceFollowUp ? (
+      </div> : null}
+      {canEdit && (review.mode !== "future" || schedule.serviceFollowUp) ? (
         <div className="mt-5">
           <ServiceFollowUpPanel
             schedule={schedule}
@@ -460,9 +585,23 @@ function ScheduleCard({
 
 export function Schedules() {
   const { canEdit, canDelete } = useAuth();
-  const { songs, schedules, settings, saveSchedule, deleteSchedule, duplicateSchedule, saveServiceFollowUp, closeScheduleService } = useMusicData();
+  const {
+    songs,
+    schedules,
+    plannedNewSongs = [],
+    settings,
+    saveSchedule,
+    deleteSchedule,
+    duplicateSchedule,
+    saveServiceFollowUp,
+    closeScheduleService,
+    savePlannedNewSong,
+    markPlannedNewSongIntroduced,
+    deletePlannedNewSong
+  } = useMusicData();
   const [editingSchedule, setEditingSchedule] = useState(null);
   const [newScheduleDraft, setNewScheduleDraft] = useState(null);
+  const [plannedNewSongDraft, setPlannedNewSongDraft] = useState(null);
   const [specialProgramSchedule, setSpecialProgramSchedule] = useState(null);
   const [programDraft, setProgramDraft] = useState([]);
   const [programPreviewUrl, setProgramPreviewUrl] = useState("");
@@ -490,6 +629,18 @@ export function Schedules() {
       return text.includes(term);
     });
   }, [query, schedules]);
+  const safePlannedNewSongs = Array.isArray(plannedNewSongs) ? plannedNewSongs : [];
+  const searchedPlannedNewSongs = useMemo(() => {
+    const term = normalizeSearchText(query);
+    if (!term) return safePlannedNewSongs;
+    return safePlannedNewSongs.filter((item) => normalizeSearchText([
+      item.songTitle,
+      item.plannedDate,
+      plannedOptionLabel(plannedServiceOptions, item.serviceType),
+      plannedOptionLabel(plannedStatusOptions, item.status),
+      item.notes
+    ].join(" ")).includes(term));
+  }, [query, safePlannedNewSongs]);
 
   const visibleSchedules = useMemo(() => {
     const today = todayString();
@@ -501,11 +652,30 @@ export function Schedules() {
     });
     return [...list].sort((a, b) => (tab === "past" ? b.date.localeCompare(a.date) : a.date.localeCompare(b.date)));
   }, [searchedSchedules, selectedDate, tab]);
+  const visiblePlannedNewSongs = useMemo(() => {
+    const today = todayString();
+    return searchedPlannedNewSongs
+      .filter((item) => {
+        if (tab === "upcoming") return item.plannedDate >= today;
+        if (tab === "past") return item.plannedDate < today;
+        if (tab === "calendar") return item.plannedDate === selectedDate;
+        return true;
+      })
+      .sort((a, b) => (tab === "past" ? b.plannedDate.localeCompare(a.plannedDate) : a.plannedDate.localeCompare(b.plannedDate)));
+  }, [searchedPlannedNewSongs, selectedDate, tab]);
 
   const openNewSchedule = () => {
     const date = tab === "calendar" ? selectedDate || todayString() : todayString();
     setEditingSchedule(null);
     setNewScheduleDraft({ ...blankSchedule, date });
+  };
+  const openNewPlannedSong = () => {
+    const plannedDate = tab === "calendar" ? selectedDate || todayString() : todayString();
+    setPlannedNewSongDraft({ ...blankPlannedNewSong, plannedDate });
+  };
+  const removePlannedSong = async (item) => {
+    if (!confirm(`¿Eliminar este canto nuevo planeado?\n\n${item.songTitle}\n\nEsto no eliminará el canto del repertorio.`)) return;
+    await deletePlannedNewSong(item.id);
   };
 
   const closeModal = () => {
@@ -601,10 +771,16 @@ export function Schedules() {
             <p className="mt-1 text-sm text-ink/55">Calendario, listas y servicios de la iglesia.</p>
           </div>
           {canEdit ? (
-            <Button onClick={openNewSchedule} data-tour="schedule-new">
-              <Plus className="h-4 w-4" />
-              {tab === "calendar" ? "Nueva programación para este día" : "Nueva programación"}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={openNewSchedule} data-tour="schedule-new">
+                <Plus className="h-4 w-4" />
+                {tab === "calendar" ? "Nueva programación para este día" : "Nueva programación"}
+              </Button>
+              <Button variant="secondary" onClick={openNewPlannedSong}>
+                <Music2 className="h-4 w-4" />
+                {tab === "calendar" ? "Canto nuevo para este día" : "Planear canto nuevo"}
+              </Button>
+            </div>
           ) : null}
         </div>
         <div className="mt-5 flex flex-wrap gap-2">
@@ -625,13 +801,15 @@ export function Schedules() {
 
       {tab === "calendar" ? (
         <div className="grid gap-5 xl:grid-cols-[1fr_420px]">
-          <MonthCalendar schedules={searchedSchedules} selectedDate={selectedDate} onSelectDate={setSelectedDate} />
+          <MonthCalendar schedules={searchedSchedules} plannedNewSongs={searchedPlannedNewSongs} selectedDate={selectedDate} onSelectDate={setSelectedDate} />
           <Card>
             <div className="mb-4 flex items-center gap-2">
               <CalendarDays className="h-5 w-5 text-brass" />
               <h3 className="font-bold text-ink">{formatDate(selectedDate)}</h3>
             </div>
-            <div className="space-y-3">
+            <div>
+              <h4 className="text-xs font-black uppercase tracking-wide text-ink/45">Programaciones del día</h4>
+              <div className="mt-3 space-y-3">
               {visibleSchedules.length ? visibleSchedules.map((schedule) => (
                 <div key={schedule.id} className="rounded-2xl bg-ink/5 p-3">
                   <p className="font-semibold text-ink">{schedule.serviceLabel || schedule.type}</p>
@@ -645,6 +823,27 @@ export function Schedules() {
                   </div>
                 </div>
               )) : <p className="text-sm text-ink/55">No hay programaciones para este día.</p>}
+              </div>
+            </div>
+            <div className="mt-6 border-t border-ink/10 pt-5">
+              <div className="flex items-center gap-2">
+                <Music2 className="h-4 w-4 text-cyan-600 dark:text-cyan-300" />
+                <h4 className="text-xs font-black uppercase tracking-wide text-ink/45">Cantos nuevos planeados</h4>
+              </div>
+              <div className="mt-3 space-y-3">
+                {visiblePlannedNewSongs.length ? visiblePlannedNewSongs.map((item) => (
+                  <PlannedNewSongCard
+                    key={item.id}
+                    item={item}
+                    songs={songs}
+                    canEdit={canEdit}
+                    canDelete={canDelete}
+                    onEdit={setPlannedNewSongDraft}
+                    onMarkIntroduced={markPlannedNewSongIntroduced}
+                    onDelete={removePlannedSong}
+                  />
+                )) : <p className="text-sm text-ink/55">No hay cantos nuevos planeados para este día.</p>}
+              </div>
             </div>
           </Card>
         </div>
@@ -672,8 +871,33 @@ export function Schedules() {
             />
           ))}
         </div>
-      ) : tab !== "calendar" ? (
-        <EmptyState title="Sin programaciones" text="Crea una programación para el próximo servicio del ministerio." />
+      ) : tab !== "calendar" && !visiblePlannedNewSongs.length ? (
+        <EmptyState title="Sin resultados" text="No hay programaciones ni cantos nuevos planeados para mostrar." />
+      ) : null}
+
+      {tab !== "calendar" && visiblePlannedNewSongs.length ? (
+        <Card>
+          <div className="flex items-center gap-2">
+            <Music2 className="h-5 w-5 text-cyan-600 dark:text-cyan-300" />
+            <h3 className="font-bold text-ink">Cantos nuevos planeados</h3>
+          </div>
+          <div className="mt-4 grid gap-3 lg:grid-cols-2">
+            {visiblePlannedNewSongs.map((item) => (
+              <div key={item.id}>
+                <p className="mb-2 text-xs font-bold text-ink/45">{formatDate(item.plannedDate)}</p>
+                <PlannedNewSongCard
+                  item={item}
+                  songs={songs}
+                  canEdit={canEdit}
+                  canDelete={canDelete}
+                  onEdit={setPlannedNewSongDraft}
+                  onMarkIntroduced={markPlannedNewSongIntroduced}
+                  onDelete={removePlannedSong}
+                />
+              </div>
+            ))}
+          </div>
+        </Card>
       ) : null}
 
       <Modal open={Boolean(newScheduleDraft) || Boolean(editingSchedule)} title={editingSchedule ? "Editar programación" : "Nueva programación"} onClose={closeModal} wide>
@@ -685,6 +909,17 @@ export function Schedules() {
           onSubmit={async (schedule) => {
             await saveSchedule(schedule);
             closeModal();
+          }}
+        />
+      </Modal>
+      <Modal open={Boolean(plannedNewSongDraft)} title={plannedNewSongDraft?.id ? "Editar canto nuevo planeado" : "Agregar canto nuevo"} onClose={() => setPlannedNewSongDraft(null)}>
+        <PlannedNewSongForm
+          initialValue={plannedNewSongDraft || blankPlannedNewSong}
+          songs={songs}
+          onCancel={() => setPlannedNewSongDraft(null)}
+          onSubmit={async (plannedSong) => {
+            await savePlannedNewSong(plannedSong);
+            setPlannedNewSongDraft(null);
           }}
         />
       </Modal>
