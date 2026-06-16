@@ -1,8 +1,8 @@
 {
-  "version": "0.9.124",
+  "version": "0.9.125",
   "date": "2026-06-15",
   "critical": true,
   "changes": [
-    "vistas mejoradas"
+    "correccion de vistas"
   ]
 }

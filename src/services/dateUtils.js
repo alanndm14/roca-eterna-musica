@@ -36,6 +36,26 @@ export const inferServiceType = (schedule = {}) => {
   return "especial";
 };
 
+const normalizeScheduleText = (value = "") => String(value || "")
+  .normalize("NFD")
+  .replace(/[\u0300-\u036f]/g, "")
+  .toLowerCase();
+
+export const isYouthSchedule = (schedule = {}) => {
+  const text = normalizeScheduleText([
+    schedule.serviceLabel,
+    schedule.type,
+    schedule.serviceType,
+    schedule.title,
+    schedule.name,
+    schedule.generalNotes,
+    schedule.notes
+  ].filter(Boolean).join(" "));
+  return /\b(joven|jovenes|juvenil|youth)\b/.test(text);
+};
+
+export const isCountableSchedule = (schedule = {}) => !isYouthSchedule(schedule);
+
 export const getServiceDisplayLabel = (schedule = {}) => {
   const type = inferServiceType(schedule);
   if (type === "domingo-manana") return "Domingo AM";
@@ -81,6 +101,7 @@ export const getEstimatedServiceEndDate = (schedule = {}) => {
 export const getCurrentOrNextSchedule = (schedules = [], now = new Date()) => {
   const safeSchedules = Array.isArray(schedules) ? schedules : [];
   const candidates = safeSchedules
+    .filter(isCountableSchedule)
     .map((schedule) => ({
       schedule,
       start: getScheduleStartDate(schedule),
@@ -97,6 +118,7 @@ export const getUpcomingSchedule = (schedules) => getCurrentOrNextSchedule(sched
 export const getPastSchedules = (schedules = [], now = new Date()) => {
   const safeSchedules = Array.isArray(schedules) ? schedules : [];
   return safeSchedules
+    .filter(isCountableSchedule)
     .map((schedule) => ({
       schedule,
       start: getScheduleStartDate(schedule),

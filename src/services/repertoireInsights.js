@@ -1,5 +1,6 @@
 import { normalizeSearchText } from "./songUtils";
 import { buildUsageIndex, songHasListeningLink, songHasPdf } from "./songScoring";
+import { isCountableSchedule } from "./dateUtils";
 
 const currentMonth = () => new Date().toISOString().slice(0, 7);
 
@@ -33,7 +34,7 @@ export function getRepertoireInsights(songs = [], schedules = []) {
   const themeCounts = new Map();
   const categoryCounts = new Map();
   schedules
-    .filter((schedule) => String(schedule.date || "").startsWith(month))
+    .filter((schedule) => isCountableSchedule(schedule) && String(schedule.date || "").startsWith(month))
     .forEach((schedule) => (schedule.songs || []).forEach((entry) => {
       const song = songs.find((item) => item.id === entry.songId);
       if (!song) return;

@@ -15,7 +15,7 @@ import { ScoreBadge } from "../components/smart/ScoreBadge";
 import { ReasonChips } from "../components/smart/ReasonChips";
 import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
-import { formatDate, getCurrentOrNextSchedule, getScheduleStartDate } from "../services/dateUtils";
+import { formatDate, getCurrentOrNextSchedule, getScheduleStartDate, isCountableSchedule } from "../services/dateUtils";
 import {
   buildUsageIndex,
   clampScore,
@@ -302,7 +302,7 @@ export function SmartCenter() {
   const [baseSongs, setBaseSongs] = useState([]);
 
   const schedulesForExistingDate = useMemo(
-    () => schedules.filter((schedule) => !schedule.deleted && schedule.date === existingDate).sort((a, b) => `${a.time || ""}`.localeCompare(`${b.time || ""}`)),
+    () => schedules.filter((schedule) => !schedule.deleted && isCountableSchedule(schedule) && schedule.date === existingDate).sort((a, b) => `${a.time || ""}`.localeCompare(`${b.time || ""}`)),
     [existingDate, schedules]
   );
   const existingSchedule = schedules.find((schedule) => schedule.id === selectedScheduleId)
@@ -323,6 +323,7 @@ export function SmartCenter() {
   const selectedLeader = leaderChoice === "Otro" ? manualLeader : leaderChoice;
   const newScheduleConflict = schedules.find((schedule) =>
     !schedule.deleted
+    && isCountableSchedule(schedule)
     && schedule.date === draftDate
     && inferSmartServiceType(schedule) === selectedServiceType
   );

@@ -6,7 +6,7 @@ import { Card } from "../components/ui/Card";
 import { StatCard } from "../components/ui/StatCard";
 import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
-import { formatDate, getCurrentOrNextSchedule, getEstimatedServiceEndDate, getScheduleStartDate, getServiceDisplayLabel, todayString } from "../services/dateUtils";
+import { formatDate, getCurrentOrNextSchedule, getEstimatedServiceEndDate, getScheduleStartDate, getServiceDisplayLabel, isCountableSchedule, todayString } from "../services/dateUtils";
 import { getSongPdfUrl } from "../services/songUtils";
 import { diagnosePushNotifications, enablePushNotificationsForUser, getCurrentPushTokenForUser } from "../services/pushNotifications";
 import { AndroidNotificationPermissionWizard } from "../components/notifications/AndroidNotificationPermissionWizard";
@@ -38,7 +38,7 @@ const getMonthlyTopSongs = (schedules = []) => {
   const today = todayString();
   const counts = new Map();
   (Array.isArray(schedules) ? schedules : [])
-    .filter((schedule) => schedule?.date?.startsWith(month) && schedule.date <= today)
+    .filter((schedule) => isCountableSchedule(schedule) && schedule?.date?.startsWith(month) && schedule.date <= today)
     .forEach((schedule) => {
       (schedule.songs || []).forEach((entry) => {
         const key = entry.songId || entry.titleSnapshot;

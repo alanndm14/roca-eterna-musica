@@ -24,9 +24,9 @@ const defaultColors = {
 };
 
 const formatAccessDate = (value) => {
-  if (!value) return "Sin conexi?n registrada";
+  if (!value) return "Sin conexión registrada";
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "Sin conexi?n registrada" : date.toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" });
+  return Number.isNaN(date.getTime()) ? "Sin conexión registrada" : date.toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" });
 };
 
 const boolLabel = (value) => (value === true ? "si" : value === false ? "no" : "sin confirmar");
@@ -321,7 +321,7 @@ export function Settings() {
 
   const statusForUser = (user) => {
     if (user.active === false) return "inactivo";
-    return users.some((item) => item.email === user.email) ? "activo" : "pendiente de iniciar sesi?n";
+    return users.some((item) => item.email === user.email) ? "activo" : "pendiente de iniciar sesión";
   };
 
   const refreshApp = async () => {
@@ -346,7 +346,7 @@ export function Settings() {
     setInstallStatus(
       isiOS
         ? "En Safari, toca Compartir y luego Agregar a pantalla de inicio."
-        : "Abre el men? del navegador y elige Instalar app o Agregar a pantalla principal."
+        : "Abre el menú del navegador y elige Instalar app o Agregar a pantalla principal."
     );
   };
 
@@ -861,7 +861,7 @@ export function Settings() {
           <label className="mt-4 flex items-start gap-3 rounded-2xl border border-brass/25 bg-brass/10 p-4 text-sm font-semibold text-ink">
             <input className="mt-1" type="checkbox" checked={enablePdfOcr} onChange={(event) => setEnablePdfOcr(event.target.checked)} disabled={isIndexingPdfs} />
             <span>
-              Usar OCR autom?tico gratuito para PDFs escaneados
+              Usar OCR automático gratuito para PDFs escaneados
               <span className="mt-1 block text-xs font-medium text-ink/55">
                 Se ejecuta en este navegador con Tesseract.js. Puede tardar varios minutos si hay muchos cantos.
               </span>
@@ -869,11 +869,11 @@ export function Settings() {
           </label>
           <label className="mt-3 flex items-start gap-3 rounded-2xl bg-ink/5 p-3 text-sm font-semibold text-ink/70">
             <input className="mt-1" type="checkbox" checked={forcePdfReindex} onChange={(event) => setForcePdfReindex(event.target.checked)} disabled={isIndexingPdfs} />
-            <span>Forzar reindexaci?n aunque el PDF no haya cambiado</span>
+            <span>Forzar reindexación aunque el PDF no haya cambiado</span>
           </label>
           <Button className="mt-4" variant="secondary" isLoading={isIndexingPdfs} disabled={isIndexingPdfs} onClick={runPdfIndex}>
             <FileSearch className="h-4 w-4" />
-            {isIndexingPdfs ? "Indexando PDFs..." : enablePdfOcr ? "Indexar PDFs con OCR autom?tico" : "Indexar textos de PDFs locales"}
+            {isIndexingPdfs ? "Indexando PDFs..." : enablePdfOcr ? "Indexar PDFs con OCR automático" : "Indexar textos de PDFs locales"}
           </Button>
           {pdfIndexProgress ? (
             <div className="mt-4 rounded-2xl border border-ink/10 bg-ink/5 p-4">
@@ -887,7 +887,7 @@ export function Settings() {
               <p className="mt-3 text-sm text-ink/55">{pdfIndexProgress.songTitle ? `Procesando: ${pdfIndexProgress.songTitle}` : "Preparando indice..."}</p>
               {pdfIndexProgress.ocrProgress ? (
                 <p className="mt-1 text-xs font-semibold text-brass">
-                  OCR p?gina {pdfIndexProgress.ocrProgress.pageNumber || "-"} de {pdfIndexProgress.ocrProgress.totalPages || "-"} ? {pdfIndexProgress.ocrProgress.phase || "leyendo"} {pdfIndexProgress.ocrProgress.progress ? `${Math.round(pdfIndexProgress.ocrProgress.progress * 100)}%` : ""}
+                  OCR página {pdfIndexProgress.ocrProgress.pageNumber || "-"} de {pdfIndexProgress.ocrProgress.totalPages || "-"} · {pdfIndexProgress.ocrProgress.phase || "leyendo"} {pdfIndexProgress.ocrProgress.progress ? `${Math.round(pdfIndexProgress.ocrProgress.progress * 100)}%` : ""}
                 </p>
               ) : null}
               {pdfIndexProgress.pdfPath ? <p className="mt-1 break-all text-xs text-ink/45">PDF: {pdfIndexProgress.pdfPath}</p> : null}
@@ -903,66 +903,76 @@ export function Settings() {
         ) : null}
 
         {isAdmin ? (
-          <Card data-tour="settings-access">
+          <Card data-tour="settings-access" className="overflow-hidden">
             <h2 className="text-xl font-bold text-ink">Correos autorizados</h2>
-            <p className="mt-1 text-sm text-ink/55">Autoriza correos antes de que entren con Google. Los usuarios reales aparecen despues de iniciar sesi?n.</p>
-            <div className="mt-5 grid gap-3 xl:grid-cols-[minmax(260px,1.2fr)_minmax(220px,1fr)_150px_160px_130px]">
-              <Input placeholder="correo@gmail.com" value={newUser.email} onChange={(event) => setNewUser((current) => ({ ...current, email: event.target.value }))} />
-              <Input placeholder="Nombre visible" value={newUser.displayName} onChange={(event) => setNewUser((current) => ({ ...current, displayName: event.target.value }))} />
-              <Select value={newUser.role} onChange={(event) => setNewUser((current) => ({ ...current, role: event.target.value }))}>
-                <option value="viewer">viewer</option>
-                <option value="editor">editor</option>
-                <option value="admin">admin</option>
-              </Select>
-              {newUser.role === "viewer" ? (
-                <Select value={newUser.viewerType || "corista"} onChange={(event) => setNewUser((current) => ({ ...current, viewerType: event.target.value }))}>
-                  <option value="corista">Corista</option>
-                  <option value="musico">Músico</option>
-                  <option value="medios">Medios</option>
+            <p className="mt-1 text-sm text-ink/55">Autoriza correos antes de que entren con Google. Los usuarios reales aparecen después de iniciar sesión.</p>
+            <div className="mt-5 rounded-2xl border border-ink/10 bg-ink/[0.03] p-3">
+              <div className="grid gap-3 lg:grid-cols-2">
+                <Input placeholder="correo@gmail.com" value={newUser.email} onChange={(event) => setNewUser((current) => ({ ...current, email: event.target.value }))} />
+                <Input placeholder="Nombre visible" value={newUser.displayName} onChange={(event) => setNewUser((current) => ({ ...current, displayName: event.target.value }))} />
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <Select className="w-full sm:w-40" value={newUser.role} onChange={(event) => setNewUser((current) => ({ ...current, role: event.target.value }))}>
+                  <option value="viewer">viewer</option>
+                  <option value="editor">editor</option>
+                  <option value="admin">admin</option>
                 </Select>
-              ) : <div />}
-              <Button onClick={async () => {
-                if (!newUser.email) return;
-                await saveAccessUser(newUser);
-                setNewUser({ email: "", displayName: "", role: "viewer", viewerType: "corista", active: true });
-              }}>
-                <UserPlus className="h-4 w-4" />
-                Agregar
-              </Button>
+                {newUser.role === "viewer" ? (
+                  <Select className="w-full sm:w-44" value={newUser.viewerType || "corista"} onChange={(event) => setNewUser((current) => ({ ...current, viewerType: event.target.value }))}>
+                    <option value="corista">Corista</option>
+                    <option value="musico">Músico</option>
+                    <option value="medios">Medios</option>
+                  </Select>
+                ) : null}
+                <Button className="w-full sm:w-auto" onClick={async () => {
+                  if (!newUser.email) return;
+                  await saveAccessUser(newUser);
+                  setNewUser({ email: "", displayName: "", role: "viewer", viewerType: "corista", active: true });
+                }}>
+                  <UserPlus className="h-4 w-4" />
+                  Agregar
+                </Button>
+              </div>
             </div>
 
             <div className="mt-5 space-y-3">
               {userRows.map((user) => (
-                <div key={user.id || user.email} className="grid gap-3 rounded-2xl bg-ink/5 p-3 xl:grid-cols-[minmax(300px,1.35fr)_130px_140px_170px_110px_110px] xl:items-center">
-                  <div className="min-w-0">
-                    <p className="font-semibold text-ink">{user.displayName || user.email}</p>
-                    <p className="break-all text-sm text-ink/55">{user.email}</p>
-                    <p className="text-xs text-ink/45">Última conexion: {formatAccessDate(user.lastSeenAt || user.lastLoginAt || user.lastLogin)}</p>
+                <div key={user.id || user.email} className="rounded-2xl bg-ink/5 p-4">
+                  <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-ink">{user.displayName || user.email}</p>
+                      <p className="break-all text-sm text-ink/55">{user.email}</p>
+                      <p className="text-xs text-ink/45">Última conexión: {formatAccessDate(user.lastSeenAt || user.lastLoginAt || user.lastLogin)}</p>
+                    </div>
+                    <span className="shrink-0 text-sm font-semibold text-ink/60">{statusForUser(user)}</span>
                   </div>
-                  <span className="text-sm font-semibold text-ink/60">{statusForUser(user)}</span>
-                  <Select value={user.role || "viewer"} onChange={(event) => saveAccessUser({ ...user, role: event.target.value })}>
-                    <option value="viewer">viewer</option>
-                    <option value="editor">editor</option>
-                    <option value="admin">admin</option>
-                  </Select>
-                  {user.role === "viewer" ? (
-                    <Select
-                      value={user.viewerType || "corista"}
-                      onChange={(event) => saveAccessUser({ ...user, viewerType: event.target.value })}
-                      aria-label={`Perfil viewer de ${user.email}`}
-                    >
-                      <option value="corista">Corista</option>
-                      <option value="musico">Músico</option>
-                      <option value="medios">Medios</option>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                    <Select value={user.role || "viewer"} onChange={(event) => saveAccessUser({ ...user, role: event.target.value })}>
+                      <option value="viewer">viewer</option>
+                      <option value="editor">editor</option>
+                      <option value="admin">admin</option>
                     </Select>
-                  ) : <span className="text-sm font-semibold text-ink/35">-</span>}
-                  <Button variant={user.active !== false ? "secondary" : "danger"} onClick={() => saveAccessUser({ ...user, active: user.active === false })}>
-                    {user.active !== false ? "Activo" : "Inactivo"}
-                  </Button>
-                  <Button variant="danger" onClick={() => deleteAccessUser(user)}>
-                    <Trash2 className="h-4 w-4" />
-                    Eliminar
-                  </Button>
+                    {user.role === "viewer" ? (
+                      <Select
+                        value={user.viewerType || "corista"}
+                        onChange={(event) => saveAccessUser({ ...user, viewerType: event.target.value })}
+                        aria-label={`Perfil viewer de ${user.email}`}
+                      >
+                        <option value="corista">Corista</option>
+                        <option value="musico">Músico</option>
+                        <option value="medios">Medios</option>
+                      </Select>
+                    ) : (
+                      <div className="hidden xl:block" />
+                    )}
+                    <Button variant={user.active !== false ? "secondary" : "danger"} onClick={() => saveAccessUser({ ...user, active: user.active === false })}>
+                      {user.active !== false ? "Activo" : "Inactivo"}
+                    </Button>
+                    <Button variant="danger" onClick={() => deleteAccessUser(user)}>
+                      <Trash2 className="h-4 w-4" />
+                      Eliminar
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -992,7 +1002,7 @@ export function Settings() {
 
       <aside className="min-w-0 space-y-5">
         <Card>
-          <h2 className="text-xl font-bold text-ink">Mi sesi?n</h2>
+          <h2 className="text-xl font-bold text-ink">Mi sesión</h2>
           <dl className="mt-4 space-y-3 text-sm">
             <div className="flex justify-between gap-4"><dt className="text-ink/50">Nombre</dt><dd className="text-right font-semibold text-ink">{profile?.displayName}</dd></div>
             <div className="flex justify-between gap-4"><dt className="text-ink/50">Correo</dt><dd className="text-right font-semibold text-ink">{profile?.email}</dd></div>
@@ -1001,16 +1011,16 @@ export function Settings() {
           </dl>
           <Button variant="danger" className="mt-6 w-full" onClick={signOut}>
             <LogOut className="h-4 w-4" />
-            Cerrar sesi?n
+            Cerrar sesión
           </Button>
         </Card>
 
         <Card>
           <h2 className="text-xl font-bold text-ink">Ayuda</h2>
-          <p className="mt-3 text-sm leading-6 text-ink/60">Abre de nuevo la gu?a interactiva para repasar como usar cada seccion de la app.</p>
+          <p className="mt-3 text-sm leading-6 text-ink/60">Abre de nuevo la guía interactiva para repasar como usar cada sección de la app.</p>
           <Button className="mt-4 w-full" variant="secondary" onClick={() => window.dispatchEvent(new Event("roca-eterna-open-guide"))}>
             <HelpCircle className="h-4 w-4" />
-            Ver gu?a otra vez
+            Ver guía otra vez
           </Button>
         </Card>
 
@@ -1117,7 +1127,7 @@ export function Settings() {
           ) : null}
           {isAdmin ? (
             <Button className="mt-3 w-full" variant="subtle" onClick={() => setShowAdvancedPushDiagnostics((value) => !value)}>
-              {showAdvancedPushDiagnostics ? "Ocultar diagn?stico avanzado" : "Diagn?stico avanzado"}
+              {showAdvancedPushDiagnostics ? "Ocultar diagnóstico avanzado" : "Diagnóstico avanzado"}
             </Button>
           ) : null}
           {showAdvancedPushDiagnostics && pushDiagnostic ? (
@@ -1335,7 +1345,7 @@ export function Settings() {
           {installStatus ? <p className="mt-3 rounded-2xl bg-ink/5 p-3 text-sm text-ink/65">{installStatus}</p> : null}
           {!installPromptEvent && !isStandalone ? (
             <p className="mt-3 text-xs leading-5 text-ink/55">
-              Si el bot?n no abre un permiso de instalaci?n, usa el men? del navegador y elige Instalar app o Agregar a pantalla principal.
+              Si el botón no abre un permiso de instalación, usa el menú del navegador y elige Instalar app o Agregar a pantalla principal.
             </p>
           ) : null}
         </Card>
@@ -1439,7 +1449,7 @@ function PdfIndexList({ title, items = [], showUrl = false, fallbackMessage = ""
               <p className="break-all">Ruta guardada: {item.localPdfPath || "--"}</p>
               {showUrl ? <p className="break-all">URL resuelta: {item.resolvedUrl || "--"}</p> : null}
               {item.statusHttp ? <p>Status HTTP: {item.statusHttp}</p> : null}
-              {item.method ? <p>M?todo: {item.method === "ocr" ? "OCR autom?tico" : "texto seleccionable"}</p> : null}
+              {item.method ? <p>Método: {item.method === "ocr" ? "OCR automático" : "texto seleccionable"}</p> : null}
               {(item.message || fallbackMessage) ? <p>{item.message || fallbackMessage}</p> : null}
             </div>
           ))}

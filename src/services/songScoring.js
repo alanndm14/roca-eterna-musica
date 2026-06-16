@@ -1,5 +1,5 @@
 import { getSongPdfUrl, normalizeSearchText } from "./songUtils";
-import { formatScheduleDateWithService, getEstimatedServiceEndDate, getScheduleStartDate } from "./dateUtils";
+import { formatScheduleDateWithService, getEstimatedServiceEndDate, getScheduleStartDate, isYouthSchedule } from "./dateUtils";
 
 const dayMs = 24 * 60 * 60 * 1000;
 const recentStrongDays = 14;
@@ -19,7 +19,7 @@ export function clampScore(score) {
 const closedStatuses = new Set(["realizado", "realizada", "cerrado", "cerrada", "closed", "done"]);
 
 function isDeletedSchedule(schedule = {}) {
-  return Boolean(schedule.deleted || schedule.active === false || schedule.relatedEntityDeleted);
+  return Boolean(schedule.deleted || schedule.active === false || schedule.relatedEntityDeleted || isYouthSchedule(schedule));
 }
 
 function scheduleKey(schedule = {}) {

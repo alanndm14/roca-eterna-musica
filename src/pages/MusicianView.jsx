@@ -1,7 +1,7 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { pdf } from "@react-pdf/renderer";
-import { ArrowDown, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, Download, ExternalLink, Eye, FileStack, FileText, Maximize2, Minimize2, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, Download, ExternalLink, Eye, FileStack, FileText, Maximize2, Minimize2, Music2, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -134,8 +134,9 @@ function MusicianScheduleCalendar({ schedules, plannedNewSongs = [], selectedDat
                 </span>
               ) : null}
               {plannedCount ? (
-                <span className="ml-1 mt-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-cyan-500 px-1 text-[9px] font-bold text-white sm:h-5 sm:min-w-5 sm:text-[10px]" title={`${plannedCount} canto(s) nuevo(s) planeado(s)`}>
-                  {plannedCount}
+                <span className="ml-1 mt-1 inline-flex h-4 min-w-4 items-center justify-center gap-0.5 rounded-full bg-cyan-500 px-1 text-[9px] font-bold text-white sm:h-5 sm:min-w-5 sm:text-[10px]" title={`${plannedCount} canto(s) nuevo(s) planeado(s)`}>
+                  <Music2 className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                  {plannedCount > 1 ? plannedCount : null}
                 </span>
               ) : null}
             </button>
@@ -169,6 +170,7 @@ export function MusicianView({ mediaMode = false }) {
   const [programDraft, setProgramDraft] = useState([]);
   const [serviceReviewOpen, setServiceReviewOpen] = useState(false);
   const [schedulePickerOpen, setSchedulePickerOpen] = useState(() => Boolean(mediaMode));
+  const [emptyDateSelected, setEmptyDateSelected] = useState(false);
   const selectedServiceRef = useRef(null);
   const today = todayString();
   const [pickerDate, setPickerDate] = useState(today);
@@ -183,13 +185,17 @@ export function MusicianView({ mediaMode = false }) {
     const requestedScheduleId = searchParams.get("schedule");
     if (requestedScheduleId && schedules.some((schedule) => schedule.id === requestedScheduleId)) {
       setSelectedId(requestedScheduleId);
+      setEmptyDateSelected(false);
       return;
     }
-    if (!selectedId) {
+    if (!selectedId && !emptyDateSelected) {
       const preferred = getCurrentOrNextSchedule(schedules) || scheduleOptions[0];
-      if (preferred?.id) setSelectedId(preferred.id);
+      if (preferred?.id) {
+        setSelectedId(preferred.id);
+        setEmptyDateSelected(false);
+      }
     }
-  }, [scheduleOptions, schedules, searchParams, selectedId]);
+  }, [emptyDateSelected, scheduleOptions, schedules, searchParams, selectedId]);
 
   useEffect(() => {
     document.documentElement.classList.toggle("musician-focus", focusMode);
@@ -207,7 +213,7 @@ export function MusicianView({ mediaMode = false }) {
     if (sheetUrl) URL.revokeObjectURL(sheetUrl);
   }, [sheetUrl]);
 
-  const selectedSchedule = schedules.find((schedule) => schedule.id === selectedId) || scheduleOptions[0];
+  const selectedSchedule = schedules.find((schedule) => schedule.id === selectedId) || (!mediaMode || !emptyDateSelected ? scheduleOptions[0] : null);
   const daySchedules = useMemo(
     () => schedules.filter((schedule) => schedule.date === pickerDate).sort((a, b) => `${a.time || ""}`.localeCompare(`${b.time || ""}`)),
     [pickerDate, schedules]
@@ -218,11 +224,20 @@ export function MusicianView({ mediaMode = false }) {
       .sort((a, b) => `${a.songTitle || ""}`.localeCompare(`${b.songTitle || ""}`, "es")),
     [pickerDate, plannedNewSongs]
   );
+  const selectPickerDate = (dateString) => {
+    setPickerDate(dateString);
+    if (!mediaMode) return;
+    const firstSchedule = schedules
+      .filter((schedule) => schedule.date === dateString)
+      .sort((a, b) => `${a.time || ""}`.localeCompare(`${b.time || ""}`))[0];
+    setSelectedId(firstSchedule?.id || "");
+    setEmptyDateSelected(!firstSchedule);
+  };
   const nextSchedule = getCurrentOrNextSchedule(schedules) || scheduleOptions[0];
 
   useEffect(() => {
-    if (selectedSchedule?.date) setPickerDate(selectedSchedule.date);
-  }, [selectedSchedule?.date]);
+    if (selectedSchedule?.date && !emptyDateSelected) setPickerDate(selectedSchedule.date);
+  }, [emptyDateSelected, selectedSchedule?.date]);
   const serviceSongs = useMemo(
     () => buildServiceSongs(selectedSchedule, songs, settings.keyPreference || "sharps"),
     [selectedSchedule, songs, settings.keyPreference]
@@ -448,6 +463,7 @@ export function MusicianView({ mediaMode = false }) {
       return;
     }
     setSelectedId(next.id);
+    setEmptyDateSelected(false);
     if (next.date) setPickerDate(next.date);
     requestAnimationFrame(() => selectedServiceRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }));
   };
@@ -464,6 +480,7 @@ export function MusicianView({ mediaMode = false }) {
           <p className="mt-1 text-sm text-ink/55">Calendario, cantos nuevos, documentos y enlaces para cada servicio.</p>
         </Card>
       ) : null}
+      {selectedSchedule ? (
       <div ref={selectedServiceRef}>
       <Card className="bg-ink text-white">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
@@ -480,7 +497,7 @@ export function MusicianView({ mediaMode = false }) {
                 Próxima programación
               </Button>
             ) : null}
-            <Button variant="darkSubtle" onClick={() => setPickerDate(today)}>
+            <Button variant="darkSubtle" onClick={() => selectPickerDate(today)}>
               Hoy
             </Button>
             {focusMode ? (
@@ -497,6 +514,7 @@ export function MusicianView({ mediaMode = false }) {
           </div>        </div>
       </Card>
       </div>
+      ) : null}
 
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -511,13 +529,16 @@ export function MusicianView({ mediaMode = false }) {
           </Button>
         </div>
         {schedulePickerOpen ? <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_360px]">
-          <MusicianScheduleCalendar schedules={schedules} plannedNewSongs={mediaMode ? plannedNewSongs : []} selectedDate={pickerDate} onSelectDate={setPickerDate} />
+          <MusicianScheduleCalendar schedules={schedules} plannedNewSongs={mediaMode ? plannedNewSongs : []} selectedDate={pickerDate} onSelectDate={selectPickerDate} />
           <div className="space-y-3">
             {daySchedules.length ? daySchedules.map((schedule) => (
               <button
                 key={schedule.id}
                 type="button"
-                onClick={() => setSelectedId(schedule.id)}
+                onClick={() => {
+                  setSelectedId(schedule.id);
+                  setEmptyDateSelected(false);
+                }}
                 className={`w-full rounded-2xl border p-3 text-left transition ${selectedSchedule?.id === schedule.id ? "border-brass bg-brass/10" : "border-ink/10 bg-white hover:border-brass/40 dark:border-white/10 dark:bg-white/5"}`}
               >
                 <p className="font-bold text-ink">{getServiceDisplayLabel(schedule)}</p>
@@ -541,6 +562,13 @@ export function MusicianView({ mediaMode = false }) {
             ) : null}
           </div>
         </div> : null}
+        {!selectedSchedule ? (
+          <div className="mt-4 rounded-2xl border border-ink/10 bg-ink/5 p-4 text-sm font-semibold text-ink/60">
+            No hay programación para el día seleccionado.
+          </div>
+        ) : null}
+        {selectedSchedule ? (
+          <>
         {serviceReview && !isViewer ? (
           <div className="mt-4">
             <ServiceReviewPanel review={serviceReview} compact interactive open={serviceReviewOpen} onToggle={() => setServiceReviewOpen((current) => !current)} />
@@ -596,9 +624,13 @@ export function MusicianView({ mediaMode = false }) {
             </div>
           </div>
         ) : null}
+          </>
+        ) : null}
       </Card>
 
 
+      {selectedSchedule ? (
+        <>
       <div className="grid gap-4">
         {serviceSongs.map((song) => (
           <Card key={`${song.index}-${song.title}`} className={`${focusMode ? "p-6 md:p-8" : "p-4 md:p-6"}`}>
@@ -643,6 +675,8 @@ export function MusicianView({ mediaMode = false }) {
           <h3 className="font-bold text-ink">Notas generales</h3>
           <p className="mt-2 leading-7 text-ink/62">{selectedSchedule.generalNotes}</p>
         </Card>
+      ) : null}
+        </>
       ) : null}
 
       <Modal open={showSheet} title="Programa especial" onClose={() => setShowSheet(false)} wide panelClassName="h-[92dvh] md:h-[90vh] max-w-6xl flex flex-col">

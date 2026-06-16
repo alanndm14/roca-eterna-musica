@@ -24,6 +24,7 @@ import {
   normalizeSearchText,
   normalizeSong
 } from "../services/songUtils";
+import { isCountableSchedule } from "../services/dateUtils";
 
 const blankSong = {
   title: "",
@@ -498,6 +499,7 @@ export function Songs() {
     const today = todayFile();
     const counts = new Map();
     schedules.forEach((schedule) => {
+      if (!isCountableSchedule(schedule)) return;
       if (schedule.date && schedule.date > today) return;
       (schedule.songs || []).forEach((entry) => {
         if (!entry.songId) return;
