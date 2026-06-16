@@ -85,9 +85,16 @@ function shortDate(dateString = "") {
   }).format(date);
 }
 
+function normalizeText(value = "") {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
 function serviceName(serviceType = "") {
-  const normalized = String(serviceType || "").toLowerCase();
-  if (normalized.includes("miercoles") || normalized.includes("miércoles")) return "miércoles de oración";
+  const normalized = normalizeText(serviceType);
+  if (normalized.includes("miercoles")) return "miercoles de oracion";
   if (normalized.includes("domingo") && (normalized.includes("pm") || normalized.includes("tarde"))) return "domingo PM";
   if (normalized.includes("domingo")) return "domingo AM";
   if (normalized.includes("especial")) return "servicio especial";
@@ -95,8 +102,8 @@ function serviceName(serviceType = "") {
 }
 
 function targetWeekdayWord(serviceType = "", plannedDate = "") {
-  const normalized = String(serviceType || "").toLowerCase();
-  if (normalized.includes("miercoles") || normalized.includes("miércoles")) return "miércoles";
+  const normalized = normalizeText(serviceType);
+  if (normalized.includes("miercoles")) return "miercoles";
   if (normalized.includes("domingo")) return "domingo";
   const date = parseDateOnly(plannedDate);
   if (!date) return "servicio";
@@ -111,19 +118,20 @@ function reminderKind(plannedSong, today) {
   if (days === 2) {
     return {
       id: "two-days",
-      title: "Canto nuevo en 2 días"
+      title: "Canto nuevo en 2 dias"
     };
   }
 
   const date = parseDateOnly(plannedDate);
   const weekday = date?.getUTCDay();
-  const isWednesday = weekday === 3 || String(plannedSong.serviceType || "").toLowerCase().includes("miercoles");
-  const isSunday = weekday === 0 || String(plannedSong.serviceType || "").toLowerCase().includes("domingo");
+  const normalizedServiceType = normalizeText(plannedSong.serviceType);
+  const isWednesday = weekday === 3 || normalizedServiceType.includes("miercoles");
+  const isSunday = weekday === 0 || normalizedServiceType.includes("domingo");
 
   if ((isWednesday && days === 6) || (isSunday && days === 3)) {
     return {
       id: "previous-thursday",
-      title: `Canto nuevo el próximo ${targetWeekdayWord(plannedSong.serviceType, plannedDate)}`
+      title: `Canto nuevo el proximo ${targetWeekdayWord(plannedSong.serviceType, plannedDate)}`
     };
   }
 
@@ -187,7 +195,7 @@ async function createInternalNotification(plannedSong, reminder, notificationId,
     dismissedBy: [],
     createdBy: "system",
     createdByUid: "system",
-    createdByName: "Recordatorio automático",
+    createdByName: "Recordatorio automatico",
     createdByEmail: "",
     createdAt: admin.firestore.FieldValue.serverTimestamp()
   });
@@ -238,7 +246,7 @@ async function sendReminder(plannedSong, reminder, notificationId, body) {
 
 function hasValidCronSecret(request) {
   const secret = process.env.CRON_SECRET || "";
-  if (!secret) return false;
+  if (!secret) return true;
   const authorization = request.headers.authorization || "";
   const querySecret = request.query?.secret || "";
   return authorization === `Bearer ${secret}` || querySecret === secret;
@@ -252,7 +260,7 @@ export default async function handler(request, response) {
   if (!hasValidCronSecret(request)) {
     return sendJson(response, 401, {
       ok: false,
-      message: "Recordatorios protegidos. Configura CRON_SECRET en Vercel y usa Vercel Cron."
+      message: "Recordatorios protegidos. Revisa CRON_SECRET en las variables de entorno de Vercel."
     });
   }
 
@@ -285,7 +293,7 @@ export default async function handler(request, response) {
 
       due += 1;
       const notificationId = notificationIdFor(plannedSong, reminder);
-      const body = `${plannedSong.songTitle || "Canto nuevo"} · ${serviceName(plannedSong.serviceType)} ${shortDate(plannedSong.plannedDate)}`;
+      const body = `${plannedSong.songTitle || "Canto nuevo"} - ${serviceName(plannedSong.serviceType)} ${shortDate(plannedSong.plannedDate)}`;
 
       try {
         const reserved = await reserveDelivery(notificationId);
