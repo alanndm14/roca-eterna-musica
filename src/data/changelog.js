@@ -1,6 +1,15 @@
-export const appVersion = "0.9.125";
+export const appVersion = "0.9.126";
 
 export const changelog = [
+  {
+    version: "0.9.126",
+    date: "2026-06-15",
+    title: "recordatorio de cantos nuevos añadidos",
+    added: ["recordatorio de cantos nuevos añadidos"],
+    changed: [],
+    fixed: [],
+    pending: []
+  },
   {
     version: "0.9.125",
     date: "2026-06-15",

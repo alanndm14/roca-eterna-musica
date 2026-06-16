@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { CalendarCheck2, FileSearch, GitCompareArrows, Lightbulb, ListChecks, Music2, RefreshCw, Search, Shuffle, Sparkles, Tags, Wand2, X } from "lucide-react";
+import { CalendarCheck2, FileSearch, GitCompareArrows, Lightbulb, ListChecks, Music2, RefreshCw, Shuffle, Sparkles, Tags, Wand2, X } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Field, Input, Select } from "../components/ui/Field";
 import { Modal } from "../components/ui/Modal";
@@ -32,7 +32,6 @@ import {
   parseThemeInput,
   reviewServiceSchedule,
   scoreSong,
-  searchSongsByIntent,
   smartServiceTypes,
   toSongEntry
 } from "../services/smartRecommendations";
@@ -42,8 +41,7 @@ const tabItems = [
   { id: "programar", label: "Programación Inteligente", icon: Wand2, primary: true },
   { id: "revisar", label: "Revisar", icon: CalendarCheck2 },
   { id: "sustituir", label: "Sustituir", icon: GitCompareArrows },
-  { id: "balance", label: "Balance", icon: Lightbulb },
-  { id: "buscar", label: "Buscar", icon: Search }
+  { id: "balance", label: "Balance", icon: Lightbulb }
 ];
 
 const defaultOptions = {
@@ -282,7 +280,6 @@ export function SmartCenter() {
   const [selectedScheduleId, setSelectedScheduleId] = useState("");
   const [existingDate, setExistingDate] = useState(nextSchedule?.date || "");
   const [replacementSongId, setReplacementSongId] = useState("");
-  const [intentQuery, setIntentQuery] = useState("");
   const [dismissed, setDismissed] = useState([]);
   const [status, setStatus] = useState("");
   const [planningError, setPlanningError] = useState("");
@@ -451,7 +448,6 @@ export function SmartCenter() {
   const insights = useMemo(() => getRepertoireInsightsSafe(songs, schedules), [schedules, songs]);
   const visibleInsights = showAllBalance ? insights.slice(0, 8) : insights.slice(0, 4);
   const gaps = useMemo(() => getPreparationGaps(songs).slice(0, 6), [songs]);
-  const intentSearch = useMemo(() => searchSongsByIntent(intentQuery, songs, usageIndex), [intentQuery, songs, usageIndex]);
   const alternativeCandidates = useMemo(() => {
     if (!alternativeSlot) return [];
     const selectedIds = new Set(suggestedBlock.items.map((item) => item.song.id));
@@ -1209,31 +1205,6 @@ export function SmartCenter() {
           </motion.section>
         ) : null}
 
-        {activeTab === "buscar" ? (
-          <motion.section key="buscar" initial={reduceMotion ? false : { opacity: 0, y: 10 }} animate={reduceMotion ? undefined : { opacity: 1, y: 0 }} exit={reduceMotion ? undefined : { opacity: 0, y: -6 }} transition={{ duration: 0.2 }} className="mt-6">
-            <SmartPanel>
-              <div className="flex items-center gap-2">
-                <Search className="h-5 w-5 text-brass" />
-                <h2 className="text-xl font-black text-ink">Buscar por intención</h2>
-              </div>
-              <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
-                <Input value={intentQuery} onChange={(event) => setIntentQuery(event.target.value)} placeholder="cantos para santa cena, himnos no usados, sin youtube..." />
-                <Button variant="secondary" onClick={() => openRepertoireFilter({ q: intentQuery })}>Aplicar filtro</Button>
-              </div>
-              <div className="mt-4 flex flex-wrap gap-2">
-                {intentSearch.interpretation.length ? intentSearch.interpretation.map((item) => <span key={item} className="rounded-full bg-brass/12 px-3 py-1 text-xs font-bold text-brass">{item}</span>) : <span className="text-sm text-ink/55">Escribe una intención para interpretarla.</span>}
-              </div>
-              <div className="mt-5 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                {intentSearch.results.slice(0, 9).map((song) => (
-                  <button key={song.id} type="button" onClick={() => navigate(`/repertorio/${song.id}`)} className="rounded-2xl border border-white/60 bg-white/70 p-3 text-left shadow-soft dark:border-white/10 dark:bg-white/8">
-                    <p className="font-bold text-ink">{song.title}</p>
-                    <p className="mt-1 text-sm text-ink/60">{song.mainTheme || "Sin tema"} · {song.keyWithCapo || song.mainKey || "Sin tono"}</p>
-                  </button>
-                ))}
-              </div>
-            </SmartPanel>
-          </motion.section>
-        ) : null}
         </AnimatePresence>
       </motion.div>
 

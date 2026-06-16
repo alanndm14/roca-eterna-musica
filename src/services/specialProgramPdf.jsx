@@ -55,6 +55,7 @@ function cleanPrintableNotes(value = "") {
 }
 
 export function isSpecialService(schedule = {}) {
+  if (!schedule) return false;
   return Boolean(
     schedule.isSpecialService === true
     || schedule.serviceType === "especial"

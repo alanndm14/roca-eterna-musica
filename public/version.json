@@ -1,8 +1,8 @@
 {
-  "version": "0.9.125",
+  "version": "0.9.126",
   "date": "2026-06-15",
   "critical": true,
   "changes": [
-    "correccion de vistas"
+    "recordatorio de cantos nuevos añadidos"
   ]
 }

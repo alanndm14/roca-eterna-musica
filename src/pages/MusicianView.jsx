@@ -243,7 +243,7 @@ export function MusicianView({ mediaMode = false }) {
     [selectedSchedule, songs, settings.keyPreference]
   );
   const activePdfSong = serviceSongs[activePdfIndex] || serviceSongs[0];
-  const selectedIsSpecial = isSpecialService(selectedSchedule);
+  const selectedIsSpecial = selectedSchedule ? isSpecialService(selectedSchedule) : false;
   const scheduledProgramSongs = useMemo(() => getScheduledSongOptions(selectedSchedule, songs), [selectedSchedule, songs]);
   const specialProgramExists = normalizeSpecialProgramItems(selectedSchedule?.specialProgram || []).length > 0;
   const serviceReview = useMemo(
