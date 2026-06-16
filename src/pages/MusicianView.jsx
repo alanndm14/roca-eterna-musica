@@ -692,13 +692,15 @@ export function MusicianView({ mediaMode = false }) {
         </>
       ) : null}
 
-      <Modal open={showSheet && Boolean(selectedSchedule)} title="Programa especial" onClose={() => setShowSheet(false)} wide panelClassName="h-[92dvh] md:h-[90vh] max-w-6xl flex flex-col">
+      {selectedSchedule ? (
+        <>
+      <Modal open={showSheet} title="Programa especial" onClose={() => setShowSheet(false)} wide panelClassName="h-[92dvh] md:h-[90vh] max-w-6xl flex flex-col">
         <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-ink/10 bg-white">
           {sheetUrl ? <iframe title="Programa especial" src={sheetUrl} className="h-full w-full" /> : null}
         </div>
       </Modal>
 
-      <Modal open={showServicePdfs && Boolean(selectedSchedule)} title="PDFs del servicio" onClose={() => setShowServicePdfs(false)} wide panelClassName="h-[96dvh] md:h-[90vh] max-w-7xl flex flex-col">
+      <Modal open={showServicePdfs} title="PDFs del servicio" onClose={() => setShowServicePdfs(false)} wide panelClassName="h-[96dvh] md:h-[90vh] max-w-7xl flex flex-col">
         <div className="flex min-h-0 flex-1 flex-col gap-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
@@ -745,7 +747,7 @@ export function MusicianView({ mediaMode = false }) {
         </div>
       </Modal>
 
-      <Modal open={showSpecialProgramEditor && Boolean(selectedSchedule)} title={specialProgramExists ? "Editar programa especial" : "Crear programa especial"} onClose={() => setShowSpecialProgramEditor(false)} wide>
+      <Modal open={showSpecialProgramEditor} title={specialProgramExists ? "Editar programa especial" : "Crear programa especial"} onClose={() => setShowSpecialProgramEditor(false)} wide>
         <div className="space-y-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm leading-6 text-ink/60">Agrega el orden completo del servicio especial. Esto no reemplaza la lista normal de cantos.</p>
@@ -817,7 +819,7 @@ export function MusicianView({ mediaMode = false }) {
         </div>
       </Modal>
 
-      <Modal open={showLocalMerge && Boolean(selectedSchedule)} title="Unir PDFs desde mi computadora" onClose={() => setShowLocalMerge(false)} wide>
+      <Modal open={showLocalMerge} title="Unir PDFs desde mi computadora" onClose={() => setShowLocalMerge(false)} wide>
         <div className="space-y-4">
           <div className="rounded-2xl border border-ink/10 bg-white p-4">
             <input id="local-pdf-files" className="sr-only" type="file" accept="application/pdf,.pdf" multiple onChange={(event) => addLocalFiles([...(event.target.files || [])])} />
@@ -851,6 +853,8 @@ export function MusicianView({ mediaMode = false }) {
           </div>
         </div>
       </Modal>
+        </>
+      ) : null}
 
       <Modal open={Boolean(mergeResult)} title="No se pudo incluir todo" onClose={() => setMergeResult(null)}>
         <div className="space-y-4">

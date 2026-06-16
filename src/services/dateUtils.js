@@ -27,6 +27,7 @@ export const daysUntil = (dateString) => {
 };
 
 export const inferServiceType = (schedule = {}) => {
+  if (!schedule) return "especial";
   if (schedule.serviceType) return schedule.serviceType;
   const weekday = schedule.date ? new Date(`${schedule.date}T00:00:00`).getDay() : null;
   const time = String(schedule.time || "");
@@ -42,6 +43,7 @@ const normalizeScheduleText = (value = "") => String(value || "")
   .toLowerCase();
 
 export const isYouthSchedule = (schedule = {}) => {
+  if (!schedule) return false;
   const text = normalizeScheduleText([
     schedule.serviceLabel,
     schedule.type,
@@ -54,9 +56,10 @@ export const isYouthSchedule = (schedule = {}) => {
   return /\b(joven|jovenes|juvenil|youth)\b/.test(text);
 };
 
-export const isCountableSchedule = (schedule = {}) => !isYouthSchedule(schedule);
+export const isCountableSchedule = (schedule = {}) => Boolean(schedule) && !isYouthSchedule(schedule);
 
 export const getServiceDisplayLabel = (schedule = {}) => {
+  if (!schedule) return "Servicio";
   const type = inferServiceType(schedule);
   if (type === "domingo-manana") return "Domingo AM";
   if (type === "domingo-tarde") return "Domingo PM";
@@ -65,6 +68,7 @@ export const getServiceDisplayLabel = (schedule = {}) => {
 };
 
 export const getDefaultServiceTime = (schedule = {}) => {
+  if (!schedule) return "00:00";
   const type = inferServiceType(schedule);
   if (type === "domingo-manana") return "11:00";
   if (type === "domingo-tarde") return "17:00";
@@ -73,6 +77,7 @@ export const getDefaultServiceTime = (schedule = {}) => {
 };
 
 export const formatScheduleDateWithService = (schedule = {}) => {
+  if (!schedule) return "Sin fecha";
   const date = formatDate(schedule.date);
   const service = getServiceDisplayLabel(schedule);
   return service ? `${date} · ${service}` : date;
@@ -86,6 +91,7 @@ export const getScheduleStartDate = (schedule = {}) => {
 };
 
 export const getEstimatedServiceEndDate = (schedule = {}) => {
+  if (!schedule) return null;
   const start = getScheduleStartDate(schedule);
   if (!start) return null;
   const type = inferServiceType(schedule);
