@@ -1,12 +1,12 @@
 {
-  "version": "0.9.131",
+  "version": "0.9.132",
   "date": "2026-06-18",
   "critical": true,
   "changes": [
-    "Programación concentra calendario, programa, Asistente IA, revisión y seguimiento",
-    "Centro Inteligente se integró como Asistente IA contextual",
-    "Balance del repertorio se movió a Estadísticas",
-    "Se corrigieron textos con caracteres dañados",
-    "Se conservaron los cantos nuevos planeados y la subida automática de PDFs a GitHub"
+    "Sugerir bloque ahora crea combinaciones completas para el servicio",
+    "Se separaron las sugerencias de la búsqueda detallada en letras y PDFs",
+    "La rotación favorece cantos poco usados y evita repeticiones recientes",
+    "Completar desde cantos elegidos vuelve a apoyar la preparación del servicio",
+    "El Balance del repertorio permanece en Estadísticas"
   ]
 }
