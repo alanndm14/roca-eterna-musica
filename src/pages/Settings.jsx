@@ -13,7 +13,7 @@ import { diagnosePublicAsset } from "../services/publicPdfTools";
 import { getLastPushResult, isPushBackendConfigured, sendExternalPush } from "../services/externalPush";
 import { cleanupCurrentUserFcmTokens, diagnosePushNotifications, disablePushNotificationsForUser, enablePushNotificationsForUser, getCurrentPushTokenForUser, getLastBackgroundPush, getLastForegroundPush, reinstallMessagingServiceWorker, requestSiteNotificationPermissionOnly, testLocalNotification } from "../services/pushNotifications";
 import { appDarkLogo, appLogo, fallbackAppLogo } from "../assets/logo";
-import { activateLatestAppVersion, fetchLatestVersion, getInstalledVersion } from "../services/appUpdate";
+import { activateLatestAppVersion, compareVersions, fetchLatestVersion, getInstalledVersion } from "../services/appUpdate";
 import { appVersion } from "../data/changelog";
 import { AndroidNotificationPermissionWizard } from "../components/notifications/AndroidNotificationPermissionWizard";
 import { isAndroidDevice } from "../services/notificationDevice";
@@ -96,6 +96,8 @@ export function Settings() {
   const [pushCooldownNow, setPushCooldownNow] = useState(Date.now());
   const [tokenCleanupResult, setTokenCleanupResult] = useState(null);
   const [latestVersion, setLatestVersion] = useState(null);
+  const [isRefreshingApp, setIsRefreshingApp] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState("");
   const [installPromptEvent, setInstallPromptEvent] = useState(null);
   const [installStatus, setInstallStatus] = useState("");
   const [isStandalone, setIsStandalone] = useState(() => {
@@ -325,8 +327,13 @@ export function Settings() {
   };
 
   const refreshApp = async () => {
-    if (confirm("La app limpiará caché local y recargará para buscar la versión más reciente.")) {
+    setIsRefreshingApp(true);
+    setUpdateStatus("Preparando la versión más reciente...");
+    try {
       await activateLatestAppVersion(latestVersion?.version || appVersion);
+    } catch (error) {
+      setUpdateStatus(error?.message || "No se pudo iniciar la actualización. Recarga la página e inténtalo nuevamente.");
+      setIsRefreshingApp(false);
     }
   };
 
@@ -1365,10 +1372,13 @@ export function Settings() {
             </div>
             <div className="flex items-center justify-between gap-3">
               <dt className="text-ink/55">Estado</dt>
-              <dd className="font-semibold text-ink">{latestVersion?.version && latestVersion.version !== appVersion ? "actualización disponible" : "actualizado"}</dd>
+              <dd className="font-semibold text-ink">{latestVersion?.version && compareVersions(latestVersion.version, appVersion) > 0 ? "actualización disponible" : "actualizado"}</dd>
             </div>
           </dl>
-          <Button className="mt-4 w-full" variant="secondary" onClick={refreshApp}>Actualizar app</Button>
+          <Button className="mt-4 w-full" variant="secondary" onClick={refreshApp} disabled={isRefreshingApp}>
+            {isRefreshingApp ? "Actualizando..." : latestVersion?.version && compareVersions(latestVersion.version, appVersion) > 0 ? "Actualizar ahora" : "Buscar y actualizar"}
+          </Button>
+          {updateStatus ? <p className="mt-3 rounded-2xl bg-ink/5 p-3 text-sm text-ink/65">{updateStatus}</p> : null}
         </Card>
         ) : null}
 

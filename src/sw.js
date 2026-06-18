@@ -1,5 +1,5 @@
 /* global firebase */
-import { clientsClaim } from "workbox-core";
+import { cacheNames, clientsClaim, setCacheNameDetails } from "workbox-core";
 import { cleanupOutdatedCaches, precacheAndRoute } from "workbox-precaching";
 
 importScripts("https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js");
@@ -7,10 +7,16 @@ importScripts("https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-com
 
 self.skipWaiting();
 clientsClaim();
+setCacheNameDetails({
+  prefix: "roca-eterna-musica",
+  suffix: "v0.9.133",
+  precache: "precache",
+  runtime: "runtime"
+});
 cleanupOutdatedCaches();
 precacheAndRoute(self.__WB_MANIFEST);
 
-const CACHE_NAME = "roca-eterna-musica-v1.0.2-single-welcome-once";
+const CACHE_NAME = "roca-eterna-musica-v1.0.3-update-recovery";
 const OLD_ICON_PATTERNS = [
   "icon-192",
   "icon-512",
@@ -51,8 +57,10 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil((async () => {
     const keys = await caches.keys();
+    const activeCaches = new Set([CACHE_NAME, cacheNames.precache, cacheNames.runtime]);
     await Promise.all(keys.map(async (key) => {
-      if (key !== CACHE_NAME && key.startsWith("roca-eterna-musica")) {
+      const belongsToApp = key.startsWith("roca-eterna-musica") || key.startsWith("workbox-precache");
+      if (belongsToApp && !activeCaches.has(key)) {
         await caches.delete(key);
       }
     }));

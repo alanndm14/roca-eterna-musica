@@ -1,6 +1,21 @@
-export const appVersion = "0.9.132";
+export const appVersion = "0.9.133";
 
 export const changelog = [
+  {
+    version: "0.9.133",
+    date: "2026-06-18",
+    title: "Actualización corregida",
+    added: [],
+    changed: [
+      "El aviso de nueva versión vuelve a aparecer antes de entrar a la app",
+      "Actualizar ahora activa la versión nueva y limpia la caché anterior desde el primer intento"
+    ],
+    fixed: [
+      "Botón de actualización que podía recargar la misma versión",
+      "Caché antigua de la PWA que impedía reflejar cambios recientes"
+    ],
+    pending: []
+  },
   {
     version: "0.9.132",
     date: "2026-06-18",
