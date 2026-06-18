@@ -1,10 +1,10 @@
 {
-  "version": "0.9.133",
+  "version": "0.9.134",
   "date": "2026-06-18",
   "critical": true,
   "changes": [
-    "El aviso de actualización aparece antes de entrar a la app",
-    "Actualizar ahora instala la versión nueva desde el primer intento",
-    "Se limpia la caché antigua de la PWA para reflejar los cambios recientes"
+    "El Asistente IA ya puede crear programaciones nuevas",
+    "Tema, letra/PDF y cantos base ahora se pueden combinar",
+    "Inicio muestra el próximo canto nuevo con contador y accesos directos"
   ]
 }
