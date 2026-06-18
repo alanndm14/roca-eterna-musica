@@ -1,4 +1,4 @@
-import { normalizePublicAssetPath, resolvePublicAssetUrl } from "./songUtils";
+import { normalizePublicAssetPath, resolvePublicAssetUrl, resolvePublicPdfPath } from "./songUtils";
 
 const imageTypes = ["image/png", "image/jpeg", "image/webp", "image/svg+xml", "image/gif"];
 
@@ -89,8 +89,8 @@ export async function diagnosePublicAsset(path, expectedType = "file") {
   }
 }
 
-export async function testPublicPdfPath(localPdfPath) {
-  return diagnosePublicAsset(localPdfPath, "pdf");
+export async function testPublicPdfPath(localPdfPath, pdfVersion = "") {
+  return diagnosePublicAsset(resolvePublicPdfPath(localPdfPath, pdfVersion), "pdf");
 }
 
 export async function fetchValidPdfArrayBuffer(path) {

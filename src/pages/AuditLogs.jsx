@@ -23,6 +23,7 @@ const actionLabels = {
   settings_update: "Configuración actualizada",
   notification_created: "Notificación creada"
 };
+actionLabels.pdf_updated = "PDF actualizado";
 const entityLabels = {
   song: "Canto",
   schedule: "Programación",

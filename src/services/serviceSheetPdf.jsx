@@ -161,6 +161,7 @@ export function buildServiceSongs(schedule, songs, keyPreference = "sharps") {
       pdfUrl: entry.pdfUrl || getSongPdfUrl(full),
       previewUrl: getSongPreviewUrl(full) || entry.pdfUrl || getSongPdfUrl(full),
       localPdfPath: full.localPdfPath || entry.localPdfPath || "",
+      pdfVersion: full.pdfVersion || entry.pdfVersion || "",
       youtubeUrl: getSongYoutubeUrl(full),
       spotifyUrl: getSongSpotifyUrl(full),
       externalChordsUrl: getSongExternalChordsUrl(full),

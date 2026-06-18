@@ -1,6 +1,6 @@
 import { PDFDocument } from "pdf-lib";
 import { buildServiceSongs, getServiceFileName } from "./serviceSheetPdf";
-import { resolvePublicPdfPath } from "./songUtils";
+import { resolvePublicPdfPath, resolveSongLocalPdfUrl } from "./songUtils";
 import { fetchValidPdfArrayBuffer } from "./publicPdfTools";
 
 export function extractGoogleDriveFileId(url = "") {
@@ -25,8 +25,8 @@ function firstValue(values) {
 }
 
 export function getSongPdfSource(song = {}) {
-  if (song.localPdfPath) {
-    return { type: "local", url: resolvePublicPdfPath(song.localPdfPath), label: "PDF local" };
+  if (song.localPdfPath || song.pdfLocalPath) {
+    return { type: "local", url: resolveSongLocalPdfUrl(song), label: "PDF local" };
   }
 
   const url = firstValue([song.pdfPreviewUrl, song.drivePdfUrl, song.pdfUrl, song.chordsUrl, song.storagePdfUrl]);
@@ -75,6 +75,7 @@ export async function mergeServiceLocalPdfs(schedule, songs, keyPreference = "sh
 
   for (const serviceSong of serviceSongs) {
     const localPdfPath = serviceSong.localPdfPath || serviceSong.full?.localPdfPath || serviceSong.merged?.localPdfPath || "";
+    const pdfVersion = serviceSong.pdfVersion || serviceSong.full?.pdfVersion || serviceSong.merged?.pdfVersion || "";
 
     if (!localPdfPath) {
       omitted.push({ title: serviceSong.title, reason: "sin ruta PDF local" });
@@ -82,7 +83,8 @@ export async function mergeServiceLocalPdfs(schedule, songs, keyPreference = "sh
     }
 
     try {
-      const { buffer: bytes, diagnosis } = await fetchValidPdfArrayBuffer(localPdfPath);
+      const versionedPdfUrl = resolvePublicPdfPath(localPdfPath, pdfVersion);
+      const { buffer: bytes, diagnosis } = await fetchValidPdfArrayBuffer(versionedPdfUrl);
       await PDFDocument.load(bytes, { ignoreEncryption: true });
       buffers.push(bytes);
       included.push({ title: serviceSong.title, source: localPdfPath, resolvedUrl: diagnosis.finalUrl });
@@ -90,7 +92,7 @@ export async function mergeServiceLocalPdfs(schedule, songs, keyPreference = "sh
       omitted.push({
         title: serviceSong.title,
         source: localPdfPath,
-        resolvedUrl: error.diagnosis?.finalUrl || resolvePublicPdfPath(localPdfPath),
+        resolvedUrl: error.diagnosis?.finalUrl || resolvePublicPdfPath(localPdfPath, pdfVersion),
         reason: error.message || "archivo no publicado o no descargable"
       });
     }

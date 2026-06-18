@@ -27,10 +27,10 @@ async function hashArrayBuffer(buffer) {
   return `fallback-${view.length}-${Math.abs(hash)}`;
 }
 
-export async function fingerprintLocalPdf(localPdfPath) {
-  const url = resolvePublicPdfPath(localPdfPath);
+export async function fingerprintLocalPdf(localPdfPath, pdfVersion = "") {
+  const url = resolvePublicPdfPath(localPdfPath, pdfVersion);
   if (!url) return { status: "missing", fingerprint: "", message: "Sin ruta PDF local." };
-  const { buffer, diagnosis } = await fetchValidPdfArrayBuffer(localPdfPath);
+  const { buffer, diagnosis } = await fetchValidPdfArrayBuffer(url);
   const fingerprint = await hashArrayBuffer(buffer);
   return {
     status: "found",
@@ -72,7 +72,7 @@ async function extractTextWithOcr(document, onOcrProgress) {
 }
 
 export async function extractLocalPdfText(localPdfPath, options = {}) {
-  const url = resolvePublicPdfPath(localPdfPath);
+  const url = resolvePublicPdfPath(localPdfPath, options.pdfVersion || "");
   if (!url) return { status: "missing", text: "", tokens: [], message: "Sin ruta PDF local." };
 
   try {
@@ -80,7 +80,7 @@ export async function extractLocalPdfText(localPdfPath, options = {}) {
     const worker = await import("pdfjs-dist/build/pdf.worker.min.mjs?url");
     pdfjsLib.GlobalWorkerOptions.workerSrc = worker.default;
 
-    const prefetched = options.prefetched || await fingerprintLocalPdf(localPdfPath);
+    const prefetched = options.prefetched || await fingerprintLocalPdf(localPdfPath, options.pdfVersion || "");
     const { buffer, diagnosis } = prefetched;
     const document = await pdfjsLib.getDocument({ data: buffer }).promise;
     const pages = [];

@@ -1,6 +1,15 @@
-export const appVersion = "0.9.129";
+export const appVersion = "0.9.130";
 
 export const changelog = [
+  {
+    version: "0.9.130",
+    date: "2026-06-17",
+    title: "Nuevo botón para reemplazar el PDF desde la app",
+    added: ["Nuevo botón para reemplazar el PDF desde la app"],
+    changed: [],
+    fixed: [],
+    pending: []
+  },
   {
     version: "0.9.129",
     date: "2026-06-16",

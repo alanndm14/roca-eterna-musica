@@ -307,6 +307,9 @@ Para mover la app a un subdominio de la iglesia, usa la guia exacta en `docs/dom
 
 La guia de reglas, App Check, Vercel y GitHub esta en `docs/seguridad.md`.
 
+La configuracion del boton para subir o reemplazar PDFs desde la app esta en
+`docs/subida-pdf-github.md`.
+
 ## PWA instalable
 
 La app esta configurada como PWA para GitHub Pages bajo `/roca-eterna-musica/`.

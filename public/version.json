@@ -1,8 +1,8 @@
 {
-  "version": "0.9.129",
-  "date": "2026-06-16",
+  "version": "0.9.130",
+  "date": "2026-06-17",
   "critical": true,
   "changes": [
-    "correccion de vistas"
+    "corrección de errores"
   ]
 }

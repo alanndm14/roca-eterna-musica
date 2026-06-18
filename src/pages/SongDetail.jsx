@@ -6,6 +6,7 @@ import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
 import { FileDiagnosticPanel } from "../components/ui/FileDiagnosticPanel";
 import { Modal } from "../components/ui/Modal";
+import { SongGithubPdfManager } from "../components/song/SongGithubPdfManager";
 import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
 import { formatDate, formatScheduleDateWithService, getCurrentOrNextSchedule, getPastSchedules, getServiceDisplayLabel } from "../services/dateUtils";
@@ -213,7 +214,7 @@ export function SongDetail() {
                 {!isViewer ? <Button variant="secondary" onClick={copyPdf}><Copy className="h-4 w-4" />Copiar link</Button> : null}
                 <Button variant="subtle" onClick={() => setShowPdf(true)}>Ver dentro de la app</Button>
                 {song.localPdfPath && !isViewer ? (
-                  <Button variant="secondary" onClick={async () => setPdfTest(await testPublicPdfPath(song.localPdfPath))}>
+                  <Button variant="secondary" onClick={async () => setPdfTest(await testPublicPdfPath(song.localPdfPath, song.pdfVersion))}>
                     <CheckCircle className="h-4 w-4" />
                     Diagnosticar archivo
                   </Button>
@@ -223,6 +224,7 @@ export function SongDetail() {
               <p className="mt-4 rounded-2xl bg-ink/5 p-4 text-sm text-ink/58">Este canto todavía no tiene PDF registrado.</p>
             )}
             {!isViewer ? <FileDiagnosticPanel result={pdfTest} /> : null}
+            {canEdit ? <SongGithubPdfManager song={song} /> : null}
           </Card>
 
           <Card>

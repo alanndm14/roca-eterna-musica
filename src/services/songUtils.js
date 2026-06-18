@@ -164,8 +164,15 @@ export function resolvePublicAssetUrl(path = "") {
   return origin ? `${origin}${normalizedPath}` : normalizedPath;
 }
 
-export function resolvePublicPdfPath(path = "") {
-  return resolvePublicAssetUrl(path);
+export function resolvePublicPdfPath(path = "", version = "") {
+  const resolved = resolvePublicAssetUrl(path);
+  if (!resolved || version === "" || version === null || version === undefined) return resolved;
+  const separator = resolved.includes("?") ? "&" : "?";
+  return `${resolved}${separator}v=${encodeURIComponent(String(version))}`;
+}
+
+export function resolveSongLocalPdfUrl(song = {}) {
+  return resolvePublicPdfPath(song.localPdfPath || song.pdfLocalPath || "", song.pdfVersion || "");
 }
 
 export function resolvePublicAssetPath(path = "") {
@@ -198,11 +205,11 @@ export function shouldInvertInstitutionalLogo(settings = {}, themeMode = "system
 }
 
 export function getSongPdfUrl(song) {
-  return song?.pdfPreviewUrl || normalizeDrivePdfUrl(song?.drivePdfUrl) || song?.pdfUrl || song?.chordsUrl || resolvePublicPdfPath(song?.localPdfPath) || song?.storagePdfUrl || "";
+  return song?.pdfPreviewUrl || normalizeDrivePdfUrl(song?.drivePdfUrl) || song?.pdfUrl || song?.chordsUrl || resolveSongLocalPdfUrl(song) || song?.storagePdfUrl || "";
 }
 
 export function getSongPreviewUrl(song) {
-  return song?.pdfPreviewUrl || normalizeDrivePdfUrl(song?.drivePdfUrl || song?.pdfUrl || song?.chordsUrl) || resolvePublicPdfPath(song?.localPdfPath) || song?.storagePdfUrl || "";
+  return song?.pdfPreviewUrl || normalizeDrivePdfUrl(song?.drivePdfUrl || song?.pdfUrl || song?.chordsUrl) || resolveSongLocalPdfUrl(song) || song?.storagePdfUrl || "";
 }
 
 export function getSongYoutubeUrl(song) {
@@ -270,7 +277,7 @@ export function normalizeSong(song = {}, keyPreference = "sharps") {
     pdfUrl,
     drivePdfUrl,
     pdfPreviewUrl,
-    localPdfPath: song.localPdfPath || song.local_pdf_path || "",
+    localPdfPath: song.localPdfPath || song.pdfLocalPath || song.local_pdf_path || "",
     storagePdfUrl: song.storagePdfUrl || "",
     chordsUrl: song.chordsUrl || pdfUrl,
     externalChordsUrl: song.externalChordsUrl || song.chordsExternalUrl || "",

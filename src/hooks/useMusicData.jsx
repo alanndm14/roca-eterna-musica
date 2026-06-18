@@ -1260,7 +1260,7 @@ export function MusicDataProvider({ children }) {
       onProgress?.({ current, total: candidates.length, songTitle: song.title, pdfPath: song.localPdfPath, ...results });
       let prefetched = null;
       try {
-        prefetched = await fingerprintLocalPdf(song.localPdfPath);
+        prefetched = await fingerprintLocalPdf(song.localPdfPath, song.pdfVersion);
       } catch (error) {
         prefetched = null;
       }
@@ -1274,6 +1274,7 @@ export function MusicDataProvider({ children }) {
       }
       const extracted = await extractLocalPdfText(song.localPdfPath, {
         enableOcr: Boolean(options.enableOcr),
+        pdfVersion: song.pdfVersion,
         prefetched,
         onOcrProgress: (ocrProgress) => onProgress?.({ current, total: candidates.length, songTitle: song.title, pdfPath: song.localPdfPath, ocrProgress, ...results })
       });
