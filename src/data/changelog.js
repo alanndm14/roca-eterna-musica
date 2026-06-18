@@ -1,6 +1,25 @@
-export const appVersion = "0.9.130";
+export const appVersion = "0.9.131";
 
 export const changelog = [
+  {
+    version: "0.9.131",
+    date: "2026-06-18",
+    title: "Programación inteligente unificada",
+    added: [
+      "Workspace del servicio con Programa, Asistente IA, Revisión y Seguimiento",
+      "Asistente IA contextual dentro de cada programación"
+    ],
+    changed: [
+      "Centro Inteligente ahora abre Programación con el Asistente IA contextual",
+      "El Balance del repertorio se movió a Estadísticas",
+      "Se mantuvieron los cantos nuevos planeados y la subida automática de PDFs a GitHub"
+    ],
+    fixed: [
+      "Textos visibles con caracteres dañados",
+      "Navegación duplicada, calendarios internos y revisiones largas fuera de su pestaña"
+    ],
+    pending: []
+  },
   {
     version: "0.9.130",
     date: "2026-06-17",

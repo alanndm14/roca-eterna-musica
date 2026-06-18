@@ -339,7 +339,7 @@ export function Settings() {
       installPromptEvent.prompt();
       const choice = await installPromptEvent.userChoice;
       setInstallPromptEvent(null);
-      setInstallStatus(choice?.outcome === "accepted" ? "Instalaci?n iniciada." : "Instalaci?n cancelada por ahora.");
+      setInstallStatus(choice?.outcome === "accepted" ? "Instalación iniciada." : "Instalación cancelada por ahora.");
       return;
     }
     const isiOS = /iphone|ipad|ipod/i.test(navigator.userAgent || "");
@@ -491,7 +491,7 @@ export function Settings() {
   const runPersistentLocalNotificationTest = async () => {
     const result = await testLocalNotification({ requireInteraction: true });
     setLocalNotificationResult(result);
-    setPushStatus(result.executed ? "Notificaci?n local persistente ejecutada sin error. Si no aparece, el bloqueo esta en Chrome/Windows/Android." : result.error || "No se pudo ejecutar la notificación persistente.");
+    setPushStatus(result.executed ? "Notificación local persistente ejecutada sin error. Si no aparece, el bloqueo está en Chrome/Windows/Android." : result.error || "No se pudo ejecutar la notificación persistente.");
   };
 
   const requestSitePermission = async () => {
@@ -1122,7 +1122,7 @@ export function Settings() {
                 <p>Prueba FCM: {pushTestResult.ok ? `enviada (${pushTestResult.body?.sent || 0} enviados, ${pushTestResult.body?.failed || 0} fallidos, etapa ${pushTestResult.body?.stage || "sin etapa"})` : pushTestResult.body?.message || pushTestResult.error || "fallo"}.</p>
               ) : null}
               {pushCooldownActive ? <p className="font-semibold text-brass">Pausa temporal por cuota: espera {pushCooldownSeconds}s antes de volver a probar.</p> : null}
-              <p>Recepci?n: app abierta {foregroundPushResult ? "recibida" : "sin confirmar"}; segundo plano {backgroundPushResult ? "recibida" : "sin confirmar"}.</p>
+              <p>Recepción: app abierta {foregroundPushResult ? "recibida" : "sin confirmar"}; segundo plano {backgroundPushResult ? "recibida" : "sin confirmar"}.</p>
             </div>
           ) : null}
           {isAdmin ? (
@@ -1232,7 +1232,7 @@ export function Settings() {
                     {pushCooldownActive ? `Espera ${pushCooldownSeconds}s` : "Prueba data-only"}
                   </Button>
                   <Button className="w-full" variant="subtle" disabled={isUpdatingPush} onClick={runPersistentLocalNotificationTest}>
-                    Notificaci?n local persistente
+                    Notificación local persistente
                   </Button>
                   <Button className="w-full" variant="subtle" disabled={isUpdatingPush} onClick={requestSitePermission}>
                     Solicitar permiso del sitio
@@ -1277,11 +1277,11 @@ export function Settings() {
                   }, null, 2)}</pre>
                 ) : <p>Sin prueba registrada.</p>}
                 <div className="rounded-xl bg-ink/5 p-2 text-[11px] leading-5 dark:bg-white/10">
-                  <p className="font-semibold text-ink">Recepci?n foreground</p>
+                  <p className="font-semibold text-ink">Recepción foreground</p>
                   <p>{foregroundPushResult ? `Mensaje recibido con la app abierta: ${foregroundPushResult.title}` : "Sin mensaje recibido con la app abierta en este navegador."}</p>
                 </div>
                 <div className="rounded-xl bg-ink/5 p-2 text-[11px] leading-5 dark:bg-white/10">
-                  <p className="font-semibold text-ink">Recepci?n background / service worker</p>
+                  <p className="font-semibold text-ink">Recepción background / service worker</p>
                   <p>{backgroundPushResult ? `Mensaje recibido por service worker: ${backgroundPushResult.title}` : "Sin mensaje background registrado en este navegador."}</p>
                 </div>
                 <p className="pt-2 font-semibold text-ink">Ultimo envio automatico</p>
@@ -1356,7 +1356,7 @@ export function Settings() {
           <p className="mt-3 text-sm leading-6 text-ink/60">Limpia caché local y recarga si la PWA muestra una versión vieja.</p>
           <dl className="mt-4 grid gap-2 rounded-2xl bg-ink/5 p-3 text-sm">
             <div className="flex items-center justify-between gap-3">
-              <dt className="text-ink/55">Versi?n instalada</dt>
+              <dt className="text-ink/55">Versión instalada</dt>
               <dd className="font-semibold text-ink">{getInstalledVersion() || appVersion}</dd>
             </div>
             <div className="flex items-center justify-between gap-3">
@@ -1365,7 +1365,7 @@ export function Settings() {
             </div>
             <div className="flex items-center justify-between gap-3">
               <dt className="text-ink/55">Estado</dt>
-              <dd className="font-semibold text-ink">{latestVersion?.version && latestVersion.version !== appVersion ? "actualizaci?n disponible" : "actualizado"}</dd>
+              <dd className="font-semibold text-ink">{latestVersion?.version && latestVersion.version !== appVersion ? "actualización disponible" : "actualizado"}</dd>
             </div>
           </dl>
           <Button className="mt-4 w-full" variant="secondary" onClick={refreshApp}>Actualizar app</Button>

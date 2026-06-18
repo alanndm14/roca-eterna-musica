@@ -12,6 +12,7 @@ export function getPreparationGaps(songs = []) {
     { key: "drive", label: "Sin PDF Drive", priority: "alta", test: (song) => !(song.drivePdfUrl || song.pdfUrl) },
     { key: "localPdf", label: "Sin PDF local", priority: "alta", test: (song) => !song.localPdfPath },
     { key: "keynote", label: "Sin Keynote", priority: "alta", test: (song) => song.keynoteReviewStatus !== "completado" },
+    { key: "musicReview", label: "Sin revisión musical", priority: "alta", test: (song) => song.musicReviewStatus !== "completado" },
     { key: "key", label: "Sin tono", priority: "alta", test: (song) => !(song.mainKey || song.keyWithCapo) },
     { key: "theme", label: "Sin tema", priority: "media", test: (song) => !song.mainTheme },
     { key: "ocr", label: "OCR pendiente", priority: "baja", test: (song) => ["missing", "no_text", "error", "pending"].includes(song.pdfIndexStatus || "") }

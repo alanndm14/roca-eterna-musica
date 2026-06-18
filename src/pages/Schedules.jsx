@@ -1,7 +1,7 @@
 ﻿import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { pdf } from "@react-pdf/renderer";
-import { ArrowDown, ArrowUp, CalendarDays, CheckCircle2, Copy, Download, Edit3, Eye, FileText, Music2, Plus, Printer, Search, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, CalendarDays, CheckCircle2, ClipboardCheck, Copy, Download, Edit3, Eye, FileText, Music2, Plus, Printer, Search, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -9,7 +9,7 @@ import { Field, Input, Select, Textarea } from "../components/ui/Field";
 import { Modal } from "../components/ui/Modal";
 import { SortableList, SortableHandle } from "../components/ui/SortableList";
 import { SongNameLink } from "../components/ui/SongNameLink";
-import { ServiceReviewPanel } from "../components/smart/ServiceReviewPanel";
+import { getRiskTone, ServiceReviewPanel } from "../components/smart/ServiceReviewPanel";
 import { ServiceFollowUpPanel } from "../components/smart/ServiceFollowUpPanel";
 import { SongFollowUpNotice } from "../components/smart/SongFollowUpNotice";
 import { useAuth } from "../hooks/useAuth";
@@ -18,6 +18,7 @@ import { formatDate, todayString } from "../services/dateUtils";
 import { normalizeSearchText } from "../services/songUtils";
 import { downloadBlob } from "../services/mergeServicePdfs";
 import { getOutstandingSongFollowUps, reviewServiceSchedule } from "../services/smartRecommendations";
+import { SmartCenter } from "./SmartCenter";
 import {
   SPECIAL_PROGRAM_TYPES,
   SPECIAL_SONG_POSITIONS,
@@ -487,23 +488,31 @@ function ScheduleCard({
   onViewSpecialProgram,
   onPrintSpecialProgram,
   onPrintSpecialProgramFourUp,
-  onSaveFollowUp,
-  onCloseService
+  onOpenReview,
+  workspace = false
 }) {
   const special = isSpecialService(schedule);
-  const [reviewOpen, setReviewOpen] = useState(false);
   const review = reviewServiceSchedule(schedule, songs, schedules);
+  const risk = getRiskTone(review.score);
+  const pendingReviews = (review.groups || [])
+    .filter((group) => group.title === "Faltan revisiones")
+    .reduce((total, group) => total + (group.items?.length || 0), 0);
   return (
     <Card>
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-        <div>
+        {!workspace ? <div>
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-xl font-bold text-ink">{formatDate(schedule.date)}</h3>
             <span className="rounded-full bg-brass/12 px-3 py-1 text-xs font-bold text-brass">{schedule.serviceLabel || schedule.type}</span>
           </div>
-          <p className="mt-1 text-sm text-ink/55">{schedule.time || "Sin hora"} · {schedule.leader || "Sin lider de adoracion"}</p>
+          <p className="mt-1 text-sm text-ink/55">{schedule.time || "Sin hora"} · {schedule.leader || "Sin líder de adoración"}</p>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-ink/62">{schedule.generalNotes || "Sin notas generales."}</p>
-        </div>
+        </div> : (
+          <div>
+            <p className="text-xs font-black uppercase tracking-wide text-ink/45">Notas generales</p>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-ink/62">{schedule.generalNotes || "Sin notas generales."}</p>
+          </div>
+        )}
         <div className="flex flex-wrap gap-2">
           {canEdit ? (
             <>
@@ -519,20 +528,15 @@ function ScheduleCard({
           ) : null}
         </div>
       </div>
-      {canEdit ? <div className="mt-5">
-        <ServiceReviewPanel review={review} compact interactive open={reviewOpen} onToggle={() => setReviewOpen((current) => !current)} />
-      </div> : null}
-      {canEdit && (review.mode !== "future" || schedule.serviceFollowUp) ? (
-        <div className="mt-5">
-          <ServiceFollowUpPanel
-            schedule={schedule}
-            canEdit={canEdit}
-            compact
-            onSave={onSaveFollowUp}
-            onCloseService={onCloseService}
-          />
-        </div>
-      ) : null}
+      <div className="mt-5 flex flex-col gap-3 rounded-2xl border border-ink/10 bg-ink/5 p-3 sm:flex-row sm:items-center sm:justify-between dark:border-white/10 dark:bg-white/6">
+        <p className="text-sm font-bold text-ink">
+          Preparación {review.score}% · {risk.label} · {pendingReviews} {pendingReviews === 1 ? "revisión pendiente" : "revisiones pendientes"}
+        </p>
+        <Button variant="secondary" onClick={onOpenReview}>
+          <ClipboardCheck className="h-4 w-4" />
+          Ver revisión
+        </Button>
+      </div>
       {special ? (
         <div className="mt-5 rounded-2xl border border-brass/25 bg-brass/10 p-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -586,7 +590,7 @@ function ScheduleCard({
 
 export function Schedules() {
   const { canEdit, canDelete } = useAuth();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const {
     songs,
     schedules,
@@ -609,20 +613,52 @@ export function Schedules() {
   const [programPreviewUrl, setProgramPreviewUrl] = useState("");
   const [programPreviewTitle, setProgramPreviewTitle] = useState("Programa especial");
   const [tab, setTab] = useState("calendar");
+  const [selectedScheduleId, setSelectedScheduleId] = useState(() => searchParams.get("schedule") || "");
+  const [activeScheduleWorkspaceTab, setActiveScheduleWorkspaceTab] = useState(() => searchParams.get("tab") === "asistente" ? "assistant" : "program");
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = todayString();
     return [...schedules].filter((schedule) => schedule.date >= today).sort((a, b) => a.date.localeCompare(b.date))[0]?.date || today;
   });
   const [query, setQuery] = useState("");
+  const selectedSchedule = schedules.find((schedule) => schedule.id === selectedScheduleId) || null;
+  const selectedReview = useMemo(
+    () => selectedSchedule ? reviewServiceSchedule(selectedSchedule, songs, schedules) : null,
+    [schedules, selectedSchedule, songs]
+  );
 
   useEffect(() => {
     const scheduleId = searchParams.get("schedule");
-    if (!scheduleId) return;
-    const schedule = schedules.find((item) => item.id === scheduleId);
-    if (!schedule?.date) return;
-    setSelectedDate(schedule.date);
-    setTab("calendar");
+    const requestedTab = searchParams.get("tab");
+    if (requestedTab === "asistente") setActiveScheduleWorkspaceTab("assistant");
+    if (scheduleId) {
+      const schedule = schedules.find((item) => item.id === scheduleId);
+      if (!schedule?.date) return;
+      setSelectedScheduleId(schedule.id);
+      setSelectedDate(schedule.date);
+      setTab("calendar");
+    }
   }, [schedules, searchParams]);
+
+  const selectSchedule = (schedule, workspaceTab = activeScheduleWorkspaceTab) => {
+    if (!schedule?.id) return;
+    setSelectedScheduleId(schedule.id);
+    setSelectedDate(schedule.date || selectedDate);
+    setActiveScheduleWorkspaceTab(workspaceTab);
+    const next = new URLSearchParams(searchParams);
+    next.set("schedule", schedule.id);
+    if (workspaceTab === "assistant") next.set("tab", "asistente");
+    else next.delete("tab");
+    setSearchParams(next, { replace: true });
+  };
+
+  const setWorkspaceTab = (workspaceTab) => {
+    setActiveScheduleWorkspaceTab(workspaceTab);
+    const next = new URLSearchParams(searchParams);
+    if (selectedScheduleId) next.set("schedule", selectedScheduleId);
+    if (workspaceTab === "assistant") next.set("tab", "asistente");
+    else next.delete("tab");
+    setSearchParams(next, { replace: true });
+  };
 
   const searchedSchedules = useMemo(() => {
     const term = query.toLowerCase();
@@ -806,7 +842,7 @@ export function Schedules() {
         </div>
         <div className="relative mt-4">
           <Search className="absolute left-3 top-3 h-4 w-4 text-ink/35" />
-          <Input className="pl-9" placeholder="Buscar por fecha, servicio, canto o lider de adoracion" value={query} onChange={(event) => setQuery(event.target.value)} />
+          <Input className="pl-9" placeholder="Buscar por fecha, servicio, canto o líder de adoración" value={query} onChange={(event) => setQuery(event.target.value)} />
         </div>
       </Card>
 
@@ -822,17 +858,27 @@ export function Schedules() {
               <h4 className="text-xs font-black uppercase tracking-wide text-ink/45">Programaciones del día</h4>
               <div className="mt-3 space-y-3">
               {visibleSchedules.length ? visibleSchedules.map((schedule) => (
-                <div key={schedule.id} className="rounded-2xl bg-ink/5 p-3">
-                  <p className="font-semibold text-ink">{schedule.serviceLabel || schedule.type}</p>
-                  <p className="text-sm text-ink/55">{schedule.time} · {schedule.leader || "Sin lider de adoracion"}</p>
+                <button
+                  key={schedule.id}
+                  type="button"
+                  onClick={() => selectSchedule(schedule)}
+                  className={`w-full rounded-2xl border p-3 text-left transition ${selectedScheduleId === schedule.id ? "border-brass bg-brass/12" : "border-transparent bg-ink/5 hover:border-brass/35"}`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-ink">{schedule.serviceLabel || schedule.type}</p>
+                      <p className="text-sm text-ink/55">{schedule.time} · {schedule.leader || "Sin líder de adoración"}</p>
+                    </div>
+                    <span className="rounded-full bg-white px-2 py-1 text-[10px] font-black uppercase tracking-wide text-brass">Abrir</span>
+                  </div>
                   <div className="mt-3 space-y-1">
                     {(schedule.songs || []).map((song, index) => (
                       <p key={`${song.songId || song.titleSnapshot}-${index}`} className="text-sm font-semibold text-ink/70">
-                        {index + 1}. <SongNameLink songId={song.songId} title={song.titleSnapshot} songs={songs}>{song.titleSnapshot}</SongNameLink>
+                        {index + 1}. {song.titleSnapshot}
                       </p>
                     ))}
                   </div>
-                </div>
+                </button>
               )) : <p className="text-sm text-ink/55">No hay programaciones para este día.</p>}
               </div>
             </div>
@@ -862,26 +908,24 @@ export function Schedules() {
         </div>
       ) : null}
 
-      {visibleSchedules.length ? (
-        <div className="grid gap-4">
+      {tab !== "calendar" && visibleSchedules.length ? (
+        <div className="grid gap-3 md:grid-cols-2">
           {visibleSchedules.map((schedule) => (
-            <ScheduleCard
+            <button
               key={schedule.id}
-              schedule={schedule}
-              songs={songs}
-              schedules={schedules}
-              canEdit={canEdit}
-              canDelete={canDelete}
-              onEdit={setEditingSchedule}
-              onDuplicate={duplicateSchedule}
-              onDelete={deleteSchedule}
-              onEditSpecialProgram={openSpecialProgramEditor}
-              onViewSpecialProgram={viewSpecialProgram}
-              onPrintSpecialProgram={printSpecialProgram}
-              onPrintSpecialProgramFourUp={printSpecialProgramFourUp}
-              onSaveFollowUp={saveServiceFollowUp}
-              onCloseService={closeScheduleService}
-            />
+              type="button"
+              onClick={() => selectSchedule(schedule)}
+              className={`rounded-2xl border p-4 text-left shadow-soft transition ${selectedScheduleId === schedule.id ? "border-brass bg-brass/12" : "border-ink/10 bg-white hover:border-brass/40"}`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-black text-ink">{schedule.serviceLabel || schedule.type || "Servicio"}</p>
+                  <p className="mt-1 text-sm text-ink/55">{formatDate(schedule.date)} · {schedule.time || "Sin hora"}</p>
+                  <p className="mt-1 text-xs font-semibold text-ink/45">{schedule.leader || "Sin líder de adoración"} · {(schedule.songs || []).length} cantos</p>
+                </div>
+                <span className="rounded-full bg-brass/12 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-brass">Abrir</span>
+              </div>
+            </button>
           ))}
         </div>
       ) : tab !== "calendar" && !visiblePlannedNewSongs.length ? (
@@ -909,6 +953,97 @@ export function Schedules() {
                 />
               </div>
             ))}
+          </div>
+        </Card>
+      ) : null}
+
+      {selectedSchedule ? (
+        <section className="grid min-w-0 gap-4">
+          <Card className="p-4">
+            <p className="text-xs font-black uppercase tracking-wide text-brass">Servicio seleccionado</p>
+            <div className="mt-2 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <h3 className="text-xl font-black text-ink">{selectedSchedule.serviceLabel || selectedSchedule.type || "Servicio"}</h3>
+                <p className="mt-1 text-sm font-semibold text-ink/55">
+                  {formatDate(selectedSchedule.date)} · {selectedSchedule.time || "Sin hora"} · {selectedSchedule.leader || "Sin líder de adoración"} · {(selectedSchedule.songs || []).length} cantos
+                </p>
+              </div>
+              <div className="flex max-w-full gap-2 overflow-x-auto pb-1">
+                {[
+                  ["program", "Programa", FileText],
+                  ["assistant", "Asistente IA", Sparkles],
+                  ["review", "Revisión", ClipboardCheck],
+                  ["followup", "Seguimiento", CheckCircle2]
+                ].map(([value, label, Icon]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setWorkspaceTab(value)}
+                    className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-4 text-sm font-bold transition ${activeScheduleWorkspaceTab === value ? "bg-ink text-white dark:bg-brass dark:text-ink" : "bg-ink/5 text-ink/65 hover:bg-brass/12 hover:text-ink dark:bg-white/8"}`}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </Card>
+
+          {activeScheduleWorkspaceTab === "program" ? (
+            <ScheduleCard
+              schedule={selectedSchedule}
+              songs={songs}
+              schedules={schedules}
+              canEdit={canEdit}
+              canDelete={canDelete}
+              onEdit={setEditingSchedule}
+              onDuplicate={duplicateSchedule}
+              onDelete={deleteSchedule}
+              onEditSpecialProgram={openSpecialProgramEditor}
+              onViewSpecialProgram={viewSpecialProgram}
+              onPrintSpecialProgram={printSpecialProgram}
+              onPrintSpecialProgramFourUp={printSpecialProgramFourUp}
+              onOpenReview={() => setWorkspaceTab("review")}
+              workspace
+            />
+          ) : null}
+
+          {activeScheduleWorkspaceTab === "assistant" ? (
+            <SmartCenter embedded scheduleId={selectedSchedule.id} />
+          ) : null}
+
+          {activeScheduleWorkspaceTab === "review" && selectedReview ? (
+            <ServiceReviewPanel review={selectedReview} />
+          ) : null}
+
+          {activeScheduleWorkspaceTab === "followup" ? (
+            <ServiceFollowUpPanel
+              schedule={selectedSchedule}
+              canEdit={canEdit}
+              onSave={saveServiceFollowUp}
+              onCloseService={closeScheduleService}
+            />
+          ) : null}
+        </section>
+      ) : activeScheduleWorkspaceTab === "assistant" ? (
+        <Card>
+          <div className="flex items-start gap-3">
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-brass/15 text-brass">
+              <Sparkles className="h-5 w-5" />
+            </span>
+            <div>
+              <h3 className="text-lg font-black text-ink">Asistente IA</h3>
+              <p className="mt-2 text-sm leading-6 text-ink/60">
+                Selecciona una programación del calendario o crea una nueva para usar el Asistente IA.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Button variant="secondary" onClick={() => { setTab("calendar"); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
+                  <CalendarDays className="h-4 w-4" />
+                  Ir al calendario
+                </Button>
+                {canEdit ? <Button onClick={openNewSchedule}><Plus className="h-4 w-4" />Crear programación</Button> : null}
+              </div>
+            </div>
           </div>
         </Card>
       ) : null}

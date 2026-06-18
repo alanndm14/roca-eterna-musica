@@ -108,7 +108,7 @@ export function SongGithubPdfManager({ song, onUploaded }) {
             Estado: {localPath ? (song.pdfStatus === "actualizado" || result ? "Actualizado recientemente" : "PDF local disponible") : "Sin PDF local"}
           </p>
           {localPath ? <p className="mt-1 break-all text-xs font-semibold text-ink/45">Ruta actual: {localPath}</p> : null}
-          {updatedAt ? <p className="mt-1 text-xs text-ink/45">Ultima actualizacion: {updatedAt}</p> : null}
+          {updatedAt ? <p className="mt-1 text-xs text-ink/45">Última actualización: {updatedAt}</p> : null}
         </div>
         {localPath ? <CheckCircle2 className="h-6 w-6 shrink-0 text-emerald-600" /> : <AlertCircle className="h-6 w-6 shrink-0 text-amber-600" />}
       </div>

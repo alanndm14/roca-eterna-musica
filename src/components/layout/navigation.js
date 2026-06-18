@@ -8,7 +8,6 @@ import {
   ListMusic,
   Music2,
   Settings,
-  Sparkles,
   PanelsTopLeft,
   UsersRound
 } from "lucide-react";
@@ -19,7 +18,6 @@ export const navItems = [
   { label: "Programación", path: "/programacion", icon: CalendarDays, tourId: "nav-programacion", roles: ["admin", "editor"] },
   { label: "Músicos", path: "/musicos", icon: Music2, tourId: "nav-musicos", roles: ["admin", "editor"] },
   { label: "Servicios", path: "/servicios", icon: PanelsTopLeft, tourId: "nav-servicios", roles: ["viewer"] },
-  { label: "Centro Inteligente", path: "/inteligente", icon: Sparkles, tourId: "nav-inteligente", roles: ["admin", "editor"] },
   { label: "Historial", path: "/historial", icon: Clock3, tourId: "nav-historial", roles: ["admin", "editor"] },
   { label: "Estadísticas", path: "/estadisticas", icon: BarChart3, tourId: "nav-estadisticas", roles: ["admin", "editor"] },
   { label: "Configuración", path: "/configuracion", icon: Settings, tourId: "nav-configuracion", roles: ["admin", "editor", "viewer"] },
@@ -41,7 +39,7 @@ export const getVisibleNavItems = (profileOrRole = "viewer") => {
   ));
 };
 
-const mobilePrimaryOrder = ["/", "/programacion", "/inteligente", "/musicos"];
+const mobilePrimaryOrder = ["/", "/repertorio", "/programacion", "/musicos"];
 
 export const getMobilePrimaryItems = (profileOrRole = "viewer") => {
   const profile = normalizeProfile(profileOrRole);
@@ -59,4 +57,4 @@ export const getMobileExtraItems = (profileOrRole = "viewer") =>
 
 export const mobilePrimaryItems = getMobilePrimaryItems("admin");
 export const mobileExtraItems = getMobileExtraItems("admin");
-export const mobileNavItems = [...mobilePrimaryItems, { ...navItems[7], icon: UsersRound }];
+export const mobileNavItems = [...mobilePrimaryItems, { ...navItems.find((item) => item.path === "/configuracion"), icon: UsersRound }];

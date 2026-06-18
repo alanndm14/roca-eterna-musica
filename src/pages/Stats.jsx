@@ -18,6 +18,7 @@ import { Card } from "../components/ui/Card";
 import { Select } from "../components/ui/Field";
 import { SongNameLink, findSongForNavigation } from "../components/ui/SongNameLink";
 import { StatCard } from "../components/ui/StatCard";
+import { RepertoireBalancePanel } from "../components/smart/RepertoireBalancePanel";
 import { useMusicData } from "../hooks/useMusicData";
 import { formatDate, formatScheduleDateWithService, getPastSchedules } from "../services/dateUtils";
 import { collectSongThemes, getSongPdfUrl, normalizeThemeName, stripAccents } from "../services/songUtils";
@@ -296,6 +297,7 @@ export function Stats() {
             <div className="mt-4 flex flex-wrap gap-2">
               <Button variant={view === "musicians" ? "primary" : "secondary"} onClick={() => setView("musicians")}>Para músicos</Button>
               <Button variant={view === "programming" ? "primary" : "secondary"} onClick={() => setView("programming")}>Para programación</Button>
+              <Button variant={view === "balance" ? "primary" : "secondary"} onClick={() => setView("balance")}>Balance del repertorio</Button>
             </div>
           </div>
           <label className="block">
@@ -316,7 +318,9 @@ export function Stats() {
         </div>
       </Card>
 
-      {view === "musicians" ? (
+      {view === "balance" ? (
+        <RepertoireBalancePanel songs={filteredSongs} schedules={schedules} />
+      ) : view === "musicians" ? (
         <>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <StatCard icon={Music2} label="Sin capo" value={`${percent(noCapo, total)}%`} detail={`${noCapo} de ${total}`} />
@@ -398,7 +402,7 @@ export function Stats() {
           </Card>
           <Card>
             <h2 className="text-lg font-bold text-ink">Sugerencias de rotación</h2>
-            <p className="mt-1 text-sm text-ink/55">Cantos listos para considerar: Keynote completado, historicamente cantados y con poco uso o sin historial en la app.</p>
+            <p className="mt-1 text-sm text-ink/55">Cantos listos para considerar: Keynote completado, históricamente cantados y con poco uso o sin historial en la app.</p>
             <div className="mt-4">
               <SongTable rows={rotationSuggestions} songs={songs} columns={[
                 { key: "title", label: "Canto" },

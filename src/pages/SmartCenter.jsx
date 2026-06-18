@@ -80,6 +80,13 @@ const recommendationMethods = [
   { id: "seeds", label: "Cantos elegidos", description: "Completa un bloque desde tus ideas.", icon: Music2 }
 ];
 
+const embeddedAssistantModes = [
+  { id: "theme", label: "Sugerir bloque", icon: Wand2 },
+  { id: "pdf", label: "Buscar por letra/PDF", icon: FileSearch },
+  { id: "seeds", label: "Completar desde cantos elegidos", icon: Music2 },
+  { id: "sustituir", label: "Sustituir canto", icon: GitCompareArrows }
+];
+
 function ChipInput({ values = [], onChange, placeholder = "Escribe y presiona Enter" }) {
   const [draft, setDraft] = useState("");
   const addDraft = () => {
@@ -264,20 +271,24 @@ function EmptySmartState({ title, message, action, onAction }) {
   );
 }
 
-export function SmartCenter() {
+export function SmartCenter({ scheduleId = "", embedded = false }) {
   const navigate = useNavigate();
   const reduceMotion = useReducedMotion();
   const { profile, canEdit } = useAuth();
   const { songs, schedules, themes, saveSchedule, replaceScheduleSong, indexLocalPdfTexts, saveServiceFollowUp, closeScheduleService } = useMusicData();
   const nextSchedule = getCurrentOrNextSchedule(schedules) || schedules[0] || null;
   const [activeTab, setActiveTab] = useState("programar");
-  const [planningMode, setPlanningMode] = useState("create");
+  const [planningMode, setPlanningMode] = useState(() => embedded ? "existing" : "create");
   const [draftDate, setDraftDate] = useState("");
   const [leaderChoice, setLeaderChoice] = useState("");
   const [manualLeader, setManualLeader] = useState("");
   const [blockGenerated, setBlockGenerated] = useState(false);
-  const [options, setOptions] = useState(defaultOptions);
-  const [selectedScheduleId, setSelectedScheduleId] = useState("");
+  const [options, setOptions] = useState(() => ({
+    ...defaultOptions,
+    recommendationMode: embedded ? "theme" : "",
+    includePdfText: false
+  }));
+  const [selectedScheduleId, setSelectedScheduleId] = useState(scheduleId);
   const [existingDate, setExistingDate] = useState(nextSchedule?.date || "");
   const [replacementSongId, setReplacementSongId] = useState("");
   const [dismissed, setDismissed] = useState([]);
@@ -302,11 +313,15 @@ export function SmartCenter() {
     () => schedules.filter((schedule) => !schedule.deleted && isCountableSchedule(schedule) && schedule.date === existingDate).sort((a, b) => `${a.time || ""}`.localeCompare(`${b.time || ""}`)),
     [existingDate, schedules]
   );
-  const existingSchedule = schedules.find((schedule) => schedule.id === selectedScheduleId)
+  const contextualSchedule = embedded ? schedules.find((schedule) => schedule.id === scheduleId) || null : null;
+  const existingSchedule = contextualSchedule
+    || schedules.find((schedule) => schedule.id === selectedScheduleId)
     || schedulesForExistingDate[0]
     || nextSchedule;
-  const selectedSchedule = planningMode === "existing" ? existingSchedule : null;
-  const selectedServiceType = options.serviceType || (planningMode === "existing" && existingSchedule ? inferSmartServiceType(existingSchedule) : "");
+  const selectedSchedule = embedded ? contextualSchedule : planningMode === "existing" ? existingSchedule : null;
+  const selectedServiceType = embedded && contextualSchedule
+    ? inferSmartServiceType(contextualSchedule)
+    : options.serviceType || (planningMode === "existing" && existingSchedule ? inferSmartServiceType(existingSchedule) : "");
   const effectiveCount = selectedServiceType ? (isManualCountService(selectedServiceType) ? Number(options.count || 4) : getSmartServiceDefaultCount(selectedServiceType)) : 0;
   const planningReferenceSchedule = useMemo(() => planningMode === "existing"
     ? selectedSchedule
@@ -534,6 +549,31 @@ export function SmartCenter() {
     }
   }, [planningMode, schedulesForExistingDate, selectedScheduleId]);
 
+  useEffect(() => {
+    if (!embedded || !contextualSchedule) return;
+    const serviceType = inferSmartServiceType(contextualSchedule);
+    setPlanningMode("existing");
+    setSelectedScheduleId(contextualSchedule.id);
+    setExistingDate(contextualSchedule.date || "");
+    setOptions((current) => ({
+      ...current,
+      serviceType,
+      count: isManualCountService(serviceType) ? current.count || 4 : getSmartServiceDefaultCount(serviceType)
+    }));
+    setBlockGenerated(false);
+    setBlockOverrides({});
+    setBlockOrder([]);
+  }, [contextualSchedule?.date, contextualSchedule?.id, embedded]);
+
+  const selectEmbeddedMode = (mode) => {
+    if (mode === "sustituir") {
+      setActiveTab("sustituir");
+      return;
+    }
+    setActiveTab("programar");
+    updateRecommendationMode(mode);
+  };
+
   const generateForNextService = () => {
     if (!nextSchedule) {
       setPlanningMode("create");
@@ -686,6 +726,10 @@ export function SmartCenter() {
   };
 
   const replaceSong = async (candidate) => {
+    if (!canEdit) {
+      setStatus("No tienes permiso para sustituir cantos.");
+      return;
+    }
     if (!selectedSchedule?.id || !currentReplacementEntry || !candidate?.id) return;
     if (!confirm(`¿Sustituir "${currentReplacementEntry.titleSnapshot}" por "${candidate.title}"?`)) return;
     await replaceScheduleSong(selectedSchedule.id, currentReplacementEntry, candidate);
@@ -719,65 +763,84 @@ export function SmartCenter() {
         animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
         transition={{ duration: 0.32, ease: "easeOut" }}
       >
-        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        {embedded ? (
           <div>
             <div className="inline-flex items-center gap-2 rounded-full border border-brass/25 bg-brass/12 px-3 py-1 text-xs font-bold uppercase tracking-wide text-brass">
               <Sparkles className="h-4 w-4" />
-              Análisis musical del servicio
+              Herramienta contextual
             </div>
-            <h2 className="mt-4 text-3xl font-black tracking-normal text-ink md:text-4xl">Arma el próximo servicio</h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/65">
-              Un panel de apoyo para armar servicios reales con tema, posición, rotación y preparación.
+            <h2 className="mt-3 text-2xl font-black text-ink">Asistente IA para este servicio</h2>
+            <p className="mt-1 text-sm font-semibold text-ink/60">
+              {selectedSchedule ? `${scheduleLabel(selectedSchedule)} · ${(selectedSchedule.songs || []).length} cantos` : "Selecciona una programación para comenzar."}
             </p>
           </div>
-          <Button onClick={generateForNextService}>
-            <Wand2 className="h-4 w-4" />
-            Preparar siguiente servicio
-          </Button>
-        </div>
-
-        <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-          <SmartPanel>
-            <div className="grid gap-4 md:grid-cols-4">
+        ) : (
+          <>
+            <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
               <div>
-                <p className="text-xs font-bold uppercase tracking-wide text-ink/45">Próximo servicio</p>
-                <p className="mt-1 font-black text-ink">{nextSchedule ? scheduleLabel(nextSchedule) : "Sin próxima programación"}</p>
+                <div className="inline-flex items-center gap-2 rounded-full border border-brass/25 bg-brass/12 px-3 py-1 text-xs font-bold uppercase tracking-wide text-brass">
+                  <Sparkles className="h-4 w-4" />
+                  Análisis musical del servicio
+                </div>
+                <h2 className="mt-4 text-3xl font-black tracking-normal text-ink md:text-4xl">Arma el próximo servicio</h2>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/65">
+                  Un panel de apoyo para armar servicios reales con tema, posición, rotación y preparación.
+                </p>
               </div>
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wide text-ink/45">{planningMode === "create" ? "Servicio seleccionado" : "Servicio sugerido"}</p>
-                <p className="mt-1 font-black text-ink">{planningMode === "existing" && selectedSchedule ? inferSmartServiceType(selectedSchedule) : selectedServiceType || "Sin seleccionar"}</p>
-              </div>
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wide text-ink/45">Cantos sugeridos</p>
-                <p className="mt-1 font-black text-ink">{effectiveCount || "--"}</p>
-              </div>
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wide text-ink/45">Preparación</p>
-                <p className="mt-1 font-black text-ink">{review.score}%</p>
-              </div>
+              <Button onClick={generateForNextService}>
+                <Wand2 className="h-4 w-4" />
+                Preparar siguiente servicio
+              </Button>
             </div>
-          </SmartPanel>
-          <SmartPanel>
-            <p className="text-xs font-bold uppercase tracking-wide text-brass">{usesThemeCriteria ? "Tema actual" : "Búsqueda en letra/PDF"}</p>
-              <p className="mt-1 line-clamp-2 text-lg font-black text-ink">{usesThemeCriteria ? (selectedThemes.join(" + ") || "Sin tema elegido") : (options.pdfSearchQuery || "Sin frases elegidas")}</p>
-            <p className="mt-1 text-sm text-ink/60">{songs.length} cantos · {schedules.length} programaciones analizadas</p>
-          </SmartPanel>
-        </div>
+
+            <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+              <SmartPanel>
+                <div className="grid gap-4 md:grid-cols-4">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wide text-ink/45">Próximo servicio</p>
+                    <p className="mt-1 font-black text-ink">{nextSchedule ? scheduleLabel(nextSchedule) : "Sin próxima programación"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wide text-ink/45">{planningMode === "create" ? "Servicio seleccionado" : "Servicio sugerido"}</p>
+                    <p className="mt-1 font-black text-ink">{planningMode === "existing" && selectedSchedule ? inferSmartServiceType(selectedSchedule) : selectedServiceType || "Sin seleccionar"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wide text-ink/45">Cantos sugeridos</p>
+                    <p className="mt-1 font-black text-ink">{effectiveCount || "--"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wide text-ink/45">Preparación</p>
+                    <p className="mt-1 font-black text-ink">{review.score}%</p>
+                  </div>
+                </div>
+              </SmartPanel>
+              <SmartPanel>
+                <p className="text-xs font-bold uppercase tracking-wide text-brass">{usesThemeCriteria ? "Tema actual" : "Búsqueda en letra/PDF"}</p>
+                <p className="mt-1 line-clamp-2 text-lg font-black text-ink">{usesThemeCriteria ? (selectedThemes.join(" + ") || "Sin tema elegido") : (options.pdfSearchQuery || "Sin frases elegidas")}</p>
+                <p className="mt-1 text-sm text-ink/60">{songs.length} cantos · {schedules.length} programaciones analizadas</p>
+              </SmartPanel>
+            </div>
+          </>
+        )}
 
         <div className="mt-5 flex gap-2 overflow-x-auto pb-1">
-          {tabItems.map((tab) => {
+          {(embedded ? embeddedAssistantModes : tabItems).map((tab) => {
             const Icon = tab.icon;
-            const active = activeTab === tab.id;
+            const active = embedded
+              ? tab.id === "sustituir"
+                ? activeTab === "sustituir"
+                : activeTab === "programar" && recommendationMode === tab.id
+              : activeTab === tab.id;
             return (
               <button
                 key={tab.id}
                 type="button"
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => embedded ? selectEmbeddedMode(tab.id) : setActiveTab(tab.id)}
                 className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-2xl px-4 text-sm font-bold transition ${active ? "bg-ink text-white shadow-soft dark:bg-brass dark:text-ink" : tab.primary ? "border border-brass/40 bg-brass/12 text-ink shadow-soft hover:bg-brass/18 dark:bg-brass/15" : "bg-white/70 text-ink ring-1 ring-ink/10 hover:bg-brass/10 dark:bg-white/8 dark:ring-white/10"}`}
               >
                 <Icon className="h-4 w-4" />
                 {tab.label}
-                {tab.primary ? <span className="rounded-full bg-brass px-2 py-0.5 text-[10px] font-black text-ink">Especial</span> : null}
+                {!embedded && tab.primary ? <span className="rounded-full bg-brass px-2 py-0.5 text-[10px] font-black text-ink">Especial</span> : null}
               </button>
             );
           })}
@@ -791,9 +854,10 @@ export function SmartCenter() {
             <SmartPanel>
               <div className="flex items-center gap-2">
                 <Wand2 className="h-5 w-5 text-brass" />
-                <h2 className="text-xl font-black text-ink">Configurar servicio</h2>
+                <h2 className="text-xl font-black text-ink">{embedded ? embeddedAssistantModes.find((item) => item.id === recommendationMode)?.label || "Sugerir bloque" : "Configurar servicio"}</h2>
               </div>
               <div className="mt-5 grid gap-4">
+                {!embedded ? <>
                 <Field label="Modo">
                   <Select value={planningMode} onChange={(event) => { setPlanningMode(event.target.value); setBlockGenerated(false); setBlockOverrides({}); setBlockOrder([]); }}>
                     <option value="create">Crear nueva programación</option>
@@ -863,6 +927,13 @@ export function SmartCenter() {
                     })}
                   </div>
                 </Field>
+                </> : (
+                  <div className="rounded-2xl border border-brass/25 bg-brass/10 p-3">
+                    <p className="text-xs font-black uppercase tracking-wide text-brass">Servicio actual</p>
+                    <p className="mt-1 font-black text-ink">{selectedSchedule?.serviceLabel || selectedSchedule?.type || "Servicio"}</p>
+                    <p className="mt-1 text-xs font-semibold text-ink/55">{selectedServiceType} · {effectiveCount} cantos esperados</p>
+                  </div>
+                )}
                 {usesThemeCriteria ? (
                   <>
                 <Field label="Tema principal">
@@ -1084,7 +1155,7 @@ export function SmartCenter() {
                 </div> : null}
                 <Button className="mt-4" disabled={!blockGenerated || !suggestedBlock.items.length || !canEdit} onClick={() => setApplyBlockModalOpen(true)}>
                   <ListChecks className="h-4 w-4" />
-                  {planningMode === "create" ? "Crear programación con este bloque" : "Agregar bloque a programación"}
+                  {embedded ? "Aplicar a programación" : planningMode === "create" ? "Crear programación con este bloque" : "Agregar bloque a programación"}
                 </Button>
               </SmartPanel> : null}
 
@@ -1130,12 +1201,12 @@ export function SmartCenter() {
                 <GitCompareArrows className="h-5 w-5 text-brass" />
                 <h2 className="text-xl font-black text-ink">Sustitución inteligente</h2>
               </div>
-              <Field label="Programación" className="mt-5">
+              {!embedded ? <Field label="Programación" className="mt-5">
                 <Select value={selectedSchedule?.id || ""} onChange={(event) => setSelectedScheduleId(event.target.value)}>
                   {schedules.map((schedule) => <option key={schedule.id} value={schedule.id}>{scheduleLabel(schedule)}</option>)}
                 </Select>
-              </Field>
-              <Field label="Canto a sustituir" className="mt-4">
+              </Field> : null}
+              <Field label="Canto a sustituir" className={embedded ? "mt-5" : "mt-4"}>
                 <Select value={currentReplacementEntry?.songId || ""} onChange={(event) => setReplacementSongId(event.target.value)}>
                   {(selectedSchedule?.songs || []).map((entry) => <option key={`${entry.songId}-${entry.titleSnapshot}`} value={entry.songId}>{entry.titleSnapshot}</option>)}
                 </Select>
@@ -1154,12 +1225,18 @@ export function SmartCenter() {
                   key={item.song.id}
                   item={{ ...item, label: "Compatibilidad de sustitución" }}
                   actionLabel="Sustituir"
-                  onAdd={replaceSong}
+                  onAdd={canEdit ? replaceSong : undefined}
                   onView={(song) => navigate(`/repertorio/${song.id}`)}
                   onCompare={() => openCompare(item)}
                   onExplain={setScoreHelpItem}
                 />
               ))}
+              {!replacementCandidates.length ? (
+                <SmartPanel className="lg:col-span-2">
+                  <p className="font-black text-ink">No hay sustitutos suficientemente compatibles.</p>
+                  <p className="mt-2 text-sm leading-6 text-ink/60">Prueba con otro canto actual o completa más datos del repertorio para ampliar las opciones.</p>
+                </SmartPanel>
+              ) : null}
             </div>
           </motion.section>
         ) : null}

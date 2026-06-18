@@ -2,7 +2,7 @@ import { motion, useReducedMotion } from "framer-motion";
 
 export function SmartGradientBackground({ children }) {
   return (
-    <div className="smart-shell relative min-w-0 max-w-full overflow-hidden rounded-[2rem] border border-brass/20 bg-[linear-gradient(135deg,rgba(255,255,255,0.92),rgba(237,233,223,0.72)_52%,rgba(182,148,95,0.12))] p-4 text-ink shadow-soft dark:border-brass/25 dark:bg-[linear-gradient(135deg,rgba(18,18,18,0.98),rgba(32,38,46,0.92)_55%,rgba(182,148,95,0.16))] sm:p-6">
+    <div className="smart-shell relative w-full min-w-0 max-w-full overflow-hidden rounded-[2rem] border border-brass/20 bg-[linear-gradient(135deg,rgba(255,255,255,0.92),rgba(237,233,223,0.72)_52%,rgba(182,148,95,0.12))] p-4 text-ink shadow-soft dark:border-brass/25 dark:bg-[linear-gradient(135deg,rgba(18,18,18,0.98),rgba(32,38,46,0.92)_55%,rgba(182,148,95,0.16))] sm:p-6">
       <div className="relative min-w-0 max-w-full">{children}</div>
     </div>
   );

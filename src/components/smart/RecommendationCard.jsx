@@ -97,7 +97,7 @@ export function RecommendationCard({ item, onAdd, onView, onDismiss, onExplain, 
         )) : <span className="text-xs font-semibold text-ink/45">Sin datos suficientes</span>}
       </div>
       <p className="mt-2 truncate text-[11px] font-semibold text-ink/45">
-        {item.usageSummary?.lastUse || item.usageSummary?.recent || "Sin historial previo"} · {item.usageSummary?.monthly || "0 usos en 30 dias"}
+        {item.usageSummary?.lastUse || item.usageSummary?.recent || "Sin historial previo"} · {item.usageSummary?.monthly || "0 usos en 30 días"}
       </p>
 
       <div className="mt-auto pt-3">

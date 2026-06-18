@@ -18,7 +18,6 @@ import { Login } from "./pages/Login";
 import { MusicianView } from "./pages/MusicianView";
 import { Schedules } from "./pages/Schedules";
 import { Settings } from "./pages/Settings";
-import { SmartCenter } from "./pages/SmartCenter";
 import { SongDetail } from "./pages/SongDetail";
 import { Songs } from "./pages/Songs";
 import { Stats } from "./pages/Stats";
@@ -206,7 +205,7 @@ export default function App() {
           <Route path="programacion" element={<ViewerExperienceRoute><Schedules /></ViewerExperienceRoute>} />
           <Route path="musicos" element={<ViewerExperienceRoute><MusicianView /></ViewerExperienceRoute>} />
           <Route path="servicios" element={<ViewerExperienceRoute media><MusicianView mediaMode /></ViewerExperienceRoute>} />
-          <Route path="inteligente" element={<RoleRoute roles={["admin", "editor"]}><SmartCenter /></RoleRoute>} />
+          <Route path="inteligente" element={<RoleRoute roles={["admin", "editor"]}><Navigate to="/programacion?tab=asistente" replace /></RoleRoute>} />
           <Route path="historial" element={<RoleRoute roles={["admin", "editor"]}><History /></RoleRoute>} />
           <Route path="estadisticas" element={<RoleRoute roles={["admin", "editor"]}><Stats /></RoleRoute>} />
           <Route path="configuracion" element={<Settings />} />

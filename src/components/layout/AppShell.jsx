@@ -172,7 +172,7 @@ export function AppShell() {
   const seenInternalNotifications = useRef(new Set());
   const initializedInternalNotifications = useRef(false);
   const refreshedPushRegistration = useRef(false);
-  const pageTitle = location.pathname === "/inteligente" ? "Centro Inteligente" : pageNames[location.pathname] || "Roca Eterna Música";
+  const pageTitle = location.pathname === "/inteligente" ? "Programación" : pageNames[location.pathname] || "Roca Eterna Música";
   const viewerSchedulePath = "/servicios";
   const themeMode = profile?.themeMode || localStorage.getItem("roca-eterna-theme-mode") || "system";
   const effectiveTheme = getEffectiveThemeMode(themeMode);
