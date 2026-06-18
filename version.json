@@ -1,12 +1,10 @@
 {
-  "version": "0.9.132",
+  "version": "0.9.133",
   "date": "2026-06-18",
   "critical": true,
   "changes": [
-    "Sugerir bloque ahora crea combinaciones completas para el servicio",
-    "Se separaron las sugerencias de la búsqueda detallada en letras y PDFs",
-    "La rotación favorece cantos poco usados y evita repeticiones recientes",
-    "Completar desde cantos elegidos vuelve a apoyar la preparación del servicio",
-    "El Balance del repertorio permanece en Estadísticas"
+    "El aviso de actualización aparece antes de entrar a la app",
+    "Actualizar ahora instala la versión nueva desde el primer intento",
+    "Se limpia la caché antigua de la PWA para reflejar los cambios recientes"
   ]
 }
