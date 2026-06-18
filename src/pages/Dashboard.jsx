@@ -229,11 +229,7 @@ export function Dashboard() {
             </div>
             <div className="p-5">
               <p className="text-xs font-black uppercase tracking-wide text-cyan-700 dark:text-cyan-200">
-                {getServiceDisplayLabel({
-                  serviceType: nextNewSong.planned.serviceType,
-                  serviceLabel: nextNewSong.planned.serviceLabel,
-                  date: nextNewSong.planned.plannedDate
-                })} · {formatDate(nextNewSong.planned.plannedDate)}
+                {formatDate(nextNewSong.planned.plannedDate)}
               </p>
               <h2 className="mt-2 text-2xl font-black text-ink">{nextNewSong.song?.title || nextNewSong.planned.songTitle || "Canto nuevo"}</h2>
               <p className="mt-1 text-sm text-ink/58">Prepáralo desde aquí sin buscarlo en otra sección.</p>

@@ -94,6 +94,7 @@ export function RecommendationCard({
   onExplain,
   actionLabel = "Agregar a programación",
   titleQuery = "",
+  relation = null,
   isAdded = false
 }) {
   const song = item.song || item;
@@ -103,7 +104,17 @@ export function RecommendationCard({
     <article className="flex h-full min-h-0 min-w-0 max-w-full flex-col rounded-[1.1rem] border border-white/55 bg-white/82 p-3.5 shadow-soft backdrop-blur-xl dark:border-white/10 dark:bg-white/9">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className={`inline-flex max-w-full truncate rounded-full px-2.5 py-1 text-[11px] font-black uppercase tracking-wide ${tone.chip}`}>{tone.label}</p>
+          <div className="flex flex-wrap gap-1.5">
+            <p className={`inline-flex max-w-full truncate rounded-full px-2.5 py-1 text-[11px] font-black uppercase tracking-wide ${tone.chip}`}>{tone.label}</p>
+            {relation?.kind === "related" ? (
+              <span
+                className="inline-flex rounded-full bg-cyan-500/12 px-2.5 py-1 text-[11px] font-black uppercase tracking-wide text-cyan-800 dark:bg-cyan-300/14 dark:text-cyan-100"
+                title={relation.reason || "Relacionado con el canto buscado"}
+              >
+                Relacionado
+              </span>
+            ) : null}
+          </div>
           <h3 className="mt-1 truncate text-base font-black text-ink">
             <HighlightedText text={song.title} query={titleQuery} />
           </h3>
@@ -132,6 +143,9 @@ export function RecommendationCard({
       <p className="mt-2 truncate text-[11px] font-semibold text-ink/45">
         {item.usageSummary?.lastUse || item.usageSummary?.recent || "Sin historial previo"} · {item.usageSummary?.monthly || "0 usos en 30 días"}
       </p>
+      {relation?.kind === "related" && relation.reason ? (
+        <p className="mt-1 truncate text-[11px] font-bold text-cyan-800 dark:text-cyan-100">{relation.reason}</p>
+      ) : null}
       <MatchPreview match={item.scoreDetails?.pdfMatch} />
 
       <div className="mt-auto pt-3">

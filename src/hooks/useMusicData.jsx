@@ -614,6 +614,24 @@ export function MusicDataProvider({ children }) {
       lyricsSections: normalizedSong.lyricsSections || [],
       updatedAt: useLocal ? new Date().toISOString().slice(0, 10) : serverTimestamp()
     };
+    const pdfSourceChanged = Boolean(before) && (
+      String(before.localPdfPath || "").trim() !== String(payload.localPdfPath || "").trim()
+      || String(before.pdfVersion || "") !== String(payload.pdfVersion || "")
+    );
+    if (pdfSourceChanged) {
+      Object.assign(payload, {
+        pdfSearchText: "",
+        pdfOcrText: "",
+        pdfSearchTokens: [],
+        pdfIndexStatus: "pending",
+        pdfIndexMethod: "",
+        indexedTextAvailable: false,
+        textFingerprint: "",
+        indexedPdfPath: "",
+        indexedPdfVersion: "",
+        pdfIndexedAt: ""
+      });
+    }
 
     if (useLocal) {
       if (song.id) {
@@ -1252,6 +1270,7 @@ export function MusicDataProvider({ children }) {
       found: 0,
       indexed: 0,
       reused: 0,
+      checked: 0,
       failed: 0,
       noText: 0,
       missing: 0,
@@ -1261,11 +1280,18 @@ export function MusicDataProvider({ children }) {
       missingItems: [],
       errorItems: []
     };
-    const candidates = songs.filter((item) => item.localPdfPath);
-    let current = 0;
-    for (const song of candidates) {
-      current += 1;
-      onProgress?.({ current, total: candidates.length, songTitle: song.title, pdfPath: song.localPdfPath, ...results });
+    const sourceCandidates = songs.filter((item) => item.localPdfPath);
+    const candidates = [];
+    for (const song of sourceCandidates) {
+      results.checked += 1;
+      onProgress?.({
+        phase: "checking",
+        current: results.checked,
+        total: sourceCandidates.length,
+        songTitle: song.title,
+        pdfPath: song.localPdfPath,
+        ...results
+      });
       let prefetched = null;
       try {
         prefetched = await fingerprintLocalPdf(song.localPdfPath, song.pdfVersion);
@@ -1274,12 +1300,31 @@ export function MusicDataProvider({ children }) {
       }
       const existingFingerprint = song.textFingerprint || song.pdfTextFingerprint || "";
       const hasExistingIndex = Boolean(song.indexedTextAvailable || song.pdfSearchText || (song.pdfSearchTokens || []).length);
-      if (!options.force && prefetched?.fingerprint && existingFingerprint === prefetched.fingerprint && hasExistingIndex) {
+      const unchanged = !options.force
+        && hasExistingIndex
+        && prefetched?.fingerprint
+        && existingFingerprint === prefetched.fingerprint;
+      if (unchanged || (!options.force && hasExistingIndex && !prefetched)) {
         results.reused += 1;
         results.found += 1;
-        onProgress?.({ current, total: candidates.length, songTitle: song.title, pdfPath: song.localPdfPath, reusedCurrent: true, ...results });
         continue;
       }
+      candidates.push({ song, prefetched });
+    }
+
+    onProgress?.({
+      phase: "indexing",
+      current: 0,
+      total: candidates.length,
+      songTitle: "",
+      pdfPath: "",
+      ...results
+    });
+    let current = 0;
+    for (const candidate of candidates) {
+      const { song, prefetched } = candidate;
+      current += 1;
+      onProgress?.({ phase: "indexing", current, total: candidates.length, songTitle: song.title, pdfPath: song.localPdfPath, ...results });
       const extracted = await extractLocalPdfText(song.localPdfPath, {
         enableOcr: Boolean(options.enableOcr),
         pdfVersion: song.pdfVersion,
@@ -1307,6 +1352,8 @@ export function MusicDataProvider({ children }) {
         indexedTextAvailable: status === "indexed",
         indexSource: extracted.method === "ocr" ? "ocr" : status === "indexed" ? "pdf-text" : status,
         textFingerprint: extracted.fingerprint || prefetched?.fingerprint || "",
+        indexedPdfPath: song.localPdfPath || "",
+        indexedPdfVersion: song.pdfVersion || "",
         pdfIndexMessage: extracted.message,
         pdfIndexError: status === "error" ? extracted.message : "",
         pdfIndexUrl: extracted.resolvedUrl || "",
@@ -1338,7 +1385,7 @@ export function MusicDataProvider({ children }) {
           message: itemSummary.message || "Error al procesar"
         });
       }
-      onProgress?.({ current, total: candidates.length, songTitle: song.title, pdfPath: song.localPdfPath, ...results });
+      onProgress?.({ phase: "indexing", current, total: candidates.length, songTitle: song.title, pdfPath: song.localPdfPath, ...results });
     }
     await logAuditEvent({
       actionType: "update",

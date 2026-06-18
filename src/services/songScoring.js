@@ -293,6 +293,7 @@ function requestsChristmas(options = {}) {
   const requestedText = normalizeSearchText([
     options.categoryChoice,
     options.category,
+    options.titleQuery,
     options.theme,
     options.ideaQuery,
     options.pdfSearchQuery
@@ -335,25 +336,40 @@ function splitSearchTerms(value = "") {
 function findSourceMatch(rawText = "", term = "") {
   const sourceWords = String(rawText || "").replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
   const normalizedTerm = normalizeSearchText(term);
-  const termWordCount = Math.max(1, normalizedTerm.split(/\s+/).filter(Boolean).length);
-  for (let index = 0; index < sourceWords.length; index += 1) {
-    const candidate = sourceWords.slice(index, index + termWordCount).join(" ");
-    const normalizedCandidate = normalizeSearchText(candidate);
-    if (normalizedCandidate.includes(normalizedTerm) || normalizedTerm.includes(normalizedCandidate)) {
+  const termWords = normalizedTerm.split(/\s+/).filter(Boolean);
+  if (!termWords.length || (termWords.length === 1 && termWords[0].length < 3)) return null;
+  const termWordCount = termWords.length;
+
+  for (let index = 0; index <= sourceWords.length - termWordCount; index += 1) {
+    const candidateWords = sourceWords.slice(index, index + termWordCount);
+    const normalizedCandidateWords = candidateWords.map(normalizeSearchText);
+    if (termWordCount === 1 && normalizedCandidateWords[0]?.length < 3) continue;
+    const normalizedCandidate = normalizedCandidateWords.join(" ");
+    if (normalizedCandidate === normalizedTerm) {
       return {
-        matchedValue: candidate,
+        matchedValue: candidateWords.join(" "),
         index,
         sourceWords,
-        kind: normalizedCandidate === normalizedTerm ? "exact" : "partial"
+        kind: "exact"
       };
     }
   }
-  const partialWords = normalizedTerm.split(/\s+/).filter((word) => word.length >= 4);
-  for (let index = 0; index < sourceWords.length; index += 1) {
-    const normalizedWord = normalizeSearchText(sourceWords[index]);
-    const matched = partialWords.find((word) => normalizedWord.includes(word) || word.includes(normalizedWord));
-    if (matched) {
-      return { matchedValue: sourceWords[index], index, sourceWords, kind: "partial" };
+
+  for (let index = 0; index <= sourceWords.length - termWordCount; index += 1) {
+    const candidateWords = sourceWords.slice(index, index + termWordCount);
+    const normalizedCandidateWords = candidateWords.map(normalizeSearchText);
+    const isDerivedMatch = termWords.every((word, wordIndex) => {
+      const candidateWord = normalizedCandidateWords[wordIndex] || "";
+      if (word.length < 3) return candidateWord === word;
+      return candidateWord.length >= word.length && candidateWord.startsWith(word);
+    });
+    if (isDerivedMatch) {
+      return {
+        matchedValue: candidateWords.join(" "),
+        index,
+        sourceWords,
+        kind: "partial"
+      };
     }
   }
   return null;
@@ -364,7 +380,7 @@ export function findIndexedTextMatches(song = {}, searchValue = "", options = {}
   const terms = Array.isArray(searchValue) ? searchValue : splitSearchTerms(searchValue);
   const cleanedTerms = terms
     .map((term) => String(term || "").trim())
-    .filter((term) => normalizeSearchText(term).length >= 2);
+    .filter((term) => normalizeSearchText(term).replace(/\s+/g, "").length >= 3);
   if (!rawText || !cleanedTerms.length) return [];
   const matches = [];
   cleanedTerms.forEach((term) => {
@@ -541,6 +557,9 @@ export function scoreSong(song = {}, options = {}, context = {}) {
       addPositive(25, "El título coincide exactamente");
     } else if (normalizedTitle.includes(titleQuery)) {
       addPositive(18, `El título coincide con: ${options.titleQuery}`);
+    } else {
+      const relation = options.titleRelations?.get?.(song.id);
+      if (relation) addPositive(10, relation.reason || "Relacionado con el canto buscado");
     }
   }
 
@@ -576,7 +595,7 @@ export function scoreSong(song = {}, options = {}, context = {}) {
     const pdfTerms = splitSearchTerms(pdfSearchValue);
     const pdfMatches = findIndexedTextMatches(song, pdfTerms);
     if (pdfMatches.length) {
-      const pdfPoints = Math.min(25, pdfMatches.reduce((sum, match, index) => sum + (match.kind === "exact" ? (index === 0 ? 15 : 5) : 3), 0));
+      const pdfPoints = Math.min(25, pdfMatches.reduce((sum, match, index) => sum + (match.kind === "exact" ? (index === 0 ? 15 : 6) : (index === 0 ? 7 : 3)), 0));
       addPositive(pdfPoints, `Coincidencia combinada en letra/PDF: ${pdfMatches.length} de ${pdfTerms.length} término(s)`);
       scoreDetails.pdfMatch = pdfMatches[0];
       scoreDetails.pdfMatches = pdfMatches;

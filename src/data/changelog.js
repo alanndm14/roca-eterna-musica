@@ -1,6 +1,24 @@
-export const appVersion = "0.9.135";
+export const appVersion = "0.9.136";
 
 export const changelog = [
+  {
+    version: "0.9.136",
+    date: "2026-06-18",
+    title: "Búsqueda de cantos afinada",
+    added: [
+      "Sugerencias relacionadas por tema o categoría al buscar un canto por título",
+      "Búsqueda conjunta por título y palabras o frases de letras/PDF"
+    ],
+    changed: [
+      "La indexación procesa únicamente PDFs nuevos o modificados",
+      "El contador del próximo canto nuevo muestra la fecha sin clasificar incorrectamente el servicio"
+    ],
+    fixed: [
+      "Las coincidencias de letras ya no aceptan caracteres sueltos",
+      "Las coincidencias exactas de palabras reciben más peso que sus variantes derivadas"
+    ],
+    pending: []
+  },
   {
     version: "0.9.135",
     date: "2026-06-18",

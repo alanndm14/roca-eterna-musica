@@ -24,9 +24,8 @@ const serviceMeta = {
 };
 
 const searchTabs = [
-  { id: "title", label: "Cantos", icon: Music2 },
-  { id: "theme", label: "Por tema", icon: Tags },
-  { id: "pdf", label: "Letra/PDF", icon: FileSearch }
+  { id: "title", label: "Cantos y letra", icon: Music2 },
+  { id: "theme", label: "Por tema", icon: Tags }
 ];
 
 function suggestedServiceType(dateValue = "") {
@@ -88,6 +87,69 @@ function songThemeText(song = {}) {
     ...(Array.isArray(song.otherThemes) ? song.otherThemes : []),
     ...(Array.isArray(song.tags) ? song.tags : [])
   ].filter(Boolean).join(" "));
+}
+
+function songThemeValues(song = {}) {
+  return [
+    song.mainTheme,
+    ...(Array.isArray(song.otherThemes) ? song.otherThemes : []),
+    ...(Array.isArray(song.tags) ? song.tags : [])
+  ].filter(Boolean);
+}
+
+function buildTitleSearchMatches(songs = [], query = "") {
+  const normalizedQuery = normalizeSearchText(query);
+  const matches = new Map();
+  if (!normalizedQuery) return matches;
+
+  const directMatches = songs.filter((song) => normalizeSearchText(song.title).includes(normalizedQuery));
+  directMatches.forEach((song) => matches.set(song.id, { kind: "direct" }));
+
+  const anchorThemes = new Map();
+  const anchorCategories = new Set();
+  directMatches.forEach((song) => {
+    songThemeValues(song).forEach((theme) => {
+      const key = normalizeSearchText(theme);
+      if (key && !anchorThemes.has(key)) anchorThemes.set(key, theme);
+    });
+    const category = normalizeSearchText(song.category);
+    if (["himno", "navidad", "santa cena"].includes(category)) anchorCategories.add(category);
+  });
+
+  songs.forEach((song) => {
+    if (!song?.id || matches.has(song.id)) return;
+    const themeValues = songThemeValues(song);
+    const metadataMatch = themeValues.find((theme) => normalizeSearchText(theme).includes(normalizedQuery));
+    if (metadataMatch) {
+      matches.set(song.id, {
+        kind: "related",
+        label: "Relacionado",
+        reason: `Relacionado por tema: ${metadataMatch}`
+      });
+      return;
+    }
+
+    const sharedTheme = themeValues.find((theme) => anchorThemes.has(normalizeSearchText(theme)));
+    if (sharedTheme) {
+      matches.set(song.id, {
+        kind: "related",
+        label: "Relacionado",
+        reason: `Comparte el tema: ${sharedTheme}`
+      });
+      return;
+    }
+
+    const category = normalizeSearchText(song.category);
+    if (category && anchorCategories.has(category)) {
+      matches.set(song.id, {
+        kind: "related",
+        label: "Relacionado",
+        reason: `Misma categoría: ${song.category}`
+      });
+    }
+  });
+
+  return matches;
 }
 
 function buildScheduleSongs(selectedItems = [], serviceType = "") {
@@ -199,12 +261,28 @@ export function SongSuggestionAssistant({
     return [...values].filter(Boolean).sort((a, b) => String(a).localeCompare(String(b), "es"));
   }, [safeSongs, themes]);
 
-  const indexedCount = useMemo(
-    () => safeSongs.filter((song) => song.pdfSearchText || song.pdfOcrText || song.pdfText || song.lyricsText).length,
+  const indexableSongs = useMemo(
+    () => safeSongs.filter((song) => song.localPdfPath),
     [safeSongs]
   );
+  const indexedCount = useMemo(
+    () => indexableSongs.filter((song) => song.pdfSearchText || song.pdfOcrText || song.pdfText || song.lyricsText).length,
+    [indexableSongs]
+  );
+  const missingIndexCount = Math.max(0, indexableSongs.length - indexedCount);
   const normalizedTitleQuery = normalizeSearchText(titleQuery);
   const normalizedThemes = selectedThemes.map(normalizeSearchText).filter(Boolean);
+  const titleSearchMatches = useMemo(
+    () => buildTitleSearchMatches(safeSongs, titleQuery),
+    [safeSongs, titleQuery]
+  );
+  const titleRelations = useMemo(() => {
+    const relations = new Map();
+    titleSearchMatches.forEach((value, songId) => {
+      if (value.kind === "related") relations.set(songId, value);
+    });
+    return relations;
+  }, [titleSearchMatches]);
   const searchOptions = useMemo(() => ({
     serviceType,
     currentSchedule: targetSchedule,
@@ -219,6 +297,7 @@ export function SongSuggestionAssistant({
     categoryChoice,
     allowPending: true,
     includeZeroScore: true,
+    titleRelations,
     usageIndex,
     limit: Math.max(1, safeSongs.length)
   }), [
@@ -230,20 +309,30 @@ export function SongSuggestionAssistant({
     serviceType,
     targetSchedule,
     titleQuery,
+    titleRelations,
     usageIndex
   ]);
 
   const recommendations = useMemo(() => {
     if (!hasSearched) return [];
     return getSongRecommendations(safeSongs, safeSchedules, searchOptions)
+      .map((item) => ({
+        ...item,
+        searchRelation: titleSearchMatches.get(item.song.id) || null
+      }))
       .filter((item) => !dismissedIds.includes(item.song.id))
-      .filter((item) => !normalizedTitleQuery || normalizeSearchText(item.song.title).includes(normalizedTitleQuery))
+      .filter((item) => !normalizedTitleQuery || titleSearchMatches.has(item.song.id))
       .filter((item) => !normalizedThemes.length || normalizedThemes.some((theme) => songThemeText(item.song).includes(theme)))
       .filter((item) => !pdfTerms.length || item.scoreDetails?.pdfMatches?.length)
       .sort((a, b) => {
+        const leftRelationRank = a.searchRelation?.kind === "direct" ? 0 : 1;
+        const rightRelationRank = b.searchRelation?.kind === "direct" ? 0 : 1;
         const leftMatches = a.scoreDetails?.pdfMatches?.length || 0;
         const rightMatches = b.scoreDetails?.pdfMatches?.length || 0;
-        return rightMatches - leftMatches || b.score - a.score || String(a.song.title || "").localeCompare(String(b.song.title || ""), "es");
+        return leftRelationRank - rightRelationRank
+          || rightMatches - leftMatches
+          || b.score - a.score
+          || String(a.song.title || "").localeCompare(String(b.song.title || ""), "es");
       });
   }, [
     dismissedIds,
@@ -253,7 +342,8 @@ export function SongSuggestionAssistant({
     pdfTerms.length,
     safeSchedules,
     safeSongs,
-    searchOptions
+    searchOptions,
+    titleSearchMatches
   ]);
 
   const selectedIds = useMemo(() => new Set(selectedItems.map(selectedItemId)), [selectedItems]);
@@ -330,7 +420,7 @@ export function SongSuggestionAssistant({
     setStatus("");
     try {
       const result = await indexLocalPdfTexts(setIndexProgress, { enableOcr: true, force: false });
-      setStatus(`Indexación lista: ${result.indexed || 0} nuevos y ${result.reused || 0} reutilizados.`);
+      setStatus(`Indexación lista: ${result.indexed || 0} PDF(s) actualizados y ${result.reused || 0} índices vigentes.`);
     } finally {
       setIsIndexing(false);
     }
@@ -401,12 +491,31 @@ export function SongSuggestionAssistant({
 
           <div className="mt-4">
             {searchTab === "title" ? (
-              <Field label="Buscar por título">
-                <div className="relative">
-                  <Search className="absolute left-3 top-3 h-4 w-4 text-ink/35" />
-                  <Input className="pl-9" value={titleQuery} onChange={(event) => setTitleQuery(event.target.value)} placeholder="Escribe el nombre o una parte" />
+              <div className="grid gap-4">
+                <Field label="Título del canto">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-3 h-4 w-4 text-ink/35" />
+                    <Input className="pl-9" value={titleQuery} onChange={(event) => setTitleQuery(event.target.value)} placeholder="Escribe el nombre o una parte" />
+                  </div>
+                </Field>
+                <Field label="Palabras o frases en letras/PDF (opcional)">
+                  <ChipInput values={pdfTerms} onChange={setPdfTerms} placeholder="Ej. perdón, gracia sublime, redención" />
+                </Field>
+                <div className="flex flex-col gap-2 rounded-2xl border border-brass/20 bg-brass/10 p-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-2 font-semibold text-ink">
+                    <FileSearch className="h-4 w-4 shrink-0 text-brass" />
+                    <span>
+                      {indexedCount} de {indexableSongs.length} PDFs locales con texto indexado
+                      {indexProgress ? <span className="block text-xs text-ink/50">{indexProgress.current || 0}/{indexProgress.total || 0}</span> : null}
+                    </span>
+                  </div>
+                  {indexableSongs.length ? (
+                    <Button variant="secondary" className="h-9 px-3 text-xs" onClick={runIndexing} disabled={isIndexing}>
+                      {isIndexing ? "Indexando..." : missingIndexCount ? `Indexar faltantes (${missingIndexCount})` : "Revisar cambios"}
+                    </Button>
+                  ) : null}
                 </div>
-              </Field>
+              </div>
             ) : null}
             {searchTab === "theme" ? (
               <div className="grid gap-3">
@@ -429,24 +538,6 @@ export function SongSuggestionAssistant({
                       );
                     })}
                   </div>
-                </div>
-              </div>
-            ) : null}
-            {searchTab === "pdf" ? (
-              <div className="grid gap-3">
-                <Field label="Palabras o frases en letras/PDF">
-                  <ChipInput values={pdfTerms} onChange={setPdfTerms} placeholder="Ej. perdón, gracia sublime, redención" />
-                </Field>
-                <div className="flex flex-col gap-2 rounded-2xl border border-brass/20 bg-brass/10 p-3 text-sm sm:flex-row sm:items-center sm:justify-between">
-                  <p className="font-semibold text-ink">
-                    {indexedCount} de {safeSongs.length} cantos con texto indexado
-                    {indexProgress ? <span className="block text-xs text-ink/50">{indexProgress.current || 0}/{indexProgress.total || 0}</span> : null}
-                  </p>
-                  {indexedCount < safeSongs.length ? (
-                    <Button variant="secondary" className="h-9 px-3 text-xs" onClick={runIndexing} disabled={isIndexing}>
-                      {isIndexing ? "Indexando..." : "Indexar faltantes"}
-                    </Button>
-                  ) : null}
                 </div>
               </div>
             ) : null}
@@ -499,6 +590,7 @@ export function SongSuggestionAssistant({
                   key={item.song.id}
                   item={item}
                   titleQuery={titleQuery}
+                  relation={item.searchRelation}
                   isAdded={selectedIds.has(item.song.id)}
                   actionLabel={selectedIds.has(item.song.id) ? "Agregado" : "Agregar"}
                   onAdd={canEdit ? addSong : undefined}
