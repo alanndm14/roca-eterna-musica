@@ -1,8 +1,12 @@
 {
-  "version": "0.9.130",
-  "date": "2026-06-17",
+  "version": "0.9.131",
+  "date": "2026-06-18",
   "critical": true,
   "changes": [
-    "corrección de errores"
+    "Programación concentra calendario, programa, Asistente IA, revisión y seguimiento",
+    "Centro Inteligente se integró como Asistente IA contextual",
+    "Balance del repertorio se movió a Estadísticas",
+    "Se corrigieron textos con caracteres dañados",
+    "Se conservaron los cantos nuevos planeados y la subida automática de PDFs a GitHub"
   ]
 }
