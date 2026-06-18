@@ -332,31 +332,53 @@ function splitSearchTerms(value = "") {
     .filter(Boolean);
 }
 
-function findIndexedTextMatches(song = {}, searchValue = "", options = {}) {
+function findSourceMatch(rawText = "", term = "") {
+  const sourceWords = String(rawText || "").replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
+  const normalizedTerm = normalizeSearchText(term);
+  const termWordCount = Math.max(1, normalizedTerm.split(/\s+/).filter(Boolean).length);
+  for (let index = 0; index < sourceWords.length; index += 1) {
+    const candidate = sourceWords.slice(index, index + termWordCount).join(" ");
+    const normalizedCandidate = normalizeSearchText(candidate);
+    if (normalizedCandidate.includes(normalizedTerm) || normalizedTerm.includes(normalizedCandidate)) {
+      return {
+        matchedValue: candidate,
+        index,
+        sourceWords,
+        kind: normalizedCandidate === normalizedTerm ? "exact" : "partial"
+      };
+    }
+  }
+  const partialWords = normalizedTerm.split(/\s+/).filter((word) => word.length >= 4);
+  for (let index = 0; index < sourceWords.length; index += 1) {
+    const normalizedWord = normalizeSearchText(sourceWords[index]);
+    const matched = partialWords.find((word) => normalizedWord.includes(word) || word.includes(normalizedWord));
+    if (matched) {
+      return { matchedValue: sourceWords[index], index, sourceWords, kind: "partial" };
+    }
+  }
+  return null;
+}
+
+export function findIndexedTextMatches(song = {}, searchValue = "", options = {}) {
   const rawText = songIndexedText(song);
-  const normalizedText = normalizeSearchText(rawText);
   const terms = Array.isArray(searchValue) ? searchValue : splitSearchTerms(searchValue);
   const cleanedTerms = terms
     .map((term) => String(term || "").trim())
     .filter((term) => normalizeSearchText(term).length >= 2);
   if (!rawText || !cleanedTerms.length) return [];
-  const words = String(rawText || "").replace(/\s+/g, " ").trim();
-  const normalizedWords = normalizeSearchText(words);
   const matches = [];
   cleanedTerms.forEach((term) => {
-    const normalizedTerm = normalizeSearchText(term);
-    let matchedValue = normalizedText.includes(normalizedTerm) ? term : "";
-    let kind = matchedValue ? "exact" : "partial";
-    if (!matchedValue && options.allowWordMatches !== false) {
-      matchedValue = normalizedTerm.split(/\s+/).filter((word) => word.length >= 4).find((word) => normalizedText.includes(word)) || "";
-    }
-    if (!matchedValue) return;
-    const normalizedMatch = normalizeSearchText(matchedValue);
-    const index = normalizedWords.indexOf(normalizedMatch);
-    const snippet = index >= 0
-      ? words.slice(Math.max(0, index - 28), Math.min(words.length, index + String(matchedValue).length + 36)).trim()
-      : String(matchedValue);
-    matches.push({ theme: term, matchedValue, snippet, kind });
+    const sourceMatch = findSourceMatch(rawText, term);
+    if (!sourceMatch || (sourceMatch.kind === "partial" && options.allowWordMatches === false)) return;
+    const start = Math.max(0, sourceMatch.index - 5);
+    const end = Math.min(sourceMatch.sourceWords.length, sourceMatch.index + Math.max(1, sourceMatch.matchedValue.split(/\s+/).length) + 6);
+    const snippet = sourceMatch.sourceWords.slice(start, end).join(" ");
+    matches.push({
+      theme: term,
+      matchedValue: sourceMatch.matchedValue,
+      snippet,
+      kind: sourceMatch.kind
+    });
   });
   return matches;
 }
@@ -397,11 +419,27 @@ function pluralizeUse(count = 0) {
   return `${count} ${count === 1 ? "vez" : "veces"}`;
 }
 
+function describeElapsedDays(days = 0) {
+  const value = Math.max(0, Number(days) || 0);
+  if (value === 0) return "hoy";
+  if (value === 1) return "hace 1 día";
+  if (value < 30) return `hace ${value} días`;
+  const months = Math.floor(value / 30);
+  const remainingDays = value % 30;
+  if (months < 12) {
+    const monthText = `${months} ${months === 1 ? "mes" : "meses"}`;
+    const dayText = remainingDays ? ` y ${remainingDays} ${remainingDays === 1 ? "día" : "días"}` : "";
+    return `hace ${monthText}${dayText}`;
+  }
+  const years = Math.floor(months / 12);
+  const remainingMonths = months % 12;
+  return `hace ${years} ${years === 1 ? "año" : "años"}${remainingMonths ? ` y ${remainingMonths} ${remainingMonths === 1 ? "mes" : "meses"}` : ""}`;
+}
+
 function describeLastUse(usage = {}) {
   if (!usage?.lastUsedAt) return "Sin historial previo";
-  if (usage.lastUsedDays === 0) return `Usado hoy (${usage.lastUsedAt})`;
-  if (usage.lastUsedDays === 1) return `Usado hace 1 dia (${usage.lastUsedAt})`;
-  return `Usado hace ${usage.lastUsedDays} dias (${usage.lastUsedAt})`;
+  const service = usage.lastSchedule?.serviceLabel || usage.lastSchedule?.type || "";
+  return `Último uso: ${describeElapsedDays(usage.lastUsedDays)}${service ? ` · ${service}` : ""}`;
 }
 
 function describeRecentImpact(usage = {}) {
@@ -465,6 +503,7 @@ export function scoreSong(song = {}, options = {}, context = {}) {
   const reasons = [];
   const warnings = [];
   let score = 20;
+  let penaltyTotal = 0;
   const scoreDetails = {
     base: 20,
     positives: [{ points: 20, label: "Base de evaluación" }],
@@ -481,6 +520,7 @@ export function scoreSong(song = {}, options = {}, context = {}) {
   const addPenalty = (points, reason) => {
     const value = Math.abs(points);
     score -= value;
+    penaltyTotal += value;
     scoreDetails.penalties.push({ points: -value, label: reason });
     addUniqueReason(warnings, reason);
   };
@@ -493,6 +533,16 @@ export function scoreSong(song = {}, options = {}, context = {}) {
   const otherThemes = [...(song.otherThemes || []), ...(song.tags || [])].map((theme) => normalizeSearchText(theme));
   const fullThemeText = songThemeText(song);
   const ideaTerms = splitSearchTerms(options.ideaQuery || "");
+  const titleQuery = normalizeSearchText(options.titleQuery || "");
+
+  if (titleQuery) {
+    const normalizedTitle = normalizeSearchText(song.title || "");
+    if (normalizedTitle === titleQuery) {
+      addPositive(25, "El título coincide exactamente");
+    } else if (normalizedTitle.includes(titleQuery)) {
+      addPositive(18, `El título coincide con: ${options.titleQuery}`);
+    }
+  }
 
   if (normalizedPrimaryTheme) {
     if (mainTheme.includes(normalizedPrimaryTheme) || fullThemeText.includes(normalizedPrimaryTheme)) {
@@ -676,8 +726,11 @@ export function scoreSong(song = {}, options = {}, context = {}) {
     addPositive(options.prioritizePlannedSongs ? 18 : 8, "Canto nuevo planeado cerca de esta fecha");
   }
 
-  const total = clampScore(score);
+  const positiveSubtotal = score + penaltyTotal;
+  const total = clampScore(Math.min(100, positiveSubtotal) - penaltyTotal);
   scoreDetails.rawScore = score;
+  scoreDetails.positiveSubtotal = positiveSubtotal;
+  scoreDetails.penaltyTotal = penaltyTotal;
   scoreDetails.finalScore = total;
   const daysSince = usage.lastUsedAt
     ? (Number.isFinite(usage.lastUsedDays)
@@ -737,7 +790,7 @@ export function getSongRecommendations(songs = [], schedules = [], options = {})
       && song.musicReviewStatus === "completado"
     ))
     .map((song) => scoreSong(song, options, { usageIndex, scheduledIds }))
-    .filter((item) => item.score > 0)
+    .filter((item) => options.includeZeroScore || item.score > 0)
     .sort((a, b) => b.score - a.score || (a.song.title || "").localeCompare(b.song.title || "", "es"))
     .slice(0, options.limit || 20);
 }

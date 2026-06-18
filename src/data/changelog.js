@@ -1,12 +1,31 @@
-export const appVersion = "0.9.134";
+export const appVersion = "0.9.135";
 
 export const changelog = [
   {
+    version: "0.9.135",
+    date: "2026-06-18",
+    title: "Asistente de programación renovado",
+    added: [
+      "Búsqueda combinable por título, temas y palabras o frases de letras/PDF",
+      "Selección manual de cantos con orden reacomodable antes de guardar"
+    ],
+    changed: [
+      "El asistente sugiere cantos individuales y ya no arma automáticamente todo el servicio",
+      "La fecha seleccionada en el calendario se conserva al abrir las sugerencias",
+      "El historial muestra meses y días junto con el tipo del último servicio"
+    ],
+    fixed: [
+      "Las penalizaciones de rotación ahora reducen el porcentaje aunque los puntos a favor superen 100",
+      "Las coincidencias parciales muestran la palabra real encontrada en la letra"
+    ],
+    pending: []
+  },
+  {
     version: "0.9.134",
     date: "2026-06-18",
-    title: "Asistente IA para nuevas programaciones",
+    title: "Asistente para nuevas programaciones",
     added: [
-      "Creación de programaciones nuevas directamente desde el Asistente IA",
+      "Creación de programaciones nuevas directamente desde el Asistente",
       "Contador del próximo canto nuevo con accesos a PDF, YouTube y Spotify"
     ],
     changed: [
@@ -35,7 +54,7 @@ export const changelog = [
   {
     version: "0.9.132",
     date: "2026-06-18",
-    title: "Mejoras del Asistente IA",
+    title: "Mejoras del Asistente",
     added: [],
     changed: [
       "Sugerir bloque ahora crea combinaciones completas para el servicio",
@@ -52,11 +71,11 @@ export const changelog = [
     date: "2026-06-18",
     title: "Programación inteligente unificada",
     added: [
-      "Workspace del servicio con Programa, Asistente IA, Revisión y Seguimiento",
-      "Asistente IA contextual dentro de cada programación"
+      "Workspace del servicio con Programa, Asistente, Revisión y Seguimiento",
+      "Asistente contextual dentro de cada programación"
     ],
     changed: [
-      "Centro Inteligente ahora abre Programación con el Asistente IA contextual",
+      "Centro Inteligente ahora abre Programación con el Asistente contextual",
       "El Balance del repertorio se movió a Estadísticas",
       "Se mantuvieron los cantos nuevos planeados y la subida automática de PDFs a GitHub"
     ],

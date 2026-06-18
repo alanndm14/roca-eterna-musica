@@ -832,9 +832,9 @@ export function Schedules() {
                 <Plus className="h-4 w-4" />
                 {tab === "calendar" ? "Nueva programación para este día" : "Nueva programación"}
               </Button>
-              <Button variant="secondary" onClick={openSmartScheduleCreator}>
+              <Button className="bg-cyan-700 text-white hover:bg-cyan-800 dark:bg-cyan-400 dark:text-zinc-950 dark:hover:bg-cyan-300" onClick={openSmartScheduleCreator}>
                 <Sparkles className="h-4 w-4" />
-                Crear con Asistente IA
+                Sugerir cantos
               </Button>
               <Button variant="secondary" onClick={openNewPlannedSong}>
                 <Music2 className="h-4 w-4" />
@@ -850,7 +850,18 @@ export function Schedules() {
             ["past", "Pasadas"],
             ["all", "Todas"]
           ].map(([value, label]) => (
-            <Button key={value} variant={tab === value ? "primary" : "secondary"} onClick={() => setTab(value)}>{label}</Button>
+            <Button
+              key={value}
+              variant={tab === value && !(value === "calendar" && activeScheduleWorkspaceTab === "assistant" && !selectedSchedule) ? "primary" : "secondary"}
+              onClick={() => {
+                setTab(value);
+                if (value === "calendar" && activeScheduleWorkspaceTab === "assistant" && !selectedSchedule) {
+                  setActiveScheduleWorkspaceTab("program");
+                }
+              }}
+            >
+              {label}
+            </Button>
           ))}
         </div>
         <div className="relative mt-4">
@@ -859,7 +870,7 @@ export function Schedules() {
         </div>
       </Card>
 
-      {tab === "calendar" ? (
+      {tab === "calendar" && !(activeScheduleWorkspaceTab === "assistant" && !selectedSchedule) ? (
         <div className="grid gap-5 xl:grid-cols-[1fr_420px]">
           <MonthCalendar schedules={searchedSchedules} plannedNewSongs={searchedPlannedNewSongs} selectedDate={selectedDate} onSelectDate={setSelectedDate} />
           <Card>
@@ -984,7 +995,7 @@ export function Schedules() {
               <div className="flex max-w-full gap-2 overflow-x-auto pb-1">
                 {[
                   ["program", "Programa", FileText],
-                  ["assistant", "Asistente IA", Sparkles],
+                  ["assistant", "Asistente", Sparkles],
                   ["review", "Revisión", ClipboardCheck],
                   ["followup", "Seguimiento", CheckCircle2]
                 ].map(([value, label, Icon]) => (

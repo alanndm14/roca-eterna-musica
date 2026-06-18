@@ -10,6 +10,7 @@ import { SmartGradientBackground, SmartPanel } from "../components/smart/SmartPa
 import { RecommendationCard } from "../components/smart/RecommendationCard";
 import { ServiceReviewPanel } from "../components/smart/ServiceReviewPanel";
 import { ServiceFollowUpPanel } from "../components/smart/ServiceFollowUpPanel";
+import { SongSuggestionAssistant } from "../components/smart/SongSuggestionAssistant";
 import { ScoreBadge } from "../components/smart/ScoreBadge";
 import { ReasonChips } from "../components/smart/ReasonChips";
 import { useAuth } from "../hooks/useAuth";
@@ -35,7 +36,7 @@ import {
 import { getSongPdfUrl, normalizeSearchText } from "../services/songUtils";
 
 const tabItems = [
-  { id: "programar", label: "Programación Inteligente", icon: Wand2, primary: true },
+  { id: "programar", label: "Asistente de programación", icon: Wand2, primary: true },
   { id: "revisar", label: "Revisar", icon: CalendarCheck2 },
   { id: "sustituir", label: "Sustituir", icon: GitCompareArrows }
 ];
@@ -86,10 +87,6 @@ function suggestServiceTypeFromDate(dateValue = "") {
   return "Servicio especial";
 }
 const embeddedAssistantModes = [
-  { id: "general", label: "Servicio", icon: Wand2 },
-  { id: "theme", label: "Por tema", icon: Tags },
-  { id: "pdf", label: "Por letra/PDF", icon: FileSearch },
-  { id: "seeds", label: "Por cantos", icon: Music2 },
   { id: "sustituir", label: "Sustituir canto", icon: GitCompareArrows }
 ];
 
@@ -797,81 +794,32 @@ export function SmartCenter({ scheduleId = "", embedded = false, initialDate = "
         animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
         transition={{ duration: 0.32, ease: "easeOut" }}
       >
-        {embedded ? (
+        {embedded ? null : (
           <div>
             <div className="inline-flex items-center gap-2 rounded-full border border-brass/25 bg-brass/12 px-3 py-1 text-xs font-bold uppercase tracking-wide text-brass">
               <Sparkles className="h-4 w-4" />
-              Herramienta contextual
+              Análisis musical
             </div>
-            <h2 className="mt-3 text-2xl font-black text-ink">Asistente IA de programación</h2>
-            <p className="mt-1 text-sm font-semibold text-ink/60">
-              {selectedSchedule ? `${scheduleLabel(selectedSchedule)} · ${(selectedSchedule.songs || []).length} cantos` : "Elige una fecha para crear una programación nueva."}
+            <h2 className="mt-4 text-3xl font-black tracking-normal text-ink md:text-4xl">Centro Inteligente</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/65">
+              Busca sugerencias, revisa un servicio o encuentra sustitutos con historial real del repertorio.
             </p>
           </div>
-        ) : (
-          <>
-            <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-              <div>
-                <div className="inline-flex items-center gap-2 rounded-full border border-brass/25 bg-brass/12 px-3 py-1 text-xs font-bold uppercase tracking-wide text-brass">
-                  <Sparkles className="h-4 w-4" />
-                  Análisis musical del servicio
-                </div>
-                <h2 className="mt-4 text-3xl font-black tracking-normal text-ink md:text-4xl">Arma el próximo servicio</h2>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/65">
-                  Un panel de apoyo para armar servicios reales con tema, posición, rotación y preparación.
-                </p>
-              </div>
-              <Button onClick={generateForNextService}>
-                <Wand2 className="h-4 w-4" />
-                Preparar siguiente servicio
-              </Button>
-            </div>
-
-            <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-              <SmartPanel>
-                <div className="grid gap-4 md:grid-cols-4">
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-wide text-ink/45">Próximo servicio</p>
-                    <p className="mt-1 font-black text-ink">{nextSchedule ? scheduleLabel(nextSchedule) : "Sin próxima programación"}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-wide text-ink/45">{planningMode === "create" ? "Servicio seleccionado" : "Servicio sugerido"}</p>
-                    <p className="mt-1 font-black text-ink">{planningMode === "existing" && selectedSchedule ? inferSmartServiceType(selectedSchedule) : selectedServiceType || "Sin seleccionar"}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-wide text-ink/45">Cantos sugeridos</p>
-                    <p className="mt-1 font-black text-ink">{effectiveCount || "--"}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-wide text-ink/45">Preparación</p>
-                    <p className="mt-1 font-black text-ink">{review.score}%</p>
-                  </div>
-                </div>
-              </SmartPanel>
-              <SmartPanel>
-                <p className="text-xs font-bold uppercase tracking-wide text-brass">Criterios combinados</p>
-                <p className="mt-1 line-clamp-2 text-lg font-black text-ink">
-                  {[selectedThemes.join(" + "), pdfTerms.join(" + "), baseSongItems.length ? `${baseSongItems.length} canto(s) base` : ""].filter(Boolean).join(" · ") || "Preparación y rotación"}
-                </p>
-                <p className="mt-1 text-sm text-ink/60">{songs.length} cantos · {schedules.length} programaciones analizadas</p>
-              </SmartPanel>
-            </div>
-          </>
         )}
 
         <div className="mt-5 flex gap-2 overflow-x-auto pb-1">
-          {(embedded ? embeddedAssistantModes : tabItems).map((tab) => {
+          {(embedded ? [{ id: "programar", label: "Sugerencias", icon: Wand2 }, ...embeddedAssistantModes] : tabItems).map((tab) => {
             const Icon = tab.icon;
             const active = embedded
               ? tab.id === "sustituir"
                 ? activeTab === "sustituir"
-                : activeTab === "programar" && recommendationMode === tab.id
+                : activeTab === "programar"
               : activeTab === tab.id;
             return (
               <button
                 key={tab.id}
                 type="button"
-                onClick={() => embedded ? selectEmbeddedMode(tab.id) : setActiveTab(tab.id)}
+                onClick={() => embedded ? (tab.id === "sustituir" ? selectEmbeddedMode(tab.id) : setActiveTab("programar")) : setActiveTab(tab.id)}
                 className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-2xl px-4 text-sm font-bold transition ${active ? "bg-ink text-white shadow-soft dark:bg-brass dark:text-ink" : tab.primary ? "border border-brass/40 bg-brass/12 text-ink shadow-soft hover:bg-brass/18 dark:bg-brass/15" : "bg-white/70 text-ink ring-1 ring-ink/10 hover:bg-brass/10 dark:bg-white/8 dark:ring-white/10"}`}
               >
                 <Icon className="h-4 w-4" />
@@ -886,6 +834,28 @@ export function SmartCenter({ scheduleId = "", embedded = false, initialDate = "
 
         <AnimatePresence mode="wait">
         {activeTab === "programar" ? (
+          <motion.div
+            key="song-suggestions"
+            initial={reduceMotion ? false : { opacity: 0, y: 10 }}
+            animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+            exit={reduceMotion ? undefined : { opacity: 0, y: -6 }}
+            transition={{ duration: 0.2 }}
+          >
+            <SongSuggestionAssistant
+              songs={songs}
+              schedules={schedules}
+              themes={themes}
+              schedule={contextualSchedule || schedules.find((item) => item.id === scheduleId) || null}
+              initialDate={initialDate}
+              canEdit={canEdit}
+              saveSchedule={saveSchedule}
+              indexLocalPdfTexts={indexLocalPdfTexts}
+              navigate={navigate}
+              onExplainScore={setScoreHelpItem}
+            />
+          </motion.div>
+        ) : null}
+        {false && activeTab === "programar" ? (
           <motion.section key="programar" initial={reduceMotion ? false : { opacity: 0, y: 10 }} animate={reduceMotion ? undefined : { opacity: 1, y: 0 }} exit={reduceMotion ? undefined : { opacity: 0, y: -6 }} transition={{ duration: 0.2 }} className="mt-6 grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
             <SmartPanel>
               <div className="flex items-center gap-2">
@@ -1431,7 +1401,7 @@ export function SmartCenter({ scheduleId = "", embedded = false, initialDate = "
                 <span>{scoreHelpItem.usageSummary?.monthly || "Uso mensual: sin datos"}</span>
               </div>
               <p className="mt-2 text-xs font-bold text-ink/50">{scoreHelpItem.usageSummary?.rotationImpact || "Rotacion sin impacto negativo."}</p>
-              <p className="mt-1 text-xs font-semibold text-ink/45">Rotación: el servicio anterior resta 20; 0-14 días resta 15; 15-30 días resta 7; tres usos en 30 días restan 8 y cuatro o más restan 12.</p>
+              <p className="mt-1 text-xs font-semibold text-ink/45">Los puntos a favor se limitan a 100 antes de restar cada punto en contra; así una penalización nunca queda oculta.</p>
               {scoreHelpItem.scoreDetails?.pdfMatches?.length ? (
                 <div className="mt-2 grid gap-2">
                   {scoreHelpItem.scoreDetails.pdfMatches.map((match) => (
