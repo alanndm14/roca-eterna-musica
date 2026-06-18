@@ -150,7 +150,7 @@ export function getRealSongUsage(songId, schedules = [], options = {}) {
   const beforeMs = options.beforeDateTime ? new Date(options.beforeDateTime).getTime() : null;
   const excludeScheduleId = options.excludeScheduleId || options.currentSchedule?.id || "";
   const currentSchedule = options.currentSchedule || null;
-  const usage = { count: 0, monthCount: 0, recent30Count: 0, lastUsedAt: "", lastUsedDays: null, lastSchedule: null, lastFollowUp: null, usedInPreviousService: false };
+  const usage = { count: 0, monthCount: 0, recent30Count: 0, recent60Count: 0, lastUsedAt: "", lastUsedDays: null, lastSchedule: null, lastFollowUp: null, usedInPreviousService: false };
   const currentMonth = now.toISOString().slice(0, 7);
   const previousService = currentSchedule ? getPreviousRealService(currentSchedule, schedules) : null;
 
@@ -169,6 +169,7 @@ export function getRealSongUsage(songId, schedules = [], options = {}) {
     usage.count += 1;
     if (String(schedule.date).startsWith(currentMonth)) usage.monthCount += 1;
     if (daysFromService >= 0 && daysFromService <= recentWindowDays) usage.recent30Count += 1;
+    if (daysFromService >= 0 && daysFromService <= 60) usage.recent60Count += 1;
     if (!usage.lastSchedule || startMs > scheduleStartMs(usage.lastSchedule)) {
       usage.lastSchedule = schedule;
       usage.lastUsedAt = schedule.date;
@@ -179,6 +180,40 @@ export function getRealSongUsage(songId, schedules = [], options = {}) {
   });
 
   return usage;
+}
+
+export function getSongRotationInfo(songId, schedules = [], options = {}) {
+  const referenceDate = options.referenceDate instanceof Date
+    ? options.referenceDate
+    : options.referenceDate
+      ? new Date(options.referenceDate)
+      : options.currentSchedule
+        ? getScheduleStartDate(options.currentSchedule) || new Date()
+        : new Date();
+  const usage = getRealSongUsage(songId, schedules, {
+    now: referenceDate,
+    currentSchedule: options.currentSchedule,
+    excludeScheduleId: options.excludeScheduleId || options.currentSchedule?.id,
+    beforeDateTime: options.beforeDateTime || (options.currentSchedule ? getScheduleStartDate(options.currentSchedule)?.toISOString() : "")
+  });
+  const daysSinceLastUse = usage.lastUsedDays;
+  const rotationLabel = usage.usedInPreviousService
+    ? "Usado en el servicio anterior"
+    : daysSinceLastUse === null || daysSinceLastUse === undefined
+      ? "Sin historial previo"
+      : daysSinceLastUse <= 14
+        ? "Usado recientemente"
+        : daysSinceLastUse >= 45
+          ? `No usado hace ${daysSinceLastUse} días`
+          : `Último uso hace ${daysSinceLastUse} días`;
+  return {
+    lastUsedDate: usage.lastUsedAt || "",
+    daysSinceLastUse,
+    usesInLast30Days: usage.recent30Count || 0,
+    usesInLast60Days: usage.recent60Count || 0,
+    usedInPreviousService: Boolean(usage.usedInPreviousService),
+    rotationLabel
+  };
 }
 
 export function buildUsageIndex(schedules = [], now = new Date(), options = {}) {
@@ -204,12 +239,13 @@ export function buildUsageIndex(schedules = [], now = new Date(), options = {}) 
       if (!entry.songId) return;
       if (countedInSchedule.has(entry.songId)) return;
       countedInSchedule.add(entry.songId);
-      const current = usage.get(entry.songId) || { count: 0, monthCount: 0, recent30Count: 0, lastUsedAt: "", lastUsedDays: null, lastSchedule: null, lastFollowUp: null, usedInPreviousService: false };
+      const current = usage.get(entry.songId) || { count: 0, monthCount: 0, recent30Count: 0, recent60Count: 0, lastUsedAt: "", lastUsedDays: null, lastSchedule: null, lastFollowUp: null, usedInPreviousService: false };
       if (!isFuture) {
         const daysFromService = Math.floor((now.getTime() - startMs) / dayMs);
         current.count += 1;
         if (String(schedule.date).startsWith(now.toISOString().slice(0, 7))) current.monthCount += 1;
         if (daysFromService >= 0 && daysFromService <= recentWindowDays) current.recent30Count += 1;
+        if (daysFromService >= 0 && daysFromService <= 60) current.recent60Count += 1;
         if (!current.lastSchedule || startMs > scheduleStartMs(current.lastSchedule)) {
           current.lastSchedule = schedule;
           current.lastUsedAt = schedule.date;
@@ -258,7 +294,9 @@ function songThemeText(song = {}) {
     song.category,
     song.mainTheme,
     ...(song.otherThemes || []),
-    ...(song.tags || [])
+    ...(song.tags || []),
+    song.internalNotes,
+    song.artistOrSource
   ].filter(Boolean).join(" "));
 }
 
@@ -439,6 +477,7 @@ export function scoreSong(song = {}, options = {}, context = {}) {
   const mainTheme = normalizeSearchText(song.mainTheme || "");
   const otherThemes = [...(song.otherThemes || []), ...(song.tags || [])].map((theme) => normalizeSearchText(theme));
   const fullThemeText = songThemeText(song);
+  const ideaTerms = splitSearchTerms(options.ideaQuery || "");
 
   if (normalizedPrimaryTheme) {
     if (mainTheme.includes(normalizedPrimaryTheme) || fullThemeText.includes(normalizedPrimaryTheme)) {
@@ -453,6 +492,19 @@ export function scoreSong(song = {}, options = {}, context = {}) {
     return normalized && (otherThemes.some((other) => other.includes(normalized)) || fullThemeText.includes(normalized));
   });
   additionalMatches.slice(0, 3).forEach((theme) => addPositive(10, `Tema adicional coincide: ${theme}`));
+
+  if (ideaTerms.length) {
+    const metadataMatches = ideaTerms.filter((term) => fullThemeText.includes(normalizeSearchText(term)));
+    const indexedMatches = findIndexedTextMatches(song, ideaTerms);
+    if (metadataMatches.length) {
+      addPositive(Math.min(18, metadataMatches.length * 8), `Coincide con idea/frase: ${metadataMatches.slice(0, 2).join(", ")}`);
+    }
+    if (indexedMatches.length) {
+      addPositive(Math.min(22, indexedMatches.length * 10), `Coincide con frase/letra: ${indexedMatches.slice(0, 2).map((match) => match.theme).join(", ")}`);
+      scoreDetails.pdfMatch = indexedMatches[0];
+      scoreDetails.pdfMatches = indexedMatches;
+    }
+  }
 
   const pdfSearchValue = options.pdfSearchQuery || (options.includePdfText ? options.theme : "");
   if (options.includePdfText && pdfSearchValue) {
@@ -515,11 +567,11 @@ export function scoreSong(song = {}, options = {}, context = {}) {
     }
   }
   if (song.keynoteReviewStatus === "completado") {
-    addPositive(15, "Keynote listo");
+    addPositive(options.preferKeynoteReady ? 20 : 15, "Keynote listo");
   } else if (options.onlyKeynoteReady) {
     addPenalty(100, "Keynote pendiente");
   } else {
-    addPenalty(8, "Keynote pendiente");
+    addPenalty(options.preferKeynoteReady ? 12 : 8, "Keynote pendiente");
   }
   if (songHasPdf(song)) {
     addPositive(10, "PDF listo");
@@ -527,36 +579,43 @@ export function scoreSong(song = {}, options = {}, context = {}) {
     addPenalty(10, "Falta PDF o ruta");
   }
   if (songHasLocalPdf(song)) {
-    addPositive(5, "PDF local listo");
+    addPositive(options.preferLocalPdfReady ? 12 : 5, "PDF local listo");
   } else {
-    addPenalty(4, "Falta PDF local");
+    addPenalty(options.preferLocalPdfReady ? 10 : 4, "Falta PDF local");
   }
   if (song.pdfReviewStatus === "completado") {
     addPositive(6, "Revisión PDF lista");
   } else {
     addPenalty(5, "Falta revisión PDF");
   }
+  const rotationPriority = options.rotationPriority || "balanced";
+  const rotationMultiplier = rotationPriority === "strict" ? 1.35 : rotationPriority === "underused" ? 1.2 : 1;
   if (!usage.lastUsedAt) {
-    addPositive(10, "Sin historial reciente");
+    addPositive(Math.round(8 * rotationMultiplier), "Nunca usado; revisar preparación");
   } else {
     const daysSince = Number.isFinite(usage.lastUsedDays)
       ? usage.lastUsedDays
       : Math.floor((Date.now() - new Date(`${usage.lastUsedAt}T00:00:00`).getTime()) / dayMs);
-    if (daysSince > recentWindowDays) {
-      addPositive(10, `Sin uso reciente: hace ${daysSince} dias`);
-    } else if (daysSince <= recentStrongDays && options.avoidRecent) {
-      addPenalty(15, `Se uso hace ${daysSince} dias`);
-    } else if (daysSince <= recentWindowDays && options.avoidRecent) {
-      addPenalty(7, `Uso reciente: hace ${daysSince} dias`);
+    if (daysSince >= 90) {
+      addPositive(Math.round(20 * rotationMultiplier), `No usado hace ${daysSince} días`);
+    } else if (daysSince >= 60) {
+      addPositive(Math.round(15 * rotationMultiplier), `No usado hace ${daysSince} días`);
+    } else if (daysSince >= 45) {
+      addPositive(Math.round(10 * rotationMultiplier), `No usado hace ${daysSince} días`);
+    } else if (daysSince <= 7 && options.avoidRecent) {
+      addPenalty(Math.round(20 * rotationMultiplier), `Usado recientemente: hace ${daysSince} días`);
+    } else if (daysSince <= 14 && options.avoidRecent) {
+      addPenalty(Math.round(15 * rotationMultiplier), `Usado recientemente: hace ${daysSince} días`);
+    } else if (daysSince <= 30 && options.avoidRecent) {
+      addPenalty(Math.round(8 * rotationMultiplier), `Uso reciente: hace ${daysSince} días`);
     }
   }
   const recentUses = usage.recent30Count ?? usage.monthCount ?? 0;
-  if (recentUses <= 1) {
-    addPositive(8, "Poco usado");
-  } else if (recentUses === 3) {
-    addPenalty(8, "Usado 3 veces en los ultimos 30 dias");
-  } else if (recentUses >= 4) {
-    addPenalty(12, "Muy usado en los ultimos 30 dias");
+  if (recentUses <= 1 && options.preferUnderused !== false) {
+    const ready = song.keynoteReviewStatus === "completado" && songHasPdf(song);
+    addPositive(ready ? 12 : 8, ready ? "Poco usado y listo" : "Poco usado");
+  } else if (recentUses >= 3) {
+    addPenalty(Math.round(10 * rotationMultiplier), `Usado ${recentUses} veces en los últimos 30 días`);
   }
   if (options.preferredKey) {
     const distance = keyDistance(song.keyWithCapo || song.mainKey, options.preferredKey);
@@ -567,7 +626,7 @@ export function scoreSong(song = {}, options = {}, context = {}) {
     }
   }
   if (usage.usedInPreviousService) {
-    addPenalty(20, "Se usó en el servicio anterior");
+    addPenalty(Math.round(25 * rotationMultiplier), "Se usó en el servicio anterior");
   }
   if (usage.lastFollowUp?.result === "no-funciono") {
     addPenalty(6, "Nota anterior: no funcionó bien");
@@ -592,6 +651,9 @@ export function scoreSong(song = {}, options = {}, context = {}) {
   if (options.includeHymns === false && isHymn(song)) {
     addPenalty(20, "Es himno y el filtro lo evita");
   }
+  if (options.plannedSongIds?.includes(song.id)) {
+    addPositive(options.prioritizePlannedSongs ? 18 : 8, "Canto nuevo planeado cerca de esta fecha");
+  }
 
   const total = clampScore(score);
   scoreDetails.rawScore = score;
@@ -606,11 +668,15 @@ export function scoreSong(song = {}, options = {}, context = {}) {
     recent30Count: recentUses,
     lastUsedDays: daysSince
   };
+  const prioritizedReasons = [...reasons].sort((left, right) => {
+    const priority = (value) => /poco usado|no usado|historial|reciente|servicio anterior/i.test(value) ? 0 : /tema|frase|letra/i.test(value) ? 1 : 2;
+    return priority(left) - priority(right);
+  });
   return {
     song,
     score: total,
     label: total >= 90 ? "Muy recomendado" : total >= 80 ? "Recomendado" : total >= 65 ? "Útil" : total >= 50 ? "Con reservas" : "Poco conveniente",
-    reasons: reasons.slice(0, 6),
+    reasons: prioritizedReasons.slice(0, 7),
     warnings: warnings.slice(0, 5),
     scoreDetails,
     usage: usageForDisplay,
@@ -633,6 +699,19 @@ export function getSongRecommendations(songs = [], schedules = [], options = {})
   const scheduledIds = new Set((options.currentSchedule?.songs || []).map((entry) => entry.songId).filter(Boolean));
   return songs
     .filter((song) => song?.id && !song.deleted)
+    .filter((song) => {
+      const categoryChoice = normalizeSearchText(options.categoryChoice || "cualquiera");
+      if (!categoryChoice || categoryChoice === "cualquiera") return true;
+      if (categoryChoice === "himno") return isHymn(song);
+      if (categoryChoice === "navidad") return isChristmasCategory(song);
+      if (categoryChoice === "normal") return !isHymn(song) && !isChristmasCategory(song);
+      return true;
+    })
+    .filter((song) => options.allowPending !== false || (
+      song.keynoteReviewStatus === "completado"
+      && song.pdfReviewStatus === "completado"
+      && song.musicReviewStatus === "completado"
+    ))
     .map((song) => scoreSong(song, options, { usageIndex, scheduledIds }))
     .filter((item) => item.score > 0)
     .sort((a, b) => b.score - a.score || (a.song.title || "").localeCompare(b.song.title || "", "es"))
@@ -664,6 +743,7 @@ export function createSuggestedServiceBlock(songs = [], schedules = [], options 
   const selected = [];
   const selectedIds = new Set();
   const usedKeys = new Map();
+  const usedCategories = [];
   const usageIndex = options.usageIndex || buildUsageIndex(schedules, options.referenceDate || new Date(), {
     currentSchedule: options.currentSchedule,
     excludeScheduleId: options.currentSchedule?.id,
@@ -682,16 +762,27 @@ export function createSuggestedServiceBlock(songs = [], schedules = [], options 
     }, slot, selectedIds).map((item) => {
       const key = item.song.keyWithCapo || item.song.mainKey || "";
       const keyPenalty = key && usedKeys.get(key) ? -5 : 0;
-      if (!keyPenalty) return item;
-      const nextScore = clampScore(item.score + keyPenalty);
+      const category = normalizeSearchText(item.song.category || "normal");
+      const repeatedStyle = usedCategories.length >= 2 && usedCategories.slice(-2).every((value) => value === category);
+      const stylePenalty = repeatedStyle ? -8 : 0;
+      if (!keyPenalty && !stylePenalty) return item;
+      const nextScore = clampScore(item.score + keyPenalty + stylePenalty);
       return {
         ...item,
         score: nextScore,
-        warnings: [...(item.warnings || []), "Repite tonalidad dentro del bloque"],
+        warnings: [
+          ...(item.warnings || []),
+          ...(keyPenalty ? ["Repite tonalidad dentro del bloque"] : []),
+          ...(stylePenalty ? ["Tres cantos seguidos del mismo estilo"] : [])
+        ],
         scoreDetails: {
           ...(item.scoreDetails || {}),
-          penalties: [...(item.scoreDetails?.penalties || []), { points: keyPenalty, label: "Repite tonalidad dentro del bloque" }],
-          rawScore: (item.scoreDetails?.rawScore ?? item.score) + keyPenalty,
+          penalties: [
+            ...(item.scoreDetails?.penalties || []),
+            ...(keyPenalty ? [{ points: keyPenalty, label: "Repite tonalidad dentro del bloque" }] : []),
+            ...(stylePenalty ? [{ points: stylePenalty, label: "Tres cantos seguidos del mismo estilo" }] : [])
+          ],
+          rawScore: (item.scoreDetails?.rawScore ?? item.score) + keyPenalty + stylePenalty,
           finalScore: nextScore
         }
       };
@@ -702,6 +793,7 @@ export function createSuggestedServiceBlock(songs = [], schedules = [], options 
       selectedIds.add(chosen.song.id);
       const key = chosen.song.keyWithCapo || chosen.song.mainKey || "";
       if (key) usedKeys.set(key, (usedKeys.get(key) || 0) + 1);
+      usedCategories.push(normalizeSearchText(chosen.song.category || "normal"));
       selected.push({ ...chosen, role: slot.role, slot, energy: slot.intent });
     } else {
       completedWithFallback = true;

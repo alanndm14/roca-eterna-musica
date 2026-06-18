@@ -3,6 +3,7 @@ export {
   clampScore,
   createSuggestedServiceBlock,
   getServiceSlots,
+  getSongRotationInfo,
   getReplacementCandidates,
   getOutstandingSongFollowUps,
   getSlotAlternatives,

@@ -99,6 +99,11 @@ export function RecommendationCard({ item, onAdd, onView, onDismiss, onExplain, 
       <p className="mt-2 truncate text-[11px] font-semibold text-ink/45">
         {item.usageSummary?.lastUse || item.usageSummary?.recent || "Sin historial previo"} · {item.usageSummary?.monthly || "0 usos en 30 días"}
       </p>
+      {item.scoreDetails?.pdfMatch?.snippet ? (
+        <p className="mt-2 line-clamp-2 rounded-xl bg-brass/10 px-2.5 py-2 text-xs leading-5 text-ink/65">
+          “…{item.scoreDetails.pdfMatch.snippet}…”
+        </p>
+      ) : null}
 
       <div className="mt-auto pt-3">
         {onAdd ? <Button className="h-9 w-full px-3 text-xs" onClick={() => onAdd(song)}><Plus className="h-4 w-4" />{actionLabel}</Button> : null}

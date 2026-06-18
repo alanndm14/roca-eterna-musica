@@ -55,6 +55,14 @@ const defaultOptions = {
   preferredKey: "",
   includePdfText: false,
   pdfSearchQuery: "",
+  ideaQuery: "",
+  rotationPriority: "balanced",
+  preferUnderused: true,
+  preferKeynoteReady: true,
+  preferLocalPdfReady: true,
+  allowPending: true,
+  categoryChoice: "cualquiera",
+  prioritizePlannedSongs: false,
   recommendationMode: "",
   seed: 0
 };
@@ -275,7 +283,7 @@ export function SmartCenter({ scheduleId = "", embedded = false }) {
   const navigate = useNavigate();
   const reduceMotion = useReducedMotion();
   const { profile, canEdit } = useAuth();
-  const { songs, schedules, themes, saveSchedule, replaceScheduleSong, indexLocalPdfTexts, saveServiceFollowUp, closeScheduleService } = useMusicData();
+  const { songs, schedules, plannedNewSongs = [], themes, saveSchedule, replaceScheduleSong, indexLocalPdfTexts, saveServiceFollowUp, closeScheduleService } = useMusicData();
   const nextSchedule = getCurrentOrNextSchedule(schedules) || schedules[0] || null;
   const [activeTab, setActiveTab] = useState("programar");
   const [planningMode, setPlanningMode] = useState(() => embedded ? "existing" : "create");
@@ -322,7 +330,11 @@ export function SmartCenter({ scheduleId = "", embedded = false }) {
   const selectedServiceType = embedded && contextualSchedule
     ? inferSmartServiceType(contextualSchedule)
     : options.serviceType || (planningMode === "existing" && existingSchedule ? inferSmartServiceType(existingSchedule) : "");
-  const effectiveCount = selectedServiceType ? (isManualCountService(selectedServiceType) ? Number(options.count || 4) : getSmartServiceDefaultCount(selectedServiceType)) : 0;
+  const effectiveCount = selectedServiceType
+    ? isManualCountService(selectedServiceType)
+      ? Number((selectedSchedule?.songs || []).length || options.count || 4)
+      : getSmartServiceDefaultCount(selectedServiceType)
+    : 0;
   const planningReferenceSchedule = useMemo(() => planningMode === "existing"
     ? selectedSchedule
     : draftDate && selectedServiceType
@@ -360,10 +372,30 @@ export function SmartCenter({ scheduleId = "", embedded = false }) {
   const primaryTheme = selectedThemes[0] || "";
   const additionalThemes = selectedThemes.slice(1);
   const pdfTerms = parseThemeInput(options.pdfSearchQuery);
+  const ideaTerms = parseThemeInput(options.ideaQuery);
   const recommendationMode = options.recommendationMode || "";
   const usesThemeCriteria = recommendationMode === "theme";
-  const usesPdfCriteria = recommendationMode === "pdf" || (recommendationMode === "theme" && options.includePdfText);
+  const usesPdfCriteria = recommendationMode === "pdf";
   const usesSeedCriteria = recommendationMode === "seeds";
+  const nearbyPlannedSongs = useMemo(() => {
+    if (!planningReferenceSchedule?.date) return [];
+    const referenceMs = new Date(`${planningReferenceSchedule.date}T00:00:00`).getTime();
+    return plannedNewSongs.filter((item) => {
+      if (!item?.plannedDate) return false;
+      const days = Math.abs(new Date(`${item.plannedDate}T00:00:00`).getTime() - referenceMs) / (24 * 60 * 60 * 1000);
+      return days <= 14 && !["estrenado", "cancelado"].includes(normalizeSearchText(item.status || ""));
+    });
+  }, [plannedNewSongs, planningReferenceSchedule?.date]);
+  const plannedSongIds = useMemo(() => {
+    const ids = new Set();
+    nearbyPlannedSongs.forEach((planned) => {
+      if (planned.songId) ids.add(planned.songId);
+      const title = normalizeSearchText(planned.title || planned.songTitle || "");
+      const match = songs.find((song) => normalizeSearchText(song.title) === title);
+      if (match?.id) ids.add(match.id);
+    });
+    return [...ids];
+  }, [nearbyPlannedSongs, songs]);
   const baseSongItems = useMemo(() => baseSongs.map((entry) => ({
     ...entry,
     song: songs.find((song) => song.id === entry.songId)
@@ -388,13 +420,17 @@ export function SmartCenter({ scheduleId = "", embedded = false }) {
     ...options,
     theme: usesThemeCriteria ? options.theme : usesSeedCriteria ? baseSongThemes.join(", ") : pdfDetectedThemes.join(", "),
     includePdfText: usesPdfCriteria,
+    ideaQuery: usesThemeCriteria ? options.ideaQuery : "",
+    pdfSearchQuery: usesPdfCriteria ? options.pdfSearchQuery : "",
+    plannedSongIds,
     allowThemeFallback: usesThemeCriteria
-  }), [baseSongThemes, options, pdfDetectedThemes, usesPdfCriteria, usesSeedCriteria, usesThemeCriteria]);
+  }), [baseSongThemes, options, pdfDetectedThemes, plannedSongIds, usesPdfCriteria, usesSeedCriteria, usesThemeCriteria]);
   const songsWithIndexedText = useMemo(() => songs.filter((song) => song.pdfSearchText || song.pdfOcrText || song.pdfText || song.lyricsText).length, [songs]);
   const recommendations = useMemo(
     () => getSongRecommendations(songs, schedules, { ...effectiveSmartOptions, serviceType: selectedServiceType, currentSchedule: selectedSchedule, limit: 20, usageIndex })
+      .filter((item) => !usesPdfCriteria || item.scoreDetails?.pdfMatches?.length)
       .filter((item) => !dismissed.includes(item.song.id)),
-    [dismissed, effectiveSmartOptions, schedules, selectedSchedule, selectedServiceType, songs, usageIndex]
+    [dismissed, effectiveSmartOptions, schedules, selectedSchedule, selectedServiceType, songs, usageIndex, usesPdfCriteria]
   );
   const rawBlock = useMemo(
     () => createSuggestedServiceBlock(songs, schedules, { ...effectiveSmartOptions, count: effectiveCount, serviceType: selectedServiceType, currentSchedule: selectedSchedule, referenceDate: planningReferenceDate, usageIndex }),
@@ -444,6 +480,16 @@ export function SmartCenter({ scheduleId = "", embedded = false }) {
     () => applyManualBlockOrder(nextBlockState(blockWithBaseSongs, blockOverrides), blockOrder, selectedServiceType, effectiveSmartOptions, usageIndex, selectedSchedule),
     [blockOrder, blockOverrides, blockWithBaseSongs, effectiveSmartOptions, selectedSchedule, selectedServiceType, usageIndex]
   );
+  const blockReadiness = useMemo(() => {
+    const items = suggestedBlock.items || [];
+    if (!items.length) return { ready: 0, recent: 0, underused: 0, planned: 0 };
+    return {
+      ready: Math.round((items.filter((item) => item.song.keynoteReviewStatus === "completado" && getSongPdfUrl(item.song)).length / items.length) * 100),
+      recent: items.filter((item) => (item.usage?.lastUsedDays ?? 999) <= 30 || item.usage?.usedInPreviousService).length,
+      underused: items.filter((item) => (item.usage?.recent30Count || 0) <= 1).length,
+      planned: items.filter((item) => plannedSongIds.includes(item.song.id)).length
+    };
+  }, [plannedSongIds, suggestedBlock.items]);
   const baseSongResults = useMemo(() => {
     const query = normalizeSearchText(baseSongQuery);
     if (!query) return [];
@@ -571,6 +617,11 @@ export function SmartCenter({ scheduleId = "", embedded = false }) {
       return;
     }
     setActiveTab("programar");
+    if (mode === "seeds" && !baseSongs.length && selectedSchedule?.songs?.length) {
+      setBaseSongs(selectedSchedule.songs
+        .filter((entry) => entry.songId)
+        .map((entry) => ({ songId: entry.songId, mode: "required" })));
+    }
     updateRecommendationMode(mode);
   };
 
@@ -612,10 +663,6 @@ export function SmartCenter({ scheduleId = "", embedded = false }) {
       setPlanningError("Elige un método de recomendación.");
       return;
     }
-    if (usesThemeCriteria && !primaryTheme.trim()) {
-      setPlanningError("Escribe o selecciona un tema principal.");
-      return;
-    }
     if (usesPdfCriteria && !(options.pdfSearchQuery || "").trim()) {
       setPlanningError("Escribe una o varias palabras o frases para buscar en letras/PDF.");
       return;
@@ -628,7 +675,9 @@ export function SmartCenter({ scheduleId = "", embedded = false }) {
     setBlockOverrides({});
     setBlockOrder([]);
     setBlockGenerated(true);
-    setStatus(`${usesSeedCriteria ? "Bloque completado" : "Bloque sugerido"} para ${selectedServiceType} con ${effectiveCount} canto(s).`);
+    setStatus(usesPdfCriteria
+      ? `Candidatos encontrados por letra/PDF para ${selectedServiceType}.`
+      : `${usesSeedCriteria ? "Bloque completado" : "Bloque sugerido"} para ${selectedServiceType} con ${effectiveCount} canto(s).`);
   };
 
   const indexPdfTextsFromSmartCenter = async () => {
@@ -655,6 +704,10 @@ export function SmartCenter({ scheduleId = "", embedded = false }) {
   };
 
   const addSongToSchedule = async (song) => {
+    if (!canEdit) {
+      setStatus("Puedes ver sugerencias, pero no modificar la programación.");
+      return;
+    }
     if (!selectedSchedule?.id || !song?.id) {
       setStatus("Selecciona una programación destino.");
       return;
@@ -689,6 +742,10 @@ export function SmartCenter({ scheduleId = "", embedded = false }) {
   };
 
   const createScheduleFromBlock = async ({ force = false } = {}) => {
+    if (!canEdit) {
+      setStatus("No tienes permiso para crear programaciones.");
+      return;
+    }
     if (!draftDate) {
       setStatus("Elige una fecha para crear la programación.");
       return;
@@ -708,6 +765,10 @@ export function SmartCenter({ scheduleId = "", embedded = false }) {
   };
 
   const applyBlock = async (mode) => {
+    if (!canEdit) {
+      setStatus("Puedes ver sugerencias, pero no aplicar cambios.");
+      return;
+    }
     if (planningMode === "create") {
       await createScheduleFromBlock();
       setApplyBlockModalOpen(false);
@@ -719,10 +780,17 @@ export function SmartCenter({ scheduleId = "", embedded = false }) {
       return;
     }
     const entries = suggestedBlock.items.map((item) => toSongEntry(item.song, item.role));
-    const nextSongs = mode === "replace" ? entries : [...(selectedSchedule.songs || []), ...entries.filter((entry) => !(selectedSchedule.songs || []).some((current) => current.songId === entry.songId))];
+    const currentSongs = selectedSchedule.songs || [];
+    const missingCount = Math.max(0, effectiveCount - currentSongs.length);
+    const additions = entries
+      .filter((entry) => !currentSongs.some((current) => current.songId === entry.songId))
+      .slice(0, mode === "complete" ? missingCount : entries.length);
+    const nextSongs = mode === "replace" ? entries : [...currentSongs, ...additions];
     await saveSchedule({ ...selectedSchedule, songs: nextSongs });
     setApplyBlockModalOpen(false);
-    setStatus(mode === "replace" ? "Bloque aplicado reemplazando los cantos actuales." : "Bloque agregado al final de la programación.");
+    setStatus(mode === "replace"
+      ? "Bloque aplicado reemplazando los cantos actuales."
+      : `${additions.length} canto(s) agregado(s) para completar faltantes.`);
   };
 
   const replaceSong = async (candidate) => {
@@ -745,16 +813,6 @@ export function SmartCenter({ scheduleId = "", embedded = false }) {
     setCompareItem(item);
     setCompareSongId(recommendations.find((candidate) => candidate.song.id !== item.song.id)?.song.id || "");
   };
-
-  if (profile?.role === "viewer") {
-    return (
-      <SmartGradientBackground>
-        <SmartPanel>
-          <h2 className="text-xl font-bold text-ink">No tienes permiso para ver esta sección.</h2>
-        </SmartPanel>
-      </SmartGradientBackground>
-    );
-  }
 
   return (
     <SmartGradientBackground>
@@ -936,51 +994,78 @@ export function SmartCenter({ scheduleId = "", embedded = false }) {
                 )}
                 {usesThemeCriteria ? (
                   <>
-                <Field label="Tema principal">
-                  <Input value={primaryTheme} onChange={(event) => updatePrimaryTheme(event.target.value)} placeholder="cruz" />
-                </Field>
-                <Field label="Temas adicionales">
-                  <ChipInput values={additionalThemes} onChange={(values) => updateThemes([primaryTheme, ...values])} placeholder="Agrega varios temas" />
-                </Field>
-                {themeOptions.length ? (
-                  <div className="grid gap-3 rounded-2xl border border-ink/10 bg-white/55 p-3 dark:border-white/10 dark:bg-white/8">
-                    <div>
-                      <p className="text-xs font-black uppercase tracking-wide text-ink/45">Seleccionar tema principal</p>
-                      <div className="mt-2 flex max-h-32 flex-wrap gap-2 overflow-y-auto pr-1">
-                        {themeOptions.map((theme) => {
-                          const active = normalizeTheme(primaryTheme) === normalizeTheme(theme);
-                          return (
-                            <button key={`primary-${theme}`} type="button" onClick={() => updatePrimaryTheme(theme)} className={`rounded-full px-3 py-1 text-xs font-bold transition ${active ? "bg-brass text-ink" : "bg-ink/5 text-ink/65 hover:bg-brass/15 hover:text-brass"}`}>
-                              {theme}
-                            </button>
-                          );
-                        })}
+                    <p className="text-xs font-black uppercase tracking-wide text-ink/45">Criterios para este servicio</p>
+                    <Field label="Tema principal">
+                      <Input value={primaryTheme} onChange={(event) => updatePrimaryTheme(event.target.value)} placeholder="Ej. cruz" />
+                    </Field>
+                    {themeOptions.length ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {themeOptions.slice(0, 8).map((theme) => (
+                          <button key={`primary-${theme}`} type="button" onClick={() => updatePrimaryTheme(theme)} className={`rounded-full px-2.5 py-1 text-xs font-bold transition ${normalizeTheme(primaryTheme) === normalizeTheme(theme) ? "bg-brass text-ink" : "bg-ink/5 text-ink/65 hover:bg-brass/15"}`}>
+                            {theme}
+                          </button>
+                        ))}
                       </div>
+                    ) : null}
+                    <Field label="Temas adicionales">
+                      <ChipInput values={additionalThemes} onChange={(values) => updateThemes([primaryTheme, ...values])} placeholder="Agrega temas opcionales" />
+                    </Field>
+                    <Field label="Ideas o frases para orientar la sugerencia">
+                      <ChipInput values={ideaTerms} onChange={(values) => updateOption("ideaQuery", values.join(", "))} placeholder="Ej. perdón, cruz, gracia, redención, te exaltaré" />
+                      <p className="mt-2 text-xs leading-5 text-ink/50">Estas frases ayudan a orientar el bloque. Para explorar coincidencias específicas en letras/PDF usa la pestaña Buscar por letra/PDF.</p>
+                    </Field>
+                    <Field label="Priorizar rotación">
+                      <Select value={options.rotationPriority} onChange={(event) => updateOption("rotationPriority", event.target.value)}>
+                        <option value="balanced">Equilibrada</option>
+                        <option value="underused">Priorizar cantos poco usados</option>
+                        <option value="strict">Evitar fuertemente repetidos recientes</option>
+                      </Select>
+                    </Field>
+                    <Field label="Categoría">
+                      <Select value={options.categoryChoice} onChange={(event) => updateOption("categoryChoice", event.target.value)}>
+                        <option value="cualquiera">Cualquiera</option>
+                        <option value="normal">Normal</option>
+                        <option value="himno">Himno</option>
+                        <option value="navidad">Navidad</option>
+                      </Select>
+                    </Field>
+                    <div className="grid gap-2 rounded-2xl bg-ink/5 p-3 dark:bg-white/8">
+                      <label className="flex items-center gap-2 text-sm font-semibold text-ink">
+                        <input type="checkbox" checked={options.avoidRecent} onChange={(event) => updateOption("avoidRecent", event.target.checked)} />
+                        Evitar repetidos recientes
+                      </label>
+                      <label className="flex items-center gap-2 text-sm font-semibold text-ink">
+                        <input type="checkbox" checked={options.preferUnderused} onChange={(event) => updateOption("preferUnderused", event.target.checked)} />
+                        Preferir cantos poco usados
+                      </label>
+                      <label className="flex items-center gap-2 text-sm font-semibold text-ink">
+                        <input type="checkbox" checked={options.preferKeynoteReady} onChange={(event) => updateOption("preferKeynoteReady", event.target.checked)} />
+                        Preferir cantos con Keynote listo
+                      </label>
+                      <label className="flex items-center gap-2 text-sm font-semibold text-ink">
+                        <input type="checkbox" checked={options.preferLocalPdfReady} onChange={(event) => updateOption("preferLocalPdfReady", event.target.checked)} />
+                        Preferir cantos con PDF local/listo
+                      </label>
+                      <label className="flex items-center gap-2 text-sm font-semibold text-ink">
+                        <input type="checkbox" checked={options.allowPending} onChange={(event) => updateOption("allowPending", event.target.checked)} />
+                        Permitir cantos con pendientes
+                      </label>
+                      <label className="flex items-center gap-2 text-sm font-semibold text-ink">
+                        <input type="checkbox" checked={options.includeHymns} onChange={(event) => updateOption("includeHymns", event.target.checked)} />
+                        Permitir himno en apertura
+                      </label>
                     </div>
-                    <div>
-                      <p className="text-xs font-black uppercase tracking-wide text-ink/45">Seleccionar temas adicionales</p>
-                      <div className="mt-2 flex max-h-36 flex-wrap gap-2 overflow-y-auto pr-1">
-                        {themeOptions.map((theme) => {
-                          const active = additionalThemes.some((item) => normalizeTheme(item) === normalizeTheme(theme));
-                          return (
-                            <button key={`additional-${theme}`} type="button" onClick={() => toggleAdditionalTheme(theme)} className={`rounded-full px-3 py-1 text-xs font-bold transition ${active ? "bg-brass text-ink" : "bg-ink/5 text-ink/65 hover:bg-brass/15 hover:text-brass"}`}>
-                              {theme}
-                            </button>
-                          );
-                        })}
+                    <p className="rounded-xl bg-brass/10 px-3 py-2 text-xs font-semibold text-ink/65">Letras/PDF indexados: {songsWithIndexedText} de {songs.length}</p>
+                    {nearbyPlannedSongs.length ? (
+                      <div className="rounded-2xl border border-brass/25 bg-brass/10 p-3">
+                        <p className="text-sm font-black text-ink">Hay cantos nuevos planeados cerca de esta fecha</p>
+                        <p className="mt-1 text-xs text-ink/55">{nearbyPlannedSongs.slice(0, 3).map((item) => item.title || item.songTitle).filter(Boolean).join(" · ")}</p>
+                        <label className="mt-3 flex items-center gap-2 text-sm font-semibold text-ink">
+                          <input type="checkbox" checked={options.prioritizePlannedSongs} onChange={(event) => updateOption("prioritizePlannedSongs", event.target.checked)} />
+                          Priorizar cantos nuevos planeados
+                        </label>
                       </div>
-                    </div>
-                  </div>
-                ) : null}
-                <label className="flex items-center gap-2 text-sm font-semibold text-ink">
-                  <input type="checkbox" checked={options.includePdfText} onChange={(event) => updateOption("includePdfText", event.target.checked)} />
-                  Buscar también en letras/PDF
-                </label>
-                {options.includePdfText ? (
-                  <Field label="Palabras o frases en letras/PDF">
-                    <ChipInput values={pdfTerms} onChange={(values) => updateOption("pdfSearchQuery", values.join(", "))} placeholder="Agrega palabras o frases" />
-                  </Field>
-                ) : null}
+                    ) : null}
                   </>
                 ) : null}
                 {!usesThemeCriteria && usesPdfCriteria ? (
@@ -1066,18 +1151,18 @@ export function SmartCenter({ scheduleId = "", embedded = false }) {
                     {selectedServiceType} usa {effectiveCount} cantos.
                   </p>
                 ) : null}
-                <label className="flex items-center gap-2 text-sm font-semibold text-ink">
-                  <input type="checkbox" checked={options.includeHymns} onChange={(event) => updateOption("includeHymns", event.target.checked)} />
-                  Intentar abrir con himno si conviene
-                </label>
-                <label className="flex items-center gap-2 text-sm font-semibold text-ink">
-                  <input type="checkbox" checked={options.avoidRecent} onChange={(event) => updateOption("avoidRecent", event.target.checked)} />
-                  Evitar repetidos recientes
-                </label>
-                <label className="flex items-center gap-2 text-sm font-semibold text-ink">
-                  <input type="checkbox" checked={options.onlyKeynoteReady} onChange={(event) => updateOption("onlyKeynoteReady", event.target.checked)} />
-                  Solo con Keynote listo
-                </label>
+                {!usesThemeCriteria ? (
+                  <>
+                    <label className="flex items-center gap-2 text-sm font-semibold text-ink">
+                      <input type="checkbox" checked={options.includeHymns} onChange={(event) => updateOption("includeHymns", event.target.checked)} />
+                      Permitir himno en apertura
+                    </label>
+                    <label className="flex items-center gap-2 text-sm font-semibold text-ink">
+                      <input type="checkbox" checked={options.avoidRecent} onChange={(event) => updateOption("avoidRecent", event.target.checked)} />
+                      Evitar repetidos recientes
+                    </label>
+                  </>
+                ) : null}
                 <div className="grid gap-2">
                   {planningError ? (
                     <p className="rounded-2xl border border-red-300 bg-red-50 p-3 text-sm font-bold text-red-800 dark:border-red-400/35 dark:bg-red-500/12 dark:text-red-100">
@@ -1085,7 +1170,7 @@ export function SmartCenter({ scheduleId = "", embedded = false }) {
                     </p>
                   ) : null}
                   {!blockGenerated ? (
-                    <Button onClick={createBlock}><Wand2 className="h-4 w-4" />{usesSeedCriteria ? "Completar bloque" : "Crear bloque sugerido"}</Button>
+                    <Button onClick={createBlock}><Wand2 className="h-4 w-4" />{usesPdfCriteria ? "Buscar candidatos" : usesSeedCriteria ? "Completar faltantes" : "Generar sugerencia"}</Button>
                   ) : (
                     <>
                       <Button onClick={regenerateBlock}><RefreshCw className="h-4 w-4" />Regenerar alternativa</Button>
@@ -1112,15 +1197,39 @@ export function SmartCenter({ scheduleId = "", embedded = false }) {
                   {baseSongItems.length ? <span className="rounded-full bg-ink/5 px-3 py-1 text-ink/60 dark:bg-white/8">{baseSongItems.length} canto(s) base</span> : null}
                 </div>
               </SmartPanel>
-              {blockGenerated ? <SmartPanel>
+              {!blockGenerated ? (
+                <EmptySmartState
+                  title={usesPdfCriteria ? "Busca coincidencias en letras/PDF" : usesSeedCriteria ? "Completa tu selección" : "Elige criterios y genera una sugerencia"}
+                  message={usesPdfCriteria
+                    ? "Escribe palabras o frases para encontrar candidatos individuales y agregarlos al servicio."
+                    : usesSeedCriteria
+                      ? "Usa los cantos actuales o elige uno o dos cantos base; el asistente propondrá los faltantes."
+                      : "Combina tema, ideas, rotación y preparación real para crear un bloque completo."}
+                />
+              ) : null}
+              {blockGenerated && !usesPdfCriteria ? <SmartPanel>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     {blockGenerated ? <p className="text-xs font-bold uppercase tracking-wide text-brass">
                       {selectedServiceType || "Sin servicio"} · {usesThemeCriteria ? `Tema: ${primaryTheme || "sin tema"}` : `Letra/PDF: ${options.pdfSearchQuery || "sin búsqueda"}`}
                     </p> : null}
-                    <h3 className="text-xl font-black text-ink">Bloque sugerido</h3>
+                    <h3 className="text-xl font-black text-ink">Bloque sugerido para {selectedServiceType}</h3>
                   </div>
                   <ScoreBadge score={blockGenerated ? suggestedBlock.score : 0} label="Bloque" />
+                </div>
+                <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                  <div className="rounded-xl bg-ink/5 p-3 dark:bg-white/8">
+                    <p className="text-xs font-bold uppercase text-ink/45">Preparación estimada</p>
+                    <p className="mt-1 text-lg font-black text-ink">{blockReadiness.ready}%</p>
+                  </div>
+                  <div className="rounded-xl bg-ink/5 p-3 dark:bg-white/8">
+                    <p className="text-xs font-bold uppercase text-ink/45">Rotación</p>
+                    <p className="mt-1 font-black text-ink">{blockReadiness.recent ? `${blockReadiness.recent} reciente(s)` : "Rotación saludable"}</p>
+                  </div>
+                  <div className="rounded-xl bg-ink/5 p-3 dark:bg-white/8">
+                    <p className="text-xs font-bold uppercase text-ink/45">Poco usados / nuevos</p>
+                    <p className="mt-1 font-black text-ink">{blockReadiness.underused} / {blockReadiness.planned}</p>
+                  </div>
                 </div>
                 <div className="mt-4 grid gap-3">
                   {blockGenerated && suggestedBlock.items.length ? (
@@ -1153,17 +1262,21 @@ export function SmartCenter({ scheduleId = "", embedded = false }) {
                 {blockGenerated ? <div className="mt-4 flex flex-wrap gap-2">
                   {suggestedBlock.reasons.map((reason) => <span key={reason} className="rounded-full bg-brass/12 px-3 py-1 text-xs font-bold text-brass">{reason}</span>)}
                 </div> : null}
-                <Button className="mt-4" disabled={!blockGenerated || !suggestedBlock.items.length || !canEdit} onClick={() => setApplyBlockModalOpen(true)}>
-                  <ListChecks className="h-4 w-4" />
-                  {embedded ? "Aplicar a programación" : planningMode === "create" ? "Crear programación con este bloque" : "Agregar bloque a programación"}
-                </Button>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button disabled={!suggestedBlock.items.length || !canEdit} onClick={() => setApplyBlockModalOpen(true)}>
+                    <ListChecks className="h-4 w-4" />
+                    {planningMode === "create" ? "Crear programación" : "Aplicar a programación"}
+                  </Button>
+                  <Button variant="secondary" onClick={regenerateBlock}><RefreshCw className="h-4 w-4" />Regenerar alternativa</Button>
+                  <Button variant="subtle" onClick={() => { setBlockGenerated(false); setBlockOverrides({}); setBlockOrder([]); }}>Descartar</Button>
+                </div>
               </SmartPanel> : null}
 
-              {blockGenerated ? <SmartPanel>
+              {blockGenerated && usesPdfCriteria ? <SmartPanel>
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-wide text-brass">Recomendaciones</p>
-                    <h3 className="text-xl font-black text-ink">Cantos candidatos</h3>
+                    <p className="text-xs font-bold uppercase tracking-wide text-brass">Búsqueda individual</p>
+                    <h3 className="text-xl font-black text-ink">Candidatos por letra/PDF</h3>
                   </div>
                   <p className="text-sm font-semibold text-ink/55">Top {Math.min(6, recommendations.length)}</p>
                 </div>
@@ -1172,7 +1285,7 @@ export function SmartCenter({ scheduleId = "", embedded = false }) {
                   <RecommendationCard
                     key={item.song.id}
                     item={item}
-                    onAdd={addSongToSchedule}
+                    onAdd={canEdit ? addSongToSchedule : undefined}
                     onView={(song) => navigate(`/repertorio/${song.id}`)}
                     onCompare={() => openCompare(item)}
                     onExplain={setScoreHelpItem}
@@ -1305,7 +1418,7 @@ export function SmartCenter({ scheduleId = "", embedded = false }) {
         </div>
       </Modal>
 
-      <Modal open={applyBlockModalOpen} title="¿Agregar este bloque a la programación?" onClose={() => setApplyBlockModalOpen(false)}>
+      <Modal open={applyBlockModalOpen} title="Aplicar bloque sugerido" onClose={() => setApplyBlockModalOpen(false)}>
         <div className="space-y-4">
           {planningMode === "create" ? (
             <>
@@ -1319,8 +1432,11 @@ export function SmartCenter({ scheduleId = "", embedded = false }) {
             <>
               <p className="text-sm leading-6 text-ink/62">Destino: <strong>{selectedSchedule ? scheduleLabel(selectedSchedule) : "sin programación"}</strong></p>
               <div className="grid gap-2">
-                <Button onClick={() => applyBlock("replace")}>Reemplazar cantos actuales</Button>
-                <Button variant="secondary" onClick={() => applyBlock("append")}>Agregar al final</Button>
+                <Button onClick={() => {
+                  if (!confirm("Esta acción reemplazará los cantos actuales del servicio. ¿Continuar?")) return;
+                  applyBlock("replace");
+                }}>Reemplazar bloque completo</Button>
+                <Button variant="secondary" disabled={(selectedSchedule?.songs || []).length >= effectiveCount} onClick={() => applyBlock("complete")}>Completar faltantes</Button>
                 <Button variant="subtle" onClick={() => setApplyBlockModalOpen(false)}>Cancelar</Button>
               </div>
             </>

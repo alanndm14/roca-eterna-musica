@@ -14,7 +14,7 @@ import { ServiceFollowUpPanel } from "../components/smart/ServiceFollowUpPanel";
 import { SongFollowUpNotice } from "../components/smart/SongFollowUpNotice";
 import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
-import { formatDate, todayString } from "../services/dateUtils";
+import { formatDate, getCurrentOrNextSchedule, todayString } from "../services/dateUtils";
 import { normalizeSearchText } from "../services/songUtils";
 import { downloadBlob } from "../services/mergeServicePdfs";
 import { getOutstandingSongFollowUps, reviewServiceSchedule } from "../services/smartRecommendations";
@@ -621,6 +621,7 @@ export function Schedules() {
   });
   const [query, setQuery] = useState("");
   const selectedSchedule = schedules.find((schedule) => schedule.id === selectedScheduleId) || null;
+  const nextAvailableSchedule = getCurrentOrNextSchedule(schedules);
   const selectedReview = useMemo(
     () => selectedSchedule ? reviewServiceSchedule(selectedSchedule, songs, schedules) : null,
     [schedules, selectedSchedule, songs]
@@ -1037,11 +1038,17 @@ export function Schedules() {
                 Selecciona una programación del calendario o crea una nueva para usar el Asistente IA.
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
+                {nextAvailableSchedule ? (
+                  <Button onClick={() => selectSchedule(nextAvailableSchedule, "assistant")}>
+                    <Sparkles className="h-4 w-4" />
+                    Usar próximo servicio
+                  </Button>
+                ) : null}
                 <Button variant="secondary" onClick={() => { setTab("calendar"); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
                   <CalendarDays className="h-4 w-4" />
                   Ir al calendario
                 </Button>
-                {canEdit ? <Button onClick={openNewSchedule}><Plus className="h-4 w-4" />Crear programación</Button> : null}
+                {canEdit && !nextAvailableSchedule ? <Button onClick={openNewSchedule}><Plus className="h-4 w-4" />Crear programación</Button> : null}
               </div>
             </div>
           </div>

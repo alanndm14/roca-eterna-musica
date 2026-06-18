@@ -1,6 +1,17 @@
-export const appVersion = "0.9.131";
+export const appVersion = "0.9.132";
 
 export const changelog = [
+  {
+    version: "0.9.132",
+    date: "2026-06-18",
+    title: "Mejoras del Asistente IA",
+    added: [],
+    changed: [
+      "Sugerencias de bloque orientadas por tema, frases y rotación, con búsqueda por letra/PDF separada"
+    ],
+    fixed: [],
+    pending: []
+  },
   {
     version: "0.9.131",
     date: "2026-06-18",
