@@ -717,6 +717,14 @@ export function Schedules() {
     setEditingSchedule(null);
     setNewScheduleDraft({ ...blankSchedule, date });
   };
+  const openSmartScheduleCreator = () => {
+    setSelectedScheduleId("");
+    setActiveScheduleWorkspaceTab("assistant");
+    const next = new URLSearchParams(searchParams);
+    next.delete("schedule");
+    next.set("tab", "asistente");
+    setSearchParams(next, { replace: true });
+  };
   const openNewPlannedSong = () => {
     const plannedDate = tab === "calendar" ? selectedDate || todayString() : todayString();
     setPlannedNewSongDraft({ ...blankPlannedNewSong, plannedDate });
@@ -823,6 +831,10 @@ export function Schedules() {
               <Button onClick={openNewSchedule} data-tour="schedule-new">
                 <Plus className="h-4 w-4" />
                 {tab === "calendar" ? "Nueva programación para este día" : "Nueva programación"}
+              </Button>
+              <Button variant="secondary" onClick={openSmartScheduleCreator}>
+                <Sparkles className="h-4 w-4" />
+                Crear con Asistente IA
               </Button>
               <Button variant="secondary" onClick={openNewPlannedSong}>
                 <Music2 className="h-4 w-4" />
@@ -1010,7 +1022,7 @@ export function Schedules() {
           ) : null}
 
           {activeScheduleWorkspaceTab === "assistant" ? (
-            <SmartCenter embedded scheduleId={selectedSchedule.id} />
+            <SmartCenter embedded scheduleId={selectedSchedule.id} initialDate={selectedSchedule.date || selectedDate} />
           ) : null}
 
           {activeScheduleWorkspaceTab === "review" && selectedReview ? (
@@ -1027,32 +1039,7 @@ export function Schedules() {
           ) : null}
         </section>
       ) : activeScheduleWorkspaceTab === "assistant" ? (
-        <Card>
-          <div className="flex items-start gap-3">
-            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-brass/15 text-brass">
-              <Sparkles className="h-5 w-5" />
-            </span>
-            <div>
-              <h3 className="text-lg font-black text-ink">Asistente IA</h3>
-              <p className="mt-2 text-sm leading-6 text-ink/60">
-                Selecciona una programación del calendario o crea una nueva para usar el Asistente IA.
-              </p>
-              <div className="mt-4 flex flex-wrap gap-2">
-                {nextAvailableSchedule ? (
-                  <Button onClick={() => selectSchedule(nextAvailableSchedule, "assistant")}>
-                    <Sparkles className="h-4 w-4" />
-                    Usar próximo servicio
-                  </Button>
-                ) : null}
-                <Button variant="secondary" onClick={() => { setTab("calendar"); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
-                  <CalendarDays className="h-4 w-4" />
-                  Ir al calendario
-                </Button>
-                {canEdit && !nextAvailableSchedule ? <Button onClick={openNewSchedule}><Plus className="h-4 w-4" />Crear programación</Button> : null}
-              </div>
-            </div>
-          </div>
-        </Card>
+        <SmartCenter embedded initialDate={selectedDate} />
       ) : null}
 
       <Modal open={Boolean(newScheduleDraft) || Boolean(editingSchedule)} title={editingSchedule ? "Editar programación" : "Nueva programación"} onClose={closeModal} wide>

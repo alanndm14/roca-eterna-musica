@@ -141,7 +141,8 @@ export function toSongEntry(song = {}, position = "") {
     titleSnapshot: song.title || "",
     keySnapshot: song.keyWithCapo || song.mainKey || "",
     pdfUrl: song.pdfPreviewUrl || song.pdfUrl || song.drivePdfUrl || song.chordsUrl || "",
-    notes: song.internalNotes || ""
+    notes: song.internalNotes || "",
+    position
   };
 }
 
@@ -285,7 +286,21 @@ function isHymn(song = {}) {
 }
 
 function isChristmasCategory(song = {}) {
-  return normalizeSearchText(song.category || "").includes("navidad");
+  return normalizeSearchText([song.category, song.mainTheme, ...(song.otherThemes || []), ...(song.tags || [])].filter(Boolean).join(" ")).includes("navidad");
+}
+
+function requestsChristmas(options = {}) {
+  const requestedText = normalizeSearchText([
+    options.categoryChoice,
+    options.category,
+    options.theme,
+    options.ideaQuery,
+    options.pdfSearchQuery
+  ].filter(Boolean).join(" "));
+  return requestedText.includes("navidad")
+    || requestedText.includes("encarnacion")
+    || requestedText.includes("nochebuena")
+    || requestedText.includes("nacimiento de jesus");
 }
 
 function songThemeText(song = {}) {
@@ -591,17 +606,23 @@ export function scoreSong(song = {}, options = {}, context = {}) {
   const rotationPriority = options.rotationPriority || "balanced";
   const rotationMultiplier = rotationPriority === "strict" ? 1.35 : rotationPriority === "underused" ? 1.2 : 1;
   if (!usage.lastUsedAt) {
-    addPositive(Math.round(8 * rotationMultiplier), "Nunca usado; revisar preparación");
+    addPositive(Math.round(18 * rotationMultiplier), "Sin historial previo");
   } else {
     const daysSince = Number.isFinite(usage.lastUsedDays)
       ? usage.lastUsedDays
       : Math.floor((Date.now() - new Date(`${usage.lastUsedAt}T00:00:00`).getTime()) / dayMs);
-    if (daysSince >= 90) {
+    if (daysSince >= 180) {
+      addPositive(Math.round(28 * rotationMultiplier), `No usado hace ${daysSince} días`);
+    } else if (daysSince >= 120) {
+      addPositive(Math.round(24 * rotationMultiplier), `No usado hace ${daysSince} días`);
+    } else if (daysSince >= 90) {
       addPositive(Math.round(20 * rotationMultiplier), `No usado hace ${daysSince} días`);
     } else if (daysSince >= 60) {
-      addPositive(Math.round(15 * rotationMultiplier), `No usado hace ${daysSince} días`);
+      addPositive(Math.round(16 * rotationMultiplier), `No usado hace ${daysSince} días`);
     } else if (daysSince >= 45) {
-      addPositive(Math.round(10 * rotationMultiplier), `No usado hace ${daysSince} días`);
+      addPositive(Math.round(12 * rotationMultiplier), `No usado hace ${daysSince} días`);
+    } else if (daysSince > 30) {
+      addPositive(Math.round(8 * rotationMultiplier), `No usado hace ${daysSince} días`);
     } else if (daysSince <= 7 && options.avoidRecent) {
       addPenalty(Math.round(20 * rotationMultiplier), `Usado recientemente: hace ${daysSince} días`);
     } else if (daysSince <= 14 && options.avoidRecent) {
@@ -697,8 +718,11 @@ export function getSongRecommendations(songs = [], schedules = [], options = {})
     beforeDateTime: options.currentSchedule ? getScheduleStartDate(options.currentSchedule)?.toISOString() : options.beforeDateTime
   });
   const scheduledIds = new Set((options.currentSchedule?.songs || []).map((entry) => entry.songId).filter(Boolean));
+  const allowChristmas = requestsChristmas(options);
   return songs
     .filter((song) => song?.id && !song.deleted)
+    .filter((song) => allowChristmas || !isChristmasCategory(song))
+    .filter((song) => options.includeHymns !== false || !isHymn(song))
     .filter((song) => {
       const categoryChoice = normalizeSearchText(options.categoryChoice || "cualquiera");
       if (!categoryChoice || categoryChoice === "cualquiera") return true;

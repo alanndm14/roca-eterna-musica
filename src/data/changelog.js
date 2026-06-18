@@ -1,6 +1,22 @@
-export const appVersion = "0.9.133";
+export const appVersion = "0.9.134";
 
 export const changelog = [
+  {
+    version: "0.9.134",
+    date: "2026-06-18",
+    title: "Asistente IA para nuevas programaciones",
+    added: [
+      "Creación de programaciones nuevas directamente desde el Asistente IA",
+      "Contador del próximo canto nuevo con accesos a PDF, YouTube y Spotify"
+    ],
+    changed: [
+      "Los criterios por tema, letra/PDF y cantos base se pueden combinar",
+      "La rotación prioriza cantos con más tiempo sin usarse o sin historial",
+      "Miércoles evita himnos por defecto y Navidad solo aparece cuando se solicita"
+    ],
+    fixed: [],
+    pending: []
+  },
   {
     version: "0.9.133",
     date: "2026-06-18",

@@ -905,9 +905,11 @@ export function MusicDataProvider({ children }) {
         ]);
         notifyScheduleCreatedBestEffort(payload, id);
         logAuditEventBestEffort({ actionType: "create", entityType: "schedule", entityId: id, entityName: payload.serviceLabel || payload.date, summary: `Programación creada: ${payload.serviceLabel || payload.date}`, afterData: payload });
+        await syncScheduleSongNotes(payload.songs || [], before?.songs || null);
+        return id;
       }
       await syncScheduleSongNotes(payload.songs || [], before?.songs || null);
-      return;
+      return schedule.id;
     }
 
     if (schedule.id) {
@@ -915,6 +917,8 @@ export function MusicDataProvider({ children }) {
       await updateDoc(doc(db, "schedules", id), data);
       notifyScheduleUpdatedBestEffort(payload, id, scheduleChange);
       await logAuditEvent({ actionType: "update", entityType: "schedule", entityId: id, entityName: data.serviceLabel || data.date, summary: `Programación editada: ${data.serviceLabel || data.date}`, beforeData: before, afterData: data });
+      await syncScheduleSongNotes(payload.songs || [], before?.songs || null);
+      return id;
     } else {
       const created = await addDoc(collection(db, "schedules"), {
         ...payload,
@@ -923,8 +927,9 @@ export function MusicDataProvider({ children }) {
       });
       notifyScheduleCreatedBestEffort(payload, created.id);
       logAuditEventBestEffort({ actionType: "create", entityType: "schedule", entityId: created.id, entityName: payload.serviceLabel || payload.date, summary: `Programación creada: ${payload.serviceLabel || payload.date}`, afterData: payload });
+      await syncScheduleSongNotes(payload.songs || [], before?.songs || null);
+      return created.id;
     }
-    await syncScheduleSongNotes(payload.songs || [], before?.songs || null);
   };
 
   const deleteSchedule = async (scheduleId) => {

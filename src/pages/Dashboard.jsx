@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { BellRing, CalendarPlus, Clock, FileClock, ListPlus, Music2, RotateCcw, Sparkles } from "lucide-react";
+import { BellRing, CalendarPlus, Clock, ExternalLink, FileClock, ListPlus, Music2, RotateCcw, Sparkles } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { StatCard } from "../components/ui/StatCard";
 import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
 import { formatDate, getCurrentOrNextSchedule, getEstimatedServiceEndDate, getScheduleStartDate, getServiceDisplayLabel, isCountableSchedule, todayString } from "../services/dateUtils";
-import { getSongPdfUrl } from "../services/songUtils";
+import { getSongPdfUrl, getSongSpotifyUrl, getSongYoutubeUrl, normalizeSearchText } from "../services/songUtils";
 import { diagnosePushNotifications, enablePushNotificationsForUser, getCurrentPushTokenForUser } from "../services/pushNotifications";
 import { AndroidNotificationPermissionWizard } from "../components/notifications/AndroidNotificationPermissionWizard";
 import { isPushBackendConfigured, sendExternalPush } from "../services/externalPush";
@@ -52,9 +52,27 @@ const getMonthlyTopSongs = (schedules = []) => {
   return [...counts.values()].sort((a, b) => b.count - a.count).slice(0, 3);
 };
 
+const getNextPlannedNewSong = (plannedNewSongs = [], songs = [], now = new Date()) => {
+  const today = todayString();
+  const candidates = (Array.isArray(plannedNewSongs) ? plannedNewSongs : [])
+    .filter((item) => {
+      const status = normalizeSearchText(item?.status || "");
+      return item?.plannedDate >= today && !["estrenado", "cancelado", "pospuesto"].includes(status);
+    })
+    .sort((left, right) => String(left.plannedDate).localeCompare(String(right.plannedDate)));
+  const planned = candidates[0];
+  if (!planned) return null;
+  const song = songs.find((item) => item.id === planned.songId)
+    || songs.find((item) => normalizeSearchText(item.title) === normalizeSearchText(planned.songTitle || planned.title || ""));
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const target = new Date(`${planned.plannedDate}T00:00:00`).getTime();
+  const days = Math.max(0, Math.ceil((target - todayStart) / (24 * 60 * 60 * 1000)));
+  return { planned, song, days };
+};
+
 export function Dashboard() {
   const { canEdit, profile, saveUserPreferences } = useAuth();
-  const { songs = [], schedules = [] } = useMusicData();
+  const { songs = [], schedules = [], plannedNewSongs = [] } = useMusicData();
   const [now, setNow] = useState(() => new Date());
   const [pushPrompt, setPushPrompt] = useState({ checked: false, show: false, status: "" });
   const [activatingPushPrompt, setActivatingPushPrompt] = useState(false);
@@ -69,6 +87,13 @@ export function Dashboard() {
     : "Sin datos este mes";
   const remaining = formatRemaining(upcoming, now);
   const countdownActive = typeof remaining === "string" && remaining.includes(":");
+  const nextNewSong = useMemo(
+    () => getNextPlannedNewSong(plannedNewSongs, songs, now),
+    [now, plannedNewSongs, songs]
+  );
+  const nextNewSongPdf = getSongPdfUrl(nextNewSong?.song);
+  const nextNewSongYoutube = getSongYoutubeUrl(nextNewSong?.song);
+  const nextNewSongSpotify = getSongSpotifyUrl(nextNewSong?.song);
 
   useEffect(() => {
     const intervalMs = countdownActive ? 1000 : 60000;
@@ -186,6 +211,54 @@ export function Dashboard() {
             <div className="flex flex-wrap gap-2">
               <Button isLoading={activatingPushPrompt} disabled={activatingPushPrompt} onClick={activatePushFromPrompt}>Activar notificaciones</Button>
               <Button variant="subtle" onClick={dismissPushPrompt}>Ahora no</Button>
+            </div>
+          </div>
+        </Card>
+      ) : null}
+
+      {nextNewSong ? (
+        <Card className="overflow-hidden border-cyan-500/25 bg-cyan-50/80 p-0 dark:border-cyan-300/20 dark:bg-cyan-400/8">
+          <div className="grid md:grid-cols-[180px_minmax(0,1fr)]">
+            <div className="flex items-center justify-center bg-cyan-500 px-5 py-6 text-center text-white dark:bg-cyan-400/85 dark:text-slate-950">
+              <div>
+                <Music2 className="mx-auto h-7 w-7" />
+                <p className="mt-2 text-xs font-black uppercase tracking-wide">Próximo canto nuevo</p>
+                <p className="mt-1 text-4xl font-black">{nextNewSong.days}</p>
+                <p className="text-sm font-bold">{nextNewSong.days === 0 ? "Hoy" : nextNewSong.days === 1 ? "día" : "días"}</p>
+              </div>
+            </div>
+            <div className="p-5">
+              <p className="text-xs font-black uppercase tracking-wide text-cyan-700 dark:text-cyan-200">
+                {getServiceDisplayLabel({
+                  serviceType: nextNewSong.planned.serviceType,
+                  serviceLabel: nextNewSong.planned.serviceLabel,
+                  date: nextNewSong.planned.plannedDate
+                })} · {formatDate(nextNewSong.planned.plannedDate)}
+              </p>
+              <h2 className="mt-2 text-2xl font-black text-ink">{nextNewSong.song?.title || nextNewSong.planned.songTitle || "Canto nuevo"}</h2>
+              <p className="mt-1 text-sm text-ink/58">Prepáralo desde aquí sin buscarlo en otra sección.</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {nextNewSong.song?.id ? (
+                  <Link to={`/repertorio/${nextNewSong.song.id}`}>
+                    <Button>Ver canto</Button>
+                  </Link>
+                ) : null}
+                {nextNewSongPdf ? (
+                  <a className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-ink/10 bg-white px-4 py-2 text-sm font-semibold text-ink hover:border-ink/25 dark:bg-white/10" href={nextNewSongPdf} target="_blank" rel="noreferrer">
+                    PDF <ExternalLink className="h-4 w-4" />
+                  </a>
+                ) : null}
+                {nextNewSongYoutube ? (
+                  <a className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-ink/5 px-4 py-2 text-sm font-semibold text-ink hover:bg-ink/10 dark:bg-white/10" href={nextNewSongYoutube} target="_blank" rel="noreferrer">
+                    YouTube <ExternalLink className="h-4 w-4" />
+                  </a>
+                ) : null}
+                {nextNewSongSpotify ? (
+                  <a className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-ink/5 px-4 py-2 text-sm font-semibold text-ink hover:bg-ink/10 dark:bg-white/10" href={nextNewSongSpotify} target="_blank" rel="noreferrer">
+                    Spotify <ExternalLink className="h-4 w-4" />
+                  </a>
+                ) : null}
+              </div>
             </div>
           </div>
         </Card>

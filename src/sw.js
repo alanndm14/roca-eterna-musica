@@ -9,14 +9,14 @@ self.skipWaiting();
 clientsClaim();
 setCacheNameDetails({
   prefix: "roca-eterna-musica",
-  suffix: "v0.9.133",
+  suffix: "v0.9.134",
   precache: "precache",
   runtime: "runtime"
 });
 cleanupOutdatedCaches();
 precacheAndRoute(self.__WB_MANIFEST);
 
-const CACHE_NAME = "roca-eterna-musica-v1.0.3-update-recovery";
+const CACHE_NAME = "roca-eterna-musica-v1.0.4-smart-schedule";
 const OLD_ICON_PATTERNS = [
   "icon-192",
   "icon-512",
