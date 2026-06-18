@@ -7,7 +7,11 @@ export const changelog = [
     title: "Mejoras del Asistente IA",
     added: [],
     changed: [
-      "Sugerencias de bloque orientadas por tema, frases y rotación, con búsqueda por letra/PDF separada"
+      "Sugerir bloque ahora crea combinaciones completas para el servicio",
+      "Se limpió la redundancia entre Sugerir bloque y Buscar por letra/PDF",
+      "La rotación favorece cantos poco usados y evita repetidos recientes",
+      "Completar desde cantos elegidos vuelve a funcionar como apoyo para armar servicios",
+      "Se mantuvo el Balance del repertorio en Estadísticas"
     ],
     fixed: [],
     pending: []

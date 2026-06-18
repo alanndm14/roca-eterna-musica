@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { CalendarCheck2, FileSearch, GitCompareArrows, Lightbulb, ListChecks, Music2, RefreshCw, Shuffle, Sparkles, Tags, Wand2, X } from "lucide-react";
+import { CalendarCheck2, FileSearch, GitCompareArrows, ListChecks, Music2, RefreshCw, Shuffle, Sparkles, Tags, Wand2, X } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Field, Input, Select } from "../components/ui/Field";
 import { Modal } from "../components/ui/Modal";
@@ -10,7 +10,6 @@ import { SmartGradientBackground, SmartPanel } from "../components/smart/SmartPa
 import { RecommendationCard } from "../components/smart/RecommendationCard";
 import { ServiceReviewPanel } from "../components/smart/ServiceReviewPanel";
 import { ServiceFollowUpPanel } from "../components/smart/ServiceFollowUpPanel";
-import { InsightCard } from "../components/smart/InsightCard";
 import { ScoreBadge } from "../components/smart/ScoreBadge";
 import { ReasonChips } from "../components/smart/ReasonChips";
 import { useAuth } from "../hooks/useAuth";
@@ -20,9 +19,7 @@ import {
   buildUsageIndex,
   clampScore,
   createSuggestedServiceBlock,
-  getPreparationGaps,
   getReplacementCandidates,
-  getRepertoireInsights,
   getServiceSlots,
   getSlotAlternatives,
   getSmartServiceDefaultCount,
@@ -40,8 +37,7 @@ import { getSongPdfUrl, normalizeSearchText } from "../services/songUtils";
 const tabItems = [
   { id: "programar", label: "Programación Inteligente", icon: Wand2, primary: true },
   { id: "revisar", label: "Revisar", icon: CalendarCheck2 },
-  { id: "sustituir", label: "Sustituir", icon: GitCompareArrows },
-  { id: "balance", label: "Balance", icon: Lightbulb }
+  { id: "sustituir", label: "Sustituir", icon: GitCompareArrows }
 ];
 
 const defaultOptions = {
@@ -81,7 +77,6 @@ const normalServiceTypes = ["Domingo AM", "Domingo PM", "Miércoles de oración"
 function isManualCountService(serviceType) {
   return !normalServiceTypes.includes(serviceType);
 }
-
 const recommendationMethods = [
   { id: "theme", label: "Tema", description: "Prioriza uno o varios temas.", icon: Tags },
   { id: "pdf", label: "Letra/PDF", description: "Busca palabras y frases indexadas.", icon: FileSearch },
@@ -139,16 +134,6 @@ const shortDate = (schedule = {}) => schedule.date
 
 const scheduleLabel = (schedule = {}) => `${schedule.serviceLabel || schedule.type || "Servicio"} · ${shortDate(schedule)} · ${schedule.time || "Sin hora"}`;
 const normalizeTheme = (theme = "") => normalizeSearchText(theme);
-const gapFilterMap = {
-  youtube: "missing-youtube",
-  spotify: "missing-spotify",
-  drive: "missing-drive-pdf",
-  localPdf: "missing-local-pdf",
-  keynote: "missing-keynote",
-  key: "missing-key",
-  theme: "missing-theme",
-  ocr: "ocr-pending"
-};
 
 function SmartScheduleCalendar({ schedules = [], selectedDate = "", selectedId = "", onSelectDate, onSelectSchedule }) {
   const [cursor, setCursor] = useState(() => new Date(`${selectedDate || new Date().toISOString().slice(0, 10)}T00:00:00`));
@@ -313,7 +298,6 @@ export function SmartCenter({ scheduleId = "", embedded = false }) {
   const [applyBlockModalOpen, setApplyBlockModalOpen] = useState(false);
   const [conflictModalOpen, setConflictModalOpen] = useState(false);
   const [scoreHelpItem, setScoreHelpItem] = useState(null);
-  const [showAllBalance, setShowAllBalance] = useState(false);
   const [baseSongQuery, setBaseSongQuery] = useState("");
   const [baseSongs, setBaseSongs] = useState([]);
 
@@ -423,7 +407,7 @@ export function SmartCenter({ scheduleId = "", embedded = false }) {
     ideaQuery: usesThemeCriteria ? options.ideaQuery : "",
     pdfSearchQuery: usesPdfCriteria ? options.pdfSearchQuery : "",
     plannedSongIds,
-    allowThemeFallback: usesThemeCriteria
+    allowThemeFallback: false
   }), [baseSongThemes, options, pdfDetectedThemes, plannedSongIds, usesPdfCriteria, usesSeedCriteria, usesThemeCriteria]);
   const songsWithIndexedText = useMemo(() => songs.filter((song) => song.pdfSearchText || song.pdfOcrText || song.pdfText || song.lyricsText).length, [songs]);
   const recommendations = useMemo(
@@ -506,9 +490,6 @@ export function SmartCenter({ scheduleId = "", embedded = false }) {
     () => currentReplacementSong ? getReplacementCandidates(currentReplacementSong, songs, schedules, selectedSchedule).slice(0, 8) : [],
     [currentReplacementSong, schedules, selectedSchedule, songs]
   );
-  const insights = useMemo(() => getRepertoireInsightsSafe(songs, schedules), [schedules, songs]);
-  const visibleInsights = showAllBalance ? insights.slice(0, 8) : insights.slice(0, 4);
-  const gaps = useMemo(() => getPreparationGaps(songs).slice(0, 6), [songs]);
   const alternativeCandidates = useMemo(() => {
     if (!alternativeSlot) return [];
     const selectedIds = new Set(suggestedBlock.items.map((item) => item.song.id));
@@ -543,15 +524,6 @@ export function SmartCenter({ scheduleId = "", embedded = false }) {
 
   const updatePrimaryTheme = (theme) => {
     updateThemes([theme, ...additionalThemes]);
-  };
-
-  const toggleAdditionalTheme = (theme) => {
-    if (!primaryTheme) {
-      updateThemes([theme]);
-      return;
-    }
-    const exists = additionalThemes.some((item) => normalizeTheme(item) === normalizeTheme(theme));
-    updateThemes([primaryTheme, ...(exists ? additionalThemes.filter((item) => normalizeTheme(item) !== normalizeTheme(theme)) : [...additionalThemes, theme])]);
   };
 
   const addBaseSong = (song) => {
@@ -802,11 +774,6 @@ export function SmartCenter({ scheduleId = "", embedded = false }) {
     if (!confirm(`¿Sustituir "${currentReplacementEntry.titleSnapshot}" por "${candidate.title}"?`)) return;
     await replaceScheduleSong(selectedSchedule.id, currentReplacementEntry, candidate);
     setStatus(`Sustitución aplicada: ${currentReplacementEntry.titleSnapshot} -> ${candidate.title}`);
-  };
-
-  const openRepertoireFilter = (params = {}) => {
-    const search = new URLSearchParams(params);
-    navigate(`/repertorio?${search.toString()}`);
   };
 
   const openCompare = (item) => {
@@ -1211,7 +1178,13 @@ export function SmartCenter({ scheduleId = "", embedded = false }) {
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     {blockGenerated ? <p className="text-xs font-bold uppercase tracking-wide text-brass">
-                      {selectedServiceType || "Sin servicio"} · {usesThemeCriteria ? `Tema: ${primaryTheme || "sin tema"}` : `Letra/PDF: ${options.pdfSearchQuery || "sin búsqueda"}`}
+                      {selectedServiceType || "Sin servicio"} · {usesSeedCriteria
+                        ? `${baseSongItems.length} canto(s) base`
+                        : primaryTheme
+                          ? `Tema: ${primaryTheme}`
+                          : ideaTerms.length
+                            ? `${ideaTerms.length} idea(s) o frase(s)`
+                            : "Rotación y preparación"}
                     </p> : null}
                     <h3 className="text-xl font-black text-ink">Bloque sugerido para {selectedServiceType}</h3>
                   </div>
@@ -1351,47 +1324,6 @@ export function SmartCenter({ scheduleId = "", embedded = false }) {
                 </SmartPanel>
               ) : null}
             </div>
-          </motion.section>
-        ) : null}
-
-        {activeTab === "balance" ? (
-          <motion.section key="balance" initial={reduceMotion ? false : { opacity: 0, y: 10 }} animate={reduceMotion ? undefined : { opacity: 1, y: 0 }} exit={reduceMotion ? undefined : { opacity: 0, y: -6 }} transition={{ duration: 0.2 }} className="mt-6 grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
-            <SmartPanel>
-              <div className="flex items-center gap-2">
-                <Lightbulb className="h-5 w-5 text-brass" />
-                <h2 className="text-xl font-black text-ink">Balance del repertorio</h2>
-              </div>
-              <div className="mt-4 grid gap-2 md:grid-cols-2">
-                {visibleInsights.map((insight) => (
-                  <InsightCard key={insight.title} insight={insight} onAction={() => openRepertoireFilter(insight.filter || { q: insight.title })} />
-                ))}
-              </div>
-              {insights.length > 4 ? (
-                <Button variant="subtle" className="mt-4" onClick={() => setShowAllBalance((current) => !current)}>
-                  {showAllBalance ? "Ver menos" : "Ver más"}
-                </Button>
-              ) : null}
-            </SmartPanel>
-            <SmartPanel>
-              <h2 className="text-xl font-black text-ink">Qué falta preparar</h2>
-              <div className="mt-3 grid gap-2">
-                {gaps.map((gap) => (
-                  <div key={gap.key} className="rounded-2xl border border-white/60 bg-white/70 p-2.5 dark:border-white/10 dark:bg-white/8">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="font-bold text-ink">{gap.label}</p>
-                        <p className="text-xs text-ink/55">Prioridad {gap.priority}</p>
-                      </div>
-                      <p className="text-xl font-black text-brass">{gap.count}</p>
-                    </div>
-                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-ink/10 dark:bg-white/10">
-                      <div className="h-full rounded-full bg-brass" style={{ width: `${Math.min(100, gap.percent)}%` }} />
-                    </div>
-                    <Button variant="subtle" className="mt-3 h-9 px-3 text-xs" onClick={() => openRepertoireFilter({ filter: gapFilterMap[gap.key] || gap.key })}>Aplicar filtro</Button>
-                  </div>
-                ))}
-              </div>
-            </SmartPanel>
           </motion.section>
         ) : null}
 
@@ -1558,22 +1490,4 @@ export function SmartCenter({ scheduleId = "", embedded = false }) {
       </Modal>
     </SmartGradientBackground>
   );
-}
-
-function getRepertoireInsightsSafe(songs, schedules) {
-  const inferFilter = (insight = {}) => {
-    const text = normalizeSearchText(`${insight.title || ""} ${insight.message || ""} ${insight.action || ""}`);
-    if (text.includes("youtube")) return { filter: "missing-youtube" };
-    if (text.includes("spotify")) return { filter: "missing-spotify" };
-    if (text.includes("documentos") || text.includes("pdf")) return { filter: "missing-drive-pdf" };
-    if (text.includes("himnos")) return { filter: "hymns-ready" };
-    if (text.includes("olvidados")) return { filter: "unused-ready" };
-    if (text.includes("repeticion") || text.includes("repetidos")) return { filter: "repeated" };
-    if (text.includes("navidad")) return { q: "navidad" };
-    return { q: insight.title };
-  };
-  return getRepertoireInsights(songs, schedules).map((insight) => ({
-    ...insight,
-    filter: insight.filter || inferFilter(insight)
-  }));
 }
