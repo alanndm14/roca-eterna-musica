@@ -1,10 +1,10 @@
 {
-  "version": "0.9.136",
-  "date": "2026-06-18",
+  "version": "0.9.137",
+  "date": "2026-06-19",
   "critical": true,
   "changes": [
-    "Búsqueda unificada por título y letra/PDF",
-    "Sugerencias relacionadas claramente identificadas",
-    "Indexación incremental y coincidencias de palabras corregidas"
+    "Corrección de vistas para el modo oscuro y de colores",
+    "Versículo del día en la pantalla de acceso",
+    "Opciones editables de líderes y tipos de servicio"
   ]
 }

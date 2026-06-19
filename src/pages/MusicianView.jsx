@@ -13,6 +13,7 @@ import { ScoreBadge } from "../components/smart/ScoreBadge";
 import { ServiceReviewPanel } from "../components/smart/ServiceReviewPanel";
 import { SongFollowUpNotice } from "../components/smart/SongFollowUpNotice";
 import { SongNameLink } from "../components/ui/SongNameLink";
+import { SongExternalLinks } from "../components/ui/SongExternalLinks";
 import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
 import { formatDate, getCurrentOrNextSchedule, todayString } from "../services/dateUtils";
@@ -134,7 +135,7 @@ function MusicianScheduleCalendar({ schedules, plannedNewSongs = [], selectedDat
                 </span>
               ) : null}
               {plannedCount ? (
-                <span className="ml-1 mt-1 inline-flex h-4 min-w-4 items-center justify-center gap-0.5 rounded-full bg-cyan-500 px-1 text-[9px] font-bold text-white sm:h-5 sm:min-w-5 sm:text-[10px]" title={`${plannedCount} canto(s) nuevo(s) planeado(s)`}>
+                <span className="ml-1 mt-1 inline-flex h-4 min-w-4 items-center justify-center gap-0.5 rounded-full bg-brass px-1 text-[9px] font-bold text-white sm:h-5 sm:min-w-5 sm:text-[10px]" title={`${plannedCount} canto(s) nuevo(s) planeado(s)`}>
                   <Music2 className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                   {plannedCount > 1 ? plannedCount : null}
                 </span>
@@ -562,10 +563,10 @@ export function MusicianView({ mediaMode = false }) {
             )}
             {mediaMode && dayPlannedNewSongs.length ? (
               <div className="border-t border-ink/10 pt-3">
-                <p className="text-xs font-black uppercase tracking-wide text-cyan-700 dark:text-cyan-300">Cantos nuevos planeados</p>
+                <p className="text-xs font-black uppercase tracking-wide text-brass">Cantos nuevos planeados</p>
                 <div className="mt-2 space-y-2">
                   {dayPlannedNewSongs.map((item) => (
-	                    <div key={item.id} className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-3">
+	                    <div key={item.id} className="rounded-2xl border border-brass/25 bg-brass/10 p-3 dark:border-brass/30 dark:bg-brass/10">
 	                      <p className="font-bold text-ink">{item.songTitle}</p>
 	                      <p className="mt-1 text-xs text-ink/55">Canto nuevo planeado · {item.serviceType || "servicio"}</p>
 	                      <p className="mt-1 text-xs font-semibold capitalize text-ink/50">{item.status || "planeado"}</p>
@@ -667,8 +668,7 @@ export function MusicianView({ mediaMode = false }) {
                 {!isViewer ? <SongFollowUpNotice issues={getOutstandingSongFollowUps(song.entry.songId, schedules, selectedSchedule).slice(0, 1)} /> : null}
                 <div className="mt-3 flex flex-wrap gap-2">
                   {song.pdfUrl ? <a className="inline-flex items-center gap-2 rounded-xl bg-brass/12 px-3 py-2 text-sm font-bold text-brass" href={song.pdfUrl} target="_blank" rel="noreferrer">PDF de letra y acordes <ExternalLink className="h-4 w-4" /></a> : null}
-                  {song.youtubeUrl ? <a className="inline-flex items-center gap-2 rounded-xl bg-ink/5 px-3 py-2 text-sm font-bold text-ink" href={song.youtubeUrl} target="_blank" rel="noreferrer">YouTube <ExternalLink className="h-4 w-4" /></a> : null}
-                  {song.spotifyUrl ? <a className="inline-flex items-center gap-2 rounded-xl bg-ink/5 px-3 py-2 text-sm font-bold text-ink" href={song.spotifyUrl} target="_blank" rel="noreferrer">Spotify <ExternalLink className="h-4 w-4" /></a> : null}
+                  <SongExternalLinks youtubeUrl={song.youtubeUrl} spotifyUrl={song.spotifyUrl} songTitle={song.title} />
                 </div>
               </div>
               <div className="rounded-3xl bg-brass/12 p-4">

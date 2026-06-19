@@ -18,6 +18,7 @@ import { formatDate, getCurrentOrNextSchedule, todayString } from "../services/d
 import { normalizeSearchText } from "../services/songUtils";
 import { downloadBlob } from "../services/mergeServicePdfs";
 import { getOutstandingSongFollowUps, reviewServiceSchedule } from "../services/smartRecommendations";
+import { getServiceTypeOptions, getWorshipLeaderOptions } from "../services/serviceOptions";
 import { SmartCenter } from "./SmartCenter";
 import {
   SPECIAL_PROGRAM_TYPES,
@@ -31,15 +32,6 @@ import {
   isSpecialService,
   normalizeSpecialProgramItems
 } from "../services/specialProgramPdf";
-
-const serviceOptions = [
-  { value: "miercoles-oracion", label: "Miércoles de oración", time: "19:00", weekday: 3 },
-  { value: "domingo-manana", label: "Domingo mañana", time: "11:00", weekday: 0 },
-  { value: "domingo-tarde", label: "Domingo tarde", time: "17:00", weekday: 0 },
-  { value: "especial", label: "Especial / aniversario / conferencia / otro", time: "", weekday: null }
-];
-
-const worshipLeaders = ["Ps. José Campos", "Ps. Eduardo", "Adrián", "Esaú", "Otro"];
 
 const blankSchedule = {
   date: "",
@@ -77,11 +69,14 @@ const blankPlannedNewSong = {
 };
 const plannedOptionLabel = (options, value) => options.find((option) => option.value === value)?.label || value || "--";
 
-const getService = (value) => serviceOptions.find((item) => item.value === value) || serviceOptions[0];
 const dateWeekday = (date) => (date ? new Date(`${date}T00:00:00`).getDay() : null);
 
-function ScheduleForm({ initialSchedule, songs, schedules, onSubmit, onCancel }) {
+function ScheduleForm({ initialSchedule, songs, schedules, settings, onSubmit, onCancel }) {
+  const serviceOptions = useMemo(() => getServiceTypeOptions(settings), [settings]);
+  const worshipLeaders = useMemo(() => [...getWorshipLeaderOptions(settings), "Otro"], [settings]);
+  const getService = (value) => serviceOptions.find((item) => item.value === value) || serviceOptions[0];
   const initialService = initialSchedule?.serviceType ? getService(initialSchedule.serviceType) : getService("domingo-manana");
+  const hasInitialService = serviceOptions.some((option) => option.value === initialSchedule?.serviceType);
   const [schedule, setSchedule] = useState(() => ({
     ...blankSchedule,
     ...initialSchedule,
@@ -89,7 +84,7 @@ function ScheduleForm({ initialSchedule, songs, schedules, onSubmit, onCancel })
       ...entry,
       notes: songs.find((song) => song.id === entry.songId)?.internalNotes || entry.notes || ""
     })),
-    serviceType: initialSchedule?.serviceType || initialService.value,
+    serviceType: hasInitialService ? initialSchedule.serviceType : initialService.value,
     serviceLabel: initialSchedule?.serviceLabel || initialService.label,
     time: initialSchedule?.time || initialService.time,
     isSpecialService: initialSchedule?.isSpecialService ?? isSpecialService(initialSchedule || { serviceType: initialService.value })
@@ -133,13 +128,14 @@ function ScheduleForm({ initialSchedule, songs, schedules, onSubmit, onCancel })
 
   const updateService = (serviceType) => {
     const nextService = getService(serviceType);
+    const special = Boolean(nextService.special || nextService.value === "especial");
     setSchedule((current) => ({
       ...current,
       serviceType,
-      isSpecialService: serviceType === "especial" ? true : current.isSpecialService,
-      serviceLabel: nextService.value === "especial" ? current.serviceLabel || "Servicio especial" : nextService.label,
+      isSpecialService: special ? true : current.isSpecialService,
+      serviceLabel: special ? current.serviceLabel || "Servicio especial" : nextService.label,
       time: nextService.time || current.time || "",
-      type: nextService.value === "especial" ? current.serviceLabel || "Servicio especial" : nextService.label
+      type: special ? current.serviceLabel || "Servicio especial" : nextService.label
     }));
   };
 
@@ -179,12 +175,13 @@ function ScheduleForm({ initialSchedule, songs, schedules, onSubmit, onCancel })
     event.preventDefault();
     if (!schedule.date) return;
     const nextService = getService(schedule.serviceType);
-    const label = schedule.serviceType === "especial" ? schedule.serviceLabel || "Servicio especial" : nextService.label;
+    const special = Boolean(nextService.special || nextService.value === "especial");
+    const label = special ? schedule.serviceLabel || "Servicio especial" : nextService.label;
     onSubmit({
       ...schedule,
       serviceLabel: label,
       type: label,
-      time: schedule.serviceType === "especial" ? schedule.time : nextService.time
+      time: special ? schedule.time : nextService.time
     });
   };
 
@@ -202,7 +199,7 @@ function ScheduleForm({ initialSchedule, songs, schedules, onSubmit, onCancel })
                 {serviceOptions.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
               </Select>
             </Field>
-            {schedule.serviceType === "especial" ? (
+            {Boolean(service.special || service.value === "especial") ? (
               <Field label="Nombre del evento">
                 <Input value={schedule.serviceLabel || ""} onChange={(event) => update("serviceLabel", event.target.value)} placeholder="Aniversario, conferencia, otro" />
               </Field>
@@ -213,8 +210,8 @@ function ScheduleForm({ initialSchedule, songs, schedules, onSubmit, onCancel })
                 <option value="si">Sí</option>
               </Select>
             </Field>
-            <Field label={schedule.serviceType === "especial" ? "Hora manual" : "Hora automática"}>
-              <Input type="time" value={schedule.time || ""} disabled={schedule.serviceType !== "especial"} onChange={(event) => update("time", event.target.value)} />
+            <Field label={service.special || service.value === "especial" ? "Hora manual" : "Hora automática"}>
+              <Input type="time" value={schedule.time || ""} disabled={!(service.special || service.value === "especial")} onChange={(event) => update("time", event.target.value)} />
             </Field>
             <Field label="Líder de adoración">
               <Select value={leaderChoice} onChange={(event) => updateLeader(event.target.value)}>
@@ -371,13 +368,13 @@ function PlannedNewSongForm({ initialValue, songs, onSubmit, onCancel }) {
 
 function PlannedNewSongCard({ item, songs, canEdit, canDelete, onEdit, onMarkIntroduced, onDelete }) {
   return (
-    <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/8 p-3 dark:bg-cyan-400/5">
+    <div className="rounded-2xl border border-brass/25 bg-brass/10 p-3 dark:border-brass/30 dark:bg-brass/10">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <p className="font-bold text-ink">
             {item.songId ? <SongNameLink songId={item.songId} title={item.songTitle} songs={songs}>{item.songTitle}</SongNameLink> : item.songTitle}
           </p>
-          <p className="mt-1 text-sm font-semibold text-cyan-700 dark:text-cyan-200">
+          <p className="mt-1 text-sm font-semibold text-brass">
             {plannedOptionLabel(plannedServiceOptions, item.serviceType)} · {plannedOptionLabel(plannedStatusOptions, item.status)}
           </p>
           {item.notes ? <p className="mt-2 text-sm leading-6 text-ink/60">{item.notes}</p> : null}
@@ -461,7 +458,7 @@ function MonthCalendar({ schedules, plannedNewSongs, selectedDate, onSelectDate 
                 </span>
               ) : null}
               {plannedCount ? (
-                <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-cyan-500/15 px-1.5 py-1 text-[10px] font-bold text-cyan-700 dark:text-cyan-200 sm:px-2 sm:text-[11px]">
+                <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-brass/15 px-1.5 py-1 text-[10px] font-bold text-brass sm:px-2 sm:text-[11px]">
                   <Music2 className="h-3 w-3" />
                   <span className="sm:hidden">{plannedCount}</span>
                   <span className="hidden sm:inline">{plannedCount} {plannedCount === 1 ? "nuevo" : "nuevos"}</span>
@@ -832,7 +829,7 @@ export function Schedules() {
                 <Plus className="h-4 w-4" />
                 {tab === "calendar" ? "Nueva programación para este día" : "Nueva programación"}
               </Button>
-              <Button className="bg-cyan-700 text-white hover:bg-cyan-800 dark:bg-cyan-400 dark:text-zinc-950 dark:hover:bg-cyan-300" onClick={openSmartScheduleCreator}>
+              <Button variant="accent" onClick={openSmartScheduleCreator}>
                 <Sparkles className="h-4 w-4" />
                 Sugerir cantos
               </Button>
@@ -909,7 +906,7 @@ export function Schedules() {
             {visiblePlannedNewSongs.length ? (
               <div className="mt-6 border-t border-ink/10 pt-5">
                 <div className="flex items-center gap-2">
-                  <Music2 className="h-4 w-4 text-cyan-600 dark:text-cyan-300" />
+                  <Music2 className="h-4 w-4 text-brass" />
                   <h4 className="text-xs font-black uppercase tracking-wide text-ink/45">Cantos nuevos planeados</h4>
                 </div>
                 <div className="mt-3 space-y-3">
@@ -959,7 +956,7 @@ export function Schedules() {
       {tab !== "calendar" && visiblePlannedNewSongs.length ? (
         <Card>
           <div className="flex items-center gap-2">
-            <Music2 className="h-5 w-5 text-cyan-600 dark:text-cyan-300" />
+            <Music2 className="h-5 w-5 text-brass" />
             <h3 className="font-bold text-ink">Cantos nuevos planeados</h3>
           </div>
           <div className="mt-4 grid gap-3 lg:grid-cols-2">
@@ -1058,6 +1055,7 @@ export function Schedules() {
           initialSchedule={editingSchedule || newScheduleDraft || blankSchedule}
           songs={songs}
           schedules={schedules}
+          settings={settings}
           onCancel={closeModal}
           onSubmit={async (schedule) => {
             await saveSchedule(schedule);

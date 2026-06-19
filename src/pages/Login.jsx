@@ -1,13 +1,18 @@
-import { LogIn, ShieldCheck } from "lucide-react";
+import { useEffect, useState } from "react";
+import { BookOpen } from "lucide-react";
 import { motion } from "framer-motion";
+import { FcGoogle } from "react-icons/fc";
 import { appDarkLogo, appLogo } from "../assets/logo";
 import { Button } from "../components/ui/Button";
 import { useAuth } from "../hooks/useAuth";
 import { firebaseMissingConfigKeys, isDemoModeAllowed } from "../lib/firebase";
+import { fetchDailyVerse, fallbackLoginVerses, getDeterministicDailyVerse, getLocalDateKey } from "../services/dailyVerses";
 import { getEffectiveThemeMode, resolvePublicAssetUrl } from "../services/songUtils";
 
 export function Login() {
   const { signInWithGoogle, enterDemoMode, error, isFirebaseConfigured } = useAuth();
+  const dateKey = getLocalDateKey();
+  const [dailyVerse, setDailyVerse] = useState(() => getDeterministicDailyVerse(fallbackLoginVerses, dateKey));
   const showDemoMode = isDemoModeAllowed;
   const themeMode = localStorage.getItem("roca-eterna-theme-mode") || "system";
   const effectiveTheme = getEffectiveThemeMode(themeMode);
@@ -19,6 +24,20 @@ export function Login() {
     import.meta.env.PROD && !isFirebaseConfigured
       ? "La app fue publicada sin configuración de Firebase. Revisa GitHub Actions Secrets."
       : "";
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", effectiveTheme === "dark");
+  }, [effectiveTheme]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchDailyVerse(dateKey).then((verse) => {
+      if (!cancelled && verse) setDailyVerse(verse);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [dateKey]);
 
   return (
     <div className="grid min-h-screen bg-ink text-white lg:grid-cols-[1.15fr_0.85fr]">
@@ -46,7 +65,7 @@ export function Login() {
           </p>
           <div className="mt-9 flex flex-col gap-3 sm:flex-row">
             <Button variant="light" onClick={signInWithGoogle}>
-              <LogIn className="h-4 w-4" />
+              <FcGoogle className="h-5 w-5" aria-hidden="true" />
               Entrar con Google
             </Button>
             {showDemoMode ? (
@@ -74,21 +93,21 @@ export function Login() {
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, delay: 0.12 }}
-          className="w-full rounded-3xl border border-ink/10 bg-white p-6 shadow-soft md:p-8"
+          className="w-full rounded-3xl border border-ink/10 bg-white p-6 shadow-soft dark:border-white/12 dark:bg-zinc-900 md:p-8"
         >
           <div className="mb-6 flex items-center gap-3">
             <div className="rounded-2xl bg-brass/12 p-3 text-brass">
-              <ShieldCheck className="h-6 w-6" />
+              <BookOpen className="h-6 w-6" />
             </div>
             <div>
-              <h2 className="text-xl font-bold">Acceso protegido</h2>
-              <p className="text-sm text-ink/55">Solo correos autorizados del ministerio.</p>
+              <h2 className="text-xl font-bold">Versículo del día</h2>
+              {dailyVerse?.translation ? <p className="text-sm text-ink/55">{dailyVerse.translation}</p> : null}
             </div>
           </div>
-          <div className="space-y-4 text-sm leading-6 text-ink/65">
-            <p>Solo correos autorizados del ministerio pueden entrar.</p>
-            <p>No se almacenan datos sensibles de miembros; solo información necesaria para organizar repertorio, programaciones y preparación musical.</p>
-          </div>
+          <blockquote className="text-[clamp(1.15rem,2.2vw,1.65rem)] font-semibold leading-[1.55] text-ink">
+            “{dailyVerse?.text || fallbackLoginVerses[0].text}”
+          </blockquote>
+          <p className="mt-5 text-base font-black text-brass">{dailyVerse?.reference || fallbackLoginVerses[0].reference}</p>
         </motion.div>
       </section>
     </div>

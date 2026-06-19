@@ -275,7 +275,14 @@ export const sampleSettings = {
   keyPreference: "sharps",
   themeMode: "light",
   accentColor: "#b6945f",
-  blueGrayColor: "#60717d"
+  blueGrayColor: "#60717d",
+  worshipLeaderOptions: ["Ps. José Campos", "Ps. Eduardo", "Adrián", "Esaú"],
+  serviceTypeOptions: [
+    { value: "miercoles-oracion", label: "Miércoles de oración", time: "19:00", weekday: 3 },
+    { value: "domingo-manana", label: "Domingo mañana", time: "11:00", weekday: 0 },
+    { value: "domingo-tarde", label: "Domingo tarde", time: "17:00", weekday: 0 },
+    { value: "especial", label: "Especial / aniversario / conferencia / otro", time: "", weekday: null, special: true }
+  ]
 };
 
 export const sampleThemes = songTags.map((name, index) => ({

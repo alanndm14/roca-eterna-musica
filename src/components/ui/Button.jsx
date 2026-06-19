@@ -2,6 +2,7 @@ import { Loader2 } from "lucide-react";
 
 const variants = {
   primary: "bg-ink text-white hover:bg-charcoal shadow-soft",
+  accent: "bg-brass text-white hover:opacity-90 shadow-soft",
   secondary: "bg-white text-ink border border-ink/10 hover:border-ink/25",
   subtle: "bg-ink/5 text-ink hover:bg-ink/10",
   danger: "bg-red-50 text-red-700 border border-red-200 hover:bg-red-100",

@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Download, Edit3, ExternalLink, FileText, Headphones, Plus, Search, Trash2, Youtube } from "lucide-react";
+import { Download, Edit3, ExternalLink, FileText, Plus, Search, Trash2 } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Field, Input, Select, Textarea } from "../components/ui/Field";
 import { Modal } from "../components/ui/Modal";
+import { SongExternalLinks } from "../components/ui/SongExternalLinks";
 import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
 import {
@@ -827,8 +828,7 @@ export function Songs() {
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap gap-1">
                           {pdfUrl ? <a className="rounded-lg bg-brass/12 px-2 py-1 text-xs font-bold text-brass" href={pdfUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>PDF</a> : null}
-                          {youtubeUrl ? <a className="rounded-lg bg-ink/5 px-2 py-1 text-xs font-bold text-ink" href={youtubeUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>YouTube</a> : null}
-                          {spotifyUrl ? <a className="rounded-lg bg-ink/5 px-2 py-1 text-xs font-bold text-ink" href={spotifyUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Spotify</a> : null}
+                          <SongExternalLinks youtubeUrl={youtubeUrl} spotifyUrl={spotifyUrl} songTitle={song.title} onClick={(event) => event.stopPropagation()} />
                           {!pdfUrl && !youtubeUrl && !spotifyUrl ? <span className="text-xs font-semibold text-ink/35">—</span> : null}
                         </div>
                       </td>
@@ -880,8 +880,7 @@ export function Songs() {
                 <p className="mt-4 line-clamp-2 text-sm leading-6 text-ink/58">{song.internalNotes || "Sin comentarios."}</p></> : null}
                 <div className="mt-4 flex flex-wrap gap-2">
                   {pdfUrl ? <a onClick={(event) => event.stopPropagation()} className="inline-flex items-center gap-1 rounded-xl bg-brass/12 px-3 py-2 text-xs font-bold text-brass" href={pdfUrl} target="_blank" rel="noreferrer"><FileText className="h-4 w-4" />PDF</a> : null}
-                  {youtubeUrl ? <a onClick={(event) => event.stopPropagation()} className="inline-flex items-center gap-1 rounded-xl bg-ink/5 px-3 py-2 text-xs font-bold text-ink" href={youtubeUrl} target="_blank" rel="noreferrer"><Youtube className="h-4 w-4" />YouTube</a> : null}
-                  {spotifyUrl ? <a onClick={(event) => event.stopPropagation()} className="inline-flex items-center gap-1 rounded-xl bg-ink/5 px-3 py-2 text-xs font-bold text-ink" href={spotifyUrl} target="_blank" rel="noreferrer"><Headphones className="h-4 w-4" />Spotify</a> : null}
+                  <SongExternalLinks youtubeUrl={youtubeUrl} spotifyUrl={spotifyUrl} songTitle={song.title} onClick={(event) => event.stopPropagation()} />
                 </div>
                 <div className="mt-auto flex items-center justify-between pt-5">
                   <Link to={`/repertorio/${song.id}`} className="inline-flex items-center gap-1 text-sm font-semibold text-blue-gray" onClick={(event) => event.stopPropagation()}>

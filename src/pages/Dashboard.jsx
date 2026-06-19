@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { BellRing, CalendarPlus, Clock, ExternalLink, FileClock, ListPlus, Music2, RotateCcw, Sparkles } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
+import { SongExternalLinks } from "../components/ui/SongExternalLinks";
 import { StatCard } from "../components/ui/StatCard";
 import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
@@ -217,9 +218,9 @@ export function Dashboard() {
       ) : null}
 
       {nextNewSong ? (
-        <Card className="overflow-hidden border-cyan-500/25 bg-cyan-50/80 p-0 dark:border-cyan-300/20 dark:bg-cyan-400/8">
+        <Card className="overflow-hidden border-brass/30 bg-brass/10 p-0 dark:border-brass/35 dark:bg-zinc-900">
           <div className="grid md:grid-cols-[180px_minmax(0,1fr)]">
-            <div className="flex items-center justify-center bg-cyan-500 px-5 py-6 text-center text-white dark:bg-cyan-400/85 dark:text-slate-950">
+            <div className="flex items-center justify-center bg-brass px-5 py-6 text-center text-white">
               <div>
                 <Music2 className="mx-auto h-7 w-7" />
                 <p className="mt-2 text-xs font-black uppercase tracking-wide">Próximo canto nuevo</p>
@@ -228,7 +229,7 @@ export function Dashboard() {
               </div>
             </div>
             <div className="p-5">
-              <p className="text-xs font-black uppercase tracking-wide text-cyan-700 dark:text-cyan-200">
+              <p className="text-xs font-black uppercase tracking-wide text-brass">
                 {formatDate(nextNewSong.planned.plannedDate)}
               </p>
               <h2 className="mt-2 text-2xl font-black text-ink">{nextNewSong.song?.title || nextNewSong.planned.songTitle || "Canto nuevo"}</h2>
@@ -244,16 +245,11 @@ export function Dashboard() {
                     PDF <ExternalLink className="h-4 w-4" />
                   </a>
                 ) : null}
-                {nextNewSongYoutube ? (
-                  <a className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-ink/5 px-4 py-2 text-sm font-semibold text-ink hover:bg-ink/10 dark:bg-white/10" href={nextNewSongYoutube} target="_blank" rel="noreferrer">
-                    YouTube <ExternalLink className="h-4 w-4" />
-                  </a>
-                ) : null}
-                {nextNewSongSpotify ? (
-                  <a className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-ink/5 px-4 py-2 text-sm font-semibold text-ink hover:bg-ink/10 dark:bg-white/10" href={nextNewSongSpotify} target="_blank" rel="noreferrer">
-                    Spotify <ExternalLink className="h-4 w-4" />
-                  </a>
-                ) : null}
+                <SongExternalLinks
+                  youtubeUrl={nextNewSongYoutube}
+                  spotifyUrl={nextNewSongSpotify}
+                  songTitle={nextNewSong.song?.title || nextNewSong.planned.songTitle}
+                />
               </div>
             </div>
           </div>

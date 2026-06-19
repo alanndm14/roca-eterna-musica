@@ -1,6 +1,23 @@
-export const appVersion = "0.9.136";
+export const appVersion = "0.9.137";
 
 export const changelog = [
+  {
+    version: "0.9.137",
+    date: "2026-06-19",
+    title: "Corrección de vistas para el modo oscuro y de colores",
+    added: [
+      "Versículo del día administrable en la pantalla de acceso",
+      "Opciones editables de líderes y tipos de servicio",
+      "Iconos oficiales de YouTube, Spotify y Google"
+    ],
+    changed: [
+      "Corrección de vistas para el modo oscuro y de colores"
+    ],
+    fixed: [
+      "Los avisos, botones e indicadores destacados respetan el acento elegido"
+    ],
+    pending: []
+  },
   {
     version: "0.9.136",
     date: "2026-06-18",

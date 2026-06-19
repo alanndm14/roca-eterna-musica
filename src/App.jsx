@@ -31,12 +31,12 @@ function SilentStartupFrame() {
 
 function ProtectedRoute({ children }) {
   const { user, profile, loading, unauthorized } = useAuth();
+  let content = children;
+  if (loading) content = <SilentStartupFrame />;
+  else if (!user) content = <Navigate to="/login" replace />;
+  else if (unauthorized || !profile?.active) content = <Unauthorized />;
 
-  if (loading) return <SilentStartupFrame />;
-  if (!user) return <Navigate to="/login" replace />;
-  if (unauthorized || !profile?.active) return <Unauthorized />;
-
-  return <MusicDataProvider>{children}</MusicDataProvider>;
+  return <MusicDataProvider>{content}</MusicDataProvider>;
 }
 
 function DataReady({ children }) {

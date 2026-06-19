@@ -15,13 +15,7 @@ import {
 } from "../../services/smartRecommendations";
 import { formatDate, getScheduleStartDate, isCountableSchedule } from "../../services/dateUtils";
 import { normalizeSearchText } from "../../services/songUtils";
-
-const serviceMeta = {
-  "Domingo AM": { serviceType: "domingo-manana", serviceLabel: "Domingo AM", time: "11:00" },
-  "Domingo PM": { serviceType: "domingo-tarde", serviceLabel: "Domingo PM", time: "17:00" },
-  "Miércoles de oración": { serviceType: "miercoles-oracion", serviceLabel: "Miércoles de oración", time: "19:00" },
-  "Servicio especial": { serviceType: "especial", serviceLabel: "Servicio especial", time: "" }
-};
+import { getAssistantServiceOptions } from "../../services/serviceOptions";
 
 const searchTabs = [
   { id: "title", label: "Cantos y letra", icon: Music2 },
@@ -172,6 +166,7 @@ export function SongSuggestionAssistant({
   songs = [],
   schedules = [],
   themes = [],
+  settings = {},
   schedule = null,
   initialDate = "",
   canEdit = false,
@@ -182,6 +177,12 @@ export function SongSuggestionAssistant({
 }) {
   const safeSongs = Array.isArray(songs) ? songs : [];
   const safeSchedules = Array.isArray(schedules) ? schedules : [];
+  const serviceOptions = useMemo(() => getAssistantServiceOptions(settings), [settings]);
+  const serviceMeta = useMemo(
+    () => Object.fromEntries(serviceOptions.map((option) => [option.assistantLabel, option])),
+    [serviceOptions]
+  );
+  const fallbackService = serviceOptions.find((option) => option.value === "especial") || serviceOptions[0];
   const [targetDate, setTargetDate] = useState(schedule?.date || initialDate || "");
   const [targetScheduleId, setTargetScheduleId] = useState(schedule?.id || "");
   const [serviceType, setServiceType] = useState(() => schedule ? inferSmartServiceType(schedule) : suggestedServiceType(initialDate));
@@ -235,9 +236,9 @@ export function SongSuggestionAssistant({
 
   const referenceSchedule = useMemo(() => targetSchedule || (
     targetDate && serviceType
-      ? { date: targetDate, ...(serviceMeta[serviceType] || serviceMeta["Servicio especial"]) }
+      ? { date: targetDate, ...(serviceMeta[serviceType] || fallbackService) }
       : null
-  ), [serviceType, targetDate, targetSchedule]);
+  ), [fallbackService, serviceMeta, serviceType, targetDate, targetSchedule]);
   const referenceDate = useMemo(
     () => getScheduleStartDate(referenceSchedule || {}) || new Date(),
     [referenceSchedule]
@@ -393,7 +394,7 @@ export function SongSuggestionAssistant({
         navigate?.(`/programacion?schedule=${targetSchedule.id}`);
         return;
       }
-      const meta = serviceMeta[serviceType] || serviceMeta["Servicio especial"];
+      const meta = serviceMeta[serviceType] || fallbackService;
       const createdId = await saveSchedule({
         date: targetDate,
         serviceType: meta.serviceType,
@@ -403,7 +404,7 @@ export function SongSuggestionAssistant({
         leader: "",
         songs: scheduleSongs,
         generalNotes: "",
-        isSpecialService: serviceType === "Servicio especial",
+        isSpecialService: Boolean(meta.special || meta.value === "especial"),
         specialProgram: [],
         status: "confirmed"
       });
@@ -465,7 +466,7 @@ export function SongSuggestionAssistant({
             <Field label="Tipo de servicio">
               <Select value={serviceType} onChange={(event) => setServiceType(event.target.value)} disabled={Boolean(targetSchedule)}>
                 <option value="">Seleccionar</option>
-                {Object.keys(serviceMeta).map((type) => <option key={type} value={type}>{type}</option>)}
+                {serviceOptions.map((type) => <option key={type.value} value={type.assistantLabel}>{type.assistantLabel}</option>)}
               </Select>
             </Field>
           </div>
@@ -522,7 +523,7 @@ export function SongSuggestionAssistant({
                 <Field label="Temas">
                   <ChipInput values={selectedThemes} onChange={setSelectedThemes} placeholder="Escribe uno o varios temas" />
                 </Field>
-                <div className="max-h-44 overflow-y-auto rounded-2xl border border-ink/10 bg-white/55 p-2 dark:border-white/10 dark:bg-white/7">
+                <div className="max-h-44 overflow-y-auto rounded-2xl border border-ink/10 bg-white/70 p-2 dark:border-brass/20 dark:bg-zinc-950/70">
                   <div className="flex flex-wrap gap-1.5">
                     {themeOptions.map((theme) => {
                       const selected = selectedThemes.some((item) => normalizeSearchText(item) === normalizeSearchText(theme));
@@ -569,7 +570,7 @@ export function SongSuggestionAssistant({
             <p className="mt-4 text-xs font-semibold text-ink/50">Sin búsqueda específica: se ordenará todo el repertorio por rotación y preparación.</p>
           )}
 
-          <Button className="mt-4 w-full bg-cyan-700 text-white hover:bg-cyan-800 dark:bg-cyan-400 dark:text-zinc-950 dark:hover:bg-cyan-300" onClick={search}>
+          <Button variant="accent" className="mt-4 w-full" onClick={search}>
             <Search className="h-4 w-4" />
             Buscar sugerencias
           </Button>

@@ -9,14 +9,14 @@ self.skipWaiting();
 clientsClaim();
 setCacheNameDetails({
   prefix: "roca-eterna-musica",
-  suffix: "v0.9.136",
+  suffix: "v0.9.137",
   precache: "precache",
   runtime: "runtime"
 });
 cleanupOutdatedCaches();
 precacheAndRoute(self.__WB_MANIFEST);
 
-const CACHE_NAME = "roca-eterna-musica-v1.0.6-song-search";
+const CACHE_NAME = "roca-eterna-musica-v1.0.7-dark-colors";
 const OLD_ICON_PATTERNS = [
   "icon-192",
   "icon-512",

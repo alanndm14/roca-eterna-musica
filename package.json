@@ -1,7 +1,7 @@
 {
   "name": "roca-eterna-musica",
   "private": true,
-  "version": "0.9.136",
+  "version": "0.9.137",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -24,6 +24,7 @@
     "pdfjs-dist": "^5.7.284",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-icons": "^5.6.0",
     "react-router-dom": "^7.0.0",
     "recharts": "^3.3.0",
     "tesseract.js": "^6.0.1",

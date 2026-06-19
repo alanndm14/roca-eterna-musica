@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, CalendarPlus, CheckCircle, Copy, Edit3, ExternalLink, FileText, Headphones, Trash2, Youtube } from "lucide-react";
+import { ArrowLeft, CalendarPlus, CheckCircle, Copy, Edit3, ExternalLink, FileText, Trash2 } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
 import { FileDiagnosticPanel } from "../components/ui/FileDiagnosticPanel";
 import { Modal } from "../components/ui/Modal";
 import { SongGithubPdfManager } from "../components/song/SongGithubPdfManager";
+import { SongExternalLinks } from "../components/ui/SongExternalLinks";
 import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
 import { formatDate, formatScheduleDateWithService, getCurrentOrNextSchedule, getPastSchedules, getServiceDisplayLabel } from "../services/dateUtils";
@@ -230,8 +231,7 @@ export function SongDetail() {
           <Card>
             <h3 className="text-lg font-bold text-ink">Escucha y enlaces</h3>
             <div className="mt-4 flex flex-wrap gap-3">
-              {youtubeUrl ? <a href={youtubeUrl} target="_blank" rel="noreferrer"><Button variant="secondary"><Youtube className="h-4 w-4" />Abrir YouTube</Button></a> : null}
-              {spotifyUrl ? <a href={spotifyUrl} target="_blank" rel="noreferrer"><Button variant="secondary"><Headphones className="h-4 w-4" />Abrir Spotify</Button></a> : null}
+              <SongExternalLinks youtubeUrl={youtubeUrl} spotifyUrl={spotifyUrl} songTitle={song.title} compact={false} />
               {externalChordsUrl ? <a href={externalChordsUrl} target="_blank" rel="noreferrer"><Button variant="subtle"><ExternalLink className="h-4 w-4" />Acordes externos</Button></a> : null}
               {!youtubeUrl && !spotifyUrl && !externalChordsUrl ? <p className="text-sm text-ink/55">Sin enlaces de escucha registrados.</p> : null}
             </div>

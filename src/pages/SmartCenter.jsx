@@ -268,7 +268,7 @@ export function SmartCenter({ scheduleId = "", embedded = false, initialDate = "
   const navigate = useNavigate();
   const reduceMotion = useReducedMotion();
   const { profile, canEdit } = useAuth();
-  const { songs, schedules, plannedNewSongs = [], themes, saveSchedule, replaceScheduleSong, indexLocalPdfTexts, saveServiceFollowUp, closeScheduleService } = useMusicData();
+  const { songs, schedules, plannedNewSongs = [], themes, settings, saveSchedule, replaceScheduleSong, indexLocalPdfTexts, saveServiceFollowUp, closeScheduleService } = useMusicData();
   const nextSchedule = getCurrentOrNextSchedule(schedules) || schedules[0] || null;
   const initialSuggestedServiceType = scheduleId ? "" : suggestServiceTypeFromDate(initialDate);
   const [activeTab, setActiveTab] = useState("programar");
@@ -845,6 +845,7 @@ export function SmartCenter({ scheduleId = "", embedded = false, initialDate = "
               songs={songs}
               schedules={schedules}
               themes={themes}
+              settings={settings}
               schedule={contextualSchedule || schedules.find((item) => item.id === scheduleId) || null}
               initialDate={initialDate}
               canEdit={canEdit}

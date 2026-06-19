@@ -16,7 +16,10 @@ import { appDarkLogo, appLogo, fallbackAppLogo } from "../assets/logo";
 import { activateLatestAppVersion, compareVersions, fetchLatestVersion, getInstalledVersion } from "../services/appUpdate";
 import { appVersion } from "../data/changelog";
 import { AndroidNotificationPermissionWizard } from "../components/notifications/AndroidNotificationPermissionWizard";
+import { DailyVerseSettings } from "../components/settings/DailyVerseSettings";
+import { EditableServiceOptions, EditableTextOptions } from "../components/settings/EditableOptionsList";
 import { isAndroidDevice } from "../services/notificationDevice";
+import { defaultServiceTypeOptions, defaultWorshipLeaderOptions, normalizeServiceTypeOption } from "../services/serviceOptions";
 
 const defaultColors = {
   accentColor: "#b6945f",
@@ -55,9 +58,14 @@ export function Settings() {
     importSongs,
     removeUserAccess,
     indexLocalPdfTexts,
+    logAuditEvent,
     seedExampleData
   } = useMusicData();
-  const [localSettings, setLocalSettings] = useState(settings);
+  const [localSettings, setLocalSettings] = useState(() => ({
+    ...settings,
+    worshipLeaderOptions: Array.isArray(settings?.worshipLeaderOptions) ? settings.worshipLeaderOptions : defaultWorshipLeaderOptions,
+    serviceTypeOptions: Array.isArray(settings?.serviceTypeOptions) ? settings.serviceTypeOptions : defaultServiceTypeOptions
+  }));
   const [personalSettings, setPersonalSettings] = useState({
     preferredDisplayName: profile?.preferredDisplayName || "",
     themeMode: profile?.themeMode || localStorage.getItem("roca-eterna-theme-mode") || "system",
@@ -212,8 +220,26 @@ export function Settings() {
   const activeAdmins = userRows.filter((user) => user.active !== false && user.role === "admin").length;
 
   useEffect(() => {
-    setLocalSettings(settings);
+    setLocalSettings({
+      ...settings,
+      worshipLeaderOptions: Array.isArray(settings?.worshipLeaderOptions) ? settings.worshipLeaderOptions : defaultWorshipLeaderOptions,
+      serviceTypeOptions: Array.isArray(settings?.serviceTypeOptions) ? settings.serviceTypeOptions : defaultServiceTypeOptions
+    });
   }, [settings]);
+
+  const saveInstitutionalSettings = async () => {
+    const worshipLeaderOptions = (localSettings.worshipLeaderOptions || [])
+      .map((value) => String(value || "").trim())
+      .filter(Boolean);
+    const serviceTypeOptions = (localSettings.serviceTypeOptions || [])
+      .map(normalizeServiceTypeOption)
+      .filter(Boolean);
+    if (!serviceTypeOptions.length) {
+      alert("Debe quedar al menos un tipo de servicio.");
+      return;
+    }
+    await saveSettings({ ...localSettings, worshipLeaderOptions, serviceTypeOptions });
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -612,6 +638,19 @@ export function Settings() {
               </Select>
             </Field>
           </div>
+          <div className="mt-5 grid gap-4">
+            <EditableTextOptions
+              title="Líderes de adoración"
+              description="Estas opciones aparecen al crear o editar una programación. La opción para escribir otro nombre seguirá disponible."
+              values={localSettings.worshipLeaderOptions || []}
+              onChange={(values) => updateSettings("worshipLeaderOptions", values)}
+              placeholder="Nombre del líder"
+            />
+            <EditableServiceOptions
+              values={localSettings.serviceTypeOptions || []}
+              onChange={(values) => updateSettings("serviceTypeOptions", values)}
+            />
+          </div>
           <p className="mt-4 text-xs leading-5 text-ink/55">
             Si tu logo es blanco/transparente, usa una version oscura para modo claro y una version clara para modo oscuro.
           </p>
@@ -635,12 +674,14 @@ export function Settings() {
           <FileDiagnosticPanel result={logoTest} />
           {isAdmin ? (
             <div className="mt-5 flex flex-wrap gap-3">
-              <Button onClick={() => saveSettings(localSettings)}><Save className="h-4 w-4" />Guardar ajustes</Button>
+              <Button onClick={saveInstitutionalSettings}><Save className="h-4 w-4" />Guardar ajustes</Button>
               <Button variant="secondary" onClick={() => setLocalSettings((current) => ({ ...current, logoLightUrl: "", logoDarkUrl: "", logoAltText: "" }))}>Restaurar logo por defecto</Button>
             </div>
           ) : null}
         </Card>
         ) : null}
+
+        {isAdmin ? <DailyVerseSettings profile={profile} logAuditEvent={logAuditEvent} /> : null}
 
         {isAdmin || isEditor ? (
         <Card>
@@ -1382,14 +1423,6 @@ export function Settings() {
         </Card>
         ) : null}
 
-        {!isViewer ? (
-        <Card>
-          <h2 className="text-xl font-bold text-ink">Seguridad</h2>
-          <p className="mt-3 text-sm leading-6 text-ink/60">
-            La proteccion real depende de Firebase Authentication y las reglas publicadas en Firestore. Archivo local de referencia: firebase2.rules.
-          </p>
-        </Card>
-        ) : null}
       </aside>
     </div>
     </>
