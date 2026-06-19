@@ -25,6 +25,16 @@ export function DailyVerseWelcome({
     if (!leaving) exitReported.current = false;
   }, [leaving]);
 
+  useEffect(() => {
+    if (!leaving) return undefined;
+    const timer = window.setTimeout(() => {
+      if (exitReported.current) return;
+      exitReported.current = true;
+      onExited?.();
+    }, reduceMotion ? 240 : 950);
+    return () => window.clearTimeout(timer);
+  }, [leaving, onExited, reduceMotion]);
+
   return (
     <motion.main
       className="fixed inset-0 z-[12000] flex min-h-[100dvh] items-center justify-center overflow-y-auto bg-[#0d1012] px-5 py-[max(1.5rem,env(safe-area-inset-top))] text-white"

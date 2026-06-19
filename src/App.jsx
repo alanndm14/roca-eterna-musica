@@ -1,5 +1,5 @@
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
-import { useCallback, useEffect, useState } from "react";
+import { lazy, useCallback, useEffect, useState } from "react";
 import { RefreshCw, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
 import { AppShell } from "./components/layout/AppShell";
@@ -12,20 +12,22 @@ import { MusicDataProvider, useMusicData } from "./hooks/useMusicData";
 import { appDarkLogo, appLogo } from "./assets/logo";
 import { getEffectiveThemeMode, getInstitutionalLogo } from "./services/songUtils";
 import { Dashboard } from "./pages/Dashboard";
-import { AuditLogs } from "./pages/AuditLogs";
-import { Changelog } from "./pages/Changelog";
-import { History } from "./pages/History";
 import { Login } from "./pages/Login";
-import { MusicianView } from "./pages/MusicianView";
-import { Schedules } from "./pages/Schedules";
-import { Settings } from "./pages/Settings";
-import { SongDetail } from "./pages/SongDetail";
-import { Songs } from "./pages/Songs";
-import { Stats } from "./pages/Stats";
 import { Unauthorized } from "./pages/Unauthorized";
 import { appBuildVersion, appVersion } from "./data/changelog";
 import { activateLatestAppVersion, compareVersions, fetchLatestVersion, markInstalledVersion, wasUpdateDismissed } from "./services/appUpdate";
 import { fallbackLoginVerses, fetchDailyVerse, getDeterministicDailyVerse, getLocalDateKey } from "./services/dailyVerses";
+import { loadRouteModule } from "./services/routePreload";
+
+const Songs = lazy(() => loadRouteModule("songs").then((module) => ({ default: module.Songs })));
+const SongDetail = lazy(() => loadRouteModule("songDetail").then((module) => ({ default: module.SongDetail })));
+const Schedules = lazy(() => loadRouteModule("schedules").then((module) => ({ default: module.Schedules })));
+const MusicianView = lazy(() => loadRouteModule("musicianView").then((module) => ({ default: module.MusicianView })));
+const History = lazy(() => loadRouteModule("history").then((module) => ({ default: module.History })));
+const Stats = lazy(() => loadRouteModule("stats").then((module) => ({ default: module.Stats })));
+const Settings = lazy(() => loadRouteModule("settings").then((module) => ({ default: module.Settings })));
+const AuditLogs = lazy(() => loadRouteModule("auditLogs").then((module) => ({ default: module.AuditLogs })));
+const Changelog = lazy(() => loadRouteModule("changelog").then((module) => ({ default: module.Changelog })));
 
 function SilentStartupFrame() {
   return <div className="min-h-screen bg-stonewash" aria-hidden="true" />;

@@ -1,5 +1,6 @@
 import { NavLink } from "react-router-dom";
 import { appLogo, fallbackAppLogo } from "../../assets/logo";
+import { preloadRoutePath } from "../../services/routePreload";
 import { getVisibleNavItems } from "./navigation";
 
 export function Sidebar({ profile, collapsed = false, logoSrc = appLogo, logoAlt = "Roca Eterna Música", logoMode = "light" }) {
@@ -33,6 +34,9 @@ export function Sidebar({ profile, collapsed = false, logoSrc = appLogo, logoAlt
             end={item.path === "/"}
             data-tour={item.tourId}
             title={collapsed ? item.label : undefined}
+            onPointerEnter={() => preloadRoutePath(item.path)}
+            onFocus={() => preloadRoutePath(item.path)}
+            onTouchStart={() => preloadRoutePath(item.path)}
             className={({ isActive }) =>
               `flex items-center gap-3 rounded-2xl py-3 text-sm font-semibold transition ${
                 collapsed ? "justify-center px-0" : "px-4"

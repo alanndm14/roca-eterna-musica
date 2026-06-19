@@ -1,5 +1,5 @@
 export const appVersion = "1.0";
-export const appBuildVersion = "1.0.1";
+export const appBuildVersion = "1.0.2";
 
 export const changelog = [
   {
@@ -16,12 +16,14 @@ export const changelog = [
       "Guardar seguimiento conserva el trabajo y cerrar el servicio deja únicamente las observaciones útiles",
       "La indexación de PDFs procesa solo cantos nuevos, pendientes o con archivo modificado",
       "Los viewers pueden consultar el artista de cada canto",
-      "El equipo de Medios puede guardar el enlace de diapositivas del servicio"
+      "El equipo de Medios puede guardar el enlace de diapositivas del servicio",
+      "Navegación más fluida con carga anticipada de secciones"
     ],
     fixed: [
       "Notas internas actualizadas en Inicio y navegación directa a cantos y programaciones",
       "Revisión del servicio sin textos repetidos ni explicaciones internas de penalización",
-      "Controles de tipos de servicio contenidos correctamente dentro de su tarjeta"
+      "Controles de tipos de servicio contenidos correctamente dentro de su tarjeta",
+      "Transiciones generales optimizadas para móvil y computadora"
     ],
     pending: []
   },

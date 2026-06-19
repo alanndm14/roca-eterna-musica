@@ -1,11 +1,11 @@
 {
-  "version": "1.0.1",
+  "version": "1.0.2",
   "displayVersion": "1.0",
   "date": "2026-06-19",
   "critical": true,
   "changes": [
-    "Artistas visibles en el repertorio",
-    "Medios puede guardar las diapositivas del servicio",
-    "Correcciones de permisos y actualización"
+    "Navegación más fluida entre secciones",
+    "Carga inicial optimizada",
+    "Mejor respuesta en móvil y computadora"
   ]
 }

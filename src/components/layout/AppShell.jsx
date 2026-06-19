@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { Bell, CalendarDays, CheckCheck, HelpCircle, Music2, PanelLeftClose, PanelLeftOpen, RefreshCw, Sparkles } from "lucide-react";
 import { appDarkLogo, appLogo, fallbackAppLogo } from "../../assets/logo";
 import { useAuth } from "../../hooks/useAuth";
@@ -14,6 +14,7 @@ import { Button } from "../ui/Button";
 import { ErrorBoundary } from "../ui/ErrorBoundary";
 import { BottomNav } from "./BottomNav";
 import { Sidebar } from "./Sidebar";
+import { preloadRoutePath } from "../../services/routePreload";
 
 const pageNames = {
   "/": "Inicio",
@@ -159,9 +160,22 @@ function NotificationsPortal({
   );
 }
 
+function RouteFallback() {
+  return (
+    <div className="route-fallback" aria-label="Cargando sección">
+      <div className="h-20 rounded-2xl bg-ink/5" />
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="h-36 rounded-2xl bg-ink/5" />
+        <div className="h-36 rounded-2xl bg-ink/5" />
+      </div>
+    </div>
+  );
+}
+
 export function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
+  const reduceMotion = useReducedMotion();
   const { profile, saveUserPreferences } = useAuth();
   const { settings, useLocal, notifications, schedules, songs, markNotificationRead, markAllNotificationsRead } = useMusicData();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem(sidebarStorageKey) === "true");
@@ -210,6 +224,38 @@ export function AppShell() {
   useEffect(() => {
     localStorage.setItem(sidebarStorageKey, String(sidebarCollapsed));
   }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let timeoutId = 0;
+    let idleId = 0;
+    const paths = profile?.role === "viewer"
+      ? ["/repertorio", "/servicios", "/configuracion"]
+      : ["/programacion", "/repertorio", "/musicos", "/historial", "/estadisticas", "/configuracion"];
+
+    const scheduleNext = (index, delay = 700) => {
+      if (cancelled || index >= paths.length) return;
+      timeoutId = window.setTimeout(() => {
+        const run = async () => {
+          if (cancelled) return;
+          await preloadRoutePath(paths[index]);
+          scheduleNext(index + 1);
+        };
+        if ("requestIdleCallback" in window) {
+          idleId = window.requestIdleCallback(run, { timeout: 3000 });
+        } else {
+          run();
+        }
+      }, delay);
+    };
+
+    timeoutId = window.setTimeout(() => scheduleNext(0, 0), 2500);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+      if ("cancelIdleCallback" in window && idleId) window.cancelIdleCallback(idleId);
+    };
+  }, [profile?.role]);
 
   useEffect(() => {
     if (
@@ -619,11 +665,19 @@ export function AppShell() {
               </div>
             </motion.div>
           ) : null}
-          <div>
+          <motion.div
+            key={location.pathname}
+            className="route-content min-w-0"
+            initial={reduceMotion ? false : { opacity: 0.72, y: 5 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: reduceMotion ? 0 : 0.18, ease: [0.22, 1, 0.36, 1] }}
+          >
             <ErrorBoundary resetKey={location.pathname}>
-              <Outlet />
+              <Suspense fallback={<RouteFallback />}>
+                <Outlet />
+              </Suspense>
             </ErrorBoundary>
-          </div>
+          </motion.div>
         </div>
       </main>
       <BottomNav />

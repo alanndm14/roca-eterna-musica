@@ -4,6 +4,7 @@ import { HelpCircle, LogOut, MoreHorizontal, X } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { getMobileExtraItems, getMobilePrimaryItems } from "./navigation";
 import { Button } from "../ui/Button";
+import { preloadRoutePath } from "../../services/routePreload";
 
 export function BottomNav() {
   const location = useLocation();
@@ -37,6 +38,9 @@ export function BottomNav() {
                   to={item.path}
                   data-tour={item.tourId}
                   onClick={() => setOpen(false)}
+                  onPointerEnter={() => preloadRoutePath(item.path)}
+                  onFocus={() => preloadRoutePath(item.path)}
+                  onTouchStart={() => preloadRoutePath(item.path)}
                   className={({ isActive }) => `flex min-h-12 items-center gap-3 rounded-2xl px-4 text-sm font-semibold transition ${isActive ? "bg-ink text-white" : "bg-ink/5 text-ink"}`}
                 >
                   <item.icon className="h-5 w-5" />
@@ -66,6 +70,9 @@ export function BottomNav() {
               to={item.path}
               end={item.path === "/"}
               data-tour={item.tourId}
+              onPointerEnter={() => preloadRoutePath(item.path)}
+              onFocus={() => preloadRoutePath(item.path)}
+              onTouchStart={() => preloadRoutePath(item.path)}
               className={({ isActive }) => `flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl text-[11px] font-semibold transition ${isActive ? "bg-ink text-white" : "text-ink/55"}`}
             >
               <item.icon className="h-5 w-5" />
