@@ -23,8 +23,8 @@ import { SongDetail } from "./pages/SongDetail";
 import { Songs } from "./pages/Songs";
 import { Stats } from "./pages/Stats";
 import { Unauthorized } from "./pages/Unauthorized";
-import { appVersion } from "./data/changelog";
-import { activateLatestAppVersion, compareVersions, fetchLatestVersion, getInstalledVersion, markInstalledVersion, wasUpdateDismissed } from "./services/appUpdate";
+import { appBuildVersion, appVersion } from "./data/changelog";
+import { activateLatestAppVersion, compareVersions, fetchLatestVersion, markInstalledVersion, wasUpdateDismissed } from "./services/appUpdate";
 import { fallbackLoginVerses, fetchDailyVerse, getDeterministicDailyVerse, getLocalDateKey } from "./services/dailyVerses";
 
 function SilentStartupFrame() {
@@ -129,15 +129,14 @@ function DataReady({ children }) {
     fetchLatestVersion()
       .then((latest) => {
         if (cancelled) return;
-        const installed = getInstalledVersion();
         const hasUpdate = latest?.version
-          && compareVersions(latest.version, appVersion) > 0
+          && compareVersions(latest.version, appBuildVersion) > 0
           && (!wasUpdateDismissed(latest.version) || latest.critical);
-        if (!hasUpdate) markInstalledVersion(appVersion);
-        setUpdateCheck({ checked: true, update: hasUpdate ? { ...latest, installedVersion: installed || appVersion } : null });
+        if (!hasUpdate) markInstalledVersion(appBuildVersion);
+        setUpdateCheck({ checked: true, update: hasUpdate ? { ...latest, installedVersion: appVersion } : null });
       })
       .catch(() => {
-        markInstalledVersion(appVersion);
+        markInstalledVersion(appBuildVersion);
         if (!cancelled) setUpdateCheck({ checked: true, update: null });
       });
     return () => {
@@ -222,7 +221,7 @@ function StartupUpdateScreen({ update }) {
         <ul className="mt-4 space-y-2 text-sm font-semibold text-ink/70">
           {(update.changes || []).slice(0, 3).map((change) => <li key={change}>- {change}</li>)}
         </ul>
-        <p className="mt-4 text-xs font-bold text-ink/45">Instalada: {update.installedVersion || appVersion} · Disponible: {update.version}</p>
+        <p className="mt-4 text-xs font-bold text-ink/45">Instalada: {appVersion} · Disponible: {update.displayVersion || appVersion}</p>
         <Button className="mt-5 w-full" onClick={() => activateLatestAppVersion(update.version)}>
           <RefreshCw className="h-4 w-4" />
           Actualizar ahora

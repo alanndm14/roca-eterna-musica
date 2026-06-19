@@ -222,7 +222,15 @@ async function verifyAppCheckIfRequired(request) {
   await admin.appCheck().verifyToken(appCheckToken);
 }
 
-async function checkRole(decoded) {
+function isMediaSlidesPushRequest(payload = {}) {
+  return payload.mode === "targeted"
+    && payload.audience === "admins_media"
+    && payload.type === "other"
+    && String(payload.notificationId || "").startsWith("slides-ready-")
+    && Boolean(payload.scheduleId);
+}
+
+async function checkRole(decoded, payload = {}) {
   const tokenEmail = String(decoded?.email || "").trim().toLowerCase();
   const claimedRole = String(decoded?.role || "").trim().toLowerCase();
   const trustedEmails = new Set(String(process.env.PUSH_ALLOWED_SENDER_EMAILS || "")
@@ -237,8 +245,11 @@ async function checkRole(decoded) {
     );
     const requester = requesterSnap.data();
     const requesterEmail = String(requester?.email || "").trim().toLowerCase();
-    if (requester?.active && requesterEmail && requesterEmail === tokenEmail && ["admin", "editor"].includes(requester.role)) {
-      return requester;
+    if (requester?.active && requesterEmail && requesterEmail === tokenEmail) {
+      if (["admin", "editor"].includes(requester.role)) return requester;
+      if (requester.role === "viewer" && requester.viewerType === "medios" && isMediaSlidesPushRequest(payload)) {
+        return requester;
+      }
     }
   } catch (error) {
     if (!isTransientFirestoreError(error)) throw error;
@@ -687,7 +698,7 @@ export default async function handler(request, response) {
     }
 
     stage = "check_role";
-    await checkRole(decoded);
+    await checkRole(decoded, request.body || {});
 
     const payloadValidation = validatePayload({ mode, type, title, body, url });
     if (!payloadValidation.ok) return sendJson(response, 400, { ok: false, stage: "validate_payload", ...payloadValidation });

@@ -163,7 +163,7 @@ export function SongDetail() {
           <div>
             {!isViewer ? <p className="text-sm font-semibold uppercase tracking-wide text-brass">{song.category || "normal"}</p> : null}
             <h2 className="mt-2 text-4xl font-bold tracking-normal">{song.title}</h2>
-            {!isViewer ? <p className="mt-2 text-white/60">{song.artistOrSource || "Sin fuente registrada"}</p> : null}
+            <p className="mt-2 text-white/60">{song.artistOrSource || "Sin artista registrado"}</p>
             {!isViewer ? <div className="mt-5 flex flex-wrap gap-2">
               {song.mainTheme ? <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-brass">{song.mainTheme}</span> : null}
               {(song.otherThemes || []).map((theme) => (

@@ -13,8 +13,8 @@ import { diagnosePublicAsset } from "../services/publicPdfTools";
 import { getLastPushResult, isPushBackendConfigured, sendExternalPush } from "../services/externalPush";
 import { cleanupCurrentUserFcmTokens, diagnosePushNotifications, disablePushNotificationsForUser, enablePushNotificationsForUser, getCurrentPushTokenForUser, getLastBackgroundPush, getLastForegroundPush, reinstallMessagingServiceWorker, requestSiteNotificationPermissionOnly, testLocalNotification } from "../services/pushNotifications";
 import { appDarkLogo, appLogo, fallbackAppLogo } from "../assets/logo";
-import { activateLatestAppVersion, compareVersions, fetchLatestVersion, getInstalledVersion } from "../services/appUpdate";
-import { appVersion } from "../data/changelog";
+import { activateLatestAppVersion, compareVersions, fetchLatestVersion } from "../services/appUpdate";
+import { appBuildVersion, appVersion } from "../data/changelog";
 import { AndroidNotificationPermissionWizard } from "../components/notifications/AndroidNotificationPermissionWizard";
 import { DailyVerseSettings } from "../components/settings/DailyVerseSettings";
 import { EditableServiceOptions, EditableTextOptions } from "../components/settings/EditableOptionsList";
@@ -1412,19 +1412,19 @@ export function Settings() {
           <dl className="mt-4 grid gap-2 rounded-2xl bg-ink/5 p-3 text-sm">
             <div className="flex items-center justify-between gap-3">
               <dt className="text-ink/55">Versión instalada</dt>
-              <dd className="font-semibold text-ink">{getInstalledVersion() || appVersion}</dd>
+              <dd className="font-semibold text-ink">{appVersion}</dd>
             </div>
             <div className="flex items-center justify-between gap-3">
               <dt className="text-ink/55">Última versión disponible</dt>
-              <dd className="font-semibold text-ink">{latestVersion?.version || "sin revisar"}</dd>
+              <dd className="font-semibold text-ink">{latestVersion?.displayVersion || (latestVersion ? appVersion : "sin revisar")}</dd>
             </div>
             <div className="flex items-center justify-between gap-3">
               <dt className="text-ink/55">Estado</dt>
-              <dd className="font-semibold text-ink">{latestVersion?.version && compareVersions(latestVersion.version, appVersion) > 0 ? "actualización disponible" : "actualizado"}</dd>
+              <dd className="font-semibold text-ink">{latestVersion?.version && compareVersions(latestVersion.version, appBuildVersion) > 0 ? "actualización disponible" : "actualizado"}</dd>
             </div>
           </dl>
           <Button className="mt-4 w-full" variant="secondary" onClick={refreshApp} disabled={isRefreshingApp}>
-            {isRefreshingApp ? "Actualizando..." : latestVersion?.version && compareVersions(latestVersion.version, appVersion) > 0 ? "Actualizar ahora" : "Buscar y actualizar"}
+            {isRefreshingApp ? "Actualizando..." : latestVersion?.version && compareVersions(latestVersion.version, appBuildVersion) > 0 ? "Actualizar ahora" : "Buscar y actualizar"}
           </Button>
           {updateStatus ? <p className="mt-3 rounded-2xl bg-ink/5 p-3 text-sm text-ink/65">{updateStatus}</p> : null}
         </Card>

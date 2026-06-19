@@ -1,8 +1,9 @@
-export const appVersion = "1.0.0";
+export const appVersion = "1.0";
+export const appBuildVersion = "1.0.1";
 
 export const changelog = [
   {
-    version: "1.0.0",
+    version: "1.0",
     date: "2026-06-19",
     title: "Bienvenida diaria con versículo",
     added: [
@@ -13,7 +14,9 @@ export const changelog = [
     changed: [
       "Inicio muestra el próximo canto nuevo con cuenta regresiva en días, horas o minutos",
       "Guardar seguimiento conserva el trabajo y cerrar el servicio deja únicamente las observaciones útiles",
-      "La indexación de PDFs procesa solo cantos nuevos, pendientes o con archivo modificado"
+      "La indexación de PDFs procesa solo cantos nuevos, pendientes o con archivo modificado",
+      "Los viewers pueden consultar el artista de cada canto",
+      "El equipo de Medios puede guardar el enlace de diapositivas del servicio"
     ],
     fixed: [
       "Notas internas actualizadas en Inicio y navegación directa a cantos y programaciones",

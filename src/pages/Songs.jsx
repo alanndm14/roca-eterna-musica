@@ -861,7 +861,7 @@ export function Songs() {
                     <Link to={`/repertorio/${song.id}`} className="text-lg font-bold text-ink hover:text-brass" onClick={(event) => event.stopPropagation()}>
                       {song.title}
                     </Link>
-                    {!isViewer ? <p className="mt-1 text-sm text-ink/55">{song.artistOrSource || "Sin fuente"}</p> : null}
+                    <p className="mt-1 text-sm text-ink/55">{song.artistOrSource || "Sin artista registrado"}</p>
                   </div>
                   {!isViewer ? <span className="rounded-xl bg-ink px-3 py-1 text-sm font-bold text-white">{song.mainKey || "--"}</span> : null}
                 </div>

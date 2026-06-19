@@ -152,7 +152,7 @@ export function MusicianView({ mediaMode = false }) {
   const { isAdmin, canEdit, profile } = useAuth();
   const [searchParams] = useSearchParams();
   const isViewer = profile?.role === "viewer";
-  const { schedules, songs, settings, plannedNewSongs = [], replaceScheduleSong, saveSchedule } = useMusicData();
+  const { schedules, songs, settings, plannedNewSongs = [], replaceScheduleSong, saveSchedule, saveScheduleSlidesUrl } = useMusicData();
   const [selectedId, setSelectedId] = useState("");
   const [focusMode, setFocusMode] = useState(false);
   const [sheetUrl, setSheetUrl] = useState("");
@@ -228,6 +228,7 @@ export function MusicianView({ mediaMode = false }) {
 
   const selectedSchedule = schedules.find((schedule) => schedule.id === selectedId) || (!mediaMode || !emptyDateSelected ? scheduleOptions[0] : null);
   const canSeeSlides = canEdit || (isViewer && profile?.viewerType === "medios");
+  const canManageSlides = canSeeSlides;
   const daySchedules = useMemo(
     () => schedules.filter((schedule) => schedule.date === pickerDate).sort((a, b) => `${a.time || ""}`.localeCompare(`${b.time || ""}`)),
     [pickerDate, schedules]
@@ -430,14 +431,18 @@ export function MusicianView({ mediaMode = false }) {
   };
 
   const saveSlidesUrl = async () => {
-    if (!selectedSchedule || !canEdit) return;
+    if (!selectedSchedule || !canManageSlides) return;
     const slidesUrl = slidesUrlDraft.trim();
     if (slidesUrl && !/^https:\/\//i.test(slidesUrl)) {
       setSlidesStatus("Usa un enlace seguro que comience con https://");
       return;
     }
-    await saveSchedule({ ...selectedSchedule, slidesUrl });
-    setSlidesStatus(slidesUrl ? "Enlace guardado. Administradores y Medios recibirán el aviso." : "Enlace eliminado.");
+    try {
+      await saveScheduleSlidesUrl(selectedSchedule.id, slidesUrl);
+      setSlidesStatus(slidesUrl ? "Enlace guardado. Administradores y Medios recibirán el aviso." : "Enlace eliminado.");
+    } catch (error) {
+      setSlidesStatus(error?.message || "No se pudo guardar el enlace.");
+    }
   };
 
   const openSpecialProgramEditor = () => {
@@ -654,7 +659,7 @@ export function MusicianView({ mediaMode = false }) {
               </span>
               <div className="min-w-0 flex-1">
                 <h4 className="font-bold text-ink">Diapositivas del servicio</h4>
-                {canEdit ? (
+                {canManageSlides ? (
                   <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                     <Input
                       type="url"
@@ -678,7 +683,7 @@ export function MusicianView({ mediaMode = false }) {
                     Abrir diapositivas
                     <ExternalLink className="h-4 w-4" />
                   </a>
-                ) : !canEdit ? <p className="mt-2 text-sm text-ink/55">Todavía no se ha agregado el enlace.</p> : null}
+                ) : <p className="mt-2 text-sm text-ink/55">Todavía no se ha agregado el enlace.</p>}
                 {slidesStatus ? <p className="mt-2 text-xs font-semibold text-brass">{slidesStatus}</p> : null}
               </div>
             </div>

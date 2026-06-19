@@ -1,4 +1,4 @@
-import { appVersion } from "../data/changelog";
+import { appBuildVersion, appVersion } from "../data/changelog";
 
 const versionStorageKey = "roca-eterna-installed-version";
 const dismissedStorageKey = "roca-eterna-update-dismissed-version";
@@ -18,10 +18,14 @@ export function compareVersions(a = "0.0.0", b = "0.0.0") {
 }
 
 export function getInstalledVersion() {
-  return localStorage.getItem(versionStorageKey) || appVersion;
+  return appVersion;
 }
 
-export function markInstalledVersion(version = appVersion) {
+export function getInstalledBuildVersion() {
+  return localStorage.getItem(versionStorageKey) || appBuildVersion;
+}
+
+export function markInstalledVersion(version = appBuildVersion) {
   localStorage.setItem(versionStorageKey, version);
   try {
     const pendingVersion = sessionStorage.getItem(pendingStorageKey);
@@ -102,7 +106,7 @@ async function clearAppCaches() {
 }
 
 export async function activateLatestAppVersion(version = "") {
-  const targetVersion = version || appVersion;
+  const targetVersion = version || appBuildVersion;
   clearDismissedUpdate(targetVersion);
   try {
     sessionStorage.setItem(pendingStorageKey, targetVersion);

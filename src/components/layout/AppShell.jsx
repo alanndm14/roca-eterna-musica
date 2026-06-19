@@ -8,8 +8,8 @@ import { useAuth } from "../../hooks/useAuth";
 import { useMusicData } from "../../hooks/useMusicData";
 import { getEffectiveThemeMode, getInstitutionalLogo } from "../../services/songUtils";
 import { enablePushNotificationsForUser, saveLastBackgroundPush, subscribeForegroundPushMessages } from "../../services/pushNotifications";
-import { activateLatestAppVersion, compareVersions, dismissUpdate, fetchLatestVersion, getInstalledVersion, markInstalledVersion, wasUpdateDismissed } from "../../services/appUpdate";
-import { appVersion } from "../../data/changelog";
+import { activateLatestAppVersion, compareVersions, dismissUpdate, fetchLatestVersion, markInstalledVersion, wasUpdateDismissed } from "../../services/appUpdate";
+import { appBuildVersion, appVersion } from "../../data/changelog";
 import { Button } from "../ui/Button";
 import { ErrorBoundary } from "../ui/ErrorBoundary";
 import { BottomNav } from "./BottomNav";
@@ -226,21 +226,17 @@ export function AppShell() {
   }, [profile]);
 
   useEffect(() => {
-    const installedAtStart = getInstalledVersion();
-    if (compareVersions(appVersion, installedAtStart) >= 0) {
-      markInstalledVersion(appVersion);
-    }
+    markInstalledVersion(appBuildVersion);
     let cancelled = false;
 
     const checkVersion = async () => {
       try {
         const latest = await fetchLatestVersion();
-        const installed = getInstalledVersion();
         const shouldShow = latest?.version
-          && compareVersions(latest.version, installed) > 0
+          && compareVersions(latest.version, appBuildVersion) > 0
           && (!wasUpdateDismissed(latest.version) || latest.critical);
         if (!cancelled) {
-          setAvailableUpdate(shouldShow ? { ...latest, installedVersion: installed } : null);
+          setAvailableUpdate(shouldShow ? { ...latest, installedVersion: appVersion } : null);
           setUpdateHidden(false);
         }
       } catch {
@@ -562,7 +558,7 @@ export function AppShell() {
                     {(availableUpdate.changes || []).slice(0, 3).map((change) => <li key={change}>- {change}</li>)}
                   </ul>
                   <p className="mt-3 text-xs text-ink/45">
-                    Instalada: {availableUpdate.installedVersion || appVersion} · Disponible: {availableUpdate.version}
+                    Instalada: {appVersion} · Disponible: {availableUpdate.displayVersion || appVersion}
                   </p>
                 </div>
                 <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">

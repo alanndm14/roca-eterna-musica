@@ -73,6 +73,20 @@ service cloud.firestore {
       return isAuthorized() && (role() == "admin" || role() == "editor");
     }
 
+    function viewerType() {
+      return isBootstrapAdmin()
+        ? ""
+        : hasUserDoc()
+          ? userDoc().data.get("viewerType", "")
+          : hasAuthorizedEmailDoc()
+            ? authorizedEmailDoc().data.get("viewerType", "")
+            : legacyAllowedEmailDoc().data.get("viewerType", "");
+    }
+
+    function isMediaViewer() {
+      return isAuthorized() && role() == "viewer" && viewerType() == "medios";
+    }
+
     function validShortString(value, maxSize) {
       return value is string && value.size() > 0 && value.size() <= maxSize;
     }
@@ -186,6 +200,15 @@ service cloud.firestore {
         && validOptionalList(request.resource.data.get("targetViewerTypes", null), 5);
     }
 
+    function validMediaSlidesNotificationData() {
+      return validNotificationData()
+        && request.resource.data.type == "other"
+        && request.resource.data.get("entityType", "") == "schedule"
+        && validShortString(request.resource.data.get("scheduleId", ""), 160)
+        && request.resource.data.get("targetRoles", []) == ["admin", "viewer"]
+        && request.resource.data.get("targetViewerTypes", []) == ["medios"];
+    }
+
     function validAuditData() {
       return request.resource.data.performedByUid == request.auth.uid
         && request.resource.data.performedByEmail == request.auth.token.email
@@ -275,7 +298,20 @@ service cloud.firestore {
 
     match /schedules/{scheduleId} {
       allow read: if isAuthorized();
-      allow create, update: if isEditor() && validScheduleData();
+      allow create: if isEditor() && validScheduleData();
+      allow update: if (isEditor() && validScheduleData())
+        || (
+          isMediaViewer()
+          && validScheduleData()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            "slidesUrl",
+            "slidesUpdatedAt",
+            "slidesUpdatedByUid",
+            "slidesUpdatedByName"
+          ])
+          && request.resource.data.get("slidesUpdatedByUid", "") == request.auth.uid
+          && validOptionalString(request.resource.data.get("slidesUpdatedByName", null), 160)
+        );
       allow delete: if isAdmin();
     }
 
@@ -316,13 +352,15 @@ service cloud.firestore {
 
     match /auditLogs/{logId} {
       allow read: if isAdmin();
-      allow create: if isEditor() && validAuditData();
+      allow create: if validAuditData()
+        && (isEditor() || (isMediaViewer() && request.resource.data.entityType == "schedule_slides"));
       allow update, delete: if false;
     }
 
     match /notifications/{notificationId} {
       allow read: if isAuthorized();
-      allow create: if isEditor() && validNotificationData();
+      allow create: if (isEditor() && validNotificationData())
+        || (isMediaViewer() && validMediaSlidesNotificationData());
       allow update: if isAuthorized()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["readBy"]);
       allow update: if isEditor()

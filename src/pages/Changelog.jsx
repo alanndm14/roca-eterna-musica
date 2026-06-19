@@ -1,8 +1,8 @@
 import { History } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Card } from "../components/ui/Card";
-import { appVersion, changelog } from "../data/changelog";
-import { fetchLatestVersion, getInstalledVersion } from "../services/appUpdate";
+import { appBuildVersion, appVersion, changelog } from "../data/changelog";
+import { compareVersions, fetchLatestVersion } from "../services/appUpdate";
 
 export function Changelog() {
   const [latestVersion, setLatestVersion] = useState(null);
@@ -35,15 +35,15 @@ export function Changelog() {
           <dl className="grid gap-2 rounded-2xl bg-ink/5 p-3 text-sm sm:min-w-72">
             <div className="flex justify-between gap-3">
               <dt className="text-ink/55">Instalada</dt>
-              <dd className="font-semibold text-ink">{getInstalledVersion() || appVersion}</dd>
+              <dd className="font-semibold text-ink">{appVersion}</dd>
             </div>
             <div className="flex justify-between gap-3">
               <dt className="text-ink/55">Disponible</dt>
-              <dd className="font-semibold text-ink">{latestVersion?.version || appVersion}</dd>
+              <dd className="font-semibold text-ink">{latestVersion?.displayVersion || appVersion}</dd>
             </div>
             <div className="flex justify-between gap-3">
               <dt className="text-ink/55">Estado</dt>
-              <dd className="font-semibold text-ink">{latestVersion?.version && latestVersion.version !== appVersion ? "actualización disponible" : "actualizado"}</dd>
+              <dd className="font-semibold text-ink">{latestVersion?.version && compareVersions(latestVersion.version, appBuildVersion) > 0 ? "actualización disponible" : "actualizado"}</dd>
             </div>
           </dl>
         </div>

@@ -990,6 +990,50 @@ export function MusicDataProvider({ children }) {
     }
   };
 
+  const saveScheduleSlidesUrl = async (scheduleId, value = "") => {
+    const before = schedules.find((schedule) => schedule.id === scheduleId);
+    const isMediaViewer = profile?.role === "viewer" && profile?.viewerType === "medios";
+    if (!before) throw new Error("No se encontró la programación seleccionada.");
+    if (!["admin", "editor"].includes(profile?.role) && !isMediaViewer) {
+      throw new Error("Tu perfil no puede modificar las diapositivas.");
+    }
+
+    const slidesUrl = String(value || "").trim();
+    if (slidesUrl && !/^https:\/\//i.test(slidesUrl)) {
+      throw new Error("Usa un enlace seguro que comience con https://");
+    }
+    const actorName = profile?.preferredDisplayName || profile?.displayName || profile?.email || "";
+    const update = {
+      slidesUrl,
+      slidesUpdatedAt: useLocal ? new Date().toISOString() : serverTimestamp(),
+      slidesUpdatedByUid: profile?.uid || "",
+      slidesUpdatedByName: actorName
+    };
+    const updatedSchedule = { ...before, ...update };
+
+    if (useLocal) {
+      setSchedules((current) => current.map((schedule) => (
+        schedule.id === scheduleId ? updatedSchedule : schedule
+      )));
+    } else {
+      await updateDoc(doc(db, "schedules", scheduleId), update);
+    }
+
+    await logAuditEvent({
+      actionType: "update",
+      entityType: "schedule_slides",
+      entityId: scheduleId,
+      entityName: before.serviceLabel || before.date,
+      summary: slidesUrl ? `Enlace de diapositivas agregado: ${before.serviceLabel || before.date}` : `Enlace de diapositivas eliminado: ${before.serviceLabel || before.date}`,
+      beforeData: { slidesUrl: before.slidesUrl || "" },
+      afterData: { slidesUrl }
+    });
+    if (slidesUrl && slidesUrl !== before.slidesUrl) {
+      notifySlidesAddedBestEffort(updatedSchedule, scheduleId);
+    }
+    return scheduleId;
+  };
+
   const deleteSchedule = async (scheduleId) => {
     const before = schedules.find((schedule) => schedule.id === scheduleId);
     if (useLocal) {
@@ -1506,6 +1550,7 @@ export function MusicDataProvider({ children }) {
       markPlannedNewSongIntroduced,
       deletePlannedNewSong,
       saveSchedule,
+      saveScheduleSlidesUrl,
       replaceScheduleSong,
       saveServiceFollowUp,
       closeScheduleService,
