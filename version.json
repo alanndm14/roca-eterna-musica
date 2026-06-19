@@ -1,10 +1,11 @@
 {
-  "version": "1.0.0",
+  "version": "1.0.1",
+  "displayVersion": "1.0",
   "date": "2026-06-19",
   "critical": true,
   "changes": [
-    "Bienvenida diaria con versículo",
-    "Seguimiento del servicio más claro",
-    "Diapositivas del servicio para administradores y Medios"
+    "Artistas visibles en el repertorio",
+    "Medios puede guardar las diapositivas del servicio",
+    "Correcciones de permisos y actualización"
   ]
 }
