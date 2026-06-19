@@ -4,6 +4,7 @@ import { RefreshCw, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
 import { AppShell } from "./components/layout/AppShell";
 import { OnboardingGuide } from "./components/ui/OnboardingGuide";
+import { DailyVerseWelcome } from "./components/ui/DailyVerseWelcome";
 import { WelcomeSplash } from "./components/ui/WelcomeSplash";
 import { Button } from "./components/ui/Button";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
@@ -24,6 +25,7 @@ import { Stats } from "./pages/Stats";
 import { Unauthorized } from "./pages/Unauthorized";
 import { appVersion } from "./data/changelog";
 import { activateLatestAppVersion, compareVersions, fetchLatestVersion, getInstalledVersion, markInstalledVersion, wasUpdateDismissed } from "./services/appUpdate";
+import { fallbackLoginVerses, fetchDailyVerse, getDeterministicDailyVerse, getLocalDateKey } from "./services/dailyVerses";
 
 function SilentStartupFrame() {
   return <div className="min-h-screen bg-stonewash" aria-hidden="true" />;
@@ -42,7 +44,13 @@ function ProtectedRoute({ children }) {
 function DataReady({ children }) {
   const { profile, completeOnboarding } = useAuth();
   const { loading, settings } = useMusicData();
-  const [welcomeReady, setWelcomeReady] = useState(false);
+  const dateKey = getLocalDateKey();
+  const dailySeenKey = profile?.uid ? `dailyVerseSeen:${profile.uid}` : "";
+  const [startupPhase, setStartupPhase] = useState(() => (
+    dailySeenKey && localStorage.getItem(dailySeenKey) !== dateKey ? "showing-daily-verse" : "app"
+  ));
+  const [dailyVerse, setDailyVerse] = useState(() => getDeterministicDailyVerse(fallbackLoginVerses, dateKey));
+  const [previewDailyVerse, setPreviewDailyVerse] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [guideChecked, setGuideChecked] = useState(false);
   const [updateCheck, setUpdateCheck] = useState({ checked: false, update: null });
@@ -54,14 +62,14 @@ function DataReady({ children }) {
   }, []);
 
   useEffect(() => {
-    if (loading || !profile?.active || !welcomeReady || guideChecked) return;
+    if (loading || !profile?.active || startupPhase !== "app" || guideChecked) return;
     const completed = profile.onboardingCompleted || localStorage.getItem(`roca-eterna-onboarding-${profile.uid}`) === "true";
     if (!completed) setShowGuide(true);
     setGuideChecked(true);
-  }, [guideChecked, loading, profile, welcomeReady]);
+  }, [guideChecked, loading, profile, startupPhase]);
 
   const finishWelcome = useCallback(() => {
-    setWelcomeReady(true);
+    setStartupPhase("app");
   }, []);
 
   const finishGuide = useCallback(async () => {
@@ -71,10 +79,50 @@ function DataReady({ children }) {
   const themeMode = profile?.themeMode || localStorage.getItem("roca-eterna-theme-mode") || "system";
   const effectiveTheme = getEffectiveThemeMode(themeMode);
   const logoSrc = getInstitutionalLogo(settings, effectiveTheme === "dark" ? appDarkLogo : appLogo, themeMode);
+  const loadDailyVerse = useCallback((nextDateKey = getLocalDateKey()) => {
+    const fallback = getDeterministicDailyVerse(fallbackLoginVerses, nextDateKey);
+    setDailyVerse(fallback);
+    fetchDailyVerse(nextDateKey)
+      .then((verse) => setDailyVerse((current) => verse || current || fallback))
+      .catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", effectiveTheme === "dark");
   }, [effectiveTheme]);
+
+  useEffect(() => {
+    if (!profile?.uid || !profile.active) return;
+    const today = getLocalDateKey();
+    if (localStorage.getItem(`dailyVerseSeen:${profile.uid}`) !== today) {
+      loadDailyVerse(today);
+      setStartupPhase((current) => current === "showing-welcome" ? current : "showing-daily-verse");
+    }
+  }, [loadDailyVerse, profile?.active, profile?.uid]);
+
+  useEffect(() => {
+    const preview = () => {
+      setPreviewDailyVerse(true);
+      loadDailyVerse(getLocalDateKey());
+      setStartupPhase("showing-daily-verse");
+    };
+    window.addEventListener("roca-eterna-preview-daily-verse", preview);
+    return () => window.removeEventListener("roca-eterna-preview-daily-verse", preview);
+  }, [loadDailyVerse]);
+
+  useEffect(() => {
+    const checkNewDay = () => {
+      if (document.visibilityState !== "visible" || !profile?.uid || startupPhase !== "app") return;
+      if (document.querySelector('[role="dialog"], [aria-modal="true"]')) return;
+      const today = getLocalDateKey();
+      if (localStorage.getItem(`dailyVerseSeen:${profile.uid}`) === today) return;
+      setPreviewDailyVerse(false);
+      loadDailyVerse(today);
+      setStartupPhase("showing-daily-verse");
+    };
+    document.addEventListener("visibilitychange", checkNewDay);
+    return () => document.removeEventListener("visibilitychange", checkNewDay);
+  }, [loadDailyVerse, profile?.uid, startupPhase]);
 
   useEffect(() => {
     let cancelled = false;
@@ -98,14 +146,35 @@ function DataReady({ children }) {
   }, []);
 
   if (!updateCheck.checked) {
-    return <div className="min-h-screen bg-stonewash" aria-hidden="true" />;
+    return <SilentStartupFrame />;
   }
 
   if (updateCheck.update) {
     return <StartupUpdateScreen update={updateCheck.update} />;
   }
 
-  if (loading || !welcomeReady) {
+  if (startupPhase === "showing-daily-verse" || startupPhase === "leaving-daily-verse") {
+    return (
+      <DailyVerseWelcome
+        verse={dailyVerse}
+        logoSrc={logoSrc}
+        logoAlt={settings?.logoAltText || "Roca Eterna Música"}
+        leaving={startupPhase === "leaving-daily-verse"}
+        onContinue={() => setStartupPhase("leaving-daily-verse")}
+        onExited={() => {
+          if (!previewDailyVerse && profile?.uid) {
+            localStorage.setItem(`dailyVerseSeen:${profile.uid}`, getLocalDateKey());
+            setStartupPhase("showing-welcome");
+            return;
+          }
+          setPreviewDailyVerse(false);
+          setStartupPhase("app");
+        }}
+      />
+    );
+  }
+
+  if (startupPhase === "showing-welcome" || (loading && startupPhase !== "app")) {
     return (
       <WelcomeSplash
         profile={profile}

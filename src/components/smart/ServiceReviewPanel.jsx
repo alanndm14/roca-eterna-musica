@@ -83,7 +83,6 @@ export function ServiceReviewPanel({ review, compact = false, interactive = fals
           {review.subtitle ? <p className="mt-1 text-xs font-semibold text-ink/50">{review.subtitle}</p> : null}
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <span className={`rounded-full border px-3 py-1 text-xs font-black uppercase tracking-wide ${risk.badge}`}>{risk.label}</span>
-            <span className="text-sm font-bold text-ink/65">Preparación {score}%</span>
           </div>
         </div>
         <div className="min-w-48">
@@ -99,7 +98,6 @@ export function ServiceReviewPanel({ review, compact = false, interactive = fals
 
       {visibleGroups.length ? (
         <div className={`${compact ? "mt-4" : "mt-5"} grid gap-2`}>
-          <p className="text-sm font-black text-ink">{compact ? "Resumen" : "Problemas detectados"}</p>
           {visibleGroups.map((group) => {
             const config = alertStyles[group.severity] || alertStyles.info;
             const Icon = config.icon;
@@ -136,9 +134,6 @@ export function ServiceReviewPanel({ review, compact = false, interactive = fals
               </article>
             );
           })}
-          {groups.some((group) => group.title === "Enlaces de escucha") ? (
-            <p className="text-xs font-semibold text-ink/50">Los enlaces de escucha ayudan al ensayo, pero no afectan la preparación.</p>
-          ) : null}
         </div>
       ) : (
         <div className="mt-5 rounded-2xl border border-emerald-300 bg-emerald-50 p-3 text-sm font-semibold text-emerald-900 dark:border-emerald-400/35 dark:bg-emerald-500/14 dark:text-emerald-50">

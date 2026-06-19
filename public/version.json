@@ -1,10 +1,10 @@
 {
-  "version": "0.9.137",
+  "version": "1.0.0",
   "date": "2026-06-19",
   "critical": true,
   "changes": [
-    "Corrección de vistas para el modo oscuro y de colores",
-    "Versículo del día en la pantalla de acceso",
-    "Opciones editables de líderes y tipos de servicio"
+    "Bienvenida diaria con versículo",
+    "Seguimiento del servicio más claro",
+    "Diapositivas del servicio para administradores y Medios"
   ]
 }

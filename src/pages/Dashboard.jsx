@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { BellRing, CalendarPlus, Clock, ExternalLink, FileClock, ListPlus, Music2, RotateCcw, Sparkles } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { BellRing, CalendarPlus, Clock, ExternalLink, FileClock, ListPlus, Music2, Presentation, RotateCcw, Sparkles } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { SongExternalLinks } from "../components/ui/SongExternalLinks";
@@ -53,7 +53,16 @@ const getMonthlyTopSongs = (schedules = []) => {
   return [...counts.values()].sort((a, b) => b.count - a.count).slice(0, 3);
 };
 
-const getNextPlannedNewSong = (plannedNewSongs = [], songs = [], now = new Date()) => {
+const plannedTypeMatchesSchedule = (plannedType = "", schedule = {}) => {
+  const type = normalizeSearchText(schedule.serviceType || schedule.serviceLabel || schedule.type || "");
+  if (plannedType === "domingo_am") return type.includes("domingo") && (type.includes("manana") || type.includes("am"));
+  if (plannedType === "domingo_pm") return type.includes("domingo") && (type.includes("tarde") || type.includes("pm"));
+  if (plannedType === "miercoles") return type.includes("miercoles");
+  if (plannedType === "especial") return Boolean(schedule.isSpecialService) || type.includes("especial");
+  return true;
+};
+
+const getNextPlannedNewSong = (plannedNewSongs = [], songs = [], schedules = [], now = new Date()) => {
   const today = todayString();
   const candidates = (Array.isArray(plannedNewSongs) ? plannedNewSongs : [])
     .filter((item) => {
@@ -65,15 +74,29 @@ const getNextPlannedNewSong = (plannedNewSongs = [], songs = [], now = new Date(
   if (!planned) return null;
   const song = songs.find((item) => item.id === planned.songId)
     || songs.find((item) => normalizeSearchText(item.title) === normalizeSearchText(planned.songTitle || planned.title || ""));
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const target = new Date(`${planned.plannedDate}T00:00:00`).getTime();
-  const days = Math.max(0, Math.ceil((target - todayStart) / (24 * 60 * 60 * 1000)));
-  return { planned, song, days };
+  const dateSchedules = schedules
+    .filter((schedule) => schedule.date === planned.plannedDate && !schedule.deleted && schedule.active !== false)
+    .sort((a, b) => String(a.time || "").localeCompare(String(b.time || "")));
+  const schedule = dateSchedules.find((item) => plannedTypeMatchesSchedule(planned.serviceType, item)) || dateSchedules[0] || null;
+  const target = schedule ? getScheduleStartDate(schedule) : new Date(`${planned.plannedDate}T00:00:00`);
+  const diff = Math.max(0, (target?.getTime?.() || now.getTime()) - now.getTime());
+  const minuteMs = 60 * 1000;
+  const hourMs = 60 * minuteMs;
+  const dayMs = 24 * hourMs;
+  const countdown = diff >= dayMs
+    ? { value: Math.ceil(diff / dayMs), unit: Math.ceil(diff / dayMs) === 1 ? "día" : "días" }
+    : diff >= hourMs
+      ? { value: Math.ceil(diff / hourMs), unit: Math.ceil(diff / hourMs) === 1 ? "hora" : "horas" }
+      : diff > 0
+        ? { value: Math.max(1, Math.ceil(diff / minuteMs)), unit: Math.ceil(diff / minuteMs) === 1 ? "minuto" : "minutos" }
+        : { value: 0, unit: "Hoy" };
+  return { planned, song, schedule, countdown };
 };
 
 export function Dashboard() {
   const { canEdit, profile, saveUserPreferences } = useAuth();
   const { songs = [], schedules = [], plannedNewSongs = [] } = useMusicData();
+  const navigate = useNavigate();
   const [now, setNow] = useState(() => new Date());
   const [pushPrompt, setPushPrompt] = useState({ checked: false, show: false, status: "" });
   const [activatingPushPrompt, setActivatingPushPrompt] = useState(false);
@@ -89,12 +112,18 @@ export function Dashboard() {
   const remaining = formatRemaining(upcoming, now);
   const countdownActive = typeof remaining === "string" && remaining.includes(":");
   const nextNewSong = useMemo(
-    () => getNextPlannedNewSong(plannedNewSongs, songs, now),
-    [now, plannedNewSongs, songs]
+    () => getNextPlannedNewSong(plannedNewSongs, songs, schedules, now),
+    [now, plannedNewSongs, schedules, songs]
   );
   const nextNewSongPdf = getSongPdfUrl(nextNewSong?.song);
   const nextNewSongYoutube = getSongYoutubeUrl(nextNewSong?.song);
   const nextNewSongSpotify = getSongSpotifyUrl(nextNewSong?.song);
+  const scheduleRoute = (schedule, fallbackDate = "") => {
+    const base = profile?.role === "viewer" ? "/servicios" : "/programacion";
+    if (schedule?.id) return `${base}?schedule=${schedule.id}`;
+    return fallbackDate ? `${base}?date=${fallbackDate}` : base;
+  };
+  const canSeeSlides = profile?.role === "admin" || profile?.role === "editor" || (profile?.role === "viewer" && profile?.viewerType === "medios");
 
   useEffect(() => {
     const intervalMs = countdownActive ? 1000 : 60000;
@@ -218,28 +247,38 @@ export function Dashboard() {
       ) : null}
 
       {nextNewSong ? (
-        <Card className="overflow-hidden border-brass/30 bg-brass/10 p-0 dark:border-brass/35 dark:bg-zinc-900">
+        <Card
+          className={`overflow-hidden border-brass/30 bg-brass/10 p-0 dark:border-brass/35 dark:bg-zinc-900 ${nextNewSong.song?.id ? "cursor-pointer" : ""}`}
+          role={nextNewSong.song?.id ? "link" : undefined}
+          tabIndex={nextNewSong.song?.id ? 0 : undefined}
+          onClick={() => nextNewSong.song?.id && navigate(`/repertorio/${nextNewSong.song.id}`)}
+          onKeyDown={(event) => {
+            if (nextNewSong.song?.id && (event.key === "Enter" || event.key === " ")) navigate(`/repertorio/${nextNewSong.song.id}`);
+          }}
+        >
           <div className="grid md:grid-cols-[180px_minmax(0,1fr)]">
-            <div className="flex items-center justify-center bg-brass px-5 py-6 text-center text-white">
+            <button
+              type="button"
+              className="flex items-center justify-center bg-brass px-5 py-6 text-center text-white"
+              onClick={(event) => {
+                event.stopPropagation();
+                navigate(scheduleRoute(nextNewSong.schedule, nextNewSong.planned.plannedDate));
+              }}
+            >
               <div>
                 <Music2 className="mx-auto h-7 w-7" />
                 <p className="mt-2 text-xs font-black uppercase tracking-wide">Próximo canto nuevo</p>
-                <p className="mt-1 text-4xl font-black">{nextNewSong.days}</p>
-                <p className="text-sm font-bold">{nextNewSong.days === 0 ? "Hoy" : nextNewSong.days === 1 ? "día" : "días"}</p>
+                <p className="mt-1 text-4xl font-black">{nextNewSong.countdown.value}</p>
+                <p className="text-sm font-bold">{nextNewSong.countdown.unit}</p>
               </div>
-            </div>
+            </button>
             <div className="p-5">
               <p className="text-xs font-black uppercase tracking-wide text-brass">
                 {formatDate(nextNewSong.planned.plannedDate)}
               </p>
               <h2 className="mt-2 text-2xl font-black text-ink">{nextNewSong.song?.title || nextNewSong.planned.songTitle || "Canto nuevo"}</h2>
-              <p className="mt-1 text-sm text-ink/58">Prepáralo desde aquí sin buscarlo en otra sección.</p>
-              <div className="mt-4 flex flex-wrap gap-2">
-                {nextNewSong.song?.id ? (
-                  <Link to={`/repertorio/${nextNewSong.song.id}`}>
-                    <Button>Ver canto</Button>
-                  </Link>
-                ) : null}
+              {nextNewSong.song?.artistOrSource ? <p className="mt-1 text-sm text-ink/58">{nextNewSong.song.artistOrSource}</p> : null}
+              <div className="mt-4 flex flex-wrap gap-2" onClick={(event) => event.stopPropagation()}>
                 {nextNewSongPdf ? (
                   <a className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-ink/10 bg-white px-4 py-2 text-sm font-semibold text-ink hover:border-ink/25 dark:bg-white/10" href={nextNewSongPdf} target="_blank" rel="noreferrer">
                     PDF <ExternalLink className="h-4 w-4" />
@@ -257,7 +296,15 @@ export function Dashboard() {
       ) : null}
 
       <section className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
-        <Card className="relative overflow-hidden bg-ink p-6 text-white">
+        <Card
+          className={`relative overflow-hidden bg-ink p-6 text-white ${upcoming ? "cursor-pointer" : ""}`}
+          role={upcoming ? "link" : undefined}
+          tabIndex={upcoming ? 0 : undefined}
+          onClick={() => upcoming && navigate(scheduleRoute(upcoming))}
+          onKeyDown={(event) => {
+            if (upcoming && (event.key === "Enter" || event.key === " ")) navigate(scheduleRoute(upcoming));
+          }}
+        >
           <div className="absolute -right-20 -top-20 h-56 w-56 rounded-full border border-white/10" />
           <div className="relative z-10">
             <p className="text-sm font-semibold uppercase tracking-wide text-brass">{upcoming ? getServiceDisplayLabel(upcoming) : "Próximo servicio"}</p>
@@ -276,7 +323,7 @@ export function Dashboard() {
             ) : !upcoming ? (
               <p className="mt-5 max-w-3xl text-sm leading-6 text-white/62">No hay programación próxima registrada.</p>
             ) : null}
-            <div className="mt-6 flex flex-wrap gap-3">
+            <div className="mt-6 flex flex-wrap gap-3" onClick={(event) => event.stopPropagation()}>
               {canEdit ? (
                 <Link to="/repertorio">
                   <Button variant="light">
@@ -291,6 +338,14 @@ export function Dashboard() {
                   {canEdit ? "Nueva programación" : "Ver próximo servicio"}
                 </Button>
               </Link>
+              {canSeeSlides && upcoming?.slidesUrl ? (
+                <a href={upcoming.slidesUrl} target="_blank" rel="noreferrer">
+                  <Button variant="darkSubtle">
+                    <Presentation className="h-4 w-4" />
+                    Abrir diapositivas
+                  </Button>
+                </a>
+              ) : null}
             </div>
           </div>
         </Card>
@@ -306,15 +361,24 @@ export function Dashboard() {
             </div>
           </div>
           <div className="mt-6 space-y-3">
-            {(upcoming?.songs || []).map((song, index) => (
-              <div key={`${song.songId || song.titleSnapshot}-${index}`} className="flex items-center justify-between rounded-2xl bg-ink/5 p-3">
-                <div>
-                  <p className="font-semibold text-ink">{index + 1}. {song.titleSnapshot || "Canto sin título"}</p>
-                  <p className="text-sm text-ink/55">{song.notes || "Sin notas"}</p>
+            {(upcoming?.songs || []).map((song, index) => {
+              const currentSong = songs.find((item) => item.id === song.songId);
+              return (
+                <div key={`${song.songId || song.titleSnapshot}-${index}`} className="flex items-center justify-between rounded-2xl bg-ink/5 p-3">
+                  <div className="min-w-0">
+                    {song.songId ? (
+                      <Link className="font-semibold text-ink hover:text-brass" to={`/repertorio/${song.songId}`}>
+                        {index + 1}. {currentSong?.title || song.titleSnapshot || "Canto sin título"}
+                      </Link>
+                    ) : (
+                      <p className="font-semibold text-ink">{index + 1}. {song.titleSnapshot || "Canto sin título"}</p>
+                    )}
+                    <p className="text-sm text-ink/55">{currentSong?.internalNotes || song.notes || "Sin notas"}</p>
+                  </div>
+                  <span className="ml-3 shrink-0 rounded-xl bg-white px-3 py-1 text-sm font-bold text-ink dark:bg-white/10 dark:text-white">{song.keySnapshot || currentSong?.keyWithCapo || currentSong?.mainKey || "--"}</span>
                 </div>
-                <span className="rounded-xl bg-white px-3 py-1 text-sm font-bold text-ink dark:bg-white/10 dark:text-white">{song.keySnapshot || "--"}</span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </Card>
       </section>

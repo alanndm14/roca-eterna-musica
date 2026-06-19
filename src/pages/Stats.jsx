@@ -85,12 +85,12 @@ function useChartTheme() {
 
 function ChartCard({ title, children, aside }) {
   return (
-    <Card>
+    <Card className="min-w-0">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-bold text-ink">{title}</h2>
         {aside}
       </div>
-      <div className="mt-5 h-72">{children}</div>
+      <div className="mt-5 h-72 min-h-0 min-w-0">{children}</div>
     </Card>
   );
 }
@@ -111,7 +111,7 @@ function chartTooltip(theme) {
 
 function BarGraph({ data, horizontal = false, theme }) {
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
       <BarChart data={data} layout={horizontal ? "vertical" : "horizontal"} margin={horizontal ? { left: 42, right: 12, top: 8, bottom: 8 } : { left: 0, right: 12, top: 8, bottom: 8 }}>
         <CartesianGrid strokeDasharray="3 3" stroke={theme.muted} />
         {horizontal ? (
@@ -136,7 +136,7 @@ function BarGraph({ data, horizontal = false, theme }) {
 
 function PieGraph({ data, theme }) {
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
       <PieChart>
         <Pie data={data} dataKey="value" nameKey="name" innerRadius={58} outerRadius={96} paddingAngle={3}>
           {data.map((_, index) => <Cell key={index} fill={chartColors[index % chartColors.length]} />)}
@@ -150,7 +150,7 @@ function PieGraph({ data, theme }) {
 
 function ReviewGraph({ data, theme }) {
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
       <BarChart data={data}>
         <CartesianGrid strokeDasharray="3 3" stroke={theme.muted} />
         <XAxis dataKey="name" tick={{ fontSize: 12, fill: theme.axis }} axisLine={{ stroke: theme.muted }} tickLine={{ stroke: theme.muted }} />
@@ -254,13 +254,6 @@ export function Stats() {
     .map((song) => ({ ...song, realUsageCount: realUsageBySong.get(song.id)?.count || 0, realLastUsedAt: realUsageBySong.get(song.id)?.lastUsedAt || "", realLastSchedule: realUsageBySong.get(song.id)?.lastSchedule || null }))
     .sort((a, b) => (a.realUsageCount || 0) - (b.realUsageCount || 0) || (a.realLastUsedAt || "0000").localeCompare(b.realLastUsedAt || "0000"))
     .slice(0, 12);
-  const rotationSuggestions = filteredSongs
-    .filter((song) =>
-      normalizeReviewValue(song.keynoteReviewStatus) === "completado"
-      && song.sungBefore
-      && ((realUsageBySong.get(song.id)?.count || 0) <= 1)
-    )
-    .slice(0, 10);
   const changeKeySongs = filteredSongs.filter((song) => song.hasKeyChange);
   const incompleteMusicalData = filteredSongs.filter((song) =>
     !song.mainKey
@@ -399,20 +392,6 @@ export function Stats() {
           <Card>
             <h2 className="text-lg font-bold text-ink">Cantos menos usados</h2>
             <div className="mt-4"><SongTable rows={leastUsed} songs={songs} columns={leastUsedColumns} /></div>
-          </Card>
-          <Card>
-            <h2 className="text-lg font-bold text-ink">Sugerencias de rotación</h2>
-            <p className="mt-1 text-sm text-ink/55">Cantos listos para considerar: Keynote completado, históricamente cantados y con poco uso o sin historial en la app.</p>
-            <div className="mt-4">
-              <SongTable rows={rotationSuggestions} songs={songs} columns={[
-                { key: "title", label: "Canto" },
-                { key: "category", label: "Categoría" },
-                { key: "mainTheme", label: "Tema" },
-                { key: "mainKey", label: "Tono" },
-                { key: "realUsageCount", label: "Usos reales", render: (song) => realUsageBySong.get(song.id)?.count || 0 },
-                { key: "realLastUsedAt", label: "Última vez", render: (song) => realUsageBySong.get(song.id)?.lastSchedule ? formatScheduleDateWithService(realUsageBySong.get(song.id).lastSchedule) : realUsageBySong.get(song.id)?.lastUsedAt ? formatDate(realUsageBySong.get(song.id)?.lastUsedAt) : "Sin historial" }
-              ]} />
-            </div>
           </Card>
         </>
       )}

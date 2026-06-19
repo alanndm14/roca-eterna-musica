@@ -1,7 +1,7 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { pdf } from "@react-pdf/renderer";
-import { ArrowDown, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, Download, ExternalLink, Eye, FileStack, FileText, Maximize2, Minimize2, Music2, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, Download, ExternalLink, Eye, FileStack, FileText, Maximize2, Minimize2, Music2, Pencil, Plus, Presentation, Save, Trash2 } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -172,6 +172,8 @@ export function MusicianView({ mediaMode = false }) {
   const [serviceReviewOpen, setServiceReviewOpen] = useState(false);
   const [schedulePickerOpen, setSchedulePickerOpen] = useState(() => Boolean(mediaMode));
   const [emptyDateSelected, setEmptyDateSelected] = useState(false);
+  const [slidesUrlDraft, setSlidesUrlDraft] = useState("");
+  const [slidesStatus, setSlidesStatus] = useState("");
   const selectedServiceRef = useRef(null);
   const today = todayString();
   const [pickerDate, setPickerDate] = useState(today);
@@ -187,6 +189,16 @@ export function MusicianView({ mediaMode = false }) {
     if (requestedScheduleId && schedules.some((schedule) => schedule.id === requestedScheduleId)) {
       setSelectedId(requestedScheduleId);
       setEmptyDateSelected(false);
+      return;
+    }
+    const requestedDate = searchParams.get("date");
+    if (requestedDate) {
+      setPickerDate(requestedDate);
+      const firstSchedule = schedules
+        .filter((schedule) => schedule.date === requestedDate)
+        .sort((a, b) => `${a.time || ""}`.localeCompare(`${b.time || ""}`))[0];
+      setSelectedId(firstSchedule?.id || "");
+      setEmptyDateSelected(!firstSchedule);
       return;
     }
     if (!selectedId && !emptyDateSelected) {
@@ -215,6 +227,7 @@ export function MusicianView({ mediaMode = false }) {
   }, [sheetUrl]);
 
   const selectedSchedule = schedules.find((schedule) => schedule.id === selectedId) || (!mediaMode || !emptyDateSelected ? scheduleOptions[0] : null);
+  const canSeeSlides = canEdit || (isViewer && profile?.viewerType === "medios");
   const daySchedules = useMemo(
     () => schedules.filter((schedule) => schedule.date === pickerDate).sort((a, b) => `${a.time || ""}`.localeCompare(`${b.time || ""}`)),
     [pickerDate, schedules]
@@ -252,6 +265,11 @@ export function MusicianView({ mediaMode = false }) {
   useEffect(() => {
     if (selectedSchedule?.date && !emptyDateSelected) setPickerDate(selectedSchedule.date);
   }, [emptyDateSelected, selectedSchedule?.date]);
+
+  useEffect(() => {
+    setSlidesUrlDraft(selectedSchedule?.slidesUrl || "");
+    setSlidesStatus("");
+  }, [selectedSchedule?.id, selectedSchedule?.slidesUrl]);
   const serviceSongs = useMemo(
     () => buildServiceSongs(selectedSchedule, songs, settings.keyPreference || "sharps"),
     [selectedSchedule, songs, settings.keyPreference]
@@ -409,6 +427,17 @@ export function MusicianView({ mediaMode = false }) {
       if (current) URL.revokeObjectURL(current);
       return "";
     });
+  };
+
+  const saveSlidesUrl = async () => {
+    if (!selectedSchedule || !canEdit) return;
+    const slidesUrl = slidesUrlDraft.trim();
+    if (slidesUrl && !/^https:\/\//i.test(slidesUrl)) {
+      setSlidesStatus("Usa un enlace seguro que comience con https://");
+      return;
+    }
+    await saveSchedule({ ...selectedSchedule, slidesUrl });
+    setSlidesStatus(slidesUrl ? "Enlace guardado. Administradores y Medios recibirán el aviso." : "Enlace eliminado.");
   };
 
   const openSpecialProgramEditor = () => {
@@ -617,6 +646,44 @@ export function MusicianView({ mediaMode = false }) {
             </div>
           </div>
         </div>
+        {canSeeSlides ? (
+          <div className="mt-4 rounded-3xl border border-ink/10 bg-white/80 p-4 dark:border-white/10 dark:bg-white/5">
+            <div className="flex items-start gap-3">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brass/12 text-brass">
+                <Presentation className="h-5 w-5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <h4 className="font-bold text-ink">Diapositivas del servicio</h4>
+                {canEdit ? (
+                  <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                    <Input
+                      type="url"
+                      value={slidesUrlDraft}
+                      onChange={(event) => setSlidesUrlDraft(event.target.value)}
+                      placeholder="Pega el enlace de iCloud Keynote"
+                    />
+                    <Button variant="secondary" className="shrink-0" onClick={saveSlidesUrl}>
+                      <Save className="h-4 w-4" />
+                      Guardar enlace
+                    </Button>
+                  </div>
+                ) : null}
+                {selectedSchedule.slidesUrl ? (
+                  <a
+                    className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-xl bg-brass px-4 py-2 text-sm font-bold text-white"
+                    href={selectedSchedule.slidesUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Abrir diapositivas
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
+                ) : !canEdit ? <p className="mt-2 text-sm text-ink/55">Todavía no se ha agregado el enlace.</p> : null}
+                {slidesStatus ? <p className="mt-2 text-xs font-semibold text-brass">{slidesStatus}</p> : null}
+              </div>
+            </div>
+          </div>
+        ) : null}
         {selectedIsSpecial ? (
           <div className="mt-4 rounded-3xl border border-brass/25 bg-brass/10 p-4">
             <div className="flex items-center gap-2">

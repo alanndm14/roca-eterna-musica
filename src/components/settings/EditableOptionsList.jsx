@@ -38,7 +38,7 @@ export function EditableServiceOptions({ values = [], onChange }) {
       <p className="mt-1 text-sm leading-6 text-ink/55">Edita el nombre, horario y día habitual que aparecen al crear una programación.</p>
       <div className="mt-4 grid gap-3">
         {items.map((item, index) => (
-          <div key={`${item.value || "service"}-${index}`} className="grid gap-2 rounded-xl border border-ink/10 bg-white/70 p-3 dark:border-white/10 dark:bg-zinc-950/50 md:grid-cols-[minmax(150px,1fr)_110px_150px_120px_40px]">
+          <div key={`${item.value || "service"}-${index}`} className="grid min-w-0 gap-2 rounded-xl border border-ink/10 bg-white/70 p-3 dark:border-white/10 dark:bg-zinc-950/50 sm:grid-cols-2">
             <Input value={item.label || ""} onChange={(event) => update(index, "label", event.target.value)} placeholder="Nombre del servicio" />
             <Input type="time" value={item.time || ""} onChange={(event) => update(index, "time", event.target.value)} />
             <Select value={item.weekday ?? ""} onChange={(event) => update(index, "weekday", event.target.value === "" ? null : Number(event.target.value))}>
@@ -55,8 +55,9 @@ export function EditableServiceOptions({ values = [], onChange }) {
               <option value="normal">Normal</option>
               <option value="special">Especial</option>
             </Select>
-            <Button variant="danger" className="h-10 w-10 px-0" onClick={() => remove(index)} aria-label={`Eliminar ${item.label || "servicio"}`}>
+            <Button variant="danger" className="h-10 w-full px-3 sm:col-span-2 sm:w-auto sm:justify-self-end" onClick={() => remove(index)} aria-label={`Eliminar ${item.label || "servicio"}`}>
               <Trash2 className="h-4 w-4" />
+              Eliminar
             </Button>
           </div>
         ))}

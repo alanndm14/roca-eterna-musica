@@ -1,6 +1,27 @@
-export const appVersion = "0.9.137";
+export const appVersion = "1.0.0";
 
 export const changelog = [
+  {
+    version: "1.0.0",
+    date: "2026-06-19",
+    title: "Bienvenida diaria con versículo",
+    added: [
+      "Bienvenida diaria con el versículo del día para la primera apertura de cada usuario y dispositivo",
+      "Enlace de diapositivas de iCloud por servicio para administradores y el equipo de Medios",
+      "Comentarios de seguimiento con autor identificado por nombre corto"
+    ],
+    changed: [
+      "Inicio muestra el próximo canto nuevo con cuenta regresiva en días, horas o minutos",
+      "Guardar seguimiento conserva el trabajo y cerrar el servicio deja únicamente las observaciones útiles",
+      "La indexación de PDFs procesa solo cantos nuevos, pendientes o con archivo modificado"
+    ],
+    fixed: [
+      "Notas internas actualizadas en Inicio y navegación directa a cantos y programaciones",
+      "Revisión del servicio sin textos repetidos ni explicaciones internas de penalización",
+      "Controles de tipos de servicio contenidos correctamente dentro de su tarjeta"
+    ],
+    pending: []
+  },
   {
     version: "0.9.137",
     date: "2026-06-19",

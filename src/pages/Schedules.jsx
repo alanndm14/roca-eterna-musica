@@ -41,6 +41,7 @@ const blankSchedule = {
   leader: "",
   songs: [],
   generalNotes: "",
+  slidesUrl: "",
   isSpecialService: false,
   specialProgram: [],
   status: "confirmed"
@@ -227,6 +228,14 @@ function ScheduleForm({ initialSchedule, songs, schedules, settings, onSubmit, o
                 }} placeholder="Escribe el nombre" />
               </Field>
             ) : null}
+            <Field label="Enlace iCloud de diapositivas">
+              <Input
+                type="url"
+                value={schedule.slidesUrl || ""}
+                onChange={(event) => update("slidesUrl", event.target.value)}
+                placeholder="https://www.icloud.com/keynote/..."
+              />
+            </Field>
           </div>
           {wrongDay ? (
             <p className="mt-4 rounded-2xl bg-brass/12 px-4 py-3 text-sm font-semibold text-brass">
@@ -613,6 +622,8 @@ export function Schedules() {
   const [selectedScheduleId, setSelectedScheduleId] = useState(() => searchParams.get("schedule") || "");
   const [activeScheduleWorkspaceTab, setActiveScheduleWorkspaceTab] = useState(() => searchParams.get("tab") === "asistente" ? "assistant" : "program");
   const [selectedDate, setSelectedDate] = useState(() => {
+    const requestedDate = searchParams.get("date");
+    if (requestedDate) return requestedDate;
     const today = todayString();
     return [...schedules].filter((schedule) => schedule.date >= today).sort((a, b) => a.date.localeCompare(b.date))[0]?.date || today;
   });

@@ -285,7 +285,7 @@ function validatePayload(payload = {}) {
   if (title.length > 160 || body.length > 500) {
     return { ok: false, code: "PAYLOAD_TOO_LONG", message: "Titulo o mensaje demasiado largo." };
   }
-  if (!["broadcast", "self_test", "self_test_data_only", "register_topic"].includes(mode)) {
+  if (!["broadcast", "targeted", "self_test", "self_test_data_only", "register_topic"].includes(mode)) {
     return { ok: false, code: "INVALID_MODE", message: "Modo de envio no permitido." };
   }
   safeInternalUrl(payload.url || "/");
@@ -399,7 +399,10 @@ async function readActiveTokens() {
       token: data.token,
       tokenPreview: maskToken(data.token),
       refPath: tokenDoc.ref.path,
-      ref: tokenDoc.ref
+      ref: tokenDoc.ref,
+      uid: tokenDoc.ref.path.split("/")[1] || "",
+      role: data.role || "",
+      viewerType: data.viewerType || ""
     });
   }
 
@@ -644,7 +647,8 @@ export default async function handler(request, response) {
       tokenId,
       notificationId: incomingNotificationId,
       icon,
-      badge
+      badge,
+      audience
     } = request.body || {};
     notificationId = incomingNotificationId || "";
 
@@ -709,11 +713,28 @@ export default async function handler(request, response) {
     }
 
     stage = "read_tokens";
-    const tokenRead = mode === "self_test"
+    let tokenRead = mode === "self_test"
       ? await readSelfTestToken(decoded.uid, token, tokenId)
       : mode === "self_test_data_only"
         ? await readSelfTestToken(decoded.uid, token, tokenId)
+        : mode === "targeted"
+          ? await readActiveTokens()
       : null;
+
+    if (mode === "targeted") {
+      const entries = (tokenRead?.entries || []).filter((entry) => {
+        if (audience === "admins_media") {
+          return entry.role === "admin" || (entry.role === "viewer" && entry.viewerType === "medios");
+        }
+        return false;
+      });
+      tokenRead = {
+        ...tokenRead,
+        activeTokens: entries.length,
+        uniqueTokens: entries.length,
+        entries
+      };
+    }
 
     if (tokenRead && !tokenRead.entries.length) {
       const emptyResult = {

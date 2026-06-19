@@ -474,7 +474,8 @@ function getSongFollowUp(schedule = {}, songId = "") {
 
 export function isNoteworthySongFollowUp(followUp = {}) {
   return Boolean(
-    followUp.notes
+    (Array.isArray(followUp.comments) && followUp.comments.some((comment) => String(comment?.text || "").trim()))
+    || followUp.notes
     || followUp.resourceIssues
     || (followUp.result && followUp.result !== "bien")
     || (followUp.difficulty && !["normal", "facil"].includes(followUp.difficulty))
@@ -1019,10 +1020,10 @@ export function reviewServiceSchedule(schedule = {}, songs = [], schedules = [])
       groups.rotation.items.push(`${title}: usado en el servicio anterior (${previousRealService ? formatScheduleDateWithService(previousRealService) : "servicio previo"})`);
     } else if (usage?.lastUsedAt && (usage.lastUsedDays ?? 999) <= recentStrongDays) {
       score -= 6;
-      groups.rotation.items.push(`${title}: ${describeLastUse(usage)}. Impacto: penalizacion fuerte por uso reciente.`);
+      groups.rotation.items.push(`${title}: ${describeLastUse(usage)}.`);
     } else if (usage?.lastUsedAt && (usage.lastUsedDays ?? 999) <= recentWindowDays) {
       score -= 3;
-      groups.rotation.items.push(`${title}: ${describeLastUse(usage)}. Impacto: penalizacion moderada por rotacion.`);
+      groups.rotation.items.push(`${title}: ${describeLastUse(usage)}.`);
     }
     if ((usage?.recent30Count || usage?.monthCount || 0) >= 3) {
       score -= 5;

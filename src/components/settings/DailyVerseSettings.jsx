@@ -11,7 +11,7 @@ import {
   setDoc,
   updateDoc
 } from "firebase/firestore";
-import { BookOpen, CalendarDays, Pencil, Plus, Trash2 } from "lucide-react";
+import { BookOpen, CalendarDays, Eye, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { db, isFirebaseConfigured } from "../../lib/firebase";
 import { fallbackLoginVerses, getLocalDateKey, getVerseForDate } from "../../services/dailyVerses";
 import { Button } from "../ui/Button";
@@ -231,6 +231,24 @@ export function DailyVerseSettings({ profile, logAuditEvent }) {
           <Button onClick={() => setEditing({ ...emptyVerse })}>
             <Plus className="h-4 w-4" />
             Agregar versículo
+          </Button>
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button variant="secondary" onClick={() => window.dispatchEvent(new Event("roca-eterna-preview-daily-verse"))}>
+            <Eye className="h-4 w-4" />
+            Vista previa de bienvenida diaria
+          </Button>
+          <Button
+            variant="subtle"
+            onClick={() => {
+              if (!profile?.uid) return;
+              localStorage.removeItem(`dailyVerseSeen:${profile.uid}`);
+              setStatus("La bienvenida volverá a mostrarse al abrir de nuevo la app.");
+            }}
+          >
+            <RotateCcw className="h-4 w-4" />
+            Volver a mostrar hoy
           </Button>
         </div>
 

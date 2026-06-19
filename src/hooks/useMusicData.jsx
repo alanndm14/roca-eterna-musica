@@ -20,10 +20,10 @@ import { deleteObject, getDownloadURL, ref, uploadBytes } from "firebase/storage
 import { db, isFirebaseConfigured, storage } from "../lib/firebase";
 import { sampleSchedules, sampleSettings, sampleSongs, sampleThemes, sampleUsers } from "../data/mockData";
 import { canonicalThemeKey, normalizeSong, normalizeThemeName, resolveAppLogoForNotification } from "../services/songUtils";
-import { extractLocalPdfText, fingerprintLocalPdf } from "../services/pdfTextIndex";
+import { extractLocalPdfText } from "../services/pdfTextIndex";
 import { sendExternalPush } from "../services/externalPush";
 import { ensurePushBroadcastSubscription } from "../services/pushNotifications";
-import { createServiceReviewSnapshot, reviewServiceSchedule } from "../services/songScoring";
+import { createServiceReviewSnapshot, isNoteworthySongFollowUp, reviewServiceSchedule } from "../services/songScoring";
 import { useAuth } from "./useAuth";
 
 const MusicDataContext = createContext(null);
@@ -526,6 +526,40 @@ export function MusicDataProvider({ children }) {
     }, { tipoEvento: "schedule_updated", eventoGuardado: true, novedadInternaCreada: true });
   };
 
+  const notifySlidesAddedBestEffort = (schedulePayload, scheduleId) => {
+    if (!isFutureSchedule(schedulePayload) || !scheduleId || !schedulePayload.slidesUrl) return;
+    const pushNotificationId = `slides-ready-${scheduleId}-${simpleHash(schedulePayload.slidesUrl)}`;
+    const label = formatScheduleShortLabel(schedulePayload);
+    const notificationPayload = {
+      type: "other",
+      title: "Diapositivas listas para revisión",
+      message: `Se agregó el enlace de las diapositivas para ${label}.`,
+      entityType: "schedule",
+      entityId: scheduleId,
+      scheduleId,
+      isFutureSchedule: true,
+      targetRoles: ["admin", "viewer"],
+      targetViewerTypes: ["medios"],
+      pushNotificationId
+    };
+    if (profile?.role === "admin" || (profile?.role === "viewer" && profile?.viewerType === "medios")) {
+      showInAppNovelty(notificationPayload);
+    }
+    createNotificationBestEffort(notificationPayload);
+    sendPushBestEffort({
+      mode: "targeted",
+      audience: "admins_media",
+      type: "other",
+      title: notificationPayload.title,
+      body: notificationPayload.message,
+      url: `/#/servicios?schedule=${scheduleId}`,
+      scheduleId,
+      notificationId: pushNotificationId,
+      icon: resolveAppLogoForNotification(settings, "light"),
+      badge: resolveAppLogoForNotification(settings, "light")
+    }, { tipoEvento: "slides_ready", eventoGuardado: true, novedadInternaCreada: true });
+  };
+
   const createNotification = async (notification) => {
     const payload = {
       type: notification.type || "other",
@@ -541,6 +575,7 @@ export function MusicDataProvider({ children }) {
       relatedEntityDeleted: false,
       targetRoles: notification.targetRoles || ["admin", "editor", "viewer"],
       targetUsers: notification.targetUsers || [],
+      targetViewerTypes: notification.targetViewerTypes || [],
       readBy: [],
       isFutureSchedule: Boolean(notification.isFutureSchedule),
       createdBy: profile?.uid || "",
@@ -904,11 +939,13 @@ export function MusicDataProvider({ children }) {
       songs: schedule.songs || [],
       updatedAt: useLocal ? new Date().toISOString().slice(0, 10) : serverTimestamp()
     };
+    const slidesLinkChanged = Boolean(payload.slidesUrl) && payload.slidesUrl !== before?.slidesUrl;
 
     if (useLocal) {
       if (schedule.id) {
         setSchedules((current) => current.map((item) => (item.id === schedule.id ? { ...item, ...payload } : item)));
         notifyScheduleUpdatedBestEffort(payload, schedule.id, scheduleChange);
+        if (slidesLinkChanged) notifySlidesAddedBestEffort(payload, schedule.id);
         await logAuditEvent({ actionType: "update", entityType: "schedule", entityId: schedule.id, entityName: payload.serviceLabel || payload.date, summary: `Programación editada: ${payload.serviceLabel || payload.date}`, beforeData: before, afterData: payload });
       } else {
         const id = makeId("schedule");
@@ -922,6 +959,7 @@ export function MusicDataProvider({ children }) {
           }
         ]);
         notifyScheduleCreatedBestEffort(payload, id);
+        if (slidesLinkChanged) notifySlidesAddedBestEffort(payload, id);
         logAuditEventBestEffort({ actionType: "create", entityType: "schedule", entityId: id, entityName: payload.serviceLabel || payload.date, summary: `Programación creada: ${payload.serviceLabel || payload.date}`, afterData: payload });
         await syncScheduleSongNotes(payload.songs || [], before?.songs || null);
         return id;
@@ -934,6 +972,7 @@ export function MusicDataProvider({ children }) {
       const { id, ...data } = payload;
       await updateDoc(doc(db, "schedules", id), data);
       notifyScheduleUpdatedBestEffort(payload, id, scheduleChange);
+      if (slidesLinkChanged) notifySlidesAddedBestEffort(payload, id);
       await logAuditEvent({ actionType: "update", entityType: "schedule", entityId: id, entityName: data.serviceLabel || data.date, summary: `Programación editada: ${data.serviceLabel || data.date}`, beforeData: before, afterData: data });
       await syncScheduleSongNotes(payload.songs || [], before?.songs || null);
       return id;
@@ -944,6 +983,7 @@ export function MusicDataProvider({ children }) {
         createdBy: profile.uid
       });
       notifyScheduleCreatedBestEffort(payload, created.id);
+      if (slidesLinkChanged) notifySlidesAddedBestEffort(payload, created.id);
       logAuditEventBestEffort({ actionType: "create", entityType: "schedule", entityId: created.id, entityName: payload.serviceLabel || payload.date, summary: `Programación creada: ${payload.serviceLabel || payload.date}`, afterData: payload });
       await syncScheduleSongNotes(payload.songs || [], before?.songs || null);
       return created.id;
@@ -1079,16 +1119,20 @@ export function MusicDataProvider({ children }) {
     if (!before) return;
     const review = reviewServiceSchedule(before, songs, schedules);
     const snapshot = createServiceReviewSnapshot(review, before, songs);
+    const compactSongs = Object.fromEntries(
+      Object.entries(followUp.songs || {}).filter(([, item]) => item?.resolved === true || isNoteworthySongFollowUp(item))
+    );
+    const compactFollowUp = { ...followUp, songs: compactSongs };
     const updated = {
       ...before,
       status: "cerrada",
       serviceReviewSnapshot: {
         ...snapshot,
-        notes: followUp.overall || followUp.nextServiceNotes || followUp.generalObservations || before.serviceReviewSnapshot?.notes || ""
+        notes: compactFollowUp.overall || compactFollowUp.nextServiceNotes || compactFollowUp.generalObservations || before.serviceReviewSnapshot?.notes || ""
       },
       serviceFollowUp: {
         ...(before.serviceFollowUp || {}),
-        ...followUp,
+        ...compactFollowUp,
         closedAt: useLocal ? new Date().toISOString() : serverTimestamp(),
         closedBy: profile?.uid || ""
       },
@@ -1281,36 +1325,22 @@ export function MusicDataProvider({ children }) {
       errorItems: []
     };
     const sourceCandidates = songs.filter((item) => item.localPdfPath);
-    const candidates = [];
-    for (const song of sourceCandidates) {
-      results.checked += 1;
-      onProgress?.({
-        phase: "checking",
-        current: results.checked,
-        total: sourceCandidates.length,
-        songTitle: song.title,
-        pdfPath: song.localPdfPath,
-        ...results
-      });
-      let prefetched = null;
-      try {
-        prefetched = await fingerprintLocalPdf(song.localPdfPath, song.pdfVersion);
-      } catch (error) {
-        prefetched = null;
-      }
-      const existingFingerprint = song.textFingerprint || song.pdfTextFingerprint || "";
-      const hasExistingIndex = Boolean(song.indexedTextAvailable || song.pdfSearchText || (song.pdfSearchTokens || []).length);
-      const unchanged = !options.force
-        && hasExistingIndex
-        && prefetched?.fingerprint
-        && existingFingerprint === prefetched.fingerprint;
-      if (unchanged || (!options.force && hasExistingIndex && !prefetched)) {
-        results.reused += 1;
-        results.found += 1;
-        continue;
-      }
-      candidates.push({ song, prefetched });
-    }
+    const candidates = sourceCandidates
+      .filter((song) => {
+        if (options.force) return true;
+        const hasExistingIndex = Boolean(song.indexedTextAvailable || song.pdfSearchText || (song.pdfSearchTokens || []).length);
+        const markedPending = ["pending", "error", "failed", "missing"].includes(String(song.pdfIndexStatus || ""));
+        const pathChanged = Boolean(song.indexedPdfPath) && song.indexedPdfPath !== song.localPdfPath;
+        const versionChanged = Boolean(song.indexedPdfVersion) && String(song.indexedPdfVersion) !== String(song.pdfVersion || "");
+        if (hasExistingIndex && !markedPending && !pathChanged && !versionChanged) {
+          results.reused += 1;
+          results.found += 1;
+          return false;
+        }
+        return true;
+      })
+      .map((song) => ({ song, prefetched: null }));
+    results.checked = sourceCandidates.length;
 
     onProgress?.({
       phase: "indexing",

@@ -467,6 +467,8 @@ export async function enablePushNotificationsForUser(profile) {
       {
         token,
         userAgent: navigator.userAgent,
+        role: profile.role || "viewer",
+        viewerType: profile.role === "viewer" ? profile.viewerType || "corista" : "",
         active: true,
         createdAt: serverTimestamp(),
         lastSeenAt: serverTimestamp()

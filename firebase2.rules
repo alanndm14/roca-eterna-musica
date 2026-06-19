@@ -119,6 +119,7 @@ service cloud.firestore {
         && validOptionalString(request.resource.data.get("leader", null), 160)
         && validOptionalString(request.resource.data.get("status", null), 60)
         && validOptionalString(request.resource.data.get("generalNotes", null), 4000)
+        && validOptionalString(request.resource.data.get("slidesUrl", null), 1000)
         && validScheduleSongs();
     }
 
@@ -181,7 +182,8 @@ service cloud.firestore {
         && validOptionalString(request.resource.data.get("scheduleId", null), 160)
         && validOptionalString(request.resource.data.get("songId", null), 160)
         && validOptionalList(request.resource.data.get("targetRoles", null), 5)
-        && validOptionalList(request.resource.data.get("targetUsers", null), 200);
+        && validOptionalList(request.resource.data.get("targetUsers", null), 200)
+        && validOptionalList(request.resource.data.get("targetViewerTypes", null), 5);
     }
 
     function validAuditData() {

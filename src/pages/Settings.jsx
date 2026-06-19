@@ -386,7 +386,14 @@ export function Settings() {
   const runPdfIndex = async () => {
     setIsIndexingPdfs(true);
     setPdfIndexResult(null);
-    setPdfIndexProgress({ current: 0, total: songs.filter((item) => item.localPdfPath).length, songTitle: "", found: 0, indexed: 0, reused: 0, noText: 0, missing: 0, failed: 0, ocrItems: [] });
+    const missingCount = songs.filter((item) => item.localPdfPath && (
+      forcePdfReindex
+      || !item.indexedTextAvailable
+      || ["pending", "error", "failed", "missing"].includes(String(item.pdfIndexStatus || ""))
+      || (item.indexedPdfPath && item.indexedPdfPath !== item.localPdfPath)
+      || (item.indexedPdfVersion && String(item.indexedPdfVersion) !== String(item.pdfVersion || ""))
+    )).length;
+    setPdfIndexProgress({ current: 0, total: missingCount, songTitle: "", found: 0, indexed: 0, reused: 0, noText: 0, missing: 0, failed: 0, ocrItems: [] });
     try {
       const result = await indexLocalPdfTexts(setPdfIndexProgress, { enableOcr: enablePdfOcr, force: forcePdfReindex });
       setPdfIndexResult(result);
@@ -921,7 +928,7 @@ export function Settings() {
           </label>
           <Button className="mt-4" variant="secondary" isLoading={isIndexingPdfs} disabled={isIndexingPdfs} onClick={runPdfIndex}>
             <FileSearch className="h-4 w-4" />
-            {isIndexingPdfs ? "Indexando PDFs..." : enablePdfOcr ? "Indexar PDFs con OCR automático" : "Indexar textos de PDFs locales"}
+            {isIndexingPdfs ? "Indexando PDFs..." : forcePdfReindex ? "Forzar reindexación completa" : "Indexar únicamente faltantes"}
           </Button>
           {pdfIndexProgress ? (
             <div className="mt-4 rounded-2xl border border-ink/10 bg-ink/5 p-4">

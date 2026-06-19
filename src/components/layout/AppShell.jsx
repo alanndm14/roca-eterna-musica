@@ -184,10 +184,12 @@ export function AppShell() {
     if (isObsoleteTestScheduleNotification(item)) return false;
     const targetUsers = item.targetUsers || [];
     const targetRoles = item.targetRoles || [];
+    const targetViewerTypes = item.targetViewerTypes || [];
     if (targetUsers.length) return targetUsers.includes(profile?.uid);
-    if (targetRoles.length) return targetRoles.includes(profile?.role);
+    if (targetRoles.length && !targetRoles.includes(profile?.role)) return false;
+    if (profile?.role === "viewer" && targetViewerTypes.length) return targetViewerTypes.includes(profile?.viewerType);
     return true;
-  }), [notifications, profile?.role, profile?.uid]);
+  }), [notifications, profile?.role, profile?.uid, profile?.viewerType]);
   const isNotificationEntityDeleted = (item) => Boolean(
     item?.deleted
     || item?.relatedEntityDeleted
