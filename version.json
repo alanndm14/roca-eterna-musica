@@ -1,11 +1,11 @@
 {
-  "version": "1.0.6",
+  "version": "1.0.7",
   "displayVersion": "1.0",
   "date": "2026-06-20",
   "critical": true,
   "changes": [
-    "Campana y notificaciones más legibles",
-    "Vista previa de PDFs centrada y deslizable",
-    "Mejor visualización en móvil y modo oscuro"
+    "Tarjetas inteligentes corregidas en modo oscuro",
+    "Desplazamiento conservado al cambiar de sección",
+    "Limpieza de enlaces de acordes externos"
   ]
 }
