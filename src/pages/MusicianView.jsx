@@ -996,7 +996,7 @@ export function MusicianView({ mediaMode = false }) {
 
       <Modal open={Boolean(replaceTarget)} title="Sustitución inteligente" onClose={() => setReplaceTarget(null)} wide panelClassName="flex max-h-[92dvh] flex-col pb-[calc(env(safe-area-inset-bottom)+1rem)] md:max-h-[90dvh]">
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain pr-1 touch-pan-y">
-          <div className="overflow-hidden rounded-[1.75rem] border border-brass/25 bg-[linear-gradient(135deg,rgba(255,255,255,0.82),rgba(182,148,95,0.12))] p-4 shadow-soft backdrop-blur-xl dark:bg-white/8">
+          <div className="smart-current-song-card overflow-hidden rounded-[1.75rem] border border-brass/25 bg-[linear-gradient(135deg,rgba(255,255,255,0.82),rgba(182,148,95,0.12))] p-4 shadow-soft backdrop-blur-xl">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-brass">Canto actual</p>

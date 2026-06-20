@@ -136,7 +136,7 @@ export function ServiceReviewPanel({ review, compact = false, interactive = fals
           })}
         </div>
       ) : (
-        <div className="mt-5 rounded-2xl border border-emerald-300 bg-emerald-50 p-3 text-sm font-semibold text-emerald-900 dark:border-emerald-400/35 dark:bg-emerald-500/14 dark:text-emerald-50">
+        <div className="smart-success-empty mt-5 rounded-2xl border border-emerald-300 bg-emerald-50 p-3 text-sm font-semibold text-emerald-900">
           No se detectaron faltantes importantes para este servicio.
         </div>
       )}

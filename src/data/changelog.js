@@ -1,5 +1,5 @@
 export const appVersion = "1.0";
-export const appBuildVersion = "1.0.6";
+export const appBuildVersion = "1.0.7";
 
 export const changelog = [
   {
@@ -22,7 +22,8 @@ export const changelog = [
       "La bienvenida prepara todas las secciones cuando han pasado dos horas",
       "La barra de bienvenida refleja la carga confirmada de datos y secciones",
       "Las secciones se precargan antes de cambiar y aparecen con un fundido suave",
-      "La vista previa del PDF abre centrada y aprovecha la altura disponible"
+      "La vista previa del PDF abre centrada y aprovecha la altura disponible",
+      "Cada sección conserva su posición al cambiar y regresar"
     ],
     fixed: [
       "Notas internas actualizadas en Inicio y navegación directa a cantos y programaciones",
@@ -36,7 +37,9 @@ export const changelog = [
       "Se eliminaron las tarjetas vacías durante el cambio de sección",
       "Acordes externos ya no reutiliza por error el enlace de Google Drive",
       "Campana de notificaciones más visible y fechas legibles en modo oscuro",
-      "El visor de PDF permite desplazarse sin quedar oculto por las barras"
+      "El visor de PDF permite desplazarse sin quedar oculto por las barras",
+      "Tarjetas de revisión y sustitución legibles en modo oscuro",
+      "Se limpiaron los enlaces antiguos de acordes externos"
     ],
     pending: []
   },

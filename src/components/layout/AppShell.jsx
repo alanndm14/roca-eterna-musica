@@ -15,7 +15,7 @@ import { ErrorBoundary } from "../ui/ErrorBoundary";
 import { BottomNav } from "./BottomNav";
 import { Sidebar } from "./Sidebar";
 import { preloadRoutePath } from "../../services/routePreload";
-import { consumeRouteScrollReset, getRouteScroll, saveRouteScroll } from "../../services/navigationMemory";
+import { consumeRouteScrollReset, getRouteScroll, requestRouteScrollReset, saveRouteScroll } from "../../services/navigationMemory";
 
 const pageNames = {
   "/": "Inicio",
@@ -190,6 +190,7 @@ export function AppShell() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem(sidebarStorageKey) === "true");
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const activeScrollPath = useRef(location.pathname);
+  const restoringRouteScroll = useRef(false);
   const [foregroundPushes, setForegroundPushes] = useState([]);
   const [availableUpdate, setAvailableUpdate] = useState(null);
   const [updateHidden, setUpdateHidden] = useState(false);
@@ -242,10 +243,45 @@ export function AppShell() {
     activeScrollPath.current = path;
     const shouldReset = consumeRouteScrollReset(path);
     const target = shouldReset ? 0 : getRouteScroll(path);
-    const frame = window.requestAnimationFrame(() => window.scrollTo({ top: target, left: 0, behavior: "auto" }));
+    let cancelled = false;
+    let userInterrupted = false;
+    let resizeObserver = null;
+    const timeoutIds = [];
+    restoringRouteScroll.current = true;
+    const interruptRestore = () => {
+      userInterrupted = true;
+      restoringRouteScroll.current = false;
+    };
+    const restore = () => {
+      if (cancelled || userInterrupted) return;
+      const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+      window.scrollTo({ top: Math.min(target, maxScroll), left: 0, behavior: "auto" });
+    };
+
+    [0, 60, 140, 280, 520, 900, 1400].forEach((delay) => {
+      timeoutIds.push(window.setTimeout(restore, delay));
+    });
+    timeoutIds.push(window.setTimeout(() => {
+      restoringRouteScroll.current = false;
+    }, 1450));
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(restore);
+      resizeObserver.observe(document.documentElement);
+    }
+    window.addEventListener("wheel", interruptRestore, { passive: true });
+    window.addEventListener("touchstart", interruptRestore, { passive: true });
+    window.addEventListener("pointerdown", interruptRestore, { passive: true });
+    window.addEventListener("keydown", interruptRestore);
+
     return () => {
-      window.cancelAnimationFrame(frame);
-      saveRouteScroll(path, window.scrollY);
+      cancelled = true;
+      timeoutIds.forEach((timeoutId) => window.clearTimeout(timeoutId));
+      resizeObserver?.disconnect();
+      window.removeEventListener("wheel", interruptRestore);
+      window.removeEventListener("touchstart", interruptRestore);
+      window.removeEventListener("pointerdown", interruptRestore);
+      window.removeEventListener("keydown", interruptRestore);
+      restoringRouteScroll.current = false;
     };
   }, [location.pathname]);
 
@@ -268,6 +304,7 @@ export function AppShell() {
 
     event?.preventDefault?.();
     if (routeTransitionActive.current) return;
+    saveRouteScroll(currentPath, window.scrollY);
     routeTransitionActive.current = true;
     setRouteLeaving(true);
 
@@ -282,7 +319,7 @@ export function AppShell() {
     const saveCurrentScroll = () => saveRouteScroll(activeScrollPath.current, window.scrollY);
     let frame = 0;
     const trackScroll = () => {
-      if (frame) return;
+      if (frame || routeTransitionActive.current || restoringRouteScroll.current) return;
       frame = window.requestAnimationFrame(() => {
         frame = 0;
         saveCurrentScroll();

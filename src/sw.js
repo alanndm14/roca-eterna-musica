@@ -9,7 +9,7 @@ self.skipWaiting();
 clientsClaim();
 setCacheNameDetails({
   prefix: "roca-eterna-musica",
-  suffix: "v1.0-build-7",
+  suffix: "v1.0-build-8",
   precache: "precache",
   runtime: "runtime"
 });

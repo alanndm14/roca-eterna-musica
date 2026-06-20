@@ -1256,7 +1256,7 @@ export function SmartCenter({ scheduleId = "", embedded = false, initialDate = "
                 </Select>
               </Field>
               {currentReplacementSong ? (
-                <div className="mt-5 rounded-2xl bg-ink/5 p-4 dark:bg-white/8">
+                <div className="smart-current-song-card mt-5 rounded-2xl border border-ink/10 bg-ink/5 p-4">
                   <p className="text-xs font-bold uppercase tracking-wide text-ink/45">Canto actual</p>
                   <p className="mt-1 font-black text-ink">{currentReplacementSong.title}</p>
                   <p className="mt-1 text-sm text-ink/60">{currentReplacementSong.mainTheme || "Sin tema"} · {currentReplacementSong.category || "Sin categoría"} · {currentReplacementSong.keyWithCapo || currentReplacementSong.mainKey || "Sin tono"}</p>
@@ -1431,7 +1431,7 @@ export function SmartCenter({ scheduleId = "", embedded = false, initialDate = "
                 </ul>
               </div>
             ) : (
-              <div className="rounded-2xl border border-emerald-300 bg-emerald-50 p-3 text-sm font-bold text-emerald-800 dark:border-emerald-400/30 dark:bg-emerald-500/12 dark:text-emerald-100">
+              <div className="smart-success-empty rounded-2xl border border-emerald-300 bg-emerald-50 p-3 text-sm font-bold text-emerald-800">
                 Sin puntos en contra.
               </div>
             )}

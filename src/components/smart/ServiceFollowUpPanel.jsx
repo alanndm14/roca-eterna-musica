@@ -246,7 +246,7 @@ export function ServiceFollowUpPanel({ schedule, canEdit = false, onSave, onClos
                 </article>
               );
             })}
-            {!visibleEntries.length ? <p className="rounded-2xl bg-emerald-500/10 p-3 text-sm font-semibold text-emerald-800 dark:text-emerald-100">No hubo cantos con observaciones pendientes.</p> : null}
+            {!visibleEntries.length ? <p className="smart-success-empty rounded-2xl border border-emerald-300 bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">No hubo cantos con observaciones pendientes.</p> : null}
           </div>
 
           {canEdit ? (
