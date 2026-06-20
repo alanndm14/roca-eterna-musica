@@ -115,8 +115,8 @@ function NotificationsPortal({
       <aside className="absolute inset-x-3 bottom-20 top-auto max-h-[min(76dvh,620px)] overflow-hidden rounded-3xl border border-ink/10 bg-white p-3 shadow-2xl dark:border-white/12 dark:bg-zinc-950 sm:bottom-auto sm:right-5 sm:left-auto sm:top-20 sm:w-[min(400px,calc(100vw-2rem))]">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <p className="font-bold text-ink">Notificaciones</p>
-            <p className="text-xs text-ink/45">{unreadCount} sin leer</p>
+            <p className="font-bold text-ink dark:text-white">Notificaciones</p>
+            <p className="text-xs text-ink/45 dark:text-white/55">{unreadCount} sin leer</p>
           </div>
           <div className="flex gap-2">
             <Button variant="subtle" className="h-9 shrink-0 px-3 text-xs" onClick={onMarkAllRead}>
@@ -143,11 +143,11 @@ function NotificationsPortal({
                 </span>
                 <span className="min-w-0">
                   <span className="flex min-w-0 items-center justify-between gap-2">
-                    <span className="truncate text-sm font-bold text-ink">{entityDeleted ? (item.scheduleId ? "Programación eliminada" : item.songId ? "Canto eliminado" : item.title) : item.title}</span>
+                    <span className="truncate text-sm font-bold text-ink dark:text-white">{entityDeleted ? (item.scheduleId ? "Programación eliminada" : item.songId ? "Canto eliminado" : item.title) : item.title}</span>
                     {unread ? <span className="h-2 w-2 rounded-full bg-brass" aria-label="No leída" /> : null}
                   </span>
-                  <span className="mt-1 block text-xs leading-5 text-ink/60">{entityDeleted ? "Esta novedad ya no está activa." : item.message}</span>
-                  <span className="mt-2 block text-[11px] text-ink/40">
+                  <span className="mt-1 block text-xs leading-5 text-ink/60 dark:text-white/68">{entityDeleted ? "Esta novedad ya no está activa." : item.message}</span>
+                  <span className="mt-2 block text-[11px] font-medium text-ink/45 dark:text-white/58">
                     {item.createdAt ? new Date(item.createdAt.seconds ? item.createdAt.seconds * 1000 : item.createdAt).toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" }) : ""}
                   </span>
                 </span>
@@ -639,8 +639,8 @@ export function AppShell() {
                 <HelpCircle className="h-4 w-4" />
               </Button>
               <div className="relative">
-                <Button variant="subtle" className="h-10 w-10 px-0" onClick={() => setNotificationsOpen((current) => !current)} aria-label="Notificaciones">
-                  <Bell className="h-4 w-4" />
+                <Button variant="subtle" className="h-11 w-11 !p-0" onClick={() => setNotificationsOpen((current) => !current)} aria-label="Notificaciones">
+                  <Bell className="h-6 w-6 shrink-0 stroke-[2.2]" />
                   {unreadNotifications.length ? (
                     <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-brass px-1 text-[10px] font-bold text-white">
                       {unreadNotifications.length}

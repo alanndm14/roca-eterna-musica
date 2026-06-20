@@ -313,13 +313,30 @@ export function SongDetail() {
         </aside> : null}
       </div>
 
-      <Modal open={showPdf} title="PDF de letra y acordes" onClose={() => setShowPdf(false)} wide>
+      <Modal
+        open={showPdf}
+        title="PDF de letra y acordes"
+        onClose={() => setShowPdf(false)}
+        wide
+        centered
+        panelClassName="flex h-[min(94dvh,920px)] flex-col"
+        contentClassName="min-h-0 flex-1"
+      >
         {pdfUrl ? (
-          <div className="space-y-3">
-            <div className="h-[72vh] overflow-hidden rounded-2xl border border-ink/10 bg-white">
-              <iframe title={`PDF ${song.title}`} src={pdfUrl} className="h-full w-full" />
+          <div className="flex h-full min-h-0 flex-col gap-3">
+            <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-ink/10 bg-white shadow-inner dark:border-white/15 dark:bg-black">
+              <iframe
+                title={`PDF ${song.title}`}
+                src={pdfUrl}
+                className="h-full min-h-[55dvh] w-full touch-pan-y"
+              />
             </div>
-            <p className="text-sm text-ink/55">Si la vista previa no carga, abre el PDF en una pestaña nueva.</p>
+            <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 pb-[env(safe-area-inset-bottom)]">
+              <p className="text-xs text-ink/55 dark:text-white/60 sm:text-sm">Puedes deslizar el documento dentro de esta ventana.</p>
+              <a href={pdfUrl} target="_blank" rel="noreferrer">
+                <Button variant="secondary"><ExternalLink className="h-4 w-4" />Abrir en otra pestaña</Button>
+              </a>
+            </div>
           </div>
         ) : null}
       </Modal>

@@ -1,11 +1,11 @@
 {
-  "version": "1.0.5",
+  "version": "1.0.6",
   "displayVersion": "1.0",
   "date": "2026-06-20",
   "critical": true,
   "changes": [
-    "Transiciones suaves entre secciones",
-    "Carga sin tarjetas vacías intermedias",
-    "Enlace independiente para acordes externos"
+    "Campana y notificaciones más legibles",
+    "Vista previa de PDFs centrada y deslizable",
+    "Mejor visualización en móvil y modo oscuro"
   ]
 }
