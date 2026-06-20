@@ -163,13 +163,19 @@ function NotificationsPortal({
 
 function RouteFallback() {
   return (
-    <div className="route-fallback" aria-label="Cargando sección">
-      <div className="h-20 rounded-2xl bg-ink/5" />
+    <motion.div
+      className="route-fallback"
+      aria-label="Cargando sección"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.28, ease: "easeOut" }}
+    >
+      <div className="h-20 animate-pulse rounded-2xl bg-ink/5" />
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="h-36 rounded-2xl bg-ink/5" />
-        <div className="h-36 rounded-2xl bg-ink/5" />
+        <div className="h-36 animate-pulse rounded-2xl bg-ink/5" />
+        <div className="h-36 animate-pulse rounded-2xl bg-ink/5 [animation-delay:140ms]" />
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -178,7 +184,7 @@ export function AppShell() {
   const navigate = useNavigate();
   const reduceMotion = useReducedMotion();
   const { profile, saveUserPreferences } = useAuth();
-  const { settings, useLocal, notifications, schedules, songs, markNotificationRead, markAllNotificationsRead } = useMusicData();
+  const { loading, settings, useLocal, notifications, schedules, songs, markNotificationRead, markAllNotificationsRead } = useMusicData();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem(sidebarStorageKey) === "true");
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const activeScrollPath = useRef(location.pathname);
@@ -700,15 +706,19 @@ export function AppShell() {
           ) : null}
           <motion.div
             key={location.pathname}
-            className="route-content min-w-0"
-            initial={reduceMotion ? false : { opacity: 0.72, y: 5 }}
+            className="route-content min-w-0 transform-gpu will-change-[transform,opacity]"
+            initial={reduceMotion ? false : { opacity: 0.82, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: reduceMotion ? 0 : 0.18, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ duration: reduceMotion ? 0 : 0.34, ease: [0.22, 1, 0.36, 1] }}
           >
             <ErrorBoundary resetKey={location.pathname}>
-              <Suspense fallback={<RouteFallback />}>
-                <Outlet />
-              </Suspense>
+              {loading ? (
+                <RouteFallback />
+              ) : (
+                <Suspense fallback={<RouteFallback />}>
+                  <Outlet />
+                </Suspense>
+              )}
             </ErrorBoundary>
           </motion.div>
         </div>

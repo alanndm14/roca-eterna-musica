@@ -207,14 +207,29 @@ export function MusicDataProvider({ children }) {
   const [auditLogs, setAuditLogs] = useState(sampleAuditLogs);
   const [notifications, setNotifications] = useState(sampleNotifications);
   const [loading, setLoading] = useState(true);
+  const [initialLoad, setInitialLoad] = useState({
+    completed: 0,
+    received: 0,
+    total: 6,
+    progress: 0,
+    ready: false,
+    source: "starting"
+  });
   const [error, setError] = useState("");
   const automaticPushRequests = useRef(new Set());
+  const keyPreferenceRef = useRef(settings.keyPreference || sampleSettings.keyPreference);
 
   const useLocal = !isFirebaseConfigured || isDemoMode;
 
   useEffect(() => {
+    keyPreferenceRef.current = settings.keyPreference || sampleSettings.keyPreference;
+    setSongs((current) => current.map((song) => normalizeSong(song, keyPreferenceRef.current)));
+  }, [settings.keyPreference]);
+
+  useEffect(() => {
     if (!profile) {
       setLoading(false);
+      setInitialLoad({ completed: 0, received: 0, total: 0, progress: 1, ready: true, source: "no-profile" });
       return undefined;
     }
 
@@ -231,81 +246,126 @@ export function MusicDataProvider({ children }) {
       setAuditLogs(localData.auditLogs || sampleAuditLogs);
       setNotifications(localData.notifications || sampleNotifications);
       setLoading(false);
+      setInitialLoad({ completed: 6, received: 6, total: 6, progress: 1, ready: true, source: "local" });
       return undefined;
     }
 
     setLoading(true);
-    const pendingInitialCollections = new Set(["songs", "schedules", "plannedNewSongs", "themes", "settings", "notifications"]);
-    const markInitialCollectionReady = (name) => {
-      pendingInitialCollections.delete(name);
-      if (!pendingInitialCollections.size) setLoading(false);
+    const collectionNames = ["songs", "schedules", "plannedNewSongs", "themes", "settings", "notifications"];
+    const receivedInitialCollections = new Set();
+    const confirmedInitialCollections = new Set();
+    let initialLoadFinished = false;
+    const publishInitialLoad = (source = "firestore") => {
+      if (initialLoadFinished) return;
+      const total = collectionNames.length;
+      const completed = confirmedInitialCollections.size;
+      const received = receivedInitialCollections.size;
+      const cachedOnly = Math.max(0, received - completed);
+      const progress = Math.min(0.98, (completed + cachedOnly * 0.45) / total);
+      setInitialLoad({ completed, received, total, progress, ready: false, source });
+      if (completed < total) return;
+      initialLoadFinished = true;
+      setInitialLoad({ completed: total, received: total, total, progress: 1, ready: true, source: "server" });
+      setLoading(false);
     };
+    const markInitialCollectionReady = (name, snapshot, forceConfirmed = false) => {
+      receivedInitialCollections.add(name);
+      if (forceConfirmed || snapshot?.metadata?.fromCache === false) {
+        confirmedInitialCollections.add(name);
+      }
+      publishInitialLoad(snapshot?.metadata?.fromCache ? "cache" : "server");
+    };
+    setInitialLoad({ completed: 0, received: 0, total: collectionNames.length, progress: 0, ready: false, source: "starting" });
+
+    const startupTimeout = window.setTimeout(() => {
+      if (initialLoadFinished) return;
+      initialLoadFinished = true;
+      const total = collectionNames.length;
+      const received = receivedInitialCollections.size;
+      setInitialLoad({
+        completed: confirmedInitialCollections.size,
+        received,
+        total,
+        progress: received ? 1 : 0,
+        ready: true,
+        source: received ? "cache-timeout" : "timeout"
+      });
+      setLoading(false);
+    }, 15000);
+
+    const snapshotOptions = { includeMetadataChanges: true };
     const unsubscribers = [
       onSnapshot(
         query(collection(db, "songs"), orderBy("title")),
+        snapshotOptions,
         (snapshot) => {
-          setSongs(snapshot.docs.map(withId).map((song) => normalizeSong(song, settings.keyPreference)));
-          markInitialCollectionReady("songs");
+          setSongs(snapshot.docs.map(withId).map((song) => normalizeSong(song, keyPreferenceRef.current)));
+          markInitialCollectionReady("songs", snapshot);
         },
         (snapshotError) => {
           setError(snapshotError.message);
-          markInitialCollectionReady("songs");
+          markInitialCollectionReady("songs", null, true);
         }
       ),
       onSnapshot(
         query(collection(db, "schedules"), orderBy("date", "desc")),
+        snapshotOptions,
         (snapshot) => {
           setSchedules(snapshot.docs.map(withId));
-          markInitialCollectionReady("schedules");
+          markInitialCollectionReady("schedules", snapshot);
         },
         (snapshotError) => {
           setError(snapshotError.message);
-          markInitialCollectionReady("schedules");
+          markInitialCollectionReady("schedules", null, true);
         }
       ),
       onSnapshot(
         query(collection(db, "plannedNewSongs"), orderBy("plannedDate")),
+        snapshotOptions,
         (snapshot) => {
           setPlannedNewSongs(snapshot.docs.map(withId));
-          markInitialCollectionReady("plannedNewSongs");
+          markInitialCollectionReady("plannedNewSongs", snapshot);
         },
         (snapshotError) => {
           setPlannedNewSongs([]);
           setError(snapshotError.message);
-          markInitialCollectionReady("plannedNewSongs");
+          markInitialCollectionReady("plannedNewSongs", null, true);
         }
       ),
       onSnapshot(
         query(collection(db, "themes"), orderBy("name")),
+        snapshotOptions,
         (snapshot) => {
           setThemes(snapshot.docs.map(withId));
-          markInitialCollectionReady("themes");
+          markInitialCollectionReady("themes", snapshot);
         },
         (snapshotError) => {
           setError(snapshotError.message);
-          markInitialCollectionReady("themes");
+          markInitialCollectionReady("themes", null, true);
         }
       ),
       onSnapshot(
         doc(db, "settings", "main"),
+        snapshotOptions,
         (snapshot) => {
           setSettings(snapshot.exists() ? normalizeValue(snapshot.data()) : sampleSettings);
-          markInitialCollectionReady("settings");
+          markInitialCollectionReady("settings", snapshot);
         },
         (snapshotError) => {
           setError(snapshotError.message);
-          markInitialCollectionReady("settings");
+          markInitialCollectionReady("settings", null, true);
         }
       ),
       onSnapshot(
         query(collection(db, "notifications"), orderBy("createdAt", "desc"), limit(120)),
+        snapshotOptions,
         (snapshot) => {
           setNotifications(snapshot.docs.map(withId));
-          markInitialCollectionReady("notifications");
+          markInitialCollectionReady("notifications", snapshot);
         },
         (snapshotError) => {
           setError(snapshotError.message);
-          markInitialCollectionReady("notifications");
+          markInitialCollectionReady("notifications", null, true);
         }
       )
     ];
@@ -320,8 +380,11 @@ export function MusicDataProvider({ children }) {
       setAuthorizedEmails([]);
       setAuditLogs([]);
     }
-    return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
-  }, [profile, settings.keyPreference, useLocal]);
+    return () => {
+      window.clearTimeout(startupTimeout);
+      unsubscribers.forEach((unsubscribe) => unsubscribe());
+    };
+  }, [profile?.role, profile?.uid, useLocal]);
 
   useEffect(() => {
     if (!profile || !useLocal) return;
@@ -1575,6 +1638,7 @@ export function MusicDataProvider({ children }) {
       auditLogs,
       notifications,
       loading,
+      initialLoad,
       error,
       useLocal,
       logAuditEvent,
@@ -1605,7 +1669,7 @@ export function MusicDataProvider({ children }) {
       restoreFromAuditLog,
       seedExampleData
     }),
-    [auditLogs, authorizedEmails, error, loading, notifications, plannedNewSongs, schedules, settings, songs, themes, useLocal, users]
+    [auditLogs, authorizedEmails, error, initialLoad, loading, notifications, plannedNewSongs, schedules, settings, songs, themes, useLocal, users]
   );
 
   return <MusicDataContext.Provider value={value}>{children}</MusicDataContext.Provider>;

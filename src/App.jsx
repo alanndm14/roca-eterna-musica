@@ -53,7 +53,7 @@ function ProtectedRoute({ children }) {
 
 function DataReady({ children }) {
   const { profile, completeOnboarding } = useAuth();
-  const { loading, settings } = useMusicData();
+  const { initialLoad, loading, settings } = useMusicData();
   const dateKey = getLocalDateKey();
   const initialFullStartup = shouldRunWelcome(profile?.uid);
   const [startupPhase, setStartupPhase] = useState(() => (
@@ -66,6 +66,13 @@ function DataReady({ children }) {
   const [showGuide, setShowGuide] = useState(false);
   const [guideChecked, setGuideChecked] = useState(false);
   const [updateCheck, setUpdateCheck] = useState({ checked: false, update: null });
+  const dataProgress = initialLoad?.ready ? 1 : Math.max(0, Math.min(1, Number(initialLoad?.progress || 0)));
+  const routeProgress = startupLoad.complete ? 1 : Math.max(0, Math.min(1, Number(startupLoad.progress || 0)));
+  const startupProgress = Math.round(((dataProgress * 0.72) + (routeProgress * 0.28)) * 100);
+  const startupReady = !loading
+    && Boolean(initialLoad?.ready)
+    && Boolean(profile?.active)
+    && (!fullStartup || startupLoad.complete);
 
   useEffect(() => {
     const openGuide = () => setShowGuide(true);
@@ -207,8 +214,8 @@ function DataReady({ children }) {
         logoSrc={logoSrc}
         logoAlt={settings?.logoAltText || "Roca Eterna Música"}
         logoMode={effectiveTheme}
-        ready={!loading && Boolean(profile?.active) && (!fullStartup || startupLoad.complete)}
-        progress={fullStartup ? Math.round((loading ? startupLoad.progress * 0.9 : 0.1 + startupLoad.progress * 0.9) * 100) : 100}
+        ready={startupReady}
+        progress={fullStartup ? startupProgress : 100}
       />
     );
   }

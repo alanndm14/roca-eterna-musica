@@ -1,5 +1,5 @@
 export const appVersion = "1.0";
-export const appBuildVersion = "1.0.3";
+export const appBuildVersion = "1.0.4";
 
 export const changelog = [
   {
@@ -19,7 +19,8 @@ export const changelog = [
       "El equipo de Medios puede guardar el enlace de diapositivas del servicio",
       "Navegación más fluida con carga anticipada de secciones",
       "Datos de los cantos sincronizados en Inicio, Programación, Músicos y Servicios",
-      "La bienvenida prepara todas las secciones cuando han pasado dos horas"
+      "La bienvenida prepara todas las secciones cuando han pasado dos horas",
+      "La barra de bienvenida refleja la carga confirmada de datos y secciones"
     ],
     fixed: [
       "Notas internas actualizadas en Inicio y navegación directa a cantos y programaciones",
@@ -27,7 +28,9 @@ export const changelog = [
       "Controles de tipos de servicio contenidos correctamente dentro de su tarjeta",
       "Transiciones generales optimizadas para móvil y computadora",
       "Selección de servicio y posición de lectura conservadas al volver",
-      "Contraste de enlaces de escucha y navegación móvil mejorado"
+      "Contraste de enlaces de escucha y navegación móvil mejorado",
+      "Transiciones de carga y navegación más suaves",
+      "Inicio espera la programación confirmada antes de terminar la bienvenida"
     ],
     pending: []
   },
