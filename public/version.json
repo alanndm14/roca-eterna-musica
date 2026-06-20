@@ -1,11 +1,11 @@
 {
-  "version": "1.0.2",
+  "version": "1.0.3",
   "displayVersion": "1.0",
   "date": "2026-06-19",
   "critical": true,
   "changes": [
-    "Navegación más fluida entre secciones",
-    "Carga inicial optimizada",
-    "Mejor respuesta en móvil y computadora"
+    "Cantos sincronizados en todas las vistas",
+    "Navegación y selección de servicio conservadas",
+    "Bienvenida y carga inicial mejoradas"
   ]
 }

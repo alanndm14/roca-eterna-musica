@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
@@ -15,6 +15,7 @@ import { ErrorBoundary } from "../ui/ErrorBoundary";
 import { BottomNav } from "./BottomNav";
 import { Sidebar } from "./Sidebar";
 import { preloadRoutePath } from "../../services/routePreload";
+import { consumeRouteScrollReset, getRouteScroll, saveRouteScroll } from "../../services/navigationMemory";
 
 const pageNames = {
   "/": "Inicio",
@@ -180,6 +181,7 @@ export function AppShell() {
   const { settings, useLocal, notifications, schedules, songs, markNotificationRead, markAllNotificationsRead } = useMusicData();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem(sidebarStorageKey) === "true");
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const activeScrollPath = useRef(location.pathname);
   const [foregroundPushes, setForegroundPushes] = useState([]);
   const [availableUpdate, setAvailableUpdate] = useState(null);
   const [updateHidden, setUpdateHidden] = useState(false);
@@ -224,6 +226,37 @@ export function AppShell() {
   useEffect(() => {
     localStorage.setItem(sidebarStorageKey, String(sidebarCollapsed));
   }, [sidebarCollapsed]);
+
+  useLayoutEffect(() => {
+    const path = location.pathname;
+    activeScrollPath.current = path;
+    const shouldReset = consumeRouteScrollReset(path);
+    const target = shouldReset ? 0 : getRouteScroll(path);
+    const frame = window.requestAnimationFrame(() => window.scrollTo({ top: target, left: 0, behavior: "auto" }));
+    return () => {
+      window.cancelAnimationFrame(frame);
+      saveRouteScroll(path, window.scrollY);
+    };
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const saveCurrentScroll = () => saveRouteScroll(activeScrollPath.current, window.scrollY);
+    let frame = 0;
+    const trackScroll = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        saveCurrentScroll();
+      });
+    };
+    window.addEventListener("pagehide", saveCurrentScroll);
+    window.addEventListener("scroll", trackScroll, { passive: true });
+    return () => {
+      window.removeEventListener("pagehide", saveCurrentScroll);
+      window.removeEventListener("scroll", trackScroll);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;

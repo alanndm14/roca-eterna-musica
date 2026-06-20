@@ -54,7 +54,7 @@ function getScheduledSongOptions(schedule = {}, songs = []) {
     return {
       id: entry.songId || `${entry.titleSnapshot}-${index}`,
       songId: entry.songId || "",
-      title: entry.titleSnapshot || fullSong?.title || "Canto",
+      title: fullSong?.title || entry.titleSnapshot || "Canto",
       fullSong
     };
   });
@@ -150,10 +150,18 @@ function MusicianScheduleCalendar({ schedules, plannedNewSongs = [], selectedDat
 
 export function MusicianView({ mediaMode = false }) {
   const { isAdmin, canEdit, profile } = useAuth();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const isViewer = profile?.role === "viewer";
   const { schedules, songs, settings, plannedNewSongs = [], replaceScheduleSong, saveSchedule, saveScheduleSlidesUrl } = useMusicData();
-  const [selectedId, setSelectedId] = useState("");
+  const selectionStorageKey = `roca-eterna-service-selection:${mediaMode ? "services" : "musicians"}:${profile?.uid || profile?.role || "user"}`;
+  const savedSelection = (() => {
+    try {
+      return JSON.parse(sessionStorage.getItem(selectionStorageKey) || "null") || {};
+    } catch {
+      return {};
+    }
+  })();
+  const [selectedId, setSelectedId] = useState(() => searchParams.get("schedule") || savedSelection.scheduleId || "");
   const [focusMode, setFocusMode] = useState(false);
   const [sheetUrl, setSheetUrl] = useState("");
   const [showSheet, setShowSheet] = useState(false);
@@ -171,12 +179,12 @@ export function MusicianView({ mediaMode = false }) {
   const [programDraft, setProgramDraft] = useState([]);
   const [serviceReviewOpen, setServiceReviewOpen] = useState(false);
   const [schedulePickerOpen, setSchedulePickerOpen] = useState(() => Boolean(mediaMode));
-  const [emptyDateSelected, setEmptyDateSelected] = useState(false);
+  const [emptyDateSelected, setEmptyDateSelected] = useState(() => savedSelection.emptyDateSelected === true);
   const [slidesUrlDraft, setSlidesUrlDraft] = useState("");
   const [slidesStatus, setSlidesStatus] = useState("");
   const selectedServiceRef = useRef(null);
   const today = todayString();
-  const [pickerDate, setPickerDate] = useState(today);
+  const [pickerDate, setPickerDate] = useState(() => searchParams.get("date") || savedSelection.date || today);
 
   const scheduleOptions = useMemo(() => {
     const upcoming = schedules.filter((schedule) => schedule.date >= today).sort((a, b) => `${a.date}${a.time || ""}`.localeCompare(`${b.date}${b.time || ""}`));
@@ -209,6 +217,14 @@ export function MusicianView({ mediaMode = false }) {
       }
     }
   }, [emptyDateSelected, scheduleOptions, schedules, searchParams, selectedId]);
+
+  useEffect(() => {
+    sessionStorage.setItem(selectionStorageKey, JSON.stringify({
+      scheduleId: selectedId,
+      date: pickerDate,
+      emptyDateSelected
+    }));
+  }, [emptyDateSelected, pickerDate, selectedId, selectionStorageKey]);
 
   useEffect(() => {
     document.documentElement.classList.toggle("musician-focus", focusMode);
@@ -247,6 +263,11 @@ export function MusicianView({ mediaMode = false }) {
       .sort((a, b) => `${a.time || ""}`.localeCompare(`${b.time || ""}`))[0];
     setSelectedId(firstSchedule?.id || "");
     setEmptyDateSelected(!firstSchedule);
+    const next = new URLSearchParams(searchParams);
+    next.set("date", dateString);
+    if (firstSchedule?.id) next.set("schedule", firstSchedule.id);
+    else next.delete("schedule");
+    setSearchParams(next, { replace: true });
     setActivePdfIndex(0);
     if (!firstSchedule) {
       setShowServicePdfs(false);
@@ -513,6 +534,10 @@ export function MusicianView({ mediaMode = false }) {
     setSelectedId(next.id);
     setEmptyDateSelected(false);
     if (next.date) setPickerDate(next.date);
+    const params = new URLSearchParams(searchParams);
+    params.set("schedule", next.id);
+    if (next.date) params.set("date", next.date);
+    setSearchParams(params, { replace: true });
     requestAnimationFrame(() => selectedServiceRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }));
   };
 
@@ -586,6 +611,10 @@ export function MusicianView({ mediaMode = false }) {
                 onClick={() => {
                   setSelectedId(schedule.id);
                   setEmptyDateSelected(false);
+                  const next = new URLSearchParams(searchParams);
+                  next.set("schedule", schedule.id);
+                  if (schedule.date) next.set("date", schedule.date);
+                  setSearchParams(next, { replace: true });
                 }}
                 className={`w-full rounded-2xl border p-3 text-left transition ${selectedSchedule?.id === schedule.id ? "border-brass bg-brass/10" : "border-ink/10 bg-white hover:border-brass/40 dark:border-white/10 dark:bg-white/5"}`}
               >
@@ -601,7 +630,7 @@ export function MusicianView({ mediaMode = false }) {
                 <div className="mt-2 space-y-2">
                   {dayPlannedNewSongs.map((item) => (
 	                    <div key={item.id} className="rounded-2xl border border-brass/25 bg-brass/10 p-3 dark:border-brass/30 dark:bg-brass/10">
-	                      <p className="font-bold text-ink">{item.songTitle}</p>
+	                      <p className="font-bold text-ink">{songs.find((song) => song.id === item.songId)?.title || item.songTitle}</p>
 	                      <p className="mt-1 text-xs text-ink/55">Canto nuevo planeado · {item.serviceType || "servicio"}</p>
 	                      <p className="mt-1 text-xs font-semibold capitalize text-ink/50">{item.status || "planeado"}</p>
 	                    </div>))}
@@ -736,6 +765,7 @@ export function MusicianView({ mediaMode = false }) {
                     </Button>
                   ) : null}
                 </div>
+                {song.artistOrSource ? <p className="mt-1 text-sm font-semibold text-ink/45">{song.artistOrSource}</p> : null}
                 {!mediaMode ? <p className="mt-2 text-base text-ink/60">{song.notes || "Sin notas para este canto."}</p> : null}
                 {!isViewer ? <SongFollowUpNotice issues={getOutstandingSongFollowUps(song.entry.songId, schedules, selectedSchedule).slice(0, 1)} /> : null}
                 <div className="mt-3 flex flex-wrap gap-2">

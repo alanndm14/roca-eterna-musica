@@ -19,6 +19,7 @@ import { normalizeSearchText } from "../services/songUtils";
 import { downloadBlob } from "../services/mergeServicePdfs";
 import { getOutstandingSongFollowUps, reviewServiceSchedule } from "../services/smartRecommendations";
 import { getServiceTypeOptions, getWorshipLeaderOptions } from "../services/serviceOptions";
+import { resolveScheduleSongs } from "../services/scheduleSongSync";
 import { SmartCenter } from "./SmartCenter";
 import {
   SPECIAL_PROGRAM_TYPES,
@@ -81,9 +82,11 @@ function ScheduleForm({ initialSchedule, songs, schedules, settings, onSubmit, o
   const [schedule, setSchedule] = useState(() => ({
     ...blankSchedule,
     ...initialSchedule,
-    songs: (initialSchedule?.songs || []).map((entry) => ({
-      ...entry,
-      notes: songs.find((song) => song.id === entry.songId)?.internalNotes || entry.notes || ""
+    songs: resolveScheduleSongs(initialSchedule, songs, settings.keyPreference || "sharps").map((song) => ({
+      ...song.entry,
+      titleSnapshot: song.title,
+      keySnapshot: song.keyWithCapo || song.mainKey || "",
+      notes: song.notes
     })),
     serviceType: hasInitialService ? initialSchedule.serviceType : initialService.value,
     serviceLabel: initialSchedule?.serviceLabel || initialService.label,
@@ -376,12 +379,14 @@ function PlannedNewSongForm({ initialValue, songs, onSubmit, onCancel }) {
 }
 
 function PlannedNewSongCard({ item, songs, canEdit, canDelete, onEdit, onMarkIntroduced, onDelete }) {
+  const liveSong = songs.find((song) => song.id === item.songId);
+  const displayTitle = liveSong?.title || item.songTitle;
   return (
     <div className="rounded-2xl border border-brass/25 bg-brass/10 p-3 dark:border-brass/30 dark:bg-brass/10">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <p className="font-bold text-ink">
-            {item.songId ? <SongNameLink songId={item.songId} title={item.songTitle} songs={songs}>{item.songTitle}</SongNameLink> : item.songTitle}
+            {item.songId ? <SongNameLink songId={item.songId} title={displayTitle} songs={songs}>{displayTitle}</SongNameLink> : displayTitle}
           </p>
           <p className="mt-1 text-sm font-semibold text-brass">
             {plannedOptionLabel(plannedServiceOptions, item.serviceType)} · {plannedOptionLabel(plannedStatusOptions, item.status)}
@@ -498,6 +503,7 @@ function ScheduleCard({
   workspace = false
 }) {
   const special = isSpecialService(schedule);
+  const liveSongs = resolveScheduleSongs(schedule, songs);
   const review = reviewServiceSchedule(schedule, songs, schedules);
   const risk = getRiskTone(review.score);
   const pendingReviews = (review.groups || [])
@@ -577,15 +583,16 @@ function ScheduleCard({
         </div>
       ) : null}
       <div className="mt-5 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-        {(schedule.songs || []).map((song, songIndex) => (
-          <div key={`${song.songId}-${songIndex}`} className="rounded-2xl bg-ink/5 p-3">
+        {liveSongs.map((song) => (
+          <div key={`${song.songId}-${song.index}`} className="rounded-2xl bg-ink/5 p-3">
             <div className="flex items-center justify-between gap-3">
               <p className="font-semibold text-ink">
-                {songIndex + 1}. <SongNameLink songId={song.songId} title={song.titleSnapshot} songs={songs}>{song.titleSnapshot}</SongNameLink>
+                {song.index}. <SongNameLink songId={song.songId} title={song.title} songs={songs}>{song.title}</SongNameLink>
               </p>
-              <span className="rounded-xl bg-white px-3 py-1 text-sm font-bold text-ink">{song.keySnapshot}</span>
+              <span className="rounded-xl bg-white px-3 py-1 text-sm font-bold text-ink">{song.keyWithCapo || song.mainKey || "--"}</span>
             </div>
-            <p className="mt-1 text-sm text-ink/55">{songs.find((item) => item.id === song.songId)?.internalNotes || song.notes || "Sin notas"}</p>
+            {song.artistOrSource ? <p className="mt-1 text-xs font-semibold text-ink/45">{song.artistOrSource}</p> : null}
+            <p className="mt-1 text-sm text-ink/55">{song.notes || "Sin notas"}</p>
             <SongFollowUpNotice issues={getOutstandingSongFollowUps(song.songId, schedules, schedule).slice(0, 1)} />
           </div>
         ))}
@@ -595,7 +602,7 @@ function ScheduleCard({
 }
 
 export function Schedules() {
-  const { canEdit, canDelete } = useAuth();
+  const { canEdit, canDelete, profile } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const {
     songs,
@@ -611,6 +618,14 @@ export function Schedules() {
     markPlannedNewSongIntroduced,
     deletePlannedNewSong
   } = useMusicData();
+  const navigationStorageKey = `roca-eterna-schedule-view:${profile?.uid || profile?.role || "user"}`;
+  const savedNavigation = (() => {
+    try {
+      return JSON.parse(sessionStorage.getItem(navigationStorageKey) || "null") || {};
+    } catch {
+      return {};
+    }
+  })();
   const [editingSchedule, setEditingSchedule] = useState(null);
   const [newScheduleDraft, setNewScheduleDraft] = useState(null);
   const [plannedNewSongDraft, setPlannedNewSongDraft] = useState(null);
@@ -618,12 +633,13 @@ export function Schedules() {
   const [programDraft, setProgramDraft] = useState([]);
   const [programPreviewUrl, setProgramPreviewUrl] = useState("");
   const [programPreviewTitle, setProgramPreviewTitle] = useState("Programa especial");
-  const [tab, setTab] = useState("calendar");
-  const [selectedScheduleId, setSelectedScheduleId] = useState(() => searchParams.get("schedule") || "");
-  const [activeScheduleWorkspaceTab, setActiveScheduleWorkspaceTab] = useState(() => searchParams.get("tab") === "asistente" ? "assistant" : "program");
+  const [tab, setTab] = useState(() => savedNavigation.tab || "calendar");
+  const [selectedScheduleId, setSelectedScheduleId] = useState(() => searchParams.get("schedule") || savedNavigation.scheduleId || "");
+  const [activeScheduleWorkspaceTab, setActiveScheduleWorkspaceTab] = useState(() => searchParams.get("tab") === "asistente" ? "assistant" : savedNavigation.workspaceTab || "program");
   const [selectedDate, setSelectedDate] = useState(() => {
     const requestedDate = searchParams.get("date");
     if (requestedDate) return requestedDate;
+    if (savedNavigation.date) return savedNavigation.date;
     const today = todayString();
     return [...schedules].filter((schedule) => schedule.date >= today).sort((a, b) => a.date.localeCompare(b.date))[0]?.date || today;
   });
@@ -647,6 +663,15 @@ export function Schedules() {
       setTab("calendar");
     }
   }, [schedules, searchParams]);
+
+  useEffect(() => {
+    sessionStorage.setItem(navigationStorageKey, JSON.stringify({
+      tab,
+      scheduleId: selectedScheduleId,
+      date: selectedDate,
+      workspaceTab: activeScheduleWorkspaceTab
+    }));
+  }, [activeScheduleWorkspaceTab, navigationStorageKey, selectedDate, selectedScheduleId, tab]);
 
   const selectSchedule = (schedule, workspaceTab = activeScheduleWorkspaceTab) => {
     if (!schedule?.id) return;
@@ -680,11 +705,11 @@ export function Schedules() {
         schedule.type,
         schedule.leader,
         schedule.generalNotes,
-        ...(schedule.songs || []).map((song) => song.titleSnapshot)
+        ...resolveScheduleSongs(schedule, songs, settings.keyPreference || "sharps").map((song) => song.title)
       ].join(" ").toLowerCase();
       return text.includes(term);
     });
-  }, [query, schedules]);
+  }, [query, schedules, settings.keyPreference, songs]);
   const safePlannedNewSongs = Array.isArray(plannedNewSongs) ? plannedNewSongs : [];
   const searchedPlannedNewSongs = useMemo(() => {
     const term = normalizeSearchText(query);
@@ -904,9 +929,9 @@ export function Schedules() {
                     <span className="rounded-full bg-white px-2 py-1 text-[10px] font-black uppercase tracking-wide text-brass">Abrir</span>
                   </div>
                   <div className="mt-3 space-y-1">
-                    {(schedule.songs || []).map((song, index) => (
-                      <p key={`${song.songId || song.titleSnapshot}-${index}`} className="text-sm font-semibold text-ink/70">
-                        {index + 1}. {song.titleSnapshot}
+                    {resolveScheduleSongs(schedule, songs, settings.keyPreference || "sharps").map((song) => (
+                      <p key={`${song.songId || song.title}-${song.index}`} className="text-sm font-semibold text-ink/70">
+                        {song.index}. {song.title}
                       </p>
                     ))}
                   </div>
@@ -1172,7 +1197,7 @@ function getScheduledSongOptions(schedule = {}, songs = []) {
     return {
       id: entry.songId || `${entry.titleSnapshot}-${index}`,
       songId: entry.songId || "",
-      title: entry.titleSnapshot || fullSong?.title || "Canto",
+      title: fullSong?.title || entry.titleSnapshot || "Canto",
       fullSong
     };
   });

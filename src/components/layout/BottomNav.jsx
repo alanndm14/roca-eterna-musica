@@ -5,6 +5,7 @@ import { useAuth } from "../../hooks/useAuth";
 import { getMobileExtraItems, getMobilePrimaryItems } from "./navigation";
 import { Button } from "../ui/Button";
 import { preloadRoutePath } from "../../services/routePreload";
+import { requestRouteScrollReset } from "../../services/navigationMemory";
 
 export function BottomNav() {
   const location = useLocation();
@@ -24,7 +25,7 @@ export function BottomNav() {
     <>
       {open && showMore ? (
         <div className="fixed inset-0 z-40 bg-ink/35 backdrop-blur-sm lg:hidden" onClick={() => setOpen(false)}>
-          <div className="absolute bottom-20 left-3 right-3 rounded-3xl border border-ink/10 bg-white p-4 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+          <div className="absolute bottom-20 left-3 right-3 rounded-3xl border border-ink/10 bg-white p-4 shadow-2xl dark:border-white/12 dark:bg-zinc-950" onClick={(event) => event.stopPropagation()}>
             <div className="mb-3 flex items-center justify-between">
               <h2 className="font-bold text-ink">Más</h2>
               <Button variant="subtle" className="h-10 w-10 px-0" onClick={() => setOpen(false)} aria-label="Cerrar menú">
@@ -37,7 +38,13 @@ export function BottomNav() {
                   key={item.path}
                   to={item.path}
                   data-tour={item.tourId}
-                  onClick={() => setOpen(false)}
+                  onClick={() => {
+                    if (location.pathname === item.path || location.pathname.startsWith(`${item.path}/`)) {
+                      requestRouteScrollReset(item.path);
+                      if (location.pathname === item.path) window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+                    }
+                    setOpen(false);
+                  }}
                   onPointerEnter={() => preloadRoutePath(item.path)}
                   onFocus={() => preloadRoutePath(item.path)}
                   onTouchStart={() => preloadRoutePath(item.path)}
@@ -59,7 +66,7 @@ export function BottomNav() {
           </div>
         </div>
       ) : null}
-      <nav className="mobile-bottom-nav fixed bottom-0 left-0 right-0 z-40 border-t border-ink/10 bg-white/94 px-2 pb-2 pt-1 backdrop-blur lg:hidden">
+      <nav className="mobile-bottom-nav fixed bottom-0 left-0 right-0 z-40 border-t border-ink/10 px-2 pb-2 pt-1 lg:hidden">
         <div
           className="mx-auto grid max-w-xl gap-1"
           style={{ gridTemplateColumns: `repeat(${mobilePrimaryItems.length + (showMore ? 1 : 0)}, minmax(0, 1fr))` }}
@@ -73,6 +80,12 @@ export function BottomNav() {
               onPointerEnter={() => preloadRoutePath(item.path)}
               onFocus={() => preloadRoutePath(item.path)}
               onTouchStart={() => preloadRoutePath(item.path)}
+              onClick={() => {
+                if (location.pathname === item.path || location.pathname.startsWith(`${item.path}/`)) {
+                  requestRouteScrollReset(item.path);
+                  if (location.pathname === item.path) window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+                }
+              }}
               className={({ isActive }) => `flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl text-[11px] font-semibold transition ${isActive ? "bg-ink text-white" : "text-ink/55"}`}
             >
               <item.icon className="h-5 w-5" />

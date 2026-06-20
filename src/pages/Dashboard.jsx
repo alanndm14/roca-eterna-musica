@@ -13,6 +13,7 @@ import { diagnosePushNotifications, enablePushNotificationsForUser, getCurrentPu
 import { AndroidNotificationPermissionWizard } from "../components/notifications/AndroidNotificationPermissionWizard";
 import { isPushBackendConfigured, sendExternalPush } from "../services/externalPush";
 import { isAndroidDevice } from "../services/notificationDevice";
+import { resolveScheduleSongs } from "../services/scheduleSongSync";
 
 const currentMonth = () => todayString().slice(0, 7);
 const formatRemaining = (schedule, now = new Date()) => {
@@ -95,7 +96,7 @@ const getNextPlannedNewSong = (plannedNewSongs = [], songs = [], schedules = [],
 
 export function Dashboard() {
   const { canEdit, profile, saveUserPreferences } = useAuth();
-  const { songs = [], schedules = [], plannedNewSongs = [] } = useMusicData();
+  const { songs = [], schedules = [], plannedNewSongs = [], settings = {} } = useMusicData();
   const navigate = useNavigate();
   const [now, setNow] = useState(() => new Date());
   const [pushPrompt, setPushPrompt] = useState({ checked: false, show: false, status: "" });
@@ -110,6 +111,10 @@ export function Dashboard() {
     ? monthTopSongs.map((song) => `${song.title} (${song.count})`).join(", ")
     : "Sin datos este mes";
   const remaining = formatRemaining(upcoming, now);
+  const upcomingSongs = useMemo(
+    () => resolveScheduleSongs(upcoming, songs, settings.keyPreference || "sharps"),
+    [songs, settings.keyPreference, upcoming]
+  );
   const countdownActive = typeof remaining === "string" && remaining.includes(":");
   const nextNewSong = useMemo(
     () => getNextPlannedNewSong(plannedNewSongs, songs, schedules, now),
@@ -361,24 +366,22 @@ export function Dashboard() {
             </div>
           </div>
           <div className="mt-6 space-y-3">
-            {(upcoming?.songs || []).map((song, index) => {
-              const currentSong = songs.find((item) => item.id === song.songId);
-              return (
-                <div key={`${song.songId || song.titleSnapshot}-${index}`} className="flex items-center justify-between rounded-2xl bg-ink/5 p-3">
+            {upcomingSongs.map((song) => (
+                <div key={`${song.songId || song.title}-${song.index}`} className="flex items-center justify-between rounded-2xl bg-ink/5 p-3">
                   <div className="min-w-0">
                     {song.songId ? (
                       <Link className="font-semibold text-ink hover:text-brass" to={`/repertorio/${song.songId}`}>
-                        {index + 1}. {currentSong?.title || song.titleSnapshot || "Canto sin título"}
+                        {song.index}. {song.title}
                       </Link>
                     ) : (
-                      <p className="font-semibold text-ink">{index + 1}. {song.titleSnapshot || "Canto sin título"}</p>
+                      <p className="font-semibold text-ink">{song.index}. {song.title}</p>
                     )}
-                    <p className="text-sm text-ink/55">{currentSong?.internalNotes || song.notes || "Sin notas"}</p>
+                    {song.artistOrSource ? <p className="text-xs font-semibold text-ink/45">{song.artistOrSource}</p> : null}
+                    <p className="text-sm text-ink/55">{song.notes || "Sin notas"}</p>
                   </div>
-                  <span className="ml-3 shrink-0 rounded-xl bg-white px-3 py-1 text-sm font-bold text-ink dark:bg-white/10 dark:text-white">{song.keySnapshot || currentSong?.keyWithCapo || currentSong?.mainKey || "--"}</span>
+                  <span className="ml-3 shrink-0 rounded-xl bg-white px-3 py-1 text-sm font-bold text-ink dark:bg-white/10 dark:text-white">{song.keyWithCapo || song.mainKey || "--"}</span>
                 </div>
-              );
-            })}
+              ))}
           </div>
         </Card>
       </section>

@@ -276,6 +276,16 @@ textarea {
 
 .mobile-bottom-nav {
   padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
+  background-color: rgb(255 255 255 / 0.9);
+  -webkit-backdrop-filter: blur(18px) saturate(165%);
+  backdrop-filter: blur(18px) saturate(165%);
+  box-shadow: 0 -10px 30px rgb(17 17 17 / 0.1);
+}
+
+.dark .mobile-bottom-nav {
+  background-color: rgb(10 10 10 / 0.9);
+  border-color: rgb(255 255 255 / 0.14);
+  box-shadow: 0 -10px 30px rgb(0 0 0 / 0.45);
 }
 
 @media (max-width: 640px) {

@@ -237,18 +237,19 @@ export function DailyVerseSettings({ profile, logAuditEvent }) {
         <div className="mt-4 flex flex-wrap gap-2">
           <Button variant="secondary" onClick={() => window.dispatchEvent(new Event("roca-eterna-preview-daily-verse"))}>
             <Eye className="h-4 w-4" />
-            Vista previa de bienvenida diaria
+            Vista previa de bienvenida
           </Button>
           <Button
             variant="subtle"
             onClick={() => {
               if (!profile?.uid) return;
               localStorage.removeItem(`dailyVerseSeen:${profile.uid}`);
+              localStorage.removeItem(`roca-eterna-welcome-last-shown:${profile.uid}`);
               setStatus("La bienvenida volverá a mostrarse al abrir de nuevo la app.");
             }}
           >
             <RotateCcw className="h-4 w-4" />
-            Volver a mostrar hoy
+            Mostrar en el próximo ingreso
           </Button>
         </div>
 

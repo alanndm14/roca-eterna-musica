@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { appLogo, fallbackAppLogo } from "../../assets/logo";
 import { appVersion } from "../../data/changelog";
@@ -10,15 +10,20 @@ export function WelcomeSplash({
   logoAlt = "Roca Eterna Música",
   logoMode = "light",
   ready = true,
+  progress = 100,
 }) {
   const reduceMotion = useReducedMotion();
   const [leaving, setLeaving] = useState(false);
+  const mountedAt = useRef(Date.now());
   const name = profile?.preferredDisplayName || profile?.displayName || profile?.email || "";
+  const normalizedProgress = Math.max(4, Math.min(100, Number(progress || 0)));
 
   useEffect(() => {
     if (!ready) return undefined;
-    const fadeTimer = window.setTimeout(() => setLeaving(true), reduceMotion ? 700 : 2850);
-    const doneTimer = window.setTimeout(() => onDone?.(), reduceMotion ? 950 : 3350);
+    const elapsed = Date.now() - mountedAt.current;
+    const remaining = reduceMotion ? 180 : Math.max(450, 2400 - elapsed);
+    const fadeTimer = window.setTimeout(() => setLeaving(true), remaining);
+    const doneTimer = window.setTimeout(() => onDone?.(), remaining + (reduceMotion ? 120 : 480));
     return () => {
       window.clearTimeout(fadeTimer);
       window.clearTimeout(doneTimer);
@@ -71,7 +76,7 @@ export function WelcomeSplash({
           animate={{ opacity: 1 }}
           transition={{ delay: 1.18, duration: 0.45 }}
         >
-          Preparando tu repertorio...
+          {ready ? "Todo listo" : "Preparando tu repertorio..."}
         </motion.p>
         <motion.p
           className="mt-3 text-xs font-bold uppercase tracking-wide text-ink/55 dark:text-white/75"
@@ -84,8 +89,8 @@ export function WelcomeSplash({
         <motion.div
           className="mx-auto mt-6 h-0.5 w-40 origin-left rounded-full bg-brass"
           initial={reduceMotion ? false : { scaleX: 0, opacity: 0 }}
-          animate={{ scaleX: 1, opacity: 1 }}
-          transition={{ delay: 1.35, duration: 0.9, ease: "easeInOut" }}
+          animate={{ scaleX: normalizedProgress / 100, opacity: 1 }}
+          transition={{ delay: reduceMotion ? 0 : 0.25, duration: reduceMotion ? 0.01 : 0.45, ease: "easeOut" }}
         />
       </motion.div>
     </motion.div>

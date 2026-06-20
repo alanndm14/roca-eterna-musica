@@ -235,39 +235,78 @@ export function MusicDataProvider({ children }) {
     }
 
     setLoading(true);
+    const pendingInitialCollections = new Set(["songs", "schedules", "plannedNewSongs", "themes", "settings", "notifications"]);
+    const markInitialCollectionReady = (name) => {
+      pendingInitialCollections.delete(name);
+      if (!pendingInitialCollections.size) setLoading(false);
+    };
     const unsubscribers = [
       onSnapshot(
         query(collection(db, "songs"), orderBy("title")),
-        (snapshot) => setSongs(snapshot.docs.map(withId).map((song) => normalizeSong(song, settings.keyPreference))),
-        (snapshotError) => setError(snapshotError.message)
+        (snapshot) => {
+          setSongs(snapshot.docs.map(withId).map((song) => normalizeSong(song, settings.keyPreference)));
+          markInitialCollectionReady("songs");
+        },
+        (snapshotError) => {
+          setError(snapshotError.message);
+          markInitialCollectionReady("songs");
+        }
       ),
       onSnapshot(
         query(collection(db, "schedules"), orderBy("date", "desc")),
-        (snapshot) => setSchedules(snapshot.docs.map(withId)),
-        (snapshotError) => setError(snapshotError.message)
+        (snapshot) => {
+          setSchedules(snapshot.docs.map(withId));
+          markInitialCollectionReady("schedules");
+        },
+        (snapshotError) => {
+          setError(snapshotError.message);
+          markInitialCollectionReady("schedules");
+        }
       ),
       onSnapshot(
         query(collection(db, "plannedNewSongs"), orderBy("plannedDate")),
-        (snapshot) => setPlannedNewSongs(snapshot.docs.map(withId)),
+        (snapshot) => {
+          setPlannedNewSongs(snapshot.docs.map(withId));
+          markInitialCollectionReady("plannedNewSongs");
+        },
         (snapshotError) => {
           setPlannedNewSongs([]);
           setError(snapshotError.message);
+          markInitialCollectionReady("plannedNewSongs");
         }
       ),
       onSnapshot(
         query(collection(db, "themes"), orderBy("name")),
-        (snapshot) => setThemes(snapshot.docs.map(withId)),
-        (snapshotError) => setError(snapshotError.message)
+        (snapshot) => {
+          setThemes(snapshot.docs.map(withId));
+          markInitialCollectionReady("themes");
+        },
+        (snapshotError) => {
+          setError(snapshotError.message);
+          markInitialCollectionReady("themes");
+        }
       ),
       onSnapshot(
         doc(db, "settings", "main"),
-        (snapshot) => setSettings(snapshot.exists() ? normalizeValue(snapshot.data()) : sampleSettings),
-        (snapshotError) => setError(snapshotError.message)
+        (snapshot) => {
+          setSettings(snapshot.exists() ? normalizeValue(snapshot.data()) : sampleSettings);
+          markInitialCollectionReady("settings");
+        },
+        (snapshotError) => {
+          setError(snapshotError.message);
+          markInitialCollectionReady("settings");
+        }
       ),
       onSnapshot(
         query(collection(db, "notifications"), orderBy("createdAt", "desc"), limit(120)),
-        (snapshot) => setNotifications(snapshot.docs.map(withId)),
-        (snapshotError) => setError(snapshotError.message)
+        (snapshot) => {
+          setNotifications(snapshot.docs.map(withId));
+          markInitialCollectionReady("notifications");
+        },
+        (snapshotError) => {
+          setError(snapshotError.message);
+          markInitialCollectionReady("notifications");
+        }
       )
     ];
     if (profile.role === "admin") {
@@ -281,8 +320,6 @@ export function MusicDataProvider({ children }) {
       setAuthorizedEmails([]);
       setAuditLogs([]);
     }
-
-    setLoading(false);
     return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
   }, [profile, settings.keyPreference, useLocal]);
 

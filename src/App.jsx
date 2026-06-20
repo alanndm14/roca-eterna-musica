@@ -17,7 +17,15 @@ import { Unauthorized } from "./pages/Unauthorized";
 import { appBuildVersion, appVersion } from "./data/changelog";
 import { activateLatestAppVersion, compareVersions, fetchLatestVersion, markInstalledVersion, wasUpdateDismissed } from "./services/appUpdate";
 import { fallbackLoginVerses, fetchDailyVerse, getDeterministicDailyVerse, getLocalDateKey } from "./services/dailyVerses";
-import { loadRouteModule } from "./services/routePreload";
+import { loadRouteModule, preloadRoutesForProfile } from "./services/routePreload";
+
+const welcomeIntervalMs = 2 * 60 * 60 * 1000;
+const welcomeTimestampKey = (uid = "") => `roca-eterna-welcome-last-shown:${uid}`;
+const shouldRunWelcome = (uid = "") => {
+  if (!uid) return false;
+  const lastShown = Number(localStorage.getItem(welcomeTimestampKey(uid)) || 0);
+  return !lastShown || Date.now() - lastShown >= welcomeIntervalMs;
+};
 
 const Songs = lazy(() => loadRouteModule("songs").then((module) => ({ default: module.Songs })));
 const SongDetail = lazy(() => loadRouteModule("songDetail").then((module) => ({ default: module.SongDetail })));
@@ -47,10 +55,12 @@ function DataReady({ children }) {
   const { profile, completeOnboarding } = useAuth();
   const { loading, settings } = useMusicData();
   const dateKey = getLocalDateKey();
-  const dailySeenKey = profile?.uid ? `dailyVerseSeen:${profile.uid}` : "";
+  const initialFullStartup = shouldRunWelcome(profile?.uid);
   const [startupPhase, setStartupPhase] = useState(() => (
-    dailySeenKey && localStorage.getItem(dailySeenKey) !== dateKey ? "showing-daily-verse" : "app"
+    initialFullStartup ? "showing-daily-verse" : "app"
   ));
+  const [fullStartup, setFullStartup] = useState(initialFullStartup);
+  const [startupLoad, setStartupLoad] = useState({ completed: 0, total: 1, progress: 0, complete: !initialFullStartup });
   const [dailyVerse, setDailyVerse] = useState(() => getDeterministicDailyVerse(fallbackLoginVerses, dateKey));
   const [previewDailyVerse, setPreviewDailyVerse] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
@@ -71,8 +81,12 @@ function DataReady({ children }) {
   }, [guideChecked, loading, profile, startupPhase]);
 
   const finishWelcome = useCallback(() => {
+    if (profile?.uid && !previewDailyVerse) {
+      localStorage.setItem(welcomeTimestampKey(profile.uid), String(Date.now()));
+    }
+    setFullStartup(false);
     setStartupPhase("app");
-  }, []);
+  }, [previewDailyVerse, profile?.uid]);
 
   const finishGuide = useCallback(async () => {
     await completeOnboarding?.();
@@ -94,17 +108,28 @@ function DataReady({ children }) {
   }, [effectiveTheme]);
 
   useEffect(() => {
-    if (!profile?.uid || !profile.active) return;
-    const today = getLocalDateKey();
-    if (localStorage.getItem(`dailyVerseSeen:${profile.uid}`) !== today) {
-      loadDailyVerse(today);
-      setStartupPhase((current) => current === "showing-welcome" ? current : "showing-daily-verse");
-    }
+    if (!profile?.uid || !profile.active || !shouldRunWelcome(profile.uid)) return;
+    setFullStartup(true);
+    loadDailyVerse(getLocalDateKey());
+    setStartupPhase((current) => current === "showing-welcome" ? current : "showing-daily-verse");
   }, [loadDailyVerse, profile?.active, profile?.uid]);
+
+  useEffect(() => {
+    if (!fullStartup || !profile?.uid) return undefined;
+    let cancelled = false;
+    setStartupLoad({ completed: 0, total: 1, progress: 0, complete: false });
+    preloadRoutesForProfile(profile, (progress) => {
+      if (!cancelled) setStartupLoad({ ...progress, complete: progress.progress >= 1 });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [fullStartup, profile?.role, profile?.uid]);
 
   useEffect(() => {
     const preview = () => {
       setPreviewDailyVerse(true);
+      setFullStartup(false);
       loadDailyVerse(getLocalDateKey());
       setStartupPhase("showing-daily-verse");
     };
@@ -113,17 +138,17 @@ function DataReady({ children }) {
   }, [loadDailyVerse]);
 
   useEffect(() => {
-    const checkNewDay = () => {
+    const checkWelcomeInterval = () => {
       if (document.visibilityState !== "visible" || !profile?.uid || startupPhase !== "app") return;
       if (document.querySelector('[role="dialog"], [aria-modal="true"]')) return;
-      const today = getLocalDateKey();
-      if (localStorage.getItem(`dailyVerseSeen:${profile.uid}`) === today) return;
+      if (!shouldRunWelcome(profile.uid)) return;
       setPreviewDailyVerse(false);
-      loadDailyVerse(today);
+      setFullStartup(true);
+      loadDailyVerse(getLocalDateKey());
       setStartupPhase("showing-daily-verse");
     };
-    document.addEventListener("visibilitychange", checkNewDay);
-    return () => document.removeEventListener("visibilitychange", checkNewDay);
+    document.addEventListener("visibilitychange", checkWelcomeInterval);
+    return () => document.removeEventListener("visibilitychange", checkWelcomeInterval);
   }, [loadDailyVerse, profile?.uid, startupPhase]);
 
   useEffect(() => {
@@ -164,7 +189,6 @@ function DataReady({ children }) {
         onContinue={() => setStartupPhase("leaving-daily-verse")}
         onExited={() => {
           if (!previewDailyVerse && profile?.uid) {
-            localStorage.setItem(`dailyVerseSeen:${profile.uid}`, getLocalDateKey());
             setStartupPhase("showing-welcome");
             return;
           }
@@ -183,7 +207,8 @@ function DataReady({ children }) {
         logoSrc={logoSrc}
         logoAlt={settings?.logoAltText || "Roca Eterna Música"}
         logoMode={effectiveTheme}
-        ready={!loading && Boolean(profile?.active)}
+        ready={!loading && Boolean(profile?.active) && (!fullStartup || startupLoad.complete)}
+        progress={fullStartup ? Math.round((loading ? startupLoad.progress * 0.9 : 0.1 + startupLoad.progress * 0.9) * 100) : 100}
       />
     );
   }

@@ -1,14 +1,7 @@
 import React from "react";
 import { Document, Link, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 import { formatDate, getServiceDisplayLabel } from "./dateUtils";
-import {
-  getSongExternalChordsUrl,
-  getSongPdfUrl,
-  getSongPreviewUrl,
-  getSongSpotifyUrl,
-  getSongYoutubeUrl,
-  normalizeSong
-} from "./songUtils";
+import { resolveScheduleSongs } from "./scheduleSongSync";
 
 export { getServiceDisplayLabel };
 
@@ -145,29 +138,7 @@ export function getServiceDownloadFileName(schedule) {
 export const getServiceFileName = getServiceDownloadFileName;
 
 export function buildServiceSongs(schedule, songs, keyPreference = "sharps") {
-  return (schedule?.songs || []).map((entry, index) => {
-    const full = normalizeSong(songs.find((song) => song.id === entry.songId) || {}, keyPreference);
-    const merged = normalizeSong({ ...full, ...entry, title: full.title || entry.titleSnapshot }, keyPreference);
-    return {
-      index: index + 1,
-      entry,
-      full,
-      title: entry.titleSnapshot || full.title || "Canto sin título",
-      mainKey: full.mainKey || entry.keySnapshot || "",
-      capo: Number(full.capo || 0),
-      keyWithCapo: full.keyWithCapo || entry.keySnapshot || "",
-      hasKeyChange: Boolean(full.hasKeyChange),
-      notes: full.internalNotes || entry.notes || "",
-      pdfUrl: entry.pdfUrl || getSongPdfUrl(full),
-      previewUrl: getSongPreviewUrl(full) || entry.pdfUrl || getSongPdfUrl(full),
-      localPdfPath: full.localPdfPath || entry.localPdfPath || "",
-      pdfVersion: full.pdfVersion || entry.pdfVersion || "",
-      youtubeUrl: getSongYoutubeUrl(full),
-      spotifyUrl: getSongSpotifyUrl(full),
-      externalChordsUrl: getSongExternalChordsUrl(full),
-      merged
-    };
-  });
+  return resolveScheduleSongs(schedule, songs, keyPreference);
 }
 
 function ServiceSong({ song }) {

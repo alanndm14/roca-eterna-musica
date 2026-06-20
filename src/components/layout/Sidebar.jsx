@@ -1,6 +1,7 @@
 import { NavLink } from "react-router-dom";
 import { appLogo, fallbackAppLogo } from "../../assets/logo";
 import { preloadRoutePath } from "../../services/routePreload";
+import { requestRouteScrollReset } from "../../services/navigationMemory";
 import { getVisibleNavItems } from "./navigation";
 
 export function Sidebar({ profile, collapsed = false, logoSrc = appLogo, logoAlt = "Roca Eterna Música", logoMode = "light" }) {
@@ -37,6 +38,13 @@ export function Sidebar({ profile, collapsed = false, logoSrc = appLogo, logoAlt
             onPointerEnter={() => preloadRoutePath(item.path)}
             onFocus={() => preloadRoutePath(item.path)}
             onTouchStart={() => preloadRoutePath(item.path)}
+            onClick={() => {
+              const currentPath = window.location.hash.replace(/^#/, "").split("?")[0];
+              if (currentPath === item.path || currentPath.startsWith(`${item.path}/`)) {
+                requestRouteScrollReset(item.path);
+                if (currentPath === item.path) window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+              }
+            }}
             className={({ isActive }) =>
               `flex items-center gap-3 rounded-2xl py-3 text-sm font-semibold transition ${
                 collapsed ? "justify-center px-0" : "px-4"
