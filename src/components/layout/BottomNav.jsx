@@ -7,7 +7,7 @@ import { Button } from "../ui/Button";
 import { preloadRoutePath } from "../../services/routePreload";
 import { requestRouteScrollReset } from "../../services/navigationMemory";
 
-export function BottomNav() {
+export function BottomNav({ onNavigate }) {
   const location = useLocation();
   const { profile, signOut } = useAuth();
   const [open, setOpen] = useState(false);
@@ -38,7 +38,12 @@ export function BottomNav() {
                   key={item.path}
                   to={item.path}
                   data-tour={item.tourId}
-                  onClick={() => {
+                  onClick={(event) => {
+                    if (onNavigate) {
+                      onNavigate(event, item.path);
+                      setOpen(false);
+                      return;
+                    }
                     if (location.pathname === item.path || location.pathname.startsWith(`${item.path}/`)) {
                       requestRouteScrollReset(item.path);
                       if (location.pathname === item.path) window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
@@ -80,7 +85,11 @@ export function BottomNav() {
               onPointerEnter={() => preloadRoutePath(item.path)}
               onFocus={() => preloadRoutePath(item.path)}
               onTouchStart={() => preloadRoutePath(item.path)}
-              onClick={() => {
+              onClick={(event) => {
+                if (onNavigate) {
+                  onNavigate(event, item.path);
+                  return;
+                }
                 if (location.pathname === item.path || location.pathname.startsWith(`${item.path}/`)) {
                   requestRouteScrollReset(item.path);
                   if (location.pathname === item.path) window.scrollTo({ top: 0, left: 0, behavior: "smooth" });

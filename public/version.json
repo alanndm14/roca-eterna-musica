@@ -1,11 +1,11 @@
 {
-  "version": "1.0.4",
+  "version": "1.0.5",
   "displayVersion": "1.0",
   "date": "2026-06-20",
   "critical": true,
   "changes": [
-    "Bienvenida sincronizada con la carga real",
-    "Programaciones listas al entrar a Inicio",
-    "Transiciones más suaves entre secciones"
+    "Transiciones suaves entre secciones",
+    "Carga sin tarjetas vacías intermedias",
+    "Enlace independiente para acordes externos"
   ]
 }

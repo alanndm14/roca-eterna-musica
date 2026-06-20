@@ -4,7 +4,14 @@ import { preloadRoutePath } from "../../services/routePreload";
 import { requestRouteScrollReset } from "../../services/navigationMemory";
 import { getVisibleNavItems } from "./navigation";
 
-export function Sidebar({ profile, collapsed = false, logoSrc = appLogo, logoAlt = "Roca Eterna Música", logoMode = "light" }) {
+export function Sidebar({
+  profile,
+  collapsed = false,
+  logoSrc = appLogo,
+  logoAlt = "Roca Eterna Música",
+  logoMode = "light",
+  onNavigate
+}) {
   const visibleName = profile?.preferredDisplayName || profile?.displayName || profile?.email;
   const navItems = getVisibleNavItems(profile);
 
@@ -38,7 +45,11 @@ export function Sidebar({ profile, collapsed = false, logoSrc = appLogo, logoAlt
             onPointerEnter={() => preloadRoutePath(item.path)}
             onFocus={() => preloadRoutePath(item.path)}
             onTouchStart={() => preloadRoutePath(item.path)}
-            onClick={() => {
+            onClick={(event) => {
+              if (onNavigate) {
+                onNavigate(event, item.path);
+                return;
+              }
               const currentPath = window.location.hash.replace(/^#/, "").split("?")[0];
               if (currentPath === item.path || currentPath.startsWith(`${item.path}/`)) {
                 requestRouteScrollReset(item.path);

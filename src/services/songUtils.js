@@ -221,10 +221,7 @@ export function getSongSpotifyUrl(song) {
 }
 
 export function getSongExternalChordsUrl(song) {
-  const explicit = song?.externalChordsUrl || song?.chordsExternalUrl || "";
-  if (explicit) return explicit;
-  const hasSeparatePdf = Boolean(song?.pdfUrl || song?.drivePdfUrl || song?.pdfPreviewUrl || song?.localPdfPath || song?.storagePdfUrl);
-  return hasSeparatePdf ? song?.chordsUrl || "" : "";
+  return song?.externalChordsUrl || song?.chordsExternalUrl || "";
 }
 
 export function normalizeBoolean(value) {

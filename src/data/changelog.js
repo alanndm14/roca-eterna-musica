@@ -1,5 +1,5 @@
 export const appVersion = "1.0";
-export const appBuildVersion = "1.0.4";
+export const appBuildVersion = "1.0.5";
 
 export const changelog = [
   {
@@ -20,7 +20,8 @@ export const changelog = [
       "Navegación más fluida con carga anticipada de secciones",
       "Datos de los cantos sincronizados en Inicio, Programación, Músicos y Servicios",
       "La bienvenida prepara todas las secciones cuando han pasado dos horas",
-      "La barra de bienvenida refleja la carga confirmada de datos y secciones"
+      "La barra de bienvenida refleja la carga confirmada de datos y secciones",
+      "Las secciones se precargan antes de cambiar y aparecen con un fundido suave"
     ],
     fixed: [
       "Notas internas actualizadas en Inicio y navegación directa a cantos y programaciones",
@@ -30,7 +31,9 @@ export const changelog = [
       "Selección de servicio y posición de lectura conservadas al volver",
       "Contraste de enlaces de escucha y navegación móvil mejorado",
       "Transiciones de carga y navegación más suaves",
-      "Inicio espera la programación confirmada antes de terminar la bienvenida"
+      "Inicio espera la programación confirmada antes de terminar la bienvenida",
+      "Se eliminaron las tarjetas vacías durante el cambio de sección",
+      "Acordes externos ya no reutiliza por error el enlace de Google Drive"
     ],
     pending: []
   },

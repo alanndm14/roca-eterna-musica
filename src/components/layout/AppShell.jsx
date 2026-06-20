@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
@@ -164,16 +164,18 @@ function NotificationsPortal({
 function RouteFallback() {
   return (
     <motion.div
-      className="route-fallback"
+      className="route-fallback flex min-h-[42vh] items-start justify-center pt-16"
       aria-label="Cargando sección"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      transition={{ duration: 0.28, ease: "easeOut" }}
+      transition={{ duration: 0.34, ease: "easeOut" }}
     >
-      <div className="h-20 animate-pulse rounded-2xl bg-ink/5" />
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="h-36 animate-pulse rounded-2xl bg-ink/5" />
-        <div className="h-36 animate-pulse rounded-2xl bg-ink/5 [animation-delay:140ms]" />
+      <div className="h-1 w-20 overflow-hidden rounded-full bg-ink/8 dark:bg-white/10">
+        <motion.div
+          className="h-full w-1/2 rounded-full bg-brass"
+          animate={{ x: ["-100%", "200%"] }}
+          transition={{ duration: 1.1, repeat: Infinity, ease: "easeInOut" }}
+        />
       </div>
     </motion.div>
   );
@@ -191,6 +193,8 @@ export function AppShell() {
   const [foregroundPushes, setForegroundPushes] = useState([]);
   const [availableUpdate, setAvailableUpdate] = useState(null);
   const [updateHidden, setUpdateHidden] = useState(false);
+  const [routeLeaving, setRouteLeaving] = useState(false);
+  const routeTransitionActive = useRef(false);
   const seenInternalNotifications = useRef(new Set());
   const initializedInternalNotifications = useRef(false);
   const refreshedPushRegistration = useRef(false);
@@ -244,6 +248,35 @@ export function AppShell() {
       saveRouteScroll(path, window.scrollY);
     };
   }, [location.pathname]);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      setRouteLeaving(false);
+      routeTransitionActive.current = false;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [location.pathname]);
+
+  const navigateSection = useCallback(async (event, path) => {
+    const currentPath = location.pathname;
+    const isCurrentSection = currentPath === path || currentPath.startsWith(`${path}/`);
+    if (isCurrentSection) {
+      requestRouteScrollReset(path);
+      if (currentPath === path) window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+      return;
+    }
+
+    event?.preventDefault?.();
+    if (routeTransitionActive.current) return;
+    routeTransitionActive.current = true;
+    setRouteLeaving(true);
+
+    const minimumFade = reduceMotion
+      ? Promise.resolve()
+      : new Promise((resolve) => window.setTimeout(resolve, 190));
+    await Promise.all([preloadRoutePath(path), minimumFade]);
+    navigate(path);
+  }, [location.pathname, navigate, reduceMotion]);
 
   useEffect(() => {
     const saveCurrentScroll = () => saveRouteScroll(activeScrollPath.current, window.scrollY);
@@ -561,7 +594,14 @@ export function AppShell() {
 
   return (
     <div className="min-h-screen bg-stonewash text-ink" style={shellStyle}>
-      <Sidebar profile={profile} collapsed={sidebarCollapsed} logoSrc={logoSrc} logoAlt={logoAlt} logoMode={effectiveTheme} />
+      <Sidebar
+        profile={profile}
+        collapsed={sidebarCollapsed}
+        logoSrc={logoSrc}
+        logoAlt={logoAlt}
+        logoMode={effectiveTheme}
+        onNavigate={navigateSection}
+      />
       <main className={`app-main min-w-0 overflow-x-hidden pb-[calc(8rem+env(safe-area-inset-bottom))] transition-all duration-200 lg:pb-0 ${sidebarCollapsed ? "lg:ml-20" : "lg:ml-72"}`}>
         <header className="app-header sticky top-0 z-30 border-b border-ink/10 bg-stonewash/86 px-3 py-3 backdrop-blur md:px-8 md:py-4">
           <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
@@ -707,9 +747,9 @@ export function AppShell() {
           <motion.div
             key={location.pathname}
             className="route-content min-w-0 transform-gpu will-change-[transform,opacity]"
-            initial={reduceMotion ? false : { opacity: 0.82, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: reduceMotion ? 0 : 0.34, ease: [0.22, 1, 0.36, 1] }}
+            initial={reduceMotion ? false : { opacity: 0, y: 5 }}
+            animate={routeLeaving ? { opacity: 0.12, y: -4 } : { opacity: 1, y: 0 }}
+            transition={{ duration: reduceMotion ? 0 : routeLeaving ? 0.19 : 0.4, ease: [0.4, 0, 0.2, 1] }}
           >
             <ErrorBoundary resetKey={location.pathname}>
               {loading ? (
@@ -723,7 +763,7 @@ export function AppShell() {
           </motion.div>
         </div>
       </main>
-      <BottomNav />
+      <BottomNav onNavigate={navigateSection} />
     </div>
   );
 }

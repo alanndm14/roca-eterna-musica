@@ -228,7 +228,7 @@ export function SongForm({ initialSong, themes = [], keyPreference = "sharps", o
         pdfUrl: visiblePdf || song.pdfUrl,
         drivePdfUrl: visiblePdf.includes("drive.google.com") ? visiblePdf : song.drivePdfUrl,
         pdfPreviewUrl: song.pdfPreviewUrl || preview,
-        chordsUrl: song.externalChordsUrl || song.chordsUrl || visiblePdf,
+        chordsUrl: song.externalChordsUrl || (!visiblePdf ? song.chordsUrl : ""),
         externalChordsUrl: song.externalChordsUrl || "",
         tags: [...new Set([song.mainTheme, ...(song.otherThemes || [])].filter(Boolean))],
         lyricsSections: showLyrics ? (song.lyricsSections || []).filter((section) => section.text?.trim() || section.type) : []
