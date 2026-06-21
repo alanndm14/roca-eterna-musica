@@ -212,7 +212,6 @@ export function SongDetail() {
             <div className="flex items-center justify-between gap-4">
               <div>
                 <h3 className="text-lg font-bold text-ink">PDF de letra y acordes</h3>
-                <p className="mt-1 text-sm text-ink/55">Acceso rápido al PDF del canto.</p>
               </div>
               <FileText className="h-8 w-8 text-brass" />
             </div>

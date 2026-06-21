@@ -52,6 +52,8 @@ export function resolveScheduledSong(entry = {}, songsOrLookup = [], keyPreferen
     coverEnabled: song.coverEnabled !== false,
     coverPosition: song.coverPosition || "center",
     coverIntensity: song.coverIntensity || "subtle",
+    coverBackgroundMode: song.coverBackgroundMode || "image",
+    coverBackgroundOpacity: Number(song.coverBackgroundOpacity || 14),
     coverAccentColor: song.coverAccentColor || "",
     category: song.category || "",
     mainTheme: song.mainTheme || "",

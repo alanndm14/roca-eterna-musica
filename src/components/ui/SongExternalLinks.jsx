@@ -26,9 +26,9 @@ function PlatformLink({ platform, url, songTitle = "", compact = true, onClick }
       onClick={onClick}
       aria-label={title}
       title={title}
-      className={`inline-flex min-h-10 min-w-10 items-center justify-center rounded-xl border border-ink/10 bg-white/80 text-ink shadow-sm transition hover:-translate-y-0.5 hover:border-ink/25 hover:shadow-soft dark:border-white/15 dark:bg-black/80 dark:hover:bg-black ${compact ? "px-2.5" : "gap-2 px-3"}`}
+      className={`inline-flex min-h-12 min-w-12 items-center justify-center rounded-xl border border-ink/10 bg-white/80 text-ink shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-ink/25 hover:shadow-soft active:scale-95 dark:border-white/15 dark:bg-black/80 dark:hover:bg-black ${compact ? "px-3" : "gap-2.5 px-3.5"}`}
     >
-      <Icon className={`h-5 w-5 shrink-0 ${config.iconClass}`} aria-hidden="true" />
+      <Icon className={`h-6 w-6 shrink-0 ${config.iconClass}`} aria-hidden="true" />
       {!compact ? <span className="text-sm font-bold">{config.label}</span> : <span className="sr-only">{config.label}</span>}
     </a>
   );

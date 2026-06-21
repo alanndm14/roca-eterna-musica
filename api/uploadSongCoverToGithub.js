@@ -16,6 +16,7 @@ import {
 const MAX_COVER_BYTES = 1024 * 1024;
 const VALID_POSITIONS = new Set(["center", "top", "bottom", "left", "right"]);
 const VALID_INTENSITIES = new Set(["subtle", "medium"]);
+const VALID_BACKGROUND_MODES = new Set(["image", "color"]);
 const activeCoverUpdates = new Set();
 
 function coverConfig() {
@@ -55,6 +56,16 @@ function safePosition(value) {
 
 function safeIntensity(value) {
   return VALID_INTENSITIES.has(value) ? value : "subtle";
+}
+
+function safeBackgroundMode(value) {
+  return VALID_BACKGROUND_MODES.has(value) ? value : "image";
+}
+
+function safeBackgroundOpacity(value) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return 14;
+  return Math.min(36, Math.max(4, Math.round(numericValue)));
 }
 
 function safeAccent(value) {
@@ -226,6 +237,8 @@ function coverFieldsToDelete() {
     coverEnabled: remove,
     coverPosition: remove,
     coverIntensity: remove,
+    coverBackgroundMode: remove,
+    coverBackgroundOpacity: remove,
     coverAccentColor: remove,
     coverUpdatedAt: remove,
     coverUpdatedBy: remove,
@@ -307,6 +320,8 @@ export default async function handler(request, response) {
         coverEnabled: body.coverEnabled !== false,
         coverPosition: safePosition(body.coverPosition),
         coverIntensity: safeIntensity(body.coverIntensity),
+        coverBackgroundMode: safeBackgroundMode(body.coverBackgroundMode),
+        coverBackgroundOpacity: safeBackgroundOpacity(body.coverBackgroundOpacity),
         coverAccentColor: safeAccent(body.coverAccentColor),
         coverUpdatedAt: timestamp,
         coverUpdatedBy: requester.uid,
@@ -339,6 +354,8 @@ export default async function handler(request, response) {
         coverEnabled: metadata.coverEnabled,
         coverPosition: metadata.coverPosition,
         coverIntensity: metadata.coverIntensity,
+        coverBackgroundMode: metadata.coverBackgroundMode,
+        coverBackgroundOpacity: metadata.coverBackgroundOpacity,
         coverAccentColor: metadata.coverAccentColor,
         coverUpdatedAt: new Date().toISOString(),
         coverUpdatedBy: requester.uid,

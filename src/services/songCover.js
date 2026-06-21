@@ -16,6 +16,10 @@ export const COVER_INTENSITIES = [
   { value: "subtle", label: "Sutil" },
   { value: "medium", label: "Media" }
 ];
+export const COVER_BACKGROUND_MODES = [
+  { value: "image", label: "Portada y color" },
+  { value: "color", label: "Solo color de acento" }
+];
 
 export function slugifyCoverName(title = "") {
   const slug = stripAccents(title)
@@ -33,6 +37,16 @@ export function normalizeCoverPosition(value = "") {
 
 export function normalizeCoverIntensity(value = "") {
   return COVER_INTENSITIES.some((item) => item.value === value) ? value : "subtle";
+}
+
+export function normalizeCoverBackgroundMode(value = "") {
+  return COVER_BACKGROUND_MODES.some((item) => item.value === value) ? value : "image";
+}
+
+export function normalizeCoverBackgroundOpacity(value) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return 14;
+  return Math.min(36, Math.max(4, Math.round(numericValue)));
 }
 
 export function getSongCoverUrl(song = {}) {
@@ -143,6 +157,8 @@ export function uploadSongCover(song, processed, options = {}) {
     coverEnabled: options.coverEnabled !== false,
     coverPosition: normalizeCoverPosition(options.coverPosition),
     coverIntensity: normalizeCoverIntensity(options.coverIntensity),
+    coverBackgroundMode: normalizeCoverBackgroundMode(options.coverBackgroundMode),
+    coverBackgroundOpacity: normalizeCoverBackgroundOpacity(options.coverBackgroundOpacity),
     coverAccentColor: processed.accentColor || "#b6945f"
   });
 }

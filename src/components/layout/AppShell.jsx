@@ -21,7 +21,7 @@ const pageNames = {
   "/": "Inicio",
   "/repertorio": "Repertorio",
   "/programacion": "Programación",
-  "/musicos": "Vista para músicos",
+  "/musicos": "Servicios",
   "/servicios": "Servicios",
   "/historial": "Historial",
   "/estadisticas": "Estadísticas",

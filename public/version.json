@@ -1,11 +1,9 @@
 {
-  "version": "1.0.10",
+  "version": "1.0.11",
   "displayVersion": "1.1",
-  "date": "2026-06-20",
+  "date": "2026-06-21",
   "critical": true,
   "changes": [
-    "Vista compacta para coristas y medios",
-    "Las tarjetas se adaptan sin dejar espacios vacíos",
-    "Instrumentistas conservan tono y capo"
+    "Mejoras visuales"
   ]
 }

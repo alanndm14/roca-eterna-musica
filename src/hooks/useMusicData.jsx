@@ -751,6 +751,8 @@ export function MusicDataProvider({ children }) {
       "coverEnabled",
       "coverPosition",
       "coverIntensity",
+      "coverBackgroundMode",
+      "coverBackgroundOpacity",
       "coverAccentColor",
       "coverUpdatedAt",
       "coverUpdatedBy",
@@ -833,6 +835,8 @@ export function MusicDataProvider({ children }) {
       "coverEnabled",
       "coverPosition",
       "coverIntensity",
+      "coverBackgroundMode",
+      "coverBackgroundOpacity",
       "coverAccentColor",
       "coverUpdatedAt",
       "coverUpdatedBy",
@@ -877,7 +881,10 @@ export function MusicDataProvider({ children }) {
         coverImagePath: before.coverImagePath || "",
         coverEnabled: before.coverEnabled !== false,
         coverPosition: before.coverPosition || "center",
-        coverIntensity: before.coverIntensity || "subtle"
+        coverIntensity: before.coverIntensity || "subtle",
+        coverBackgroundMode: before.coverBackgroundMode || "image",
+        coverBackgroundOpacity: Number(before.coverBackgroundOpacity || 14),
+        coverAccentColor: before.coverAccentColor || ""
       },
       afterData: updates.removeCover ? { removed: true } : metadata
     });

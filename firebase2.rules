@@ -129,6 +129,18 @@ service cloud.firestore {
           || request.resource.data.get("coverIntensity", null) in ["subtle", "medium"]
         )
         && (
+          request.resource.data.get("coverBackgroundMode", null) == null
+          || request.resource.data.get("coverBackgroundMode", null) in ["image", "color"]
+        )
+        && (
+          request.resource.data.get("coverBackgroundOpacity", null) == null
+          || (
+            request.resource.data.get("coverBackgroundOpacity", null) is int
+            && request.resource.data.get("coverBackgroundOpacity", null) >= 4
+            && request.resource.data.get("coverBackgroundOpacity", null) <= 36
+          )
+        )
+        && (
           request.resource.data.get("coverAccentColor", null) == null
           || (
             request.resource.data.get("coverAccentColor", null) is string

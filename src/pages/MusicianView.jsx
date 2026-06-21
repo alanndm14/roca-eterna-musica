@@ -753,43 +753,43 @@ export function MusicianView({ mediaMode = false }) {
         {serviceSongs.map((song) => (
           <Card
             key={`${song.index}-${song.title}`}
-            className={`relative overflow-hidden ${focusMode ? (showMusicalKey ? "p-6 md:p-8" : "p-5 md:p-6") : (showMusicalKey ? "p-4 md:p-6" : "p-4 md:p-5")}`}
+            className={`service-song-card group relative overflow-hidden ${focusMode ? "p-5 sm:p-6 md:p-8" : "p-4 md:p-5"}`}
             style={songCoverAccentStyle(song)}
           >
             <SongCoverBackdrop song={song} />
-            <div className={`relative z-[1] grid gap-4 ${showMusicalKey ? "md:grid-cols-[72px_minmax(0,1fr)_240px] md:items-center" : "md:grid-cols-[72px_minmax(0,1fr)] md:items-start"}`}>
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-ink text-2xl font-bold text-white">{song.index}</div>
-              <div className={`min-w-0 ${showMusicalKey ? "" : "max-w-5xl"}`}>
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="flex min-w-0 items-start gap-3">
-                    <SongCoverImage
-                      song={song}
-                      wrapperClassName="h-[72px] w-[72px] rounded-2xl border border-white/10 shadow-soft md:h-20 md:w-20 lg:h-24 lg:w-24"
-                    />
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="min-w-0 text-2xl font-bold">
-                          <SongNameLink songId={song.entry.songId} title={song.title} songs={songs}>{song.title}</SongNameLink>
-                        </h3>
-                        {showMusicalKey && song.hasKeyChange ? <span className="rounded-full bg-brass/12 px-3 py-1 text-xs font-bold text-brass">Cambio de tono</span> : null}
-                      </div>
-                      {song.artistOrSource ? <p className="mt-1 text-sm font-semibold text-ink/45">{song.artistOrSource}</p> : null}
+            <div className={`relative z-[1] grid grid-cols-[44px_minmax(0,1fr)] gap-x-3 gap-y-3 sm:grid-cols-[52px_minmax(0,1fr)] sm:gap-x-4 ${showMusicalKey ? "xl:grid-cols-[52px_minmax(240px,1fr)_minmax(190px,auto)_240px] xl:items-center" : "xl:grid-cols-[52px_minmax(280px,1fr)_minmax(220px,auto)] xl:items-center"}`}>
+              <div className="flex h-11 w-11 items-center justify-center self-start rounded-xl bg-ink text-lg font-bold text-white shadow-sm transition duration-200 group-hover:bg-brass group-active:scale-95 sm:h-12 sm:w-12 sm:rounded-2xl sm:text-xl">
+                {song.index}
+              </div>
+              <div className="min-w-0">
+                <div className="flex min-w-0 items-start gap-3">
+                  <SongCoverImage
+                    song={song}
+                    wrapperClassName="h-[68px] w-[68px] rounded-2xl border border-white/10 shadow-soft sm:h-20 sm:w-20 lg:h-24 lg:w-24"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="min-w-0 text-xl font-bold sm:text-2xl">
+                        <SongNameLink songId={song.entry.songId} title={song.title} songs={songs}>{song.title}</SongNameLink>
+                      </h3>
+                      {showMusicalKey && song.hasKeyChange ? <span className="rounded-full bg-brass/12 px-3 py-1 text-xs font-bold text-brass">Cambio de tono</span> : null}
                     </div>
+                    {song.artistOrSource ? <p className="mt-1 text-sm font-semibold text-ink/45">{song.artistOrSource}</p> : null}
                   </div>
-                  {isAdmin ? (
-                    <Button variant="secondary" className="shrink-0" onClick={() => setReplaceTarget(song)}>
-                      Sustituir canto
-                    </Button>
-                  ) : null}
                 </div>
                 {song.notes ? <p className="mt-2 text-base text-ink/60">{song.notes}</p> : !mediaMode ? <p className="mt-2 text-base text-ink/60">Sin notas para este canto.</p> : null}
                 {!isViewer ? <SongFollowUpNotice issues={getOutstandingSongFollowUps(song.entry.songId, schedules, selectedSchedule).slice(0, 1)} /> : null}
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {song.pdfUrl ? <a className="inline-flex items-center gap-2 rounded-xl bg-brass/12 px-3 py-2 text-sm font-bold text-brass" href={song.pdfUrl} target="_blank" rel="noreferrer">PDF de letra y acordes <ExternalLink className="h-4 w-4" /></a> : null}
-                  <SongExternalLinks youtubeUrl={song.youtubeUrl} spotifyUrl={song.spotifyUrl} songTitle={song.title} />
-                </div>
               </div>
-              {showMusicalKey ? <div className="rounded-3xl bg-brass/12 p-4">
+              <div className="col-start-2 flex flex-wrap items-center gap-2 xl:col-start-auto xl:justify-end">
+                {song.pdfUrl ? <a className="inline-flex min-h-12 items-center gap-2 rounded-xl bg-brass/12 px-3 py-2 text-sm font-bold text-brass transition hover:-translate-y-0.5 hover:bg-brass/18 active:scale-95" href={song.pdfUrl} target="_blank" rel="noreferrer">PDF de letra y acordes <ExternalLink className="h-5 w-5" /></a> : null}
+                <SongExternalLinks youtubeUrl={song.youtubeUrl} spotifyUrl={song.spotifyUrl} songTitle={song.title} />
+                {isAdmin ? (
+                  <Button variant="secondary" className="shrink-0" onClick={() => setReplaceTarget(song)}>
+                    Sustituir canto
+                  </Button>
+                ) : null}
+              </div>
+              {showMusicalKey ? <div className="col-start-2 rounded-2xl bg-brass/12 p-4 xl:col-start-auto">
                 <p className="text-xs font-bold uppercase tracking-wide text-brass">Tono</p>
                 <p className="mt-1 text-lg font-bold text-ink">
                   {song.capo > 0 ? `Capo ${song.capo} · Suena en ${song.keyWithCapo || song.mainKey || "sin tono"}` : `Sin capo · Tono ${song.mainKey || song.keyWithCapo || "sin tono"}`}

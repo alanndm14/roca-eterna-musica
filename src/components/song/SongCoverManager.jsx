@@ -3,9 +3,12 @@ import { ImagePlus, RefreshCw, Trash2, UploadCloud } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { useMusicData } from "../../hooks/useMusicData";
 import {
+  COVER_BACKGROUND_MODES,
   COVER_INTENSITIES,
   COVER_POSITIONS,
   getSongCoverUrl,
+  normalizeCoverBackgroundMode,
+  normalizeCoverBackgroundOpacity,
   normalizeCoverIntensity,
   normalizeCoverPosition,
   processSongCoverImage,
@@ -40,6 +43,9 @@ export function SongCoverManager({ song, onCoverChanged }) {
   const [offsetY, setOffsetY] = useState(0);
   const [position, setPosition] = useState(normalizeCoverPosition(current.coverPosition));
   const [intensity, setIntensity] = useState(normalizeCoverIntensity(current.coverIntensity));
+  const [backgroundMode, setBackgroundMode] = useState(normalizeCoverBackgroundMode(current.coverBackgroundMode));
+  const [backgroundOpacity, setBackgroundOpacity] = useState(normalizeCoverBackgroundOpacity(current.coverBackgroundOpacity));
+  const [accentColor, setAccentColor] = useState(current.coverAccentColor || "#b6945f");
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState("");
   const [error, setError] = useState("");
@@ -50,7 +56,16 @@ export function SongCoverManager({ song, onCoverChanged }) {
   useEffect(() => {
     setPosition(normalizeCoverPosition(current.coverPosition));
     setIntensity(normalizeCoverIntensity(current.coverIntensity));
-  }, [current.coverIntensity, current.coverPosition]);
+    setBackgroundMode(normalizeCoverBackgroundMode(current.coverBackgroundMode));
+    setBackgroundOpacity(normalizeCoverBackgroundOpacity(current.coverBackgroundOpacity));
+    setAccentColor(current.coverAccentColor || "#b6945f");
+  }, [
+    current.coverAccentColor,
+    current.coverBackgroundMode,
+    current.coverBackgroundOpacity,
+    current.coverIntensity,
+    current.coverPosition
+  ]);
 
   useEffect(() => () => {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -119,6 +134,8 @@ export function SongCoverManager({ song, onCoverChanged }) {
           coverEnabled: true,
           coverPosition: position,
           coverIntensity: intensity,
+          coverBackgroundMode: backgroundMode,
+          coverBackgroundOpacity: backgroundOpacity,
           coverAccentColor: processed.accentColor,
           coverUpdatedAt: new Date().toISOString(),
           coverUpdatedBy: profile.uid,
@@ -129,7 +146,9 @@ export function SongCoverManager({ song, onCoverChanged }) {
         result = await uploadSongCover(current, processed, {
           coverEnabled: true,
           coverPosition: position,
-          coverIntensity: intensity
+          coverIntensity: intensity,
+          coverBackgroundMode: backgroundMode,
+          coverBackgroundOpacity: backgroundOpacity
         });
       }
       setProgress("Actualizando el canto…");
@@ -187,6 +206,9 @@ export function SongCoverManager({ song, onCoverChanged }) {
         coverFileName: "",
         coverVersion: "",
         coverEnabled: false,
+        coverBackgroundMode: "image",
+        coverBackgroundOpacity: 14,
+        coverAccentColor: "",
         coverUpdatedAt: ""
       });
       setProgress(permanent ? "Portada eliminada" : "Portada quitada de la app");
@@ -199,6 +221,13 @@ export function SongCoverManager({ song, onCoverChanged }) {
   };
 
   const enabled = current.coverEnabled !== false;
+  const saveBackgroundStyle = () => updateMetadata({
+    coverEnabled: true,
+    coverBackgroundMode: backgroundMode,
+    coverBackgroundOpacity: backgroundOpacity,
+    coverAccentColor: accentColor
+  }, "song_cover_background_changed");
+
   return (
     <section className="rounded-2xl border border-ink/10 bg-ink/[0.025] p-4 dark:border-white/10 dark:bg-white/[0.035]">
       <div className="flex flex-col gap-4 md:flex-row md:items-start">
@@ -268,6 +297,56 @@ export function SongCoverManager({ song, onCoverChanged }) {
           <Button variant="subtle" onClick={() => { setZoom(1); setOffsetX(0); setOffsetY(0); }}>Restablecer encuadre</Button>
         </div>
       ) : null}
+
+      <div className="mt-4 rounded-2xl border border-ink/10 bg-white/65 p-4 dark:border-white/10 dark:bg-black/20">
+        <h4 className="font-bold text-ink">Fondo de las tarjetas</h4>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.4fr)_auto] lg:items-end">
+          <Field label="Estilo de fondo">
+            <Select value={backgroundMode} disabled={busy} onChange={(event) => setBackgroundMode(event.target.value)}>
+              {COVER_BACKGROUND_MODES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+            </Select>
+          </Field>
+          <Field label="Color de acento">
+            <div className="grid grid-cols-[3.25rem_minmax(0,1fr)] gap-2">
+              <Input
+                type="color"
+                value={/^#[0-9a-fA-F]{6}$/.test(accentColor) ? accentColor : "#b6945f"}
+                disabled={busy}
+                className="cursor-pointer p-1"
+                onChange={(event) => setAccentColor(event.target.value)}
+                aria-label="Elegir color de acento"
+              />
+              <Input
+                value={accentColor}
+                disabled={busy}
+                maxLength={7}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  if (/^#[0-9a-fA-F]{0,6}$/.test(value)) setAccentColor(value);
+                }}
+                aria-label="Color de acento hexadecimal"
+              />
+            </div>
+          </Field>
+          <Field label={`Intensidad del color · ${backgroundOpacity}%`}>
+            <Input
+              type="range"
+              min="4"
+              max="36"
+              step="1"
+              value={backgroundOpacity}
+              disabled={busy}
+              onChange={(event) => setBackgroundOpacity(Number(event.target.value))}
+            />
+          </Field>
+          <Button variant="secondary" disabled={busy || !/^#[0-9a-fA-F]{6}$/.test(accentColor)} onClick={saveBackgroundStyle}>
+            Guardar fondo
+          </Button>
+        </div>
+        <p className="mt-2 text-xs leading-5 text-ink/50">
+          “Solo color de acento” conserva la miniatura, pero usa únicamente el color elegido detrás del contenido.
+        </p>
+      </div>
 
       {coverUrl ? (
         <div className="mt-4 grid gap-3 sm:grid-cols-2">

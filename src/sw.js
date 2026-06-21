@@ -12,7 +12,7 @@ self.skipWaiting();
 clientsClaim();
 setCacheNameDetails({
   prefix: "roca-eterna-musica",
-  suffix: "v1.1-build-11",
+  suffix: "v1.1-build-12",
   precache: "precache",
   runtime: "runtime"
 });
@@ -35,7 +35,7 @@ registerRoute(
   })
 );
 
-const CACHE_NAME = "roca-eterna-musica-v1.0.10-compact-service-cards";
+const CACHE_NAME = "roca-eterna-musica-v1.0.11-visual-polish";
 const OLD_ICON_PATTERNS = [
   "icon-192",
   "icon-512",

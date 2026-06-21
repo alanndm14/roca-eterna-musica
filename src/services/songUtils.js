@@ -296,6 +296,10 @@ export function normalizeSong(song = {}, keyPreference = "sharps") {
     coverEnabled: song.coverEnabled !== false,
     coverPosition: ["center", "top", "bottom", "left", "right"].includes(song.coverPosition) ? song.coverPosition : "center",
     coverIntensity: song.coverIntensity === "medium" ? "medium" : "subtle",
+    coverBackgroundMode: song.coverBackgroundMode === "color" ? "color" : "image",
+    coverBackgroundOpacity: Number.isFinite(Number(song.coverBackgroundOpacity))
+      ? Math.min(36, Math.max(4, Math.round(Number(song.coverBackgroundOpacity))))
+      : 14,
     coverAccentColor: /^#[0-9a-fA-F]{6}$/.test(song.coverAccentColor || "") ? song.coverAccentColor : "",
     coverUpdatedAt: song.coverUpdatedAt || "",
     coverUpdatedBy: song.coverUpdatedBy || "",

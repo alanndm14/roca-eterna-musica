@@ -6,7 +6,6 @@ import {
   History,
   Home,
   ListMusic,
-  Music2,
   Settings,
   PanelsTopLeft,
   UsersRound
@@ -16,7 +15,7 @@ export const navItems = [
   { label: "Inicio", path: "/", icon: Home, tourId: "nav-inicio", roles: ["admin", "editor", "viewer"] },
   { label: "Repertorio", path: "/repertorio", icon: ListMusic, tourId: "nav-repertorio", roles: ["admin", "editor", "viewer"] },
   { label: "Programación", path: "/programacion", icon: CalendarDays, tourId: "nav-programacion", roles: ["admin", "editor"] },
-  { label: "Músicos", path: "/musicos", icon: Music2, tourId: "nav-musicos", roles: ["admin", "editor"] },
+  { label: "Servicios", path: "/musicos", icon: PanelsTopLeft, tourId: "nav-musicos", roles: ["admin", "editor"] },
   { label: "Servicios", path: "/servicios", icon: PanelsTopLeft, tourId: "nav-servicios", roles: ["viewer"] },
   { label: "Historial", path: "/historial", icon: Clock3, tourId: "nav-historial", roles: ["admin", "editor"] },
   { label: "Estadísticas", path: "/estadisticas", icon: BarChart3, tourId: "nav-estadisticas", roles: ["admin", "editor"] },
