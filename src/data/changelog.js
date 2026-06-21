@@ -1,5 +1,5 @@
 export const appVersion = "1.1";
-export const appBuildVersion = "1.0.8";
+export const appBuildVersion = "1.0.9";
 
 export const changelog = [
   {
@@ -16,7 +16,9 @@ export const changelog = [
       "Las portadas aparecen de forma compacta en repertorio, programación y sustituciones",
       "Los cantos sin portada conservan el diseño original"
     ],
-    fixed: [],
+    fixed: [
+      "El botón Guardar canto vuelve a guardar correctamente los cambios del repertorio"
+    ],
     pending: []
   },
   {

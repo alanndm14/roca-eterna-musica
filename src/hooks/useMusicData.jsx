@@ -744,12 +744,27 @@ export function MusicDataProvider({ children }) {
   const saveSong = async (song) => {
     const before = song.id ? songs.find((item) => item.id === song.id) : null;
     const normalizedSong = normalizeSong(song, settings.keyPreference);
+    const coverMetadataFields = [
+      "coverImagePath",
+      "coverFileName",
+      "coverVersion",
+      "coverEnabled",
+      "coverPosition",
+      "coverIntensity",
+      "coverAccentColor",
+      "coverUpdatedAt",
+      "coverUpdatedBy",
+      "coverUpdatedByName"
+    ];
     const payload = {
       ...normalizedSong,
       tags: normalizedSong.tags || [],
       lyricsSections: normalizedSong.lyricsSections || [],
       updatedAt: useLocal ? new Date().toISOString().slice(0, 10) : serverTimestamp()
     };
+    // La portada se administra por su endpoint dedicado. No sobrescribir sus
+    // metadatos al guardar cambios musicales o editoriales del canto.
+    coverMetadataFields.forEach((field) => delete payload[field]);
     const pdfSourceChanged = Boolean(before) && (
       String(before.localPdfPath || "").trim() !== String(payload.localPdfPath || "").trim()
       || String(before.pdfVersion || "") !== String(payload.pdfVersion || "")

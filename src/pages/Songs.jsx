@@ -174,6 +174,8 @@ export function SongForm({ initialSong, themes = [], categoryOptions = [], keyPr
   }));
   const [manualKey, setManualKey] = useState(Boolean(initialSong?.keyWithCapo && initialSong?.keyWithCapo !== calculateKeyWithCapo(initialSong?.mainKey, initialSong?.capo, keyPreference)));
   const [showLyrics, setShowLyrics] = useState(Boolean(normalizedInitial.lyricsSections?.length));
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   const update = (field, value) => setSong((current) => ({ ...current, [field]: value }));
 
@@ -218,9 +220,11 @@ export function SongForm({ initialSong, themes = [], categoryOptions = [], keyPr
     }));
   };
 
-  const submit = (event) => {
+  const submit = async (event) => {
     event.preventDefault();
-    if (!song.title.trim()) return;
+    if (!song.title.trim() || isSaving) return;
+    setIsSaving(true);
+    setSaveError("");
     const visiblePdf = getVisiblePdfInput(song);
     const preview = normalizeDrivePdfUrl(song.drivePdfUrl || visiblePdf);
     const next = normalizeSong(
@@ -237,7 +241,14 @@ export function SongForm({ initialSong, themes = [], categoryOptions = [], keyPr
       },
       keyPreference
     );
-    onSubmit(next);
+    try {
+      await onSubmit(next);
+    } catch (error) {
+      console.error("[SongForm] No se pudo guardar el canto.", error);
+      setSaveError(error?.message || "No se pudo guardar el canto. Intenta nuevamente.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -410,9 +421,12 @@ export function SongForm({ initialSong, themes = [], categoryOptions = [], keyPr
         </Section>
       </div>
 
-      <div className="sticky bottom-0 mt-4 flex justify-end gap-3 border-t border-ink/10 bg-stonewash pt-4">
-        <Button variant="secondary" onClick={onCancel}>Cancelar</Button>
-        <Button type="submit">Guardar canto</Button>
+      <div className="sticky bottom-0 mt-4 flex flex-wrap justify-end gap-3 border-t border-ink/10 bg-stonewash pt-4">
+        <div className="mr-auto min-w-0 basis-full sm:basis-auto">
+          {saveError ? <p role="alert" className="max-w-md text-sm font-semibold text-red-700 dark:text-red-200">{saveError}</p> : null}
+        </div>
+        <Button variant="secondary" onClick={onCancel} disabled={isSaving}>Cancelar</Button>
+        <Button type="submit" isLoading={isSaving}>Guardar canto</Button>
       </div>
     </form>
   );

@@ -1,11 +1,11 @@
 {
-  "version": "1.0.8",
+  "version": "1.0.9",
   "displayVersion": "1.1",
   "date": "2026-06-20",
   "critical": true,
   "changes": [
+    "Corrección del guardado al editar cantos",
     "Portadas visuales opcionales para los cantos",
-    "Imágenes optimizadas y almacenadas en GitHub",
     "Tipos de canto editables desde Configuración"
   ]
 }
