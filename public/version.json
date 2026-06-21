@@ -1,9 +1,11 @@
 {
-  "version": "1.0.11",
+  "version": "1.0.12",
   "displayVersion": "1.1",
   "date": "2026-06-21",
   "critical": true,
   "changes": [
-    "Mejoras visuales"
+    "Modo de práctica vocal",
+    "Referencias de tonalidad, acordes y nota inicial",
+    "Metrónomo y guías de ensayo por sección y voz"
   ]
 }

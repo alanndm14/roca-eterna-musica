@@ -87,6 +87,22 @@ service cloud.firestore {
       return isAuthorized() && role() == "viewer" && viewerType() == "medios";
     }
 
+    function canUseVocalPractice() {
+      return isAuthorized()
+        && (
+          role() == "admin"
+          || viewerType() in ["corista", "musico"]
+        );
+    }
+
+    function canManageVocalPractice() {
+      return isAuthorized()
+        && (
+          role() == "admin"
+          || (role() == "editor" && viewerType() in ["corista", "musico"])
+        );
+    }
+
     function validShortString(value, maxSize) {
       return value is string && value.size() > 0 && value.size() <= maxSize;
     }
@@ -104,6 +120,20 @@ service cloud.firestore {
         && validShortString(request.resource.data.title, 160)
         && validOptionalString(request.resource.data.get("mainKey", null), 24)
         && validOptionalString(request.resource.data.get("keyWithCapo", null), 24)
+        && validOptionalString(request.resource.data.get("originalKey", null), 24)
+        && (
+          request.resource.data.get("originalBpm", null) == null
+          || (
+            request.resource.data.get("originalBpm", null) is int
+            && request.resource.data.get("originalBpm", null) >= 0
+            && request.resource.data.get("originalBpm", null) <= 240
+          )
+        )
+        && (
+          request.resource.data.get("timeSignature", null) == null
+          || request.resource.data.get("timeSignature", null) in ["", "2/4", "3/4", "4/4", "6/8"]
+        )
+        && validOptionalString(request.resource.data.get("originalEntryNote", null), 16)
         && validOptionalString(request.resource.data.get("mainTheme", null), 80)
         && validOptionalString(request.resource.data.get("category", null), 80)
         && validOptionalString(request.resource.data.get("localPdfPath", null), 500)
@@ -164,6 +194,61 @@ service cloud.firestore {
           request.resource.data.get("songs", null) is list
           && request.resource.data.get("songs", null).size() <= 80
         );
+    }
+
+    function validPracticeGuideData() {
+      return request.resource.data.keys().hasAll([
+          "title",
+          "sectionType",
+          "voicePart",
+          "storagePath",
+          "fileName",
+          "mimeType",
+          "sizeBytes",
+          "durationSeconds",
+          "order",
+          "enabled",
+          "createdBy",
+          "updatedBy"
+        ])
+        && validShortString(request.resource.data.title, 160)
+        && request.resource.data.sectionType in ["full", "verse", "prechorus", "chorus", "bridge", "final-chorus", "intro", "outro", "other"]
+        && request.resource.data.voicePart in ["all", "melody", "soprano", "alto", "tenor", "second", "other"]
+        && validOptionalString(request.resource.data.get("customSectionName", null), 120)
+        && validOptionalString(request.resource.data.get("key", null), 24)
+        && request.resource.data.get("bpm", 0) is number
+        && request.resource.data.get("bpm", 0) >= 0
+        && request.resource.data.get("bpm", 0) <= 240
+        && request.resource.data.get("timeSignature", "4/4") in ["2/4", "3/4", "4/4", "6/8"]
+        && validOptionalString(request.resource.data.get("entryNote", null), 16)
+        && validOptionalString(request.resource.data.get("notes", null), 1000)
+        && validShortString(request.resource.data.storagePath, 500)
+        && request.resource.data.storagePath.matches("^public/practice-guides/[A-Za-z0-9._/-]+$")
+        && validOptionalString(request.resource.data.get("audioUrl", null), 700)
+        && validShortString(request.resource.data.fileName, 240)
+        && request.resource.data.mimeType in ["audio/mpeg", "audio/mp4", "audio/x-m4a", "audio/wav", "audio/ogg"]
+        && request.resource.data.sizeBytes is int
+        && request.resource.data.sizeBytes > 0
+        && request.resource.data.sizeBytes <= 3 * 1024 * 1024
+        && request.resource.data.durationSeconds is number
+        && request.resource.data.order is int
+        && request.resource.data.enabled is bool
+        && validShortString(request.resource.data.createdBy, 160)
+        && validShortString(request.resource.data.updatedBy, 160);
+    }
+
+    function practiceSongFieldsAreEmpty() {
+      return request.resource.data.get("originalKey", "") == ""
+        && request.resource.data.get("originalBpm", 0) == 0
+        && request.resource.data.get("timeSignature", "") == ""
+        && request.resource.data.get("originalEntryNote", "") == "";
+    }
+
+    function practiceSongFieldsAreUnchanged() {
+      return request.resource.data.get("originalKey", "") == resource.data.get("originalKey", "")
+        && request.resource.data.get("originalBpm", 0) == resource.data.get("originalBpm", resource.data.get("tempo", 0))
+        && request.resource.data.get("timeSignature", "") == resource.data.get("timeSignature", "")
+        && request.resource.data.get("originalEntryNote", "") == resource.data.get("originalEntryNote", "");
     }
 
     function validScheduleData() {
@@ -335,8 +420,26 @@ service cloud.firestore {
 
     match /songs/{songId} {
       allow read: if isAuthorized();
-      allow create, update: if isEditor() && validSongData();
+      allow create: if isEditor()
+        && validSongData()
+        && (canManageVocalPractice() || practiceSongFieldsAreEmpty());
+      allow update: if isEditor()
+        && validSongData()
+        && (canManageVocalPractice() || practiceSongFieldsAreUnchanged());
       allow delete: if isAdmin();
+
+      match /practiceGuides/{guideId} {
+        allow read: if canUseVocalPractice();
+        allow create: if canManageVocalPractice()
+          && validPracticeGuideData()
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.updatedBy == request.auth.uid;
+        allow update: if canManageVocalPractice()
+          && validPracticeGuideData()
+          && request.resource.data.createdBy == resource.data.createdBy
+          && request.resource.data.updatedBy == request.auth.uid;
+        allow delete: if canManageVocalPractice();
+      }
     }
 
     match /schedules/{scheduleId} {

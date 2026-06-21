@@ -151,7 +151,8 @@ export async function verifyRequester(request, options = {}) {
     uid: decoded.uid,
     email: tokenEmail,
     displayName: user.preferredDisplayName || user.displayName || decoded.name || tokenEmail,
-    role
+    role,
+    viewerType: String(user.viewerType || user.memberType || "").trim().toLowerCase()
   };
 }
 

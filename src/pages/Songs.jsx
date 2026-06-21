@@ -9,6 +9,7 @@ import { Modal } from "../components/ui/Modal";
 import { SongExternalLinks } from "../components/ui/SongExternalLinks";
 import { SongCoverImage, songCoverAccentStyle } from "../components/song/SongCoverArtwork";
 import { SongCoverManager } from "../components/song/SongCoverManager";
+import { PracticeGuideManager } from "../components/practice/PracticeGuideManager";
 import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
 import {
@@ -28,6 +29,7 @@ import {
   normalizeSong
 } from "../services/songUtils";
 import { isCountableSchedule } from "../services/dateUtils";
+import { canManageVocalPractice } from "../services/memberPresentation";
 
 const blankSong = {
   title: "",
@@ -36,6 +38,10 @@ const blankSong = {
   mainTheme: "",
   otherThemes: [],
   mainKey: "",
+  originalKey: "",
+  originalBpm: 0,
+  timeSignature: "",
+  originalEntryNote: "",
   capo: 0,
   keyWithCapo: "",
   hasKeyChange: false,
@@ -167,6 +173,8 @@ function SearchMatchStrip({ matches }) {
 }
 
 export function SongForm({ initialSong, themes = [], categoryOptions = [], keyPreference = "sharps", onSubmit, onCancel }) {
+  const { profile } = useAuth();
+  const showVocalPracticeEditor = canManageVocalPractice(profile);
   const normalizedInitial = normalizeSong(initialSong || blankSong, keyPreference);
   const [song, setSong] = useState(() => ({
     ...normalizedInitial,
@@ -306,6 +314,33 @@ export function SongForm({ initialSong, themes = [], categoryOptions = [], keyPr
             Editar tonalidad con capo manualmente
           </label>
         </Section>
+
+        {showVocalPracticeEditor ? (
+          <>
+            <Section title="Práctica vocal">
+              <div className="grid gap-4 md:grid-cols-4">
+                <Field label="Tonalidad original">
+                  <Input value={song.originalKey || ""} onChange={(event) => update("originalKey", event.target.value)} placeholder="C, Bb, F#m…" />
+                </Field>
+                <Field label="BPM original">
+                  <Input type="number" min="30" max="240" value={song.originalBpm || ""} onChange={(event) => update("originalBpm", event.target.value ? Number(event.target.value) : 0)} />
+                </Field>
+                <Field label="Compás original">
+                  <Select value={song.timeSignature || ""} onChange={(event) => update("timeSignature", event.target.value)}>
+                    <option value="">Sin registrar</option>
+                    {["2/4", "3/4", "4/4", "6/8"].map((item) => <option key={item}>{item}</option>)}
+                  </Select>
+                </Field>
+                <Field label="Nota inicial">
+                  <Input value={song.originalEntryNote || ""} onChange={(event) => update("originalEntryNote", event.target.value)} placeholder="E4, C#4…" />
+                </Field>
+              </div>
+              <p className="mt-3 text-sm text-ink/55">Estos datos describen la grabación original; no reemplazan el tono ni el capo usados por los músicos.</p>
+            </Section>
+
+            {song.id ? <PracticeGuideManager song={song} /> : null}
+          </>
+        ) : null}
 
         <Section title="Temas">
           <div className="grid gap-4 md:grid-cols-2">

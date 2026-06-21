@@ -1,0 +1,131 @@
+import { useEffect, useRef, useState } from "react";
+import { Minus, Play, Plus, Square, TimerReset } from "lucide-react";
+import { Button } from "../ui/Button";
+import { Field, Input, Select } from "../ui/Field";
+import { calculateTapTempo, clampBpm, TIME_SIGNATURES } from "../../services/vocalPracticeMusic";
+import { createMetronomeEngine } from "../../services/vocalPracticeAudio";
+
+export function Metronome({
+  initialBpm = 72,
+  originalBpm = 0,
+  serviceBpm = 0,
+  initialSignature = "4/4",
+  onStart,
+  stopSignal = 0
+}) {
+  const [bpm, setBpm] = useState(() => clampBpm(initialBpm));
+  const [signature, setSignature] = useState(TIME_SIGNATURES.includes(initialSignature) ? initialSignature : "4/4");
+  const [volume, setVolume] = useState(22);
+  const [countInMeasures, setCountInMeasures] = useState(0);
+  const [countInBeat, setCountInBeat] = useState(0);
+  const [running, setRunning] = useState(false);
+  const [beat, setBeat] = useState(0);
+  const [error, setError] = useState("");
+  const engineRef = useRef(null);
+  const tapsRef = useRef([]);
+
+  useEffect(() => () => {
+    engineRef.current?.destroy();
+    engineRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    engineRef.current?.update({ bpm, signature, volume: volume / 100 });
+  }, [bpm, signature, volume]);
+
+  useEffect(() => {
+    if (!stopSignal) return;
+    engineRef.current?.stop();
+    setRunning(false);
+    setBeat(0);
+    setCountInBeat(0);
+  }, [stopSignal]);
+
+  const stop = () => {
+    engineRef.current?.stop();
+    setRunning(false);
+    setBeat(0);
+    setCountInBeat(0);
+  };
+
+  const start = async () => {
+    setError("");
+    try {
+      onStart?.();
+      if (!engineRef.current) {
+        engineRef.current = await createMetronomeEngine({
+          onBeat: (nextBeat, _beatsPerMeasure, metadata = {}) => {
+            setBeat(nextBeat);
+            setCountInBeat(metadata.countIn ? metadata.countInBeat : 0);
+          }
+        });
+      }
+      engineRef.current.start({ bpm, signature, volume: volume / 100, countInMeasures });
+      setRunning(true);
+    } catch (startError) {
+      setError(startError.message || "No se pudo iniciar el metrónomo.");
+    }
+  };
+
+  const tap = () => {
+    const result = calculateTapTempo(tapsRef.current);
+    tapsRef.current = result.timestamps;
+    if (result.bpm) setBpm(result.bpm);
+  };
+
+  return (
+    <section className="rounded-2xl border border-ink/10 bg-white/80 p-4 dark:border-white/10 dark:bg-white/5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wide text-brass">Metrónomo</p>
+          <p className="mt-1 text-3xl font-black text-ink">{bpm} <span className="text-sm text-ink/45">BPM</span></p>
+        </div>
+        <div className="flex gap-2" aria-label="Pulso actual">
+          {Array.from({ length: Number(signature.split("/")[0]) || 4 }, (_, index) => (
+            <span key={index} className={`h-3 w-3 rounded-full transition ${running && beat === index ? "scale-125 bg-brass" : "bg-ink/15 dark:bg-white/20"}`} />
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-4 grid grid-cols-4 gap-2">
+        {[[-5, "-5"], [-1, "-1"], [1, "+1"], [5, "+5"]].map(([amount, label]) => (
+          <Button key={amount} variant="subtle" className="px-2" onClick={() => setBpm((value) => clampBpm(value + amount))}>
+            {amount < 0 ? <Minus className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}{label.replace(/[+-]/, "")}
+          </Button>
+        ))}
+      </div>
+      <div className="mt-3 grid gap-3 sm:grid-cols-3">
+        <Field label="Compás">
+          <Select value={signature} onChange={(event) => setSignature(event.target.value)}>
+            {TIME_SIGNATURES.map((item) => <option key={item}>{item}</option>)}
+          </Select>
+        </Field>
+        <Field label={`Volumen · ${volume}%`}>
+          <Input type="range" min="0" max="60" value={volume} onChange={(event) => setVolume(Number(event.target.value))} />
+        </Field>
+        <Field label="Cuenta de entrada">
+          <Select value={countInMeasures} onChange={(event) => setCountInMeasures(Number(event.target.value))} disabled={running}>
+            <option value={0}>Sin cuenta</option>
+            <option value={1}>1 compás</option>
+            <option value={2}>2 compases</option>
+          </Select>
+        </Field>
+      </div>
+      {running && countInBeat ? (
+        <p className="mt-3 rounded-xl bg-brass/10 px-3 py-2 text-sm font-bold text-ink" role="status">
+          Cuenta de entrada · {countInBeat}
+        </p>
+      ) : null}
+      {error ? <p className="mt-3 text-sm font-semibold text-red-600 dark:text-red-300">{error}</p> : null}
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Button variant={running ? "danger" : "primary"} onClick={running ? stop : start}>
+          {running ? <Square className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+          {running ? "Detener" : "Iniciar"}
+        </Button>
+        <Button variant="secondary" onClick={tap}><TimerReset className="h-4 w-4" />Tap tempo</Button>
+        {originalBpm ? <Button variant="subtle" onClick={() => setBpm(clampBpm(originalBpm))}>BPM original</Button> : null}
+        {serviceBpm ? <Button variant="subtle" onClick={() => setBpm(clampBpm(serviceBpm))}>BPM del servicio</Button> : null}
+      </div>
+    </section>
+  );
+}

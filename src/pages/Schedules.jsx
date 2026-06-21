@@ -21,6 +21,8 @@ import { downloadBlob } from "../services/mergeServicePdfs";
 import { getOutstandingSongFollowUps, reviewServiceSchedule } from "../services/smartRecommendations";
 import { getServiceTypeOptions, getWorshipLeaderOptions } from "../services/serviceOptions";
 import { resolveScheduleSongs } from "../services/scheduleSongSync";
+import { calculateSemitoneDifference, formatSemitoneDifference } from "../services/vocalPracticeMusic";
+import { canManageVocalPractice } from "../services/memberPresentation";
 import { SmartCenter } from "./SmartCenter";
 import {
   SPECIAL_PROGRAM_TYPES,
@@ -74,7 +76,20 @@ const plannedOptionLabel = (options, value) => options.find((option) => option.v
 
 const dateWeekday = (date) => (date ? new Date(`${date}T00:00:00`).getDay() : null);
 
+const schedulePracticeSummary = (entry, songs) => {
+  const source = songs.find((song) => song.id === entry.songId);
+  if (!source) return "";
+  const difference = calculateSemitoneDifference(source.originalKey, entry.keySnapshot);
+  return [
+    source.originalKey ? `Original: ${source.originalKey}${source.originalBpm ? ` · ${source.originalBpm} BPM` : ""}` : "",
+    entry.keySnapshot ? `Servicio: ${entry.keySnapshot}${entry.serviceBpm ? ` · ${entry.serviceBpm} BPM` : ""}` : "",
+    Number.isFinite(difference) ? formatSemitoneDifference(difference) : ""
+  ].filter(Boolean).join(" · ");
+};
+
 function ScheduleForm({ initialSchedule, songs, schedules, settings, onSubmit, onCancel }) {
+  const { profile } = useAuth();
+  const showVocalPracticeEditor = canManageVocalPractice(profile);
   const serviceOptions = useMemo(() => getServiceTypeOptions(settings), [settings]);
   const worshipLeaders = useMemo(() => [...getWorshipLeaderOptions(settings), "Otro"], [settings]);
   const getService = (value) => serviceOptions.find((item) => item.value === value) || serviceOptions[0];
@@ -155,7 +170,10 @@ function ScheduleForm({ initialSchedule, songs, schedules, settings, onSubmit, o
         titleSnapshot: song.title,
         keySnapshot: song.keyWithCapo || song.mainKey,
         pdfUrl: song.pdfPreviewUrl || song.pdfUrl || song.drivePdfUrl || song.chordsUrl || "",
-        notes: song.internalNotes || ""
+        notes: song.internalNotes || "",
+        serviceBpm: Number(song.originalBpm || 0),
+        serviceTimeSignature: song.timeSignature || "",
+        serviceEntryNote: song.originalEntryNote || ""
       }
     ]);
     setSongSearch("");
@@ -286,7 +304,7 @@ function ScheduleForm({ initialSchedule, songs, schedules, settings, onSubmit, o
             className="mt-4 space-y-3"
           >
             {(song, index, dragHandleProps) => (
-              <div className="grid gap-3 rounded-2xl border border-ink/10 bg-stonewash p-3 md:grid-cols-[48px_48px_1fr_90px_1fr_112px]">
+              <div className="grid gap-3 rounded-2xl border border-ink/10 bg-stonewash p-3 lg:grid-cols-[48px_48px_minmax(150px,1fr)_90px_minmax(150px,1fr)_112px]">
                 <SortableHandle {...dragHandleProps} />
                 <div className="flex h-11 items-center justify-center rounded-xl bg-ink text-sm font-bold text-white">{index + 1}</div>
                 <Input value={song.titleSnapshot} onChange={(event) => updateSong(index, "titleSnapshot", event.target.value)} />
@@ -297,6 +315,21 @@ function ScheduleForm({ initialSchedule, songs, schedules, settings, onSubmit, o
                   <Button variant="subtle" className="h-11 w-9 px-0" onClick={() => moveSong(index, 1)} aria-label="Bajar"><ArrowDown className="h-4 w-4" /></Button>
                   <Button variant="danger" className="h-11 w-9 px-0" onClick={() => update("songs", schedule.songs.filter((_, currentIndex) => currentIndex !== index))} aria-label="Quitar"><Trash2 className="h-4 w-4" /></Button>
                 </div>
+                {showVocalPracticeEditor ? <div className="col-span-full grid gap-3 rounded-xl border border-ink/8 bg-white/60 p-3 sm:grid-cols-3 dark:bg-black/15">
+                  <Field label="BPM del servicio">
+                    <Input type="number" min="30" max="240" value={song.serviceBpm || ""} onChange={(event) => updateSong(index, "serviceBpm", event.target.value ? Number(event.target.value) : 0)} />
+                  </Field>
+                  <Field label="Compás del servicio">
+                    <Select value={song.serviceTimeSignature || ""} onChange={(event) => updateSong(index, "serviceTimeSignature", event.target.value)}>
+                      <option value="">Sin registrar</option>
+                      {["2/4", "3/4", "4/4", "6/8"].map((item) => <option key={item}>{item}</option>)}
+                    </Select>
+                  </Field>
+                  <Field label="Nota inicial del servicio">
+                    <Input value={song.serviceEntryNote || ""} onChange={(event) => updateSong(index, "serviceEntryNote", event.target.value)} placeholder="C#4" />
+                  </Field>
+                  {schedulePracticeSummary(song, songs) ? <p className="col-span-full text-xs font-semibold text-ink/50">{schedulePracticeSummary(song, songs)}</p> : null}
+                </div> : null}
               </div>
             )}
           </SortableList>

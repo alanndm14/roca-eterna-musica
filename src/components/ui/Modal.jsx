@@ -1,8 +1,10 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "./Button";
+
+const openModalStack = [];
 
 export function Modal({
   open,
@@ -14,19 +16,51 @@ export function Modal({
   panelClassName = "",
   contentClassName = ""
 }) {
+  const panelRef = useRef(null);
+  const modalIdRef = useRef(Symbol("modal"));
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
   useEffect(() => {
     if (!open) return undefined;
+    const modalId = modalIdRef.current;
+    const previousFocus = document.activeElement;
+    openModalStack.push(modalId);
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const closeOnEscape = (event) => {
-      if (event.key === "Escape") onClose?.();
+      if (openModalStack[openModalStack.length - 1] !== modalId) return;
+      if (event.key === "Escape") onCloseRef.current?.();
+      if (event.key === "Tab" && panelRef.current) {
+        const focusable = [...panelRef.current.querySelectorAll(
+          'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )].filter((element) => !element.hidden);
+        if (!focusable.length) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
     };
     window.addEventListener("keydown", closeOnEscape);
+    const focusTimer = window.setTimeout(() => {
+      panelRef.current?.querySelector("button, a[href], input, select, textarea")?.focus();
+    }, 30);
     return () => {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", closeOnEscape);
+      window.clearTimeout(focusTimer);
+      const stackIndex = openModalStack.lastIndexOf(modalId);
+      if (stackIndex >= 0) openModalStack.splice(stackIndex, 1);
+      if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus();
     };
-  }, [onClose, open]);
+  }, [open]);
 
   if (typeof document === "undefined") return null;
 
@@ -43,6 +77,7 @@ export function Modal({
           }}
         >
           <motion.div
+            ref={panelRef}
             initial={{ opacity: 0, y: 24, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 24, scale: 0.98 }}

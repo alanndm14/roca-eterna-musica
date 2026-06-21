@@ -43,3 +43,13 @@ export function shouldShowMusicalKeyForUser(profile) {
     ? explicitPreference
     : !shouldHideMusicalKeyForUser(profile);
 }
+
+export function canUseVocalPractice(profile = {}) {
+  if (profile?.role === "admin") return true;
+  return ["corista", "musico"].includes(getMemberType(profile));
+}
+
+export function canManageVocalPractice(profile = {}) {
+  if (profile?.role === "admin") return true;
+  return profile?.role === "editor" && ["corista", "musico"].includes(getMemberType(profile));
+}

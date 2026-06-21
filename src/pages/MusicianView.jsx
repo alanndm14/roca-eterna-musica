@@ -1,7 +1,7 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { pdf } from "@react-pdf/renderer";
-import { ArrowDown, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, Download, ExternalLink, Eye, FileStack, FileText, Maximize2, Minimize2, Music2, Pencil, Plus, Presentation, Save, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, Download, ExternalLink, Eye, FileStack, FileText, Headphones, Maximize2, Minimize2, Music2, Pencil, Plus, Presentation, Save, Trash2 } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -15,13 +15,14 @@ import { SongFollowUpNotice } from "../components/smart/SongFollowUpNotice";
 import { SongCoverBackdrop, SongCoverImage, songCoverAccentStyle } from "../components/song/SongCoverArtwork";
 import { SongNameLink } from "../components/ui/SongNameLink";
 import { SongExternalLinks } from "../components/ui/SongExternalLinks";
+import { VocalPracticeDialog } from "../components/practice/VocalPracticeDialog";
 import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
 import { formatDate, getCurrentOrNextSchedule, todayString } from "../services/dateUtils";
 import { buildServiceSongs, getServiceDisplayLabel, getServiceFileName } from "../services/serviceSheetPdf";
 import { downloadBlob, getSongPdfSource, mergePdfFiles, mergeServiceLocalPdfs } from "../services/mergeServicePdfs";
 import { getOutstandingSongFollowUps, getReplacementCandidates, reviewServiceSchedule } from "../services/smartRecommendations";
-import { shouldShowMusicalKeyForUser } from "../services/memberPresentation";
+import { canUseVocalPractice, shouldShowMusicalKeyForUser } from "../services/memberPresentation";
 import { cleanupExpiredTemporaryServicePdfs, deleteTemporaryServicePdf, getTemporaryServicePdf, saveTemporaryServicePdf } from "../services/temporaryServicePdfStore";
 import {
   SPECIAL_PROGRAM_TYPES,
@@ -154,7 +155,7 @@ export function MusicianView({ mediaMode = false }) {
   const { isAdmin, canEdit, profile } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const isViewer = profile?.role === "viewer";
-  const { schedules, songs, settings, plannedNewSongs = [], replaceScheduleSong, saveSchedule, saveScheduleSlidesUrl } = useMusicData();
+  const { schedules, songs, settings, plannedNewSongs = [], replaceScheduleSong, saveSchedule, saveScheduleSlidesUrl, useLocal } = useMusicData();
   const selectionStorageKey = `roca-eterna-service-selection:${mediaMode ? "services" : "musicians"}:${profile?.uid || profile?.role || "user"}`;
   const savedSelection = (() => {
     try {
@@ -184,10 +185,12 @@ export function MusicianView({ mediaMode = false }) {
   const [emptyDateSelected, setEmptyDateSelected] = useState(() => savedSelection.emptyDateSelected === true);
   const [slidesUrlDraft, setSlidesUrlDraft] = useState("");
   const [slidesStatus, setSlidesStatus] = useState("");
+  const [practiceSong, setPracticeSong] = useState(null);
   const selectedServiceRef = useRef(null);
   const today = todayString();
   const [pickerDate, setPickerDate] = useState(() => searchParams.get("date") || savedSelection.date || today);
   const showMusicalKey = shouldShowMusicalKeyForUser(profile);
+  const showVocalPractice = canUseVocalPractice(profile);
 
   const scheduleOptions = useMemo(() => {
     const upcoming = schedules.filter((schedule) => schedule.date >= today).sort((a, b) => `${a.date}${a.time || ""}`.localeCompare(`${b.date}${b.time || ""}`));
@@ -783,6 +786,12 @@ export function MusicianView({ mediaMode = false }) {
               <div className="col-start-2 flex flex-wrap items-center gap-2 xl:col-start-auto xl:justify-end">
                 {song.pdfUrl ? <a className="inline-flex min-h-12 items-center gap-2 rounded-xl bg-brass/12 px-3 py-2 text-sm font-bold text-brass transition hover:-translate-y-0.5 hover:bg-brass/18 active:scale-95" href={song.pdfUrl} target="_blank" rel="noreferrer">PDF de letra y acordes <ExternalLink className="h-5 w-5" /></a> : null}
                 <SongExternalLinks youtubeUrl={song.youtubeUrl} spotifyUrl={song.spotifyUrl} songTitle={song.title} />
+                {showVocalPractice ? (
+                  <Button variant="secondary" className="shrink-0" onClick={() => setPracticeSong(song)}>
+                    <Headphones className="h-5 w-5" />
+                    Practicar
+                  </Button>
+                ) : null}
                 {isAdmin ? (
                   <Button variant="secondary" className="shrink-0" onClick={() => setReplaceTarget(song)}>
                     Sustituir canto
@@ -812,6 +821,13 @@ export function MusicianView({ mediaMode = false }) {
 
       {selectedSchedule ? (
         <>
+      <VocalPracticeDialog
+        open={Boolean(practiceSong)}
+        onClose={() => setPracticeSong(null)}
+        song={practiceSong}
+        useLocal={useLocal}
+        preferredVoice={profile?.voicePart || profile?.vocalPart || ""}
+      />
       <Modal open={showSheet} title="Programa especial" onClose={() => setShowSheet(false)} wide panelClassName="h-[92dvh] md:h-[90vh] max-w-6xl flex flex-col">
         <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-ink/10 bg-white">
           {sheetUrl ? <iframe title="Programa especial" src={sheetUrl} className="h-full w-full" /> : null}

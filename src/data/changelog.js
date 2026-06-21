@@ -1,7 +1,23 @@
 export const appVersion = "1.1";
-export const appBuildVersion = "1.0.11";
+export const appBuildVersion = "1.0.12";
 
 export const changelog = [
+  {
+    version: "1.1",
+    date: "2026-06-21",
+    title: "Modo de práctica vocal",
+    added: [
+      "Se añadió un espacio de práctica para aprender la versión original y preparar la tonalidad del servicio",
+      "Ahora pueden registrarse BPM, compás y notas iniciales",
+      "Se incorporaron referencias de tono, acordes y un metrónomo integrado",
+      "Los administradores y editores musicales pueden añadir guías propias por canción, sección y parte vocal"
+    ],
+    changed: [
+      "Las tarjetas de coristas permanecen compactas y sin información instrumental innecesaria"
+    ],
+    fixed: [],
+    pending: []
+  },
   {
     version: "1.1",
     date: "2026-06-21",
