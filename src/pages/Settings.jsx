@@ -8,7 +8,7 @@ import { Modal } from "../components/ui/Modal";
 import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
 import { analyzeImport, parseSongsTable } from "../services/importSongs";
-import { canonicalThemeKey, collectSongThemes, getInstitutionalLogo, normalizeThemeName, resolveAppLogoForNotification, resolvePublicAssetUrl } from "../services/songUtils";
+import { canonicalThemeKey, collectSongThemes, getInstitutionalLogo, getSongCategoryOptions, normalizeThemeName, resolveAppLogoForNotification, resolvePublicAssetUrl } from "../services/songUtils";
 import { diagnosePublicAsset } from "../services/publicPdfTools";
 import { getLastPushResult, isPushBackendConfigured, sendExternalPush } from "../services/externalPush";
 import { cleanupCurrentUserFcmTokens, diagnosePushNotifications, disablePushNotificationsForUser, enablePushNotificationsForUser, getCurrentPushTokenForUser, getLastBackgroundPush, getLastForegroundPush, reinstallMessagingServiceWorker, requestSiteNotificationPermissionOnly, testLocalNotification } from "../services/pushNotifications";
@@ -64,7 +64,8 @@ export function Settings() {
   const [localSettings, setLocalSettings] = useState(() => ({
     ...settings,
     worshipLeaderOptions: Array.isArray(settings?.worshipLeaderOptions) ? settings.worshipLeaderOptions : defaultWorshipLeaderOptions,
-    serviceTypeOptions: Array.isArray(settings?.serviceTypeOptions) ? settings.serviceTypeOptions : defaultServiceTypeOptions
+    serviceTypeOptions: Array.isArray(settings?.serviceTypeOptions) ? settings.serviceTypeOptions : defaultServiceTypeOptions,
+    songCategoryOptions: getSongCategoryOptions(settings)
   }));
   const [personalSettings, setPersonalSettings] = useState({
     preferredDisplayName: profile?.preferredDisplayName || "",
@@ -223,7 +224,8 @@ export function Settings() {
     setLocalSettings({
       ...settings,
       worshipLeaderOptions: Array.isArray(settings?.worshipLeaderOptions) ? settings.worshipLeaderOptions : defaultWorshipLeaderOptions,
-      serviceTypeOptions: Array.isArray(settings?.serviceTypeOptions) ? settings.serviceTypeOptions : defaultServiceTypeOptions
+      serviceTypeOptions: Array.isArray(settings?.serviceTypeOptions) ? settings.serviceTypeOptions : defaultServiceTypeOptions,
+      songCategoryOptions: getSongCategoryOptions(settings)
     });
   }, [settings]);
 
@@ -234,11 +236,18 @@ export function Settings() {
     const serviceTypeOptions = (localSettings.serviceTypeOptions || [])
       .map(normalizeServiceTypeOption)
       .filter(Boolean);
+    const songCategoryOptions = [...new Set((localSettings.songCategoryOptions || [])
+      .map((value) => String(value || "").trim().toLowerCase())
+      .filter(Boolean))];
     if (!serviceTypeOptions.length) {
       alert("Debe quedar al menos un tipo de servicio.");
       return;
     }
-    await saveSettings({ ...localSettings, worshipLeaderOptions, serviceTypeOptions });
+    if (!songCategoryOptions.length) {
+      alert("Debe quedar al menos un tipo de canto.");
+      return;
+    }
+    await saveSettings({ ...localSettings, worshipLeaderOptions, serviceTypeOptions, songCategoryOptions });
   };
 
   useEffect(() => {
@@ -656,6 +665,13 @@ export function Settings() {
             <EditableServiceOptions
               values={localSettings.serviceTypeOptions || []}
               onChange={(values) => updateSettings("serviceTypeOptions", values)}
+            />
+            <EditableTextOptions
+              title="Tipos de canto"
+              description="Estas opciones aparecen al agregar, editar y filtrar cantos. Eliminar una opción no modifica los cantos que ya la usan."
+              values={localSettings.songCategoryOptions || []}
+              onChange={(values) => updateSettings("songCategoryOptions", values)}
+              placeholder="Ej. normal, himno, navidad"
             />
           </div>
           <p className="mt-4 text-xs leading-5 text-ink/55">

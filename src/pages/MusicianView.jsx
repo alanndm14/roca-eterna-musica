@@ -12,6 +12,7 @@ import { RecommendationCard } from "../components/smart/RecommendationCard";
 import { ScoreBadge } from "../components/smart/ScoreBadge";
 import { ServiceReviewPanel } from "../components/smart/ServiceReviewPanel";
 import { SongFollowUpNotice } from "../components/smart/SongFollowUpNotice";
+import { SongCoverBackdrop, SongCoverImage, songCoverAccentStyle } from "../components/song/SongCoverArtwork";
 import { SongNameLink } from "../components/ui/SongNameLink";
 import { SongExternalLinks } from "../components/ui/SongExternalLinks";
 import { useAuth } from "../hooks/useAuth";
@@ -748,16 +749,30 @@ export function MusicianView({ mediaMode = false }) {
         <>
       <div className="grid gap-4">
         {serviceSongs.map((song) => (
-          <Card key={`${song.index}-${song.title}`} className={`${focusMode ? "p-6 md:p-8" : "p-4 md:p-6"}`}>
-            <div className="grid gap-4 md:grid-cols-[72px_1fr_240px] md:items-center">
+          <Card
+            key={`${song.index}-${song.title}`}
+            className={`relative overflow-hidden ${focusMode ? "p-6 md:p-8" : "p-4 md:p-6"}`}
+            style={songCoverAccentStyle(song)}
+          >
+            <SongCoverBackdrop song={song} />
+            <div className="relative z-[1] grid gap-4 md:grid-cols-[72px_1fr_240px] md:items-center">
               <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-ink text-2xl font-bold text-white">{song.index}</div>
-              <div>
+              <div className="min-w-0">
                 <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-2xl font-bold">
-                      <SongNameLink songId={song.entry.songId} title={song.title} songs={songs}>{song.title}</SongNameLink>
-                    </h3>
-                    {song.hasKeyChange ? <span className="rounded-full bg-brass/12 px-3 py-1 text-xs font-bold text-brass">Cambio de tono</span> : null}
+                  <div className="flex min-w-0 items-start gap-3">
+                    <SongCoverImage
+                      song={song}
+                      wrapperClassName="h-[72px] w-[72px] rounded-2xl border border-white/10 shadow-soft md:h-20 md:w-20 lg:h-24 lg:w-24"
+                    />
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="min-w-0 text-2xl font-bold">
+                          <SongNameLink songId={song.entry.songId} title={song.title} songs={songs}>{song.title}</SongNameLink>
+                        </h3>
+                        {song.hasKeyChange ? <span className="rounded-full bg-brass/12 px-3 py-1 text-xs font-bold text-brass">Cambio de tono</span> : null}
+                      </div>
+                      {song.artistOrSource ? <p className="mt-1 text-sm font-semibold text-ink/45">{song.artistOrSource}</p> : null}
+                    </div>
                   </div>
                   {isAdmin ? (
                     <Button variant="secondary" className="shrink-0" onClick={() => setReplaceTarget(song)}>
@@ -765,7 +780,6 @@ export function MusicianView({ mediaMode = false }) {
                     </Button>
                   ) : null}
                 </div>
-                {song.artistOrSource ? <p className="mt-1 text-sm font-semibold text-ink/45">{song.artistOrSource}</p> : null}
                 {!mediaMode ? <p className="mt-2 text-base text-ink/60">{song.notes || "Sin notas para este canto."}</p> : null}
                 {!isViewer ? <SongFollowUpNotice issues={getOutstandingSongFollowUps(song.entry.songId, schedules, selectedSchedule).slice(0, 1)} /> : null}
                 <div className="mt-3 flex flex-wrap gap-2">

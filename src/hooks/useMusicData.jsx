@@ -3,6 +3,7 @@ import {
   addDoc,
   arrayUnion,
   collection,
+  deleteField,
   deleteDoc,
   doc,
   getDocs,
@@ -805,6 +806,67 @@ export function MusicDataProvider({ children }) {
       await logAuditEvent({ actionType: "create", entityType: "song", entityId: created.id, entityName: payload.title, summary: `Canto creado: ${payload.title}`, afterData: payload });
       return created.id;
     }
+  };
+
+  const saveSongCoverMetadata = async (songId, updates = {}, actionType = "song_cover_updated") => {
+    const before = songs.find((item) => item.id === songId);
+    if (!before) throw new Error("El canto ya no existe.");
+    const removableFields = [
+      "coverImagePath",
+      "coverFileName",
+      "coverVersion",
+      "coverEnabled",
+      "coverPosition",
+      "coverIntensity",
+      "coverAccentColor",
+      "coverUpdatedAt",
+      "coverUpdatedBy",
+      "coverUpdatedByName"
+    ];
+    const actorName = profile?.preferredDisplayName || profile?.displayName || profile?.email || "";
+    const metadata = updates.removeCover
+      ? {}
+      : {
+        ...updates,
+        coverUpdatedAt: useLocal ? new Date().toISOString() : serverTimestamp(),
+        coverUpdatedBy: profile?.uid || "",
+        coverUpdatedByName: actorName,
+        updatedAt: useLocal ? new Date().toISOString() : serverTimestamp()
+      };
+
+    if (useLocal) {
+      setSongs((current) => current.map((item) => {
+        if (item.id !== songId) return item;
+        if (!updates.removeCover) return { ...item, ...metadata };
+        const next = { ...item };
+        removableFields.forEach((field) => delete next[field]);
+        return next;
+      }));
+    } else if (updates.removeCover) {
+      const deletePayload = Object.fromEntries(removableFields.map((field) => [field, deleteField()]));
+      await updateDoc(doc(db, "songs", songId), {
+        ...deletePayload,
+        updatedAt: serverTimestamp()
+      });
+    } else {
+      await updateDoc(doc(db, "songs", songId), metadata);
+    }
+
+    await logAuditEvent({
+      actionType,
+      entityType: "song",
+      entityId: songId,
+      entityName: before.title || "",
+      summary: `${actionType}: ${before.title || songId}`,
+      beforeData: {
+        coverImagePath: before.coverImagePath || "",
+        coverEnabled: before.coverEnabled !== false,
+        coverPosition: before.coverPosition || "center",
+        coverIntensity: before.coverIntensity || "subtle"
+      },
+      afterData: updates.removeCover ? { removed: true } : metadata
+    });
+    return metadata;
   };
 
   const uploadSongPdf = async (songId, file) => {
@@ -1643,6 +1705,7 @@ export function MusicDataProvider({ children }) {
       useLocal,
       logAuditEvent,
       saveSong,
+      saveSongCoverMetadata,
       uploadSongPdf,
       deleteSongPdf,
       deleteSong,

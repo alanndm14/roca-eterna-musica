@@ -11,6 +11,7 @@ import { RecommendationCard } from "../components/smart/RecommendationCard";
 import { ServiceReviewPanel } from "../components/smart/ServiceReviewPanel";
 import { ServiceFollowUpPanel } from "../components/smart/ServiceFollowUpPanel";
 import { SongSuggestionAssistant } from "../components/smart/SongSuggestionAssistant";
+import { SongCoverImage } from "../components/song/SongCoverArtwork";
 import { ScoreBadge } from "../components/smart/ScoreBadge";
 import { ReasonChips } from "../components/smart/ReasonChips";
 import { useAuth } from "../hooks/useAuth";
@@ -1167,10 +1168,11 @@ export function SmartCenter({ scheduleId = "", embedded = false, initialDate = "
                     <SortableList items={suggestedBlock.items} getId={blockItemId} onReorder={(items) => setBlockOrder(items.map(blockItemId))} className="grid gap-3">
                       {(item, index, dragHandleProps) => (
                     <article className="rounded-xl border border-white/60 bg-white/74 p-3 shadow-soft dark:border-white/10 dark:bg-white/8">
-                      <div className="grid gap-2 sm:grid-cols-[42px_minmax(0,1fr)_170px] sm:items-center">
+                      <div className="grid gap-2 sm:grid-cols-[42px_auto_minmax(0,1fr)_170px] sm:items-center">
                         <div className="flex items-start">
                           <SortableHandle {...dragHandleProps} />
                         </div>
+                        <SongCoverImage song={item.song} wrapperClassName="h-12 w-12 rounded-xl" />
                         <div className="min-w-0 overflow-hidden">
                           <p className="text-xs font-bold uppercase tracking-wide text-brass">{index + 1}. {item.role}</p>
                           <h4 className="mt-1 truncate text-base font-black text-ink">{item.song.title}</h4>

@@ -7,6 +7,8 @@ import { EmptyState } from "../components/ui/EmptyState";
 import { FileDiagnosticPanel } from "../components/ui/FileDiagnosticPanel";
 import { Modal } from "../components/ui/Modal";
 import { SongGithubPdfManager } from "../components/song/SongGithubPdfManager";
+import { SongCoverBackdrop, SongCoverImage, songCoverAccentStyle } from "../components/song/SongCoverArtwork";
+import { SongCoverManager } from "../components/song/SongCoverManager";
 import { SongExternalLinks } from "../components/ui/SongExternalLinks";
 import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
@@ -18,6 +20,7 @@ import {
   getSongSpotifyUrl,
   getSongYoutubeUrl,
   collectSongThemes,
+  getSongCategoryOptions,
   normalizeSong
 } from "../services/songUtils";
 import { SongForm } from "./Songs";
@@ -158,11 +161,14 @@ export function SongDetail() {
         Volver
       </Button>
 
-      <Card className="bg-ink text-white">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-          <div>
+      <Card className="relative overflow-hidden bg-ink text-white" style={songCoverAccentStyle(song)}>
+        <SongCoverBackdrop song={song} tone="dark" />
+        <div className="relative z-[1] flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex min-w-0 items-start gap-4">
+            <SongCoverImage song={song} wrapperClassName="h-24 w-24 rounded-3xl border border-white/15 shadow-2xl sm:h-32 sm:w-32" />
+            <div className="min-w-0">
             {!isViewer ? <p className="text-sm font-semibold uppercase tracking-wide text-brass">{song.category || "normal"}</p> : null}
-            <h2 className="mt-2 text-4xl font-bold tracking-normal">{song.title}</h2>
+            <h2 className="mt-2 text-3xl font-bold tracking-normal sm:text-4xl">{song.title}</h2>
             <p className="mt-2 text-white/60">{song.artistOrSource || "Sin artista registrado"}</p>
             {!isViewer ? <div className="mt-5 flex flex-wrap gap-2">
               {song.mainTheme ? <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-brass">{song.mainTheme}</span> : null}
@@ -170,6 +176,7 @@ export function SongDetail() {
                 <span key={theme} className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white/70">{theme}</span>
               ))}
             </div> : null}
+            </div>
           </div>
           <div className="flex flex-wrap gap-2">
             {!isViewer ? <span className="rounded-2xl bg-white px-4 py-3 text-2xl font-bold text-ink">{song.mainKey || "--"}</span> : null}
@@ -196,6 +203,8 @@ export function SongDetail() {
           </div>
         </div>
       </Card>
+
+      {canEdit ? <SongCoverManager song={song} /> : null}
 
       <div className={`grid gap-5 ${isViewer ? "" : "xl:grid-cols-[1fr_380px]"}`}>
         <div className="space-y-5">
@@ -343,8 +352,9 @@ export function SongDetail() {
 
       <Modal open={editingSong} title="Editar canto" onClose={() => setEditingSong(false)} wide>
         <SongForm
-          initialSong={song}
-          themes={themeOptions}
+            initialSong={song}
+            themes={themeOptions}
+            categoryOptions={getSongCategoryOptions(settings, songs, song.category)}
           keyPreference={settings.keyPreference || "sharps"}
           onCancel={() => setEditingSong(false)}
           onSubmit={async (updatedSong) => {

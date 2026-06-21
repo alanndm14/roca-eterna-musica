@@ -1,7 +1,24 @@
-export const appVersion = "1.0";
-export const appBuildVersion = "1.0.7";
+export const appVersion = "1.1";
+export const appBuildVersion = "1.0.8";
 
 export const changelog = [
+  {
+    version: "1.1",
+    date: "2026-06-20",
+    title: "Portadas visuales para los cantos",
+    added: [
+      "Los administradores y editores pueden subir, reemplazar y configurar portadas desde el repertorio",
+      "Las imágenes se recortan, comprimen y almacenan automáticamente en GitHub",
+      "Tipos de canto editables desde Configuración"
+    ],
+    changed: [
+      "Músicos muestra miniaturas y fondos visuales discretos sin afectar la legibilidad",
+      "Las portadas aparecen de forma compacta en repertorio, programación y sustituciones",
+      "Los cantos sin portada conservan el diseño original"
+    ],
+    fixed: [],
+    pending: []
+  },
   {
     version: "1.0",
     date: "2026-06-19",

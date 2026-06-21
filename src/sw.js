@@ -1,6 +1,9 @@
 /* global firebase */
 import { cacheNames, clientsClaim, setCacheNameDetails } from "workbox-core";
+import { ExpirationPlugin } from "workbox-expiration";
 import { cleanupOutdatedCaches, precacheAndRoute } from "workbox-precaching";
+import { registerRoute } from "workbox-routing";
+import { CacheFirst } from "workbox-strategies";
 
 importScripts("https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js");
 importScripts("https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js");
@@ -9,14 +12,30 @@ self.skipWaiting();
 clientsClaim();
 setCacheNameDetails({
   prefix: "roca-eterna-musica",
-  suffix: "v1.0-build-8",
+  suffix: "v1.1-build-9",
   precache: "precache",
   runtime: "runtime"
 });
 cleanupOutdatedCaches();
 precacheAndRoute(self.__WB_MANIFEST);
 
-const CACHE_NAME = "roca-eterna-musica-v1.0.7-dark-colors";
+const COVER_CACHE_NAME = "roca-eterna-musica-song-covers-v1.1";
+
+registerRoute(
+  ({ request, url }) => request.destination === "image" && /\/covers\/[^/]+\.webp$/i.test(url.pathname),
+  new CacheFirst({
+    cacheName: COVER_CACHE_NAME,
+    plugins: [
+      new ExpirationPlugin({
+        maxEntries: 220,
+        maxAgeSeconds: 30 * 24 * 60 * 60,
+        purgeOnQuotaError: true
+      })
+    ]
+  })
+);
+
+const CACHE_NAME = "roca-eterna-musica-v1.0.8-song-covers";
 const OLD_ICON_PATTERNS = [
   "icon-192",
   "icon-512",
@@ -57,7 +76,7 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil((async () => {
     const keys = await caches.keys();
-    const activeCaches = new Set([CACHE_NAME, cacheNames.precache, cacheNames.runtime]);
+    const activeCaches = new Set([CACHE_NAME, COVER_CACHE_NAME, cacheNames.precache, cacheNames.runtime]);
     await Promise.all(keys.map(async (key) => {
       const belongsToApp = key.startsWith("roca-eterna-musica") || key.startsWith("workbox-precache");
       if (belongsToApp && !activeCaches.has(key)) {

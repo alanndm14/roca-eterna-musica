@@ -2,6 +2,18 @@ export const REVIEW_STATUSES = ["pendiente", "en revisión", "completado"];
 export const SONG_FORMATS = ["texto", "imagen", "pdf", "otro"];
 export const SONG_CATEGORIES = ["normal", "navidad", "himno", "especial", "santa cena", "jóvenes", "otro"];
 
+export function getSongCategoryOptions(settings = {}, songs = [], current = "") {
+  const savedOptions = Array.isArray(settings.songCategoryOptions)
+    ? settings.songCategoryOptions.map((value) => String(value || "").trim()).filter(Boolean)
+    : [];
+  const configured = savedOptions.length ? savedOptions : SONG_CATEGORIES;
+  return [...new Set([
+    ...configured,
+    ...(Array.isArray(songs) ? songs.map((song) => String(song?.category || "").trim()).filter(Boolean) : []),
+    String(current || "").trim()
+  ].filter(Boolean))];
+}
+
 const sharpNotes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const flatNotes = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
 const aliases = {
@@ -278,6 +290,16 @@ export function normalizeSong(song = {}, keyPreference = "sharps") {
     storagePdfUrl: song.storagePdfUrl || "",
     chordsUrl: song.chordsUrl || pdfUrl,
     externalChordsUrl: song.externalChordsUrl || song.chordsExternalUrl || "",
+    coverImagePath: song.coverImagePath || "",
+    coverFileName: song.coverFileName || "",
+    coverVersion: song.coverVersion || "",
+    coverEnabled: song.coverEnabled !== false,
+    coverPosition: ["center", "top", "bottom", "left", "right"].includes(song.coverPosition) ? song.coverPosition : "center",
+    coverIntensity: song.coverIntensity === "medium" ? "medium" : "subtle",
+    coverAccentColor: /^#[0-9a-fA-F]{6}$/.test(song.coverAccentColor || "") ? song.coverAccentColor : "",
+    coverUpdatedAt: song.coverUpdatedAt || "",
+    coverUpdatedBy: song.coverUpdatedBy || "",
+    coverUpdatedByName: song.coverUpdatedByName || "",
     youtubeUrl: song.youtubeUrl || song.youTubeUrl || "",
     spotifyUrl: song.spotifyUrl || song.spotify || "",
     musicReviewStatus: normalizeReviewStatus(song.musicReviewStatus || song.revision_musical),

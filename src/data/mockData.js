@@ -276,6 +276,7 @@ export const sampleSettings = {
   themeMode: "light",
   accentColor: "#b6945f",
   blueGrayColor: "#60717d",
+  songCategoryOptions: ["normal", "navidad", "himno", "especial", "santa cena", "jóvenes", "otro"],
   worshipLeaderOptions: ["Ps. José Campos", "Ps. Eduardo", "Adrián", "Esaú"],
   serviceTypeOptions: [
     { value: "miercoles-oracion", label: "Miércoles de oración", time: "19:00", weekday: 3 },

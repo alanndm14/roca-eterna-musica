@@ -1,6 +1,7 @@
 import { Eye, Plus, X } from "lucide-react";
 import { Button } from "../ui/Button";
 import { normalizeSearchText } from "../../services/songUtils";
+import { SongCoverImage } from "../song/SongCoverArtwork";
 
 function compactLabel(text = "") {
   const value = String(text || "").toLowerCase();
@@ -103,7 +104,9 @@ export function RecommendationCard({
   return (
     <article className="flex h-full min-h-0 min-w-0 max-w-full flex-col rounded-[1.1rem] border border-ink/10 bg-white/90 p-3.5 shadow-soft backdrop-blur-xl dark:border-white/12 dark:bg-zinc-900">
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
+        <div className="flex min-w-0 items-start gap-2.5">
+          <SongCoverImage song={song} wrapperClassName="h-11 w-11 rounded-xl" />
+          <div className="min-w-0">
           <div className="flex flex-wrap gap-1.5">
             <p className={`inline-flex max-w-full truncate rounded-full px-2.5 py-1 text-[11px] font-black uppercase tracking-wide ${tone.chip}`}>{tone.label}</p>
             {relation?.kind === "related" ? (
@@ -121,6 +124,7 @@ export function RecommendationCard({
           <p className="mt-1 truncate text-xs font-semibold text-ink/55">
             {song.category || "Sin categoría"} · {song.keyWithCapo || song.mainKey || "Sin tono"}
           </p>
+          </div>
         </div>
         <div className="w-20 shrink-0 text-right">
           <span className="text-2xl font-black text-ink">{Math.round(Number(item.score) || 0)}%</span>

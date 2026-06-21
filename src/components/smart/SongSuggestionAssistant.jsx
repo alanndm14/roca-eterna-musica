@@ -3,6 +3,7 @@ import { CalendarDays, Check, FileSearch, ListMusic, Music2, Search, Sparkles, T
 import { Button } from "../ui/Button";
 import { Field, Input, Select } from "../ui/Field";
 import { SortableHandle, SortableList } from "../ui/SortableList";
+import { SongCoverImage } from "../song/SongCoverArtwork";
 import { RecommendationCard } from "./RecommendationCard";
 import { SmartPanel } from "./SmartPanel";
 import {
@@ -626,8 +627,9 @@ export function SongSuggestionAssistant({
           {selectedItems.length ? (
             <SortableList items={selectedItems} getId={selectedItemId} onReorder={setSelectedItems} className="grid gap-2">
               {(item, index, dragHandleProps) => (
-                <article className="grid min-w-0 grid-cols-[40px_minmax(0,1fr)_36px] items-center gap-2 rounded-xl border border-ink/10 bg-white/70 p-2.5 dark:border-white/10 dark:bg-white/7">
+                <article className="grid min-w-0 grid-cols-[40px_auto_minmax(0,1fr)_36px] items-center gap-2 rounded-xl border border-ink/10 bg-white/70 p-2.5 dark:border-white/10 dark:bg-white/7">
                   <SortableHandle {...dragHandleProps} />
+                  <SongCoverImage song={item.song} wrapperClassName="h-10 w-10 rounded-xl" />
                   <div className="min-w-0">
                     <p className="truncate text-sm font-black text-ink">{index + 1}. {item.song.title}</p>
                     <p className="truncate text-xs font-semibold text-ink/45">{item.song.category || "Sin categoría"} · {item.song.keyWithCapo || item.song.mainKey || "Sin tono"}</p>

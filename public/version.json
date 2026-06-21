@@ -1,11 +1,11 @@
 {
-  "version": "1.0.7",
-  "displayVersion": "1.0",
+  "version": "1.0.8",
+  "displayVersion": "1.1",
   "date": "2026-06-20",
   "critical": true,
   "changes": [
-    "Tarjetas inteligentes corregidas en modo oscuro",
-    "Desplazamiento conservado al cambiar de sección",
-    "Limpieza de enlaces de acordes externos"
+    "Portadas visuales opcionales para los cantos",
+    "Imágenes optimizadas y almacenadas en GitHub",
+    "Tipos de canto editables desde Configuración"
   ]
 }

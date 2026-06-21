@@ -7,16 +7,18 @@ import { EmptyState } from "../components/ui/EmptyState";
 import { Field, Input, Select, Textarea } from "../components/ui/Field";
 import { Modal } from "../components/ui/Modal";
 import { SongExternalLinks } from "../components/ui/SongExternalLinks";
+import { SongCoverImage, songCoverAccentStyle } from "../components/song/SongCoverArtwork";
+import { SongCoverManager } from "../components/song/SongCoverManager";
 import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
 import {
   BASIC_KEYS,
   REVIEW_STATUSES,
-  SONG_CATEGORIES,
   SONG_FORMATS,
   calculateKeyWithCapo,
   collectSongKeys,
   collectSongThemes,
+  getSongCategoryOptions,
   getSongExternalChordsUrl,
   getSongPdfUrl,
   getSongSpotifyUrl,
@@ -164,7 +166,7 @@ function SearchMatchStrip({ matches }) {
   );
 }
 
-export function SongForm({ initialSong, themes = [], keyPreference = "sharps", onSubmit, onCancel }) {
+export function SongForm({ initialSong, themes = [], categoryOptions = [], keyPreference = "sharps", onSubmit, onCancel }) {
   const normalizedInitial = normalizeSong(initialSong || blankSong, keyPreference);
   const [song, setSong] = useState(() => ({
     ...normalizedInitial,
@@ -251,11 +253,22 @@ export function SongForm({ initialSong, themes = [], keyPreference = "sharps", o
             </Field>
             <Field label="Categoría">
               <Select value={song.category || "normal"} onChange={(event) => update("category", event.target.value)}>
-                {SONG_CATEGORIES.map((category) => <option key={category}>{category}</option>)}
+                {getSongCategoryOptions({ songCategoryOptions: categoryOptions }, [], song.category).map((category) => <option key={category}>{category}</option>)}
               </Select>
             </Field>
           </div>
         </Section>
+
+        {song.id ? (
+          <SongCoverManager
+            song={song}
+            onCoverChanged={(updates) => setSong((current) => ({ ...current, ...updates }))}
+          />
+        ) : (
+          <Section title="Portada visual">
+            <p className="text-sm text-ink/55">Guarda primero el canto para poder subir su portada.</p>
+          </Section>
+        )}
 
         <Section title="Tonalidad y capo">
           <div className="grid gap-4 md:grid-cols-4">
@@ -496,7 +509,7 @@ export function Songs() {
   const themeOptions = useMemo(() => collectSongThemes(songs, themes), [songs, themes]);
   const keyOptions = useMemo(() => collectSongKeys(songs), [songs]);
   const capoOptions = useMemo(() => [...new Set(songs.map((song) => song.capo).filter((capo) => capo !== undefined && capo !== ""))].sort((a, b) => Number(a) - Number(b)), [songs]);
-  const categories = useMemo(() => [...new Set([...SONG_CATEGORIES, ...songs.map((song) => song.category).filter(Boolean)])], [songs]);
+  const categories = useMemo(() => getSongCategoryOptions(settings, songs), [settings, songs]);
   const formats = useMemo(() => [...new Set([...SONG_FORMATS, ...songs.map((song) => song.format).filter(Boolean)])], [songs]);
   const realUsageBySong = useMemo(() => {
     const today = todayFile();
@@ -817,9 +830,14 @@ export function Songs() {
                   return (
                     <tr key={song.id} className="border-b border-ink/10 last:border-b-0 hover:bg-ink/5">
                       <td className="px-4 py-3">
-                        <Link to={`/repertorio/${song.id}`} className="font-bold text-ink hover:text-brass">{song.title}</Link>
-                        <p className="text-xs text-ink/50">{song.artistOrSource || "Sin fuente"}</p>
-                        <SearchMatchStrip matches={matchLabels} />
+                        <div className="flex items-start gap-3">
+                          <SongCoverImage song={song} wrapperClassName="hidden h-10 w-10 rounded-xl sm:block" />
+                          <div className="min-w-0">
+                            <Link to={`/repertorio/${song.id}`} className="font-bold text-ink hover:text-brass">{song.title}</Link>
+                            <p className="text-xs text-ink/50">{song.artistOrSource || "Sin fuente"}</p>
+                            <SearchMatchStrip matches={matchLabels} />
+                          </div>
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-ink/60">{song.category || "--"}</td>
                       <td className="px-4 py-3 text-ink/60">{song.mainTheme || "--"}</td>
@@ -855,13 +873,22 @@ export function Songs() {
             const spotifyUrl = getSongSpotifyUrl(song);
             const matchLabels = getSearchMatches(song, filters.query);
             return (
-              <Card key={song.id} delay={index * 0.02} className="flex cursor-pointer flex-col transition hover:border-brass/35" onClick={() => navigate(`/repertorio/${song.id}`)}>
+              <Card
+                key={song.id}
+                delay={index * 0.02}
+                className="flex cursor-pointer flex-col transition hover:border-brass/35"
+                style={songCoverAccentStyle(song)}
+                onClick={() => navigate(`/repertorio/${song.id}`)}
+              >
                 <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <Link to={`/repertorio/${song.id}`} className="text-lg font-bold text-ink hover:text-brass" onClick={(event) => event.stopPropagation()}>
-                      {song.title}
-                    </Link>
-                    <p className="mt-1 text-sm text-ink/55">{song.artistOrSource || "Sin artista registrado"}</p>
+                  <div className="flex min-w-0 items-start gap-3">
+                    <SongCoverImage song={song} wrapperClassName="h-14 w-14 rounded-2xl" />
+                    <div className="min-w-0">
+                      <Link to={`/repertorio/${song.id}`} className="text-lg font-bold text-ink hover:text-brass" onClick={(event) => event.stopPropagation()}>
+                        {song.title}
+                      </Link>
+                      <p className="mt-1 text-sm text-ink/55">{song.artistOrSource || "Sin artista registrado"}</p>
+                    </div>
                   </div>
                   {!isViewer ? <span className="rounded-xl bg-ink px-3 py-1 text-sm font-bold text-white">{song.mainKey || "--"}</span> : null}
                 </div>
@@ -911,6 +938,7 @@ export function Songs() {
         <SongForm
           initialSong={editingSong || blankSong}
           themes={themeOptions}
+          categoryOptions={getSongCategoryOptions(settings, songs, editingSong?.category)}
           keyPreference={settings.keyPreference || "sharps"}
           onCancel={closeModal}
           onSubmit={async (song) => {

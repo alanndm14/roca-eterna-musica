@@ -12,6 +12,7 @@ import { SongNameLink } from "../components/ui/SongNameLink";
 import { getRiskTone, ServiceReviewPanel } from "../components/smart/ServiceReviewPanel";
 import { ServiceFollowUpPanel } from "../components/smart/ServiceFollowUpPanel";
 import { SongFollowUpNotice } from "../components/smart/SongFollowUpNotice";
+import { SongCoverImage } from "../components/song/SongCoverArtwork";
 import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
 import { formatDate, getCurrentOrNextSchedule, todayString } from "../services/dateUtils";
@@ -585,13 +586,18 @@ function ScheduleCard({
       <div className="mt-5 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
         {liveSongs.map((song) => (
           <div key={`${song.songId}-${song.index}`} className="rounded-2xl bg-ink/5 p-3">
-            <div className="flex items-center justify-between gap-3">
-              <p className="font-semibold text-ink">
-                {song.index}. <SongNameLink songId={song.songId} title={song.title} songs={songs}>{song.title}</SongNameLink>
-              </p>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex min-w-0 items-start gap-2.5">
+                <SongCoverImage song={song} wrapperClassName="h-10 w-10 rounded-xl" />
+                <div className="min-w-0">
+                  <p className="font-semibold text-ink">
+                    {song.index}. <SongNameLink songId={song.songId} title={song.title} songs={songs}>{song.title}</SongNameLink>
+                  </p>
+                  {song.artistOrSource ? <p className="mt-1 text-xs font-semibold text-ink/45">{song.artistOrSource}</p> : null}
+                </div>
+              </div>
               <span className="rounded-xl bg-white px-3 py-1 text-sm font-bold text-ink">{song.keyWithCapo || song.mainKey || "--"}</span>
             </div>
-            {song.artistOrSource ? <p className="mt-1 text-xs font-semibold text-ink/45">{song.artistOrSource}</p> : null}
             <p className="mt-1 text-sm text-ink/55">{song.notes || "Sin notas"}</p>
             <SongFollowUpNotice issues={getOutstandingSongFollowUps(song.songId, schedules, schedule).slice(0, 1)} />
           </div>
@@ -930,9 +936,10 @@ export function Schedules() {
                   </div>
                   <div className="mt-3 space-y-1">
                     {resolveScheduleSongs(schedule, songs, settings.keyPreference || "sharps").map((song) => (
-                      <p key={`${song.songId || song.title}-${song.index}`} className="text-sm font-semibold text-ink/70">
-                        {song.index}. {song.title}
-                      </p>
+                      <div key={`${song.songId || song.title}-${song.index}`} className="flex items-center gap-2 text-sm font-semibold text-ink/70">
+                        <SongCoverImage song={song} wrapperClassName="h-7 w-7 rounded-lg" />
+                        <span className="truncate">{song.index}. {song.title}</span>
+                      </div>
                     ))}
                   </div>
                 </button>

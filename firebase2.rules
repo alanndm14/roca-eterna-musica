@@ -110,6 +110,37 @@ service cloud.firestore {
         && validOptionalString(request.resource.data.get("drivePdfUrl", null), 1000)
         && validOptionalString(request.resource.data.get("youtubeUrl", null), 1000)
         && validOptionalString(request.resource.data.get("spotifyUrl", null), 1000)
+        && validOptionalString(request.resource.data.get("coverImagePath", null), 500)
+        && validOptionalString(request.resource.data.get("coverFileName", null), 160)
+        && (
+          request.resource.data.get("coverVersion", null) == null
+          || request.resource.data.get("coverVersion", null) is int
+        )
+        && (
+          request.resource.data.get("coverEnabled", null) == null
+          || request.resource.data.get("coverEnabled", null) is bool
+        )
+        && (
+          request.resource.data.get("coverPosition", null) == null
+          || request.resource.data.get("coverPosition", null) in ["center", "top", "bottom", "left", "right"]
+        )
+        && (
+          request.resource.data.get("coverIntensity", null) == null
+          || request.resource.data.get("coverIntensity", null) in ["subtle", "medium"]
+        )
+        && (
+          request.resource.data.get("coverAccentColor", null) == null
+          || (
+            request.resource.data.get("coverAccentColor", null) is string
+            && request.resource.data.get("coverAccentColor", null).matches("^#[0-9a-fA-F]{6}$")
+          )
+        )
+        && validOptionalString(request.resource.data.get("coverUpdatedBy", null), 160)
+        && validOptionalString(request.resource.data.get("coverUpdatedByName", null), 200)
+        && (
+          request.resource.data.get("coverUpdatedAt", null) == null
+          || request.resource.data.get("coverUpdatedAt", null) is timestamp
+        )
         && validOptionalList(request.resource.data.get("tags", null), 80)
         && validOptionalList(request.resource.data.get("otherThemes", null), 40)
         && validOptionalList(request.resource.data.get("lyricsSections", null), 200);

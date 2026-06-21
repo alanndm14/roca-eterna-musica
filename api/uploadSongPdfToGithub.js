@@ -13,7 +13,7 @@ const DEFAULT_ALLOWED_ORIGINS = [
 const requestBuckets = new Map();
 const activeUploads = new Set();
 
-function initializeAdmin() {
+export function initializeAdmin() {
   if (admin.apps.length) return admin.app();
   const projectId = process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
@@ -32,11 +32,11 @@ function initializeAdmin() {
   });
 }
 
-function normalizeOrigin(origin = "") {
+export function normalizeOrigin(origin = "") {
   return String(origin || "").replace(/\/$/, "");
 }
 
-function allowedOrigins() {
+export function allowedOrigins() {
   const configured = String(
     process.env.PDF_UPLOAD_ALLOWED_ORIGINS
     || process.env.PUSH_ALLOWED_ORIGINS
@@ -53,23 +53,26 @@ function allowedOrigins() {
   return new Set(values);
 }
 
-function isAllowedOrigin(origin = "") {
+export function isAllowedOrigin(origin = "") {
   if (!origin) return true;
+  if (process.env.NODE_ENV !== "production" && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(normalizeOrigin(origin))) {
+    return true;
+  }
   return allowedOrigins().has(normalizeOrigin(origin));
 }
 
-function applyCors(request, response) {
+export function applyCors(request, response, methods = "POST, OPTIONS") {
   const origin = normalizeOrigin(request.headers.origin || "");
   if (isAllowedOrigin(origin)) {
     response.setHeader("Access-Control-Allow-Origin", origin || [...allowedOrigins()][0]);
     response.setHeader("Vary", "Origin");
   }
-  response.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  response.setHeader("Access-Control-Allow-Methods", methods);
   response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Firebase-AppCheck");
   response.setHeader("Cache-Control", "no-store");
 }
 
-function parseBody(request) {
+export function parseBody(request) {
   if (!request.body) return {};
   if (typeof request.body === "string") {
     try {
@@ -117,11 +120,14 @@ function serverConfig() {
   };
 }
 
-async function verifyRequester(request) {
+export async function verifyRequester(request, options = {}) {
+  const allowedRoles = options.allowedRoles || ["admin", "editor"];
+  const unauthenticatedMessage = options.unauthenticatedMessage || "Necesitas iniciar sesion para actualizar PDFs.";
+  const forbiddenMessage = options.forbiddenMessage || "No tienes permiso para subir o reemplazar PDFs.";
   const authHeader = request.headers.authorization || "";
   const idToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
   if (!idToken) {
-    const error = new Error("Necesitas iniciar sesion para actualizar PDFs.");
+    const error = new Error(unauthenticatedMessage);
     error.status = 401;
     error.code = "MISSING_ID_TOKEN";
     throw error;
@@ -134,8 +140,8 @@ async function verifyRequester(request) {
   const storedEmail = String(user.email || "").trim().toLowerCase();
   const role = String(user.role || "").trim().toLowerCase();
 
-  if (user.active === false || !["admin", "editor"].includes(role) || !tokenEmail || tokenEmail !== storedEmail) {
-    const error = new Error("No tienes permiso para subir o reemplazar PDFs.");
+  if (user.active === false || !allowedRoles.includes(role) || !tokenEmail || tokenEmail !== storedEmail) {
+    const error = new Error(forbiddenMessage);
     error.status = 403;
     error.code = "ROLE_NOT_ALLOWED";
     throw error;
@@ -149,7 +155,7 @@ async function verifyRequester(request) {
   };
 }
 
-async function verifyAppCheckIfRequired(request) {
+export async function verifyAppCheckIfRequired(request) {
   if (process.env.REQUIRE_APP_CHECK !== "true") return;
   const token = request.headers["x-firebase-appcheck"] || "";
   if (!token) {
@@ -161,9 +167,10 @@ async function verifyAppCheckIfRequired(request) {
   await admin.appCheck().verifyToken(token);
 }
 
-function enforceRateLimit(uid = "") {
+export function enforceRateLimit(uid = "", namespace = "pdf") {
   const now = Date.now();
-  const recent = (requestBuckets.get(uid) || []).filter((timestamp) => now - timestamp < RATE_LIMIT_WINDOW_MS);
+  const bucketKey = `${namespace}:${uid}`;
+  const recent = (requestBuckets.get(bucketKey) || []).filter((timestamp) => now - timestamp < RATE_LIMIT_WINDOW_MS);
   if (recent.length >= RATE_LIMIT_MAX_REQUESTS) {
     const error = new Error("Hay demasiados intentos de subida. Espera un minuto e intenta de nuevo.");
     error.status = 429;
@@ -171,10 +178,10 @@ function enforceRateLimit(uid = "") {
     throw error;
   }
   recent.push(now);
-  requestBuckets.set(uid, recent);
+  requestBuckets.set(bucketKey, recent);
 }
 
-function validateSongId(songId = "") {
+export function validateSongId(songId = "") {
   const value = String(songId || "").trim();
   if (!/^[a-zA-Z0-9_-]{1,160}$/.test(value)) {
     const error = new Error("El canto seleccionado no es valido.");
@@ -185,7 +192,7 @@ function validateSongId(songId = "") {
   return value;
 }
 
-function slugifySongTitle(title = "") {
+export function slugifySongTitle(title = "") {
   const slug = String(title || "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -372,11 +379,11 @@ async function pdfFromUrl(inputUrl = "") {
   }
 }
 
-function encodeGithubPath(path = "") {
+export function encodeGithubPath(path = "") {
   return String(path).split("/").map((segment) => encodeURIComponent(segment)).join("/");
 }
 
-function githubHeaders(token) {
+export function githubHeaders(token) {
   return {
     Accept: "application/vnd.github+json",
     Authorization: `Bearer ${token}`,
@@ -385,7 +392,7 @@ function githubHeaders(token) {
   };
 }
 
-async function githubRequest(url, options, config) {
+export async function githubRequest(url, options, config) {
   const response = await fetch(url, {
     ...options,
     headers: {
