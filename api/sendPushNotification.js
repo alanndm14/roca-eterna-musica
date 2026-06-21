@@ -152,7 +152,7 @@ function applyCors(request, response) {
   }
   response.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Firebase-AppCheck");
-  response.setHeader("X-Push-Backend-Revision", "topic-broadcast-20260608");
+  response.setHeader("X-Push-Backend-Revision", "direct-token-fallback-20260621");
 }
 
 function appBaseUrl() {
