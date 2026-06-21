@@ -278,6 +278,20 @@ textarea {
     box-shadow 180ms ease;
 }
 
+html:not(.dark) .service-song-card .song-cover-backdrop::after {
+  background:
+    linear-gradient(90deg, rgb(255 255 255 / 0.995) 0%, rgb(255 255 255 / 0.985) 46%, rgb(255 255 255 / 0.94) 76%, rgb(255 255 255 / 0.9) 100%),
+    linear-gradient(0deg, rgb(255 255 255 / 0.88), rgb(255 255 255 / 0.7));
+}
+
+html:not(.dark) .service-song-card .song-cover-backdrop-color::after {
+  background: linear-gradient(90deg, rgb(255 255 255 / 0.88), rgb(255 255 255 / 0.72));
+}
+
+html:not(.dark) .service-song-card .service-song-secondary {
+  color: rgb(17 17 17 / 0.74);
+}
+
 @media (hover: hover) and (pointer: fine) {
   .service-song-card:hover {
     transform: translateY(-2px) scale(1.003);

@@ -641,7 +641,7 @@ function ScheduleCard({
 }
 
 export function Schedules() {
-  const { canEdit, canDelete, profile } = useAuth();
+  const { canEdit, canDelete, isAdmin, profile } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const {
     songs,
@@ -898,20 +898,24 @@ export function Schedules() {
             <h2 className="text-xl font-bold text-ink">Programación</h2>
             <p className="mt-1 text-sm text-ink/55">Calendario, listas y servicios de la iglesia.</p>
           </div>
-          {canEdit ? (
+          {canEdit || isAdmin ? (
             <div className="flex flex-wrap gap-2">
-              <Button onClick={openNewSchedule} data-tour="schedule-new">
-                <Plus className="h-4 w-4" />
-                {tab === "calendar" ? "Nueva programación para este día" : "Nueva programación"}
-              </Button>
+              {canEdit ? (
+                <Button onClick={openNewSchedule} data-tour="schedule-new">
+                  <Plus className="h-4 w-4" />
+                  {tab === "calendar" ? "Nueva programación para este día" : "Nueva programación"}
+                </Button>
+              ) : null}
               <Button variant="accent" onClick={openSmartScheduleCreator}>
                 <Sparkles className="h-4 w-4" />
                 Sugerir cantos
               </Button>
-              <Button variant="secondary" onClick={openNewPlannedSong}>
-                <Music2 className="h-4 w-4" />
-                {tab === "calendar" ? "Canto nuevo para este día" : "Planear canto nuevo"}
-              </Button>
+              {canEdit ? (
+                <Button variant="secondary" onClick={openNewPlannedSong}>
+                  <Music2 className="h-4 w-4" />
+                  {tab === "calendar" ? "Canto nuevo para este día" : "Planear canto nuevo"}
+                </Button>
+              ) : null}
             </div>
           ) : null}
         </div>

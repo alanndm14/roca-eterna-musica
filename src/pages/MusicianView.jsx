@@ -1,7 +1,7 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { pdf } from "@react-pdf/renderer";
-import { ArrowDown, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, Download, ExternalLink, Eye, FileStack, FileText, Headphones, Maximize2, Minimize2, Music2, Pencil, Plus, Presentation, Save, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowRightLeft, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, Download, ExternalLink, Eye, FileStack, FileText, Headphones, Maximize2, Minimize2, Music2, Pencil, Plus, Presentation, Save, Trash2 } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -49,6 +49,18 @@ const toLocalDateString = (date) => {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+};
+
+const accentTextColor = (hex = "#b6945f") => {
+  const match = String(hex).match(/^#([0-9a-f]{6})$/i);
+  if (!match) return "#ffffff";
+  const value = match[1];
+  const channels = [0, 2, 4].map((offset) => Number.parseInt(value.slice(offset, offset + 2), 16) / 255);
+  const luminance = channels.reduce((sum, channel, index) => {
+    const linear = channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+    return sum + linear * [0.2126, 0.7152, 0.0722][index];
+  }, 0);
+  return luminance > 0.42 ? "#111111" : "#ffffff";
 };
 
 function getScheduledSongOptions(schedule = {}, songs = []) {
@@ -181,7 +193,7 @@ export function MusicianView({ mediaMode = false }) {
   const [temporaryMergedPdfUrl, setTemporaryMergedPdfUrl] = useState("");
   const [programDraft, setProgramDraft] = useState([]);
   const [serviceReviewOpen, setServiceReviewOpen] = useState(false);
-  const [schedulePickerOpen, setSchedulePickerOpen] = useState(() => Boolean(mediaMode));
+  const [schedulePickerOpen, setSchedulePickerOpen] = useState(true);
   const [emptyDateSelected, setEmptyDateSelected] = useState(() => savedSelection.emptyDateSelected === true);
   const [slidesUrlDraft, setSlidesUrlDraft] = useState("");
   const [slidesStatus, setSlidesStatus] = useState("");
@@ -191,6 +203,7 @@ export function MusicianView({ mediaMode = false }) {
   const [pickerDate, setPickerDate] = useState(() => searchParams.get("date") || savedSelection.date || today);
   const showMusicalKey = shouldShowMusicalKeyForUser(profile);
   const showVocalPractice = canUseVocalPractice(profile);
+  const accentColor = profile?.accentColor || "#b6945f";
 
   const scheduleOptions = useMemo(() => {
     const upcoming = schedules.filter((schedule) => schedule.date >= today).sort((a, b) => `${a.date}${a.time || ""}`.localeCompare(`${b.date}${b.time || ""}`));
@@ -757,10 +770,21 @@ export function MusicianView({ mediaMode = false }) {
         {serviceSongs.map((song) => (
           <Card
             key={`${song.index}-${song.title}`}
-            className={`service-song-card group relative overflow-hidden ${focusMode ? "p-5 sm:p-6 md:p-8" : "p-4 md:p-5"}`}
+            className={`service-song-card group relative overflow-hidden ${focusMode ? "p-5 sm:p-6 md:p-8" : "p-4 md:p-5"} ${isAdmin ? "pr-14 md:pr-16" : ""}`}
             style={songCoverAccentStyle(song)}
           >
             <SongCoverBackdrop song={song} />
+            {isAdmin ? (
+              <Button
+                variant="subtle"
+                className="absolute right-3 top-3 z-[2] h-10 w-10 rounded-full border border-ink/10 bg-white/75 px-0 text-ink/55 shadow-sm backdrop-blur hover:border-brass/40 hover:bg-white hover:text-brass dark:border-white/10 dark:bg-black/35 dark:text-white/65 dark:hover:bg-black/55 dark:hover:text-brass"
+                onClick={() => setReplaceTarget(song)}
+                aria-label={`Sustituir ${song.title}`}
+                title="Sustituir canto"
+              >
+                <ArrowRightLeft className="h-4 w-4" />
+              </Button>
+            ) : null}
             <div className={`relative z-[1] grid grid-cols-[44px_minmax(0,1fr)] gap-x-3 gap-y-3 sm:grid-cols-[52px_minmax(0,1fr)] sm:gap-x-4 ${showMusicalKey ? "xl:grid-cols-[52px_minmax(240px,1fr)_minmax(190px,auto)_240px] xl:items-center" : "xl:grid-cols-[52px_minmax(280px,1fr)_minmax(220px,auto)] xl:items-center"}`}>
               <div className="flex h-11 w-11 items-center justify-center self-start rounded-xl bg-ink text-lg font-bold text-white shadow-sm transition duration-200 group-hover:bg-brass group-active:scale-95 sm:h-12 sm:w-12 sm:rounded-2xl sm:text-xl">
                 {song.index}
@@ -778,24 +802,24 @@ export function MusicianView({ mediaMode = false }) {
                       </h3>
                       {showMusicalKey && song.hasKeyChange ? <span className="rounded-full bg-brass/12 px-3 py-1 text-xs font-bold text-brass">Cambio de tono</span> : null}
                     </div>
-                    {song.artistOrSource ? <p className="mt-1 text-sm font-semibold text-ink/45">{song.artistOrSource}</p> : null}
+                    {song.artistOrSource ? <p className="service-song-secondary mt-1 text-sm font-semibold text-ink/65 dark:text-white/60">{song.artistOrSource}</p> : null}
                   </div>
                 </div>
-                {song.notes ? <p className="mt-2 text-base text-ink/60">{song.notes}</p> : !mediaMode ? <p className="mt-2 text-base text-ink/60">Sin notas para este canto.</p> : null}
+                {song.notes ? <p className="service-song-secondary mt-2 text-base text-ink/75 dark:text-white/70">{song.notes}</p> : null}
                 {!isViewer ? <SongFollowUpNotice issues={getOutstandingSongFollowUps(song.entry.songId, schedules, selectedSchedule).slice(0, 1)} /> : null}
               </div>
               <div className="col-start-2 flex flex-wrap items-center gap-2 xl:col-start-auto xl:justify-end">
                 {song.pdfUrl ? <a className="inline-flex min-h-12 items-center gap-2 rounded-xl bg-brass/12 px-3 py-2 text-sm font-bold text-brass transition hover:-translate-y-0.5 hover:bg-brass/18 active:scale-95" href={song.pdfUrl} target="_blank" rel="noreferrer">PDF de letra y acordes <ExternalLink className="h-5 w-5" /></a> : null}
                 <SongExternalLinks youtubeUrl={song.youtubeUrl} spotifyUrl={song.spotifyUrl} songTitle={song.title} />
                 {showVocalPractice ? (
-                  <Button variant="secondary" className="shrink-0" onClick={() => setPracticeSong(song)}>
+                  <Button
+                    variant="accent"
+                    className="shrink-0"
+                    style={{ backgroundColor: accentColor, color: accentTextColor(accentColor) }}
+                    onClick={() => setPracticeSong(song)}
+                  >
                     <Headphones className="h-5 w-5" />
                     Practicar
-                  </Button>
-                ) : null}
-                {isAdmin ? (
-                  <Button variant="secondary" className="shrink-0" onClick={() => setReplaceTarget(song)}>
-                    Sustituir canto
                   </Button>
                 ) : null}
               </div>

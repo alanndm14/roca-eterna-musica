@@ -40,7 +40,7 @@ export const getVisibleNavItems = (profileOrRole = "viewer") => {
   return navItems.filter((item) => (
     item.roles.includes(profile.role)
     && (profile.role !== "viewer" || !item.viewerTypes || item.viewerTypes.includes(profile.viewerType))
-    && (!isAdministrativeAdmin(profile) || !["/programacion", "/auditoria", "/actualizaciones"].includes(item.path))
+    && (!isAdministrativeAdmin(profile) || !["/auditoria", "/actualizaciones"].includes(item.path))
   ));
 };
 
