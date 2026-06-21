@@ -9,7 +9,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
 import { formatDate, getCurrentOrNextSchedule, getEstimatedServiceEndDate, getScheduleStartDate, getServiceDisplayLabel, isCountableSchedule, todayString } from "../services/dateUtils";
 import { getSongPdfUrl, getSongSpotifyUrl, getSongYoutubeUrl, normalizeSearchText } from "../services/songUtils";
-import { diagnosePushNotifications, enablePushNotificationsForUser, getCurrentPushTokenForUser } from "../services/pushNotifications";
+import { diagnosePushNotifications, enablePushNotificationsForUser, ensurePushBroadcastSubscription, getCurrentPushTokenForUser } from "../services/pushNotifications";
 import { AndroidNotificationPermissionWizard } from "../components/notifications/AndroidNotificationPermissionWizard";
 import { isPushBackendConfigured, sendExternalPush } from "../services/externalPush";
 import { isAndroidDevice } from "../services/notificationDevice";
@@ -153,6 +153,9 @@ export function Dashboard() {
         || diagnostic?.firestoreWrite === "permitida"
         || diagnostic?.firestoreWrite === "token existente"
       );
+      if (permissionGranted) {
+        ensurePushBroadcastSubscription(profile).catch(() => undefined);
+      }
       setPushPrompt({ checked: true, show: !(permissionGranted && deviceRegistered), status: "" });
     };
     checkPushRegistration();

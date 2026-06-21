@@ -249,7 +249,7 @@ export function MusicianView({ mediaMode = false }) {
   }, [sheetUrl]);
 
   const selectedSchedule = schedules.find((schedule) => schedule.id === selectedId) || (!mediaMode || !emptyDateSelected ? scheduleOptions[0] : null);
-  const canSeeSlides = canEdit || (isViewer && profile?.viewerType === "medios");
+  const canSeeSlides = isAdmin || canEdit || (isViewer && profile?.viewerType === "medios");
   const canManageSlides = canSeeSlides;
   const daySchedules = useMemo(
     () => schedules.filter((schedule) => schedule.date === pickerDate).sort((a, b) => `${a.time || ""}`.localeCompare(`${b.time || ""}`)),
@@ -652,6 +652,45 @@ export function MusicianView({ mediaMode = false }) {
         ) : null}
         {selectedSchedule ? (
           <>
+        {canSeeSlides ? (
+          <div className="mt-4 rounded-3xl border-2 border-brass/45 bg-brass/10 p-4 shadow-[0_18px_50px_rgb(var(--color-brass)/0.12)] dark:border-brass/55 dark:bg-brass/12">
+            <div className="flex items-start gap-3">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-brass text-white shadow-soft">
+                <Presentation className="h-6 w-6" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <h4 className="text-lg font-black text-ink">Diapositivas del servicio</h4>
+                <p className="mt-1 text-sm text-ink/60">Pega o abre aquí el enlace compartido para preparar la presentación.</p>
+                {canManageSlides ? (
+                  <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                    <Input
+                      type="url"
+                      value={slidesUrlDraft}
+                      onChange={(event) => setSlidesUrlDraft(event.target.value)}
+                      placeholder="Pega el enlace de iCloud Keynote"
+                    />
+                    <Button className="shrink-0" onClick={saveSlidesUrl}>
+                      <Save className="h-4 w-4" />
+                      Guardar enlace
+                    </Button>
+                  </div>
+                ) : null}
+                {selectedSchedule.slidesUrl ? (
+                  <a
+                    className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-xl bg-ink px-4 py-2 text-sm font-bold text-white dark:bg-white dark:text-ink"
+                    href={selectedSchedule.slidesUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Abrir diapositivas
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
+                ) : <p className="mt-2 text-sm font-semibold text-ink/55">Todavía no se ha agregado el enlace.</p>}
+                {slidesStatus ? <p className="mt-2 text-xs font-semibold text-brass">{slidesStatus}</p> : null}
+              </div>
+            </div>
+          </div>
+        ) : null}
         {serviceReview && !isViewer ? (
           <div className="mt-4">
             <ServiceReviewPanel review={serviceReview} compact interactive open={serviceReviewOpen} onToggle={() => setServiceReviewOpen((current) => !current)} />
@@ -686,44 +725,6 @@ export function MusicianView({ mediaMode = false }) {
             </div>
           </div>
         </div>
-        {canSeeSlides ? (
-          <div className="mt-4 rounded-3xl border border-ink/10 bg-white/80 p-4 dark:border-white/10 dark:bg-white/5">
-            <div className="flex items-start gap-3">
-              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brass/12 text-brass">
-                <Presentation className="h-5 w-5" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <h4 className="font-bold text-ink">Diapositivas del servicio</h4>
-                {canManageSlides ? (
-                  <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                    <Input
-                      type="url"
-                      value={slidesUrlDraft}
-                      onChange={(event) => setSlidesUrlDraft(event.target.value)}
-                      placeholder="Pega el enlace de iCloud Keynote"
-                    />
-                    <Button variant="secondary" className="shrink-0" onClick={saveSlidesUrl}>
-                      <Save className="h-4 w-4" />
-                      Guardar enlace
-                    </Button>
-                  </div>
-                ) : null}
-                {selectedSchedule.slidesUrl ? (
-                  <a
-                    className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-xl bg-brass px-4 py-2 text-sm font-bold text-white"
-                    href={selectedSchedule.slidesUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Abrir diapositivas
-                    <ExternalLink className="h-4 w-4" />
-                  </a>
-                ) : <p className="mt-2 text-sm text-ink/55">Todavía no se ha agregado el enlace.</p>}
-                {slidesStatus ? <p className="mt-2 text-xs font-semibold text-brass">{slidesStatus}</p> : null}
-              </div>
-            </div>
-          </div>
-        ) : null}
         {selectedIsSpecial ? (
           <div className="mt-4 rounded-3xl border border-brass/25 bg-brass/10 p-4">
             <div className="flex items-center gap-2">

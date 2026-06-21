@@ -7,6 +7,14 @@ import {
 import { doc, getDoc, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
 import { auth, db, googleProvider, isDemoModeAllowed, isFirebaseConfigured } from "../lib/firebase";
 import { isInitialAdminEmail } from "../config/authorizedEmails";
+import {
+  canEditContent,
+  canEditServiceFollowUp,
+  canManageAccess,
+  getAdminMode,
+  isAdministrativeAdmin,
+  isFullAdmin
+} from "../services/accessControl";
 
 const AuthContext = createContext(null);
 
@@ -16,6 +24,7 @@ const demoProfile = {
   displayName: "Admin Demo",
   preferredDisplayName: "Admin Demo",
   role: "admin",
+  adminMode: "editor",
   active: true,
   themeMode: localStorage.getItem("roca-eterna-theme-mode") || "light",
   accentColor: localStorage.getItem("roca-eterna-accent-color") || "#b6945f",
@@ -72,6 +81,7 @@ export function AuthProvider({ children }) {
               uid,
               id: snap.id,
               ...data,
+              adminMode: data.role === "admin" ? getAdminMode(data) : null,
               viewerType: data.viewerType || data.memberType || data.musicianType || (data.role === "viewer" ? "corista" : null),
               lastLoginAt: new Date(),
               lastSeenAt: new Date()
@@ -87,6 +97,7 @@ export function AuthProvider({ children }) {
             email,
             displayName: firebaseUser.displayName || email,
             role: "admin",
+            adminMode: "editor",
             active: true,
             themeMode: "system",
             accentColor: "#b6945f",
@@ -111,6 +122,7 @@ export function AuthProvider({ children }) {
               email,
               displayName: firebaseUser.displayName || allowed.displayName || email,
               role: allowed.role || "viewer",
+              adminMode: allowed.role === "admin" ? getAdminMode(allowed) : null,
               viewerType: allowed.viewerType || allowed.memberType || allowed.musicianType || (allowed.role === "viewer" ? "corista" : null),
               active: true,
               themeMode: "system",
@@ -212,6 +224,7 @@ export function AuthProvider({ children }) {
       "sidebarCollapsed",
       "onboardingCompleted",
       "dismissedPushPromptByUser",
+      "wantsPushNotifications",
       "pushNotificationsEnabled",
       "pushNotificationsEnabledAt"
     ];
@@ -246,10 +259,14 @@ export function AuthProvider({ children }) {
   const permissions = useMemo(
     () => ({
       isAdmin: profile?.role === "admin",
-      canEdit: profile?.role === "admin" || profile?.role === "editor",
-      canDelete: profile?.role === "admin"
+      isFullAdmin: isFullAdmin(profile),
+      isAdministrativeAdmin: isAdministrativeAdmin(profile),
+      canManageAccess: canManageAccess(profile),
+      canEdit: canEditContent(profile),
+      canDelete: isFullAdmin(profile),
+      canEditServiceFollowUp: canEditServiceFollowUp(profile)
     }),
-    [profile?.role]
+    [profile]
   );
 
   const value = useMemo(

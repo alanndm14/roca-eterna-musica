@@ -1,3 +1,5 @@
+import { isAdministrativeAdmin } from "./accessControl";
+
 function normalizeMemberType(value = "") {
   return String(value || "")
     .normalize("NFD")
@@ -24,7 +26,7 @@ export function getMemberType(profile = {}) {
 }
 
 export function shouldHideMusicalKeyForUser(profile = {}) {
-  return ["corista", "medios"].includes(getMemberType(profile));
+  return isAdministrativeAdmin(profile) || ["corista", "medios"].includes(getMemberType(profile));
 }
 
 export function shouldShowMusicalKeyForUser(profile) {
@@ -45,11 +47,11 @@ export function shouldShowMusicalKeyForUser(profile) {
 }
 
 export function canUseVocalPractice(profile = {}) {
-  if (profile?.role === "admin") return true;
+  if (profile?.role === "admin") return !isAdministrativeAdmin(profile);
   return ["corista", "musico"].includes(getMemberType(profile));
 }
 
 export function canManageVocalPractice(profile = {}) {
-  if (profile?.role === "admin") return true;
+  if (profile?.role === "admin") return !isAdministrativeAdmin(profile);
   return profile?.role === "editor" && ["corista", "musico"].includes(getMemberType(profile));
 }

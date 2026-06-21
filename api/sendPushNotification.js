@@ -697,8 +697,10 @@ export default async function handler(request, response) {
       });
     }
 
-    stage = "check_role";
-    await checkRole(decoded, request.body || {});
+    if (!["self_test", "self_test_data_only"].includes(mode)) {
+      stage = "check_role";
+      await checkRole(decoded, request.body || {});
+    }
 
     const payloadValidation = validatePayload({ mode, type, title, body, url });
     if (!payloadValidation.ok) return sendJson(response, 400, { ok: false, stage: "validate_payload", ...payloadValidation });
@@ -773,18 +775,25 @@ export default async function handler(request, response) {
     let sendResult;
     if (mode === "broadcast") {
       const broadcastPayload = { mode, type, title, body, url, scheduleId, songId, notificationId, icon, badge };
-      const registryDevices = await readPushTokenRegistry().catch((error) => {
-        logSafe("Push registry read warning", { code: sanitizeError(error).code, message: sanitizeError(error).message });
-        return [];
-      });
+      const [registryDevices, firestoreTokens] = await Promise.all([
+        readPushTokenRegistry().catch((error) => {
+          logSafe("Push registry read warning", { code: sanitizeError(error).code, message: sanitizeError(error).message });
+          return [];
+        }),
+        readActiveTokens().catch((error) => {
+          logSafe("Firestore token read warning", { code: sanitizeError(error).code, message: sanitizeError(error).message });
+          return { entries: [] };
+        })
+      ]);
       const directTokens = new Map();
       registryDevices.filter((entry) => entry?.active && entry?.token).forEach((entry) => directTokens.set(entry.token, entry));
+      (firestoreTokens.entries || []).forEach((entry) => directTokens.set(entry.token, entry));
       if (token) directTokens.set(token, { token, tokenId, uid: decoded.uid, active: true });
       const directEntries = [...directTokens.values()].map((entry) => ({
         token: entry.token,
         tokenPreview: maskToken(entry.token),
-        refPath: "",
-        ref: null
+        refPath: entry.refPath || "",
+        ref: entry.ref || null
       }));
       const [topicAttempt, directAttempt] = await Promise.allSettled([
         sendToBroadcastTopic(broadcastPayload),
@@ -808,6 +817,7 @@ export default async function handler(request, response) {
         failedPrecondition: Boolean(topicResult?.failedPrecondition || directResult?.failedPrecondition),
         topic: topicResult?.topic || "",
         registryDevices: directEntries.length,
+        firestoreDevices: firestoreTokens.entries?.length || 0,
         directFallback: Boolean(directResult?.sent)
       };
     } else {

@@ -70,7 +70,7 @@ const pushBaseDiagnostic = (overrides = {}) => ({
   ...overrides
 });
 
-const deniedInstructions = "Las notificaciones están bloqueadas para este sitio. Reactívalas desde Chrome > Configuración > Configuración de sitios > Notificaciones, busca alanndm14.github.io y cambia a Permitir. También revisa Ajustes del teléfono > Apps > Chrome > Notificaciones.";
+const deniedInstructions = "Las notificaciones están bloqueadas para este sitio. Reactívalas desde Chrome > Configuración > Configuración de sitios > Notificaciones y permite musica.rocaeternamexico.com.mx. También revisa Ajustes del teléfono > Apps > Chrome > Notificaciones.";
 
 const androidDefaultInstructions = "Este sitio todavia no tiene permiso de notificaciones. Toca Activar notificaciones para solicitarlo. Los permisos generales de Chrome no bastan; este sitio debe tener permiso propio.";
 

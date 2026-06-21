@@ -45,8 +45,8 @@ export function normalizeCoverBackgroundMode(value = "") {
 
 export function normalizeCoverBackgroundOpacity(value) {
   const numericValue = Number(value);
-  if (!Number.isFinite(numericValue)) return 14;
-  return Math.min(36, Math.max(4, Math.round(numericValue)));
+  if (!Number.isFinite(numericValue)) return 22;
+  return Math.min(60, Math.max(4, Math.round(numericValue)));
 }
 
 export function getSongCoverUrl(song = {}) {
@@ -156,7 +156,7 @@ export function uploadSongCover(song, processed, options = {}) {
     desiredFileName: song.coverFileName || slugifyCoverName(song.title),
     coverEnabled: options.coverEnabled !== false,
     coverPosition: normalizeCoverPosition(options.coverPosition),
-    coverIntensity: normalizeCoverIntensity(options.coverIntensity),
+    coverIntensity: "medium",
     coverBackgroundMode: normalizeCoverBackgroundMode(options.coverBackgroundMode),
     coverBackgroundOpacity: normalizeCoverBackgroundOpacity(options.coverBackgroundOpacity),
     coverAccentColor: processed.accentColor || "#b6945f"

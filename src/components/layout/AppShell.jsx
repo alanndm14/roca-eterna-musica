@@ -2,7 +2,7 @@ import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, use
 import { createPortal } from "react-dom";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
-import { Bell, CalendarDays, CheckCheck, HelpCircle, Music2, PanelLeftClose, PanelLeftOpen, RefreshCw, Sparkles } from "lucide-react";
+import { Bell, CalendarDays, CheckCheck, Music2, PanelLeftClose, PanelLeftOpen, RefreshCw, Sparkles } from "lucide-react";
 import { appDarkLogo, appLogo, fallbackAppLogo } from "../../assets/logo";
 import { useAuth } from "../../hooks/useAuth";
 import { useMusicData } from "../../hooks/useMusicData";
@@ -582,7 +582,6 @@ export function AppShell() {
     return () => media?.removeEventListener?.("change", applyTheme);
   }, [themeMode]);
 
-  const openGuide = () => window.dispatchEvent(new Event("roca-eterna-open-guide"));
   const toggleSidebar = () => {
     setSidebarCollapsed((current) => {
       const next = !current;
@@ -672,9 +671,6 @@ export function AppShell() {
                   Modo demo
                 </span>
               ) : null}
-              <Button variant="subtle" className="h-10 w-10 px-0" onClick={openGuide} aria-label="Guía de uso">
-                <HelpCircle className="h-4 w-4" />
-              </Button>
               <div className="relative">
                 <Button variant="subtle" className="h-11 w-11 !p-0" onClick={() => setNotificationsOpen((current) => !current)} aria-label="Notificaciones">
                   <Bell className="h-6 w-6 shrink-0 stroke-[2.2]" />

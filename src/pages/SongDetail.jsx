@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, CalendarPlus, CheckCircle, Copy, Edit3, ExternalLink, FileText, Trash2 } from "lucide-react";
+import { ArrowLeft, CheckCircle, Copy, Edit3, ExternalLink, FileText, Trash2 } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -24,6 +24,7 @@ import {
   normalizeSong
 } from "../services/songUtils";
 import { SongForm } from "./Songs";
+import { shouldShowMusicalKeyForUser } from "../services/memberPresentation";
 
 function InfoRow({ label, value }) {
   return (
@@ -47,13 +48,14 @@ function StatusPill({ label, value }) {
 export function SongDetail() {
   const { songId } = useParams();
   const navigate = useNavigate();
-  const { canEdit, profile } = useAuth();
+  const { canEdit, canDelete, profile } = useAuth();
   const isViewer = profile?.role === "viewer";
   const { songs, schedules, plannedNewSongs = [], themes, duplicateSong, deleteSong, saveSchedule, saveSong, settings, logAuditEvent } = useMusicData();
   const [showPdf, setShowPdf] = useState(false);
   const [pdfTest, setPdfTest] = useState(null);
   const [editingSong, setEditingSong] = useState(false);
   const song = normalizeSong(songs.find((item) => item.id === songId), settings.keyPreference || "sharps");
+  const showMusicalKey = shouldShowMusicalKeyForUser(profile);
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
@@ -161,39 +163,35 @@ export function SongDetail() {
         Volver
       </Button>
 
-      <Card className="relative overflow-hidden bg-ink text-white" style={songCoverAccentStyle(song)}>
-        <SongCoverBackdrop song={song} tone="dark" />
+      <Card className="relative overflow-hidden bg-white text-ink dark:bg-zinc-950 dark:text-white" style={songCoverAccentStyle(song)}>
+        <SongCoverBackdrop song={song} />
         <div className="relative z-[1] flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div className="flex min-w-0 items-start gap-4">
             <SongCoverImage song={song} wrapperClassName="h-24 w-24 rounded-3xl border border-white/15 shadow-2xl sm:h-32 sm:w-32" />
             <div className="min-w-0">
             {!isViewer ? <p className="text-sm font-semibold uppercase tracking-wide text-brass">{song.category || "normal"}</p> : null}
             <h2 className="mt-2 text-3xl font-bold tracking-normal sm:text-4xl">{song.title}</h2>
-            <p className="mt-2 text-white/60">{song.artistOrSource || "Sin artista registrado"}</p>
+            <p className="mt-2 text-ink/60 dark:text-white/65">{song.artistOrSource || "Sin artista registrado"}</p>
             {!isViewer ? <div className="mt-5 flex flex-wrap gap-2">
               {song.mainTheme ? <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-brass">{song.mainTheme}</span> : null}
               {(song.otherThemes || []).map((theme) => (
-                <span key={theme} className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white/70">{theme}</span>
+                <span key={theme} className="rounded-full bg-ink/8 px-3 py-1 text-xs font-semibold text-ink/70 dark:bg-white/10 dark:text-white/70">{theme}</span>
               ))}
             </div> : null}
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            {!isViewer ? <span className="rounded-2xl bg-white px-4 py-3 text-2xl font-bold text-ink">{song.mainKey || "--"}</span> : null}
+            {showMusicalKey ? <span className="rounded-2xl bg-ink px-4 py-3 text-2xl font-bold text-white dark:bg-white dark:text-ink">{song.mainKey || "--"}</span> : null}
             {canEdit ? (
               <>
                 <Button variant="light" onClick={() => setEditingSong(true)}>
                   <Edit3 className="h-4 w-4" />
                   Editar canto
                 </Button>
-                <Button variant="light" onClick={addToNextSchedule}>
-                  <CalendarPlus className="h-4 w-4" />
-                  Agregar a la siguiente programación
-                </Button>
-                <Button variant="darkSubtle" onClick={() => duplicateSong(song)}>
-                  <Copy className="h-4 w-4" />
-                  Duplicar
-                </Button>
+              </>
+            ) : null}
+            {canDelete ? (
+              <>
                 <Button variant="danger" onClick={removeCurrentSong}>
                   <Trash2 className="h-4 w-4" />
                   Eliminar canto
@@ -288,7 +286,7 @@ export function SongDetail() {
             <dl className="mt-4 space-y-2">
               <InfoRow label="Tema principal" value={song.mainTheme} />
               <InfoRow label="Otros temas" value={(song.otherThemes || []).join(", ")} />
-              <InfoRow label="Tono" value={toneSummary} />
+              {showMusicalKey ? <InfoRow label="Tono" value={toneSummary} /> : null}
               {Number(song.capo || 0) > 0 ? <InfoRow label="Tono base" value={song.mainKey} /> : null}
               <InfoRow label="Cambio de tono" value={song.hasKeyChange ? "Sí" : "No"} />
               <InfoRow label="Formato" value={song.format} />

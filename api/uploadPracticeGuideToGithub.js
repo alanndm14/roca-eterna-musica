@@ -286,7 +286,8 @@ export default async function handler(request, response) {
       forbiddenMessage: "No tienes permiso para administrar guías vocales."
     });
     const memberType = String(requester.viewerType || "").trim().toLowerCase();
-    if (requester.role !== "admin" && !["corista", "musico"].includes(memberType)) {
+    const fullAdmin = requester.role === "admin" && requester.adminMode !== "administrative";
+    if (!fullAdmin && !["corista", "musico"].includes(memberType)) {
       const error = new Error("Esta función está reservada para integrantes musicales.");
       error.status = 403;
       error.code = "MUSICAL_PROFILE_REQUIRED";

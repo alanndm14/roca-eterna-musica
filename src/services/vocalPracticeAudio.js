@@ -38,12 +38,48 @@ function scheduleTone(context, frequency, start, duration, volume = 0.18, type =
   };
 }
 
+function schedulePianoTone(context, frequency, start, duration, volume = 0.18) {
+  const master = context.createGain();
+  const filter = context.createBiquadFilter();
+  filter.type = "lowpass";
+  filter.frequency.setValueAtTime(5200, start);
+  filter.frequency.exponentialRampToValueAtTime(1800, start + Math.min(duration, 2.5));
+  master.gain.setValueAtTime(0.0001, start);
+  master.gain.exponentialRampToValueAtTime(Math.max(0.001, volume), start + 0.012);
+  master.gain.exponentialRampToValueAtTime(Math.max(0.001, volume * 0.28), start + 0.42);
+  master.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+  filter.connect(master).connect(context.destination);
+
+  [
+    { multiple: 1, gain: 1, type: "triangle" },
+    { multiple: 2, gain: 0.32, type: "sine" },
+    { multiple: 3, gain: 0.13, type: "sine" },
+    { multiple: 4, gain: 0.06, type: "sine" }
+  ].forEach((partial) => {
+    const oscillator = context.createOscillator();
+    const partialGain = context.createGain();
+    oscillator.type = partial.type;
+    oscillator.frequency.setValueAtTime(frequency * partial.multiple, start);
+    oscillator.detune.setValueAtTime(partial.multiple === 1 ? -2 : 2, start);
+    partialGain.gain.setValueAtTime(partial.gain, start);
+    oscillator.connect(partialGain).connect(filter);
+    oscillator.start(start);
+    oscillator.stop(start + duration + 0.04);
+    activeNodes.add(oscillator);
+    oscillator.onended = () => {
+      activeNodes.delete(oscillator);
+      oscillator.disconnect();
+      partialGain.disconnect();
+    };
+  });
+}
+
 export async function playReferenceNote(note, options = {}) {
   const frequency = noteToFrequency(note, options.octave || 4);
   if (!frequency) throw new Error("No se pudo interpretar la nota.");
   stopReferenceAudio();
   const context = await ensureContext();
-  scheduleTone(context, frequency, context.currentTime + 0.02, options.duration || 1.7, options.volume || 0.2);
+  schedulePianoTone(context, frequency, context.currentTime + 0.02, options.duration || 2.8, options.volume || 0.2);
 }
 
 export async function playKeyTonic(key, options = {}) {
@@ -58,7 +94,7 @@ export async function playKeyChord(key, options = {}) {
   stopReferenceAudio();
   const context = await ensureContext();
   const start = context.currentTime + 0.02;
-  frequencies.forEach((frequency) => scheduleTone(context, frequency, start, options.duration || 2.1, options.volume || 0.11, "sine"));
+  frequencies.forEach((frequency) => schedulePianoTone(context, frequency, start, options.duration || 4.2, options.volume || 0.095));
 }
 
 export function stopReferenceAudio() {

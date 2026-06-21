@@ -42,6 +42,7 @@ export function SongCoverBackdrop({ song, tone = "adaptive" }) {
   const backgroundMode = normalizeCoverBackgroundMode(song.coverBackgroundMode);
   const accent = validAccent(song.coverAccentColor);
   const colorOnly = backgroundMode === "color";
+  const backgroundOpacity = normalizeCoverBackgroundOpacity(song.coverBackgroundOpacity);
   const [loaded, setLoaded] = useState(false);
   useEffect(() => {
     setLoaded(false);
@@ -81,6 +82,7 @@ export function SongCoverBackdrop({ song, tone = "adaptive" }) {
       style={{
         backgroundImage: `url("${url}")`,
         backgroundPosition: coverObjectPosition(song.coverPosition),
+        filter: `saturate(${0.68 + (backgroundOpacity / 100)}) brightness(${0.56 + (backgroundOpacity / 180)})`,
         "--song-cover-accent": accent
       }}
     />

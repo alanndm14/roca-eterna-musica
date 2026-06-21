@@ -302,8 +302,8 @@ export function normalizeSong(song = {}, keyPreference = "sharps") {
     coverIntensity: song.coverIntensity === "medium" ? "medium" : "subtle",
     coverBackgroundMode: song.coverBackgroundMode === "color" ? "color" : "image",
     coverBackgroundOpacity: Number.isFinite(Number(song.coverBackgroundOpacity))
-      ? Math.min(36, Math.max(4, Math.round(Number(song.coverBackgroundOpacity))))
-      : 14,
+      ? Math.min(60, Math.max(4, Math.round(Number(song.coverBackgroundOpacity))))
+      : 22,
     coverAccentColor: /^#[0-9a-fA-F]{6}$/.test(song.coverAccentColor || "") ? song.coverAccentColor : "",
     coverUpdatedAt: song.coverUpdatedAt || "",
     coverUpdatedBy: song.coverUpdatedBy || "",

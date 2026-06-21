@@ -883,7 +883,7 @@ export function MusicDataProvider({ children }) {
         coverPosition: before.coverPosition || "center",
         coverIntensity: before.coverIntensity || "subtle",
         coverBackgroundMode: before.coverBackgroundMode || "image",
-        coverBackgroundOpacity: Number(before.coverBackgroundOpacity || 14),
+        coverBackgroundOpacity: Number(before.coverBackgroundOpacity || 22),
         coverAccentColor: before.coverAccentColor || ""
       },
       afterData: updates.removeCover ? { removed: true } : metadata
@@ -1401,6 +1401,9 @@ export function MusicDataProvider({ children }) {
       displayName: user.displayName || email,
       role: user.role || "viewer",
       viewerType: (user.role || "viewer") === "viewer" ? user.viewerType || "corista" : null,
+      adminMode: (user.role || "viewer") === "admin"
+        ? user.adminMode === "administrative" ? "administrative" : "editor"
+        : null,
       active: Boolean(user.active)
     };
 

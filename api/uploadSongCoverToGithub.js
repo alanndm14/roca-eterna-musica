@@ -64,8 +64,8 @@ function safeBackgroundMode(value) {
 
 function safeBackgroundOpacity(value) {
   const numericValue = Number(value);
-  if (!Number.isFinite(numericValue)) return 14;
-  return Math.min(36, Math.max(4, Math.round(numericValue)));
+  if (!Number.isFinite(numericValue)) return 22;
+  return Math.min(60, Math.max(4, Math.round(numericValue)));
 }
 
 function safeAccent(value) {
@@ -278,6 +278,12 @@ export default async function handler(request, response) {
       unauthenticatedMessage: "No se pudo validar tu sesión.",
       forbiddenMessage: "No tienes permiso para actualizar portadas."
     });
+    if (requester.role === "admin" && requester.adminMode === "administrative") {
+      const error = new Error("Este perfil administrativo no puede modificar portadas.");
+      error.status = 403;
+      error.code = "ADMINISTRATIVE_PROFILE_READ_ONLY";
+      throw error;
+    }
     enforceRateLimit(requester.uid, "cover");
     const body = parseBody(request);
     const songId = validateSongId(body.songId);

@@ -1,11 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { Pause, Play, Repeat2, RotateCcw } from "lucide-react";
+import { Download, Pause, Play, Repeat2, RotateCcw } from "lucide-react";
 import { Button } from "../ui/Button";
 import { Field, Input, Select } from "../ui/Field";
-import { formatDuration, PRACTICE_SECTIONS, VOICE_PARTS } from "../../services/vocalPracticeMusic";
+import { formatDuration } from "../../services/vocalPracticeMusic";
 import { getPracticeGuideAudioUrl } from "../../services/practiceGuides";
-
-const labelFor = (options, value) => options.find(([key]) => key === value)?.[1] || value;
 
 export function PracticeGuidePlayer({ guide, active, onActivate, useLocal = false }) {
   const audioRef = useRef(null);
@@ -76,10 +74,7 @@ export function PracticeGuidePlayer({ guide, active, onActivate, useLocal = fals
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h4 className="font-bold text-ink">{guide.title}</h4>
-          <p className="mt-1 text-xs font-semibold text-ink/50">
-            {labelFor(PRACTICE_SECTIONS, guide.sectionType)} · {labelFor(VOICE_PARTS, guide.voicePart)}
-            {guide.key ? ` · ${guide.key}` : ""}{guide.bpm ? ` · ${guide.bpm} BPM` : ""}
-          </p>
+          <p className="mt-1 text-xs font-semibold text-ink/50">{guide.fileName || "Audio de ensayo"}</p>
         </div>
         <Button className="h-11 w-11 px-0" onClick={toggle} disabled={!url} aria-label={playing ? "Pausar guía" : "Reproducir guía"}>
           {playing ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
@@ -124,6 +119,18 @@ export function PracticeGuidePlayer({ guide, active, onActivate, useLocal = fals
           </Field>
         </div>
       </div>
+      {url ? (
+        <a
+          className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-xl px-3 text-sm font-bold text-brass hover:bg-brass/10"
+          href={url}
+          download={guide.fileName || true}
+          target="_blank"
+          rel="noreferrer"
+        >
+          <Download className="h-4 w-4" />
+          Descargar audio
+        </a>
+      ) : null}
       {error ? <p className="mt-2 text-sm font-semibold text-red-600 dark:text-red-300">{error}</p> : null}
     </article>
   );

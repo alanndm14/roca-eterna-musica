@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { Music, Piano, Volume2 } from "lucide-react";
 import { Modal } from "../ui/Modal";
 import { Button } from "../ui/Button";
-import { Select } from "../ui/Field";
 import { SongExternalLinks } from "../ui/SongExternalLinks";
 import { Metronome } from "./Metronome";
 import { PracticeGuidePlayer } from "./PracticeGuidePlayer";
@@ -10,8 +9,7 @@ import { loadPracticeGuides } from "../../services/practiceGuides";
 import {
   calculateSemitoneDifference,
   clampBpm,
-  formatSemitoneDifference,
-  VOICE_PARTS
+  formatSemitoneDifference
 } from "../../services/vocalPracticeMusic";
 import { playKeyChord, playKeyTonic, playReferenceNote, stopReferenceAudio } from "../../services/vocalPracticeAudio";
 
@@ -47,7 +45,6 @@ export function VocalPracticeDialog({ open, onClose, song, useLocal = false, pre
   const difference = calculateSemitoneDifference(originalKey, serviceKey);
   const [guides, setGuides] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [voiceFilter, setVoiceFilter] = useState(preferredVoice || "all");
   const [activeGuideId, setActiveGuideId] = useState("");
   const [guideError, setGuideError] = useState("");
   const [metronomeStopSignal, setMetronomeStopSignal] = useState(0);
@@ -74,10 +71,7 @@ export function VocalPracticeDialog({ open, onClose, song, useLocal = false, pre
     };
   }, [open, source.id, useLocal]);
 
-  const visibleGuides = useMemo(
-    () => guides.filter((guide) => voiceFilter === "all" || guide.voicePart === "all" || guide.voicePart === voiceFilter),
-    [guides, voiceFilter]
-  );
+  const visibleGuides = useMemo(() => guides.slice(0, 1), [guides]);
 
   const close = () => {
     stopReferenceAudio();
@@ -128,12 +122,9 @@ export function VocalPracticeDialog({ open, onClose, song, useLocal = false, pre
       <section className="mt-4 rounded-2xl border border-ink/10 bg-ink/[0.025] p-4 dark:border-white/10 dark:bg-white/[0.035]">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-bold uppercase tracking-wide text-brass">Guías de ensayo</p>
-            <p className="mt-1 text-sm text-ink/55">Grabaciones propias por sección y parte vocal.</p>
+            <p className="text-xs font-bold uppercase tracking-wide text-brass">Audio de ensayo</p>
+            <p className="mt-1 text-sm text-ink/55">Pista compartida para escucharla o descargarla.</p>
           </div>
-          <Select className="w-full sm:w-52" value={voiceFilter} onChange={(event) => setVoiceFilter(event.target.value)} aria-label="Filtrar por voz">
-            {VOICE_PARTS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-          </Select>
         </div>
         {guideError ? <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700 dark:bg-red-950/40 dark:text-red-200">{guideError}</p> : null}
         {loading ? <p className="mt-4 text-sm text-ink/55">Cargando guías…</p> : visibleGuides.length ? (
@@ -153,7 +144,7 @@ export function VocalPracticeDialog({ open, onClose, song, useLocal = false, pre
           </div>
         ) : (
           <p className="mt-4 rounded-2xl bg-white/70 p-4 text-sm leading-6 text-ink/60 dark:bg-black/20">
-            Aún no hay guías de ensayo para este canto. Puedes utilizar la versión original y las referencias del servicio.
+            Aún no hay audio de ensayo para este canto. Puedes utilizar la versión original y las referencias del servicio.
           </p>
         )}
       </section>

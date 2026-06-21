@@ -10,6 +10,7 @@ import {
   PanelsTopLeft,
   UsersRound
 } from "lucide-react";
+import { isAdministrativeAdmin } from "../../services/accessControl";
 
 export const navItems = [
   { label: "Inicio", path: "/", icon: Home, tourId: "nav-inicio", roles: ["admin", "editor", "viewer"] },
@@ -26,8 +27,12 @@ export const navItems = [
 
 const normalizeProfile = (profileOrRole = "viewer") => (
   typeof profileOrRole === "string"
-    ? { role: profileOrRole, viewerType: "corista" }
-    : { role: profileOrRole?.role || "viewer", viewerType: profileOrRole?.viewerType || "corista" }
+    ? { role: profileOrRole, viewerType: "corista", adminMode: "editor" }
+    : {
+        role: profileOrRole?.role || "viewer",
+        viewerType: profileOrRole?.viewerType || "corista",
+        adminMode: profileOrRole?.adminMode || "editor"
+      }
 );
 
 export const getVisibleNavItems = (profileOrRole = "viewer") => {
@@ -35,6 +40,7 @@ export const getVisibleNavItems = (profileOrRole = "viewer") => {
   return navItems.filter((item) => (
     item.roles.includes(profile.role)
     && (profile.role !== "viewer" || !item.viewerTypes || item.viewerTypes.includes(profile.viewerType))
+    && (!isAdministrativeAdmin(profile) || !["/programacion", "/auditoria", "/actualizaciones"].includes(item.path))
   ));
 };
 

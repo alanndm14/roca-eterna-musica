@@ -69,8 +69,28 @@ service cloud.firestore {
       return isAuthorized() && role() == "admin";
     }
 
+    function adminMode() {
+      return role() != "admin"
+        ? ""
+        : isBootstrapAdmin()
+          ? "editor"
+          : hasUserDoc()
+            ? userDoc().data.get("adminMode", "editor")
+            : hasAuthorizedEmailDoc()
+              ? authorizedEmailDoc().data.get("adminMode", "editor")
+              : legacyAllowedEmailDoc().data.get("adminMode", "editor");
+    }
+
+    function isFullAdmin() {
+      return isAdmin() && adminMode() != "administrative";
+    }
+
+    function isAdministrativeAdmin() {
+      return isAdmin() && adminMode() == "administrative";
+    }
+
     function isEditor() {
-      return isAuthorized() && (role() == "admin" || role() == "editor");
+      return isAuthorized() && (isFullAdmin() || role() == "editor");
     }
 
     function viewerType() {
@@ -90,7 +110,7 @@ service cloud.firestore {
     function canUseVocalPractice() {
       return isAuthorized()
         && (
-          role() == "admin"
+          isFullAdmin()
           || viewerType() in ["corista", "musico"]
         );
     }
@@ -98,7 +118,7 @@ service cloud.firestore {
     function canManageVocalPractice() {
       return isAuthorized()
         && (
-          role() == "admin"
+          isFullAdmin()
           || (role() == "editor" && viewerType() in ["corista", "musico"])
         );
     }
@@ -167,7 +187,7 @@ service cloud.firestore {
           || (
             request.resource.data.get("coverBackgroundOpacity", null) is int
             && request.resource.data.get("coverBackgroundOpacity", null) >= 4
-            && request.resource.data.get("coverBackgroundOpacity", null) <= 36
+            && request.resource.data.get("coverBackgroundOpacity", null) <= 60
           )
         )
         && (
@@ -373,6 +393,10 @@ service cloud.firestore {
         && request.resource.data.active == true
         && request.resource.data.role in ["admin", "editor", "viewer"]
         && (
+          request.resource.data.role != "admin"
+          || request.resource.data.get("adminMode", "editor") in ["editor", "administrative"]
+        )
+        && (
           request.resource.data.role != "viewer"
           || request.resource.data.get("viewerType", "corista") in ["corista", "musico", "medios"]
         )
@@ -397,6 +421,9 @@ service cloud.firestore {
             "onboardingCompleted",
             "onboardingCompletedAt",
             "dismissedPushPromptByUser",
+            "wantsPushNotifications",
+            "pushNotificationsEnabled",
+            "pushNotificationsEnabledAt",
             "preferencesUpdatedAt"
           ])
         );
@@ -426,7 +453,7 @@ service cloud.firestore {
       allow update: if isEditor()
         && validSongData()
         && (canManageVocalPractice() || practiceSongFieldsAreUnchanged());
-      allow delete: if isAdmin();
+      allow delete: if isFullAdmin();
 
       match /practiceGuides/{guideId} {
         allow read: if canUseVocalPractice();
@@ -457,8 +484,20 @@ service cloud.firestore {
           ])
           && request.resource.data.get("slidesUpdatedByUid", "") == request.auth.uid
           && validOptionalString(request.resource.data.get("slidesUpdatedByName", null), 160)
+        )
+        || (
+          isAdministrativeAdmin()
+          && validScheduleData()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            "serviceFollowUp",
+            "serviceReviewSnapshot",
+            "status",
+            "closedAt",
+            "closedBy",
+            "updatedAt"
+          ])
         );
-      allow delete: if isAdmin();
+      allow delete: if isFullAdmin();
     }
 
     match /plannedNewSongs/{plannedNewSongId} {
@@ -470,36 +509,36 @@ service cloud.firestore {
         && validPlannedNewSongData()
         && request.resource.data.createdBy == resource.data.createdBy
         && request.resource.data.createdAt == resource.data.createdAt;
-      allow delete: if isAdmin();
+      allow delete: if isFullAdmin();
     }
 
     match /themes/{themeId} {
       allow read: if isAuthorized();
       allow create, update: if isEditor() && validThemeData();
-      allow delete: if isAdmin();
+      allow delete: if isFullAdmin();
     }
 
     match /settings/{settingId} {
       allow read: if isAuthorized();
-      allow write: if isAdmin();
+      allow write: if isFullAdmin();
     }
 
     match /loginVerses/{verseId} {
       allow read: if true;
-      allow create, update: if isAdmin() && validLoginVerseData();
-      allow delete: if isAdmin();
+      allow create, update: if isFullAdmin() && validLoginVerseData();
+      allow delete: if isFullAdmin();
     }
 
     match /dailyVerseOverrides/{dateKey} {
       allow read: if true;
-      allow create, update: if isAdmin() && validDailyVerseOverrideData(dateKey);
-      allow delete: if isAdmin();
+      allow create, update: if isFullAdmin() && validDailyVerseOverrideData(dateKey);
+      allow delete: if isFullAdmin();
     }
 
     match /auditLogs/{logId} {
       allow read: if isAdmin();
       allow create: if validAuditData()
-        && (isEditor() || (isMediaViewer() && request.resource.data.entityType == "schedule_slides"));
+        && (isAdmin() || isEditor() || (isMediaViewer() && request.resource.data.entityType == "schedule_slides"));
       allow update, delete: if false;
     }
 
@@ -511,12 +550,12 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["readBy"]);
       allow update: if isEditor()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["active", "deleted", "relatedEntityDeleted", "deletedAt", "readBy"]);
-      allow delete: if isAdmin();
+      allow delete: if isFullAdmin();
 
       match /reads/{userId} {
         allow read: if isAdmin() || (isAuthorized() && request.auth.uid == userId);
         allow create, update: if isAuthorized() && request.auth.uid == userId;
-        allow delete: if isAdmin();
+        allow delete: if isFullAdmin();
       }
     }
   }

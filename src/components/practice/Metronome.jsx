@@ -34,6 +34,10 @@ export function Metronome({
   }, [bpm, signature, volume]);
 
   useEffect(() => {
+    if (!running) setBpm(clampBpm(initialBpm));
+  }, [initialBpm, running]);
+
+  useEffect(() => {
     if (!stopSignal) return;
     engineRef.current?.stop();
     setRunning(false);
@@ -78,7 +82,18 @@ export function Metronome({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-bold uppercase tracking-wide text-brass">Metrónomo</p>
-          <p className="mt-1 text-3xl font-black text-ink">{bpm} <span className="text-sm text-ink/45">BPM</span></p>
+          <div className="mt-1 flex items-end gap-2">
+            <Input
+              className="h-12 w-28 text-center text-2xl font-black tabular-nums"
+              type="number"
+              min="30"
+              max="240"
+              value={bpm}
+              onChange={(event) => setBpm(clampBpm(event.target.value))}
+              aria-label="BPM del metrónomo"
+            />
+            <span className="pb-2 text-sm font-bold text-ink/45">BPM</span>
+          </div>
         </div>
         <div className="flex gap-2" aria-label="Pulso actual">
           {Array.from({ length: Number(signature.split("/")[0]) || 4 }, (_, index) => (

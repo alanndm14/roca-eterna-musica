@@ -4,12 +4,10 @@ import { useAuth } from "../../hooks/useAuth";
 import { useMusicData } from "../../hooks/useMusicData";
 import {
   COVER_BACKGROUND_MODES,
-  COVER_INTENSITIES,
   COVER_POSITIONS,
   getSongCoverUrl,
   normalizeCoverBackgroundMode,
   normalizeCoverBackgroundOpacity,
-  normalizeCoverIntensity,
   normalizeCoverPosition,
   processSongCoverImage,
   removeSongCover,
@@ -42,7 +40,6 @@ export function SongCoverManager({ song, onCoverChanged }) {
   const [offsetX, setOffsetX] = useState(0);
   const [offsetY, setOffsetY] = useState(0);
   const [position, setPosition] = useState(normalizeCoverPosition(current.coverPosition));
-  const [intensity, setIntensity] = useState(normalizeCoverIntensity(current.coverIntensity));
   const [backgroundMode, setBackgroundMode] = useState(normalizeCoverBackgroundMode(current.coverBackgroundMode));
   const [backgroundOpacity, setBackgroundOpacity] = useState(normalizeCoverBackgroundOpacity(current.coverBackgroundOpacity));
   const [accentColor, setAccentColor] = useState(current.coverAccentColor || "#b6945f");
@@ -55,7 +52,6 @@ export function SongCoverManager({ song, onCoverChanged }) {
 
   useEffect(() => {
     setPosition(normalizeCoverPosition(current.coverPosition));
-    setIntensity(normalizeCoverIntensity(current.coverIntensity));
     setBackgroundMode(normalizeCoverBackgroundMode(current.coverBackgroundMode));
     setBackgroundOpacity(normalizeCoverBackgroundOpacity(current.coverBackgroundOpacity));
     setAccentColor(current.coverAccentColor || "#b6945f");
@@ -63,7 +59,6 @@ export function SongCoverManager({ song, onCoverChanged }) {
     current.coverAccentColor,
     current.coverBackgroundMode,
     current.coverBackgroundOpacity,
-    current.coverIntensity,
     current.coverPosition
   ]);
 
@@ -133,7 +128,7 @@ export function SongCoverManager({ song, onCoverChanged }) {
           coverVersion: Date.now(),
           coverEnabled: true,
           coverPosition: position,
-          coverIntensity: intensity,
+          coverIntensity: "medium",
           coverBackgroundMode: backgroundMode,
           coverBackgroundOpacity: backgroundOpacity,
           coverAccentColor: processed.accentColor,
@@ -146,7 +141,7 @@ export function SongCoverManager({ song, onCoverChanged }) {
         result = await uploadSongCover(current, processed, {
           coverEnabled: true,
           coverPosition: position,
-          coverIntensity: intensity,
+          coverIntensity: "medium",
           coverBackgroundMode: backgroundMode,
           coverBackgroundOpacity: backgroundOpacity
         });
@@ -207,7 +202,7 @@ export function SongCoverManager({ song, onCoverChanged }) {
         coverVersion: "",
         coverEnabled: false,
         coverBackgroundMode: "image",
-        coverBackgroundOpacity: 14,
+        coverBackgroundOpacity: 22,
         coverAccentColor: "",
         coverUpdatedAt: ""
       });
@@ -332,7 +327,7 @@ export function SongCoverManager({ song, onCoverChanged }) {
             <Input
               type="range"
               min="4"
-              max="36"
+              max="60"
               step="1"
               value={backgroundOpacity}
               disabled={busy}
@@ -357,15 +352,6 @@ export function SongCoverManager({ song, onCoverChanged }) {
               updateMetadata({ coverPosition: next }, "song_cover_position_changed");
             }}>
               {COVER_POSITIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-            </Select>
-          </Field>
-          <Field label="Intensidad del fondo">
-            <Select value={intensity} disabled={busy} onChange={(event) => {
-              const next = event.target.value;
-              setIntensity(next);
-              updateMetadata({ coverIntensity: next }, "song_cover_intensity_changed");
-            }}>
-              {COVER_INTENSITIES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
             </Select>
           </Field>
           <Button variant="secondary" disabled={busy} onClick={() => updateMetadata({ coverEnabled: !enabled }, enabled ? "song_cover_disabled" : "song_cover_enabled")}>

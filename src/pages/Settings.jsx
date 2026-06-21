@@ -42,7 +42,7 @@ const permissionLabel = (value) => {
 const yesNoLabel = (value) => (value ? "si" : "no");
 
 export function Settings() {
-  const { profile, isAdmin, signOut, saveUserPreferences } = useAuth();
+  const { profile, isAdmin, isFullAdmin, canManageAccess, signOut, saveUserPreferences } = useAuth();
   const isEditor = profile?.role === "editor";
   const isViewer = profile?.role === "viewer";
   const {
@@ -73,7 +73,7 @@ export function Settings() {
     accentColor: profile?.accentColor || localStorage.getItem("roca-eterna-accent-color") || defaultColors.accentColor,
     blueGrayColor: profile?.blueGrayColor || defaultColors.blueGrayColor
   });
-  const [newUser, setNewUser] = useState({ email: "", displayName: "", role: "viewer", viewerType: "corista", active: true });
+  const [newUser, setNewUser] = useState({ email: "", displayName: "", role: "viewer", viewerType: "corista", adminMode: "editor", active: true });
   const [newTheme, setNewTheme] = useState("");
   const [themeQuery, setThemeQuery] = useState("");
   const [themeFilter, setThemeFilter] = useState("all");
@@ -416,6 +416,9 @@ export function Settings() {
     try {
       const result = await enablePushNotificationsForUser(profile);
       setPushDiagnostic(result);
+      if (result.supported && (result.tokenSaved || result.tokenObtained)) {
+        setPushTestResult(null);
+      }
       setPushStatus(result.reason || (result.supported ? "Notificaciones del navegador activadas para este dispositivo." : "No se pudieron activar las notificaciones push."));
       return result;
     } catch (error) {
@@ -624,7 +627,7 @@ export function Settings() {
           </div>
         </Card>
 
-        {isAdmin ? (
+        {isFullAdmin ? (
         <Card>
           <div className="flex items-center gap-3">
             <ImageIcon className="h-5 w-5 text-brass" />
@@ -704,9 +707,9 @@ export function Settings() {
         </Card>
         ) : null}
 
-        {isAdmin ? <DailyVerseSettings profile={profile} logAuditEvent={logAuditEvent} /> : null}
+        {isFullAdmin ? <DailyVerseSettings profile={profile} logAuditEvent={logAuditEvent} /> : null}
 
-        {isAdmin || isEditor ? (
+        {isFullAdmin || isEditor ? (
         <Card>
           <div className="flex items-center gap-3">
             <Tags className="h-5 w-5 text-brass" />
@@ -842,7 +845,7 @@ export function Settings() {
           </div>
         </Modal>
 
-        {isAdmin ? (
+        {isFullAdmin ? (
         <Card>
           <div className="flex items-center gap-3">
             <Upload className="h-5 w-5 text-brass" />
@@ -920,7 +923,7 @@ export function Settings() {
         </Card>
         ) : null}
 
-        {isAdmin ? (
+        {isFullAdmin ? (
         <Card>
           <div className="flex items-center gap-3">
             <FileSearch className="h-5 w-5 text-brass" />
@@ -973,7 +976,7 @@ export function Settings() {
         </Card>
         ) : null}
 
-        {isAdmin ? (
+        {canManageAccess ? (
           <Card data-tour="settings-access" className="overflow-hidden">
             <h2 className="text-xl font-bold text-ink">Correos autorizados</h2>
             <p className="mt-1 text-sm text-ink/55">Autoriza correos antes de que entren con Google. Los usuarios reales aparecen después de iniciar sesión.</p>
@@ -995,10 +998,16 @@ export function Settings() {
                     <option value="medios">Medios</option>
                   </Select>
                 ) : null}
+                {newUser.role === "admin" ? (
+                  <Select className="w-full sm:w-64" value={newUser.adminMode || "editor"} onChange={(event) => setNewUser((current) => ({ ...current, adminMode: event.target.value }))}>
+                    <option value="editor">Administrador editor</option>
+                    <option value="administrative">Administrador administrativo</option>
+                  </Select>
+                ) : null}
                 <Button className="w-full sm:w-auto" onClick={async () => {
                   if (!newUser.email) return;
                   await saveAccessUser(newUser);
-                  setNewUser({ email: "", displayName: "", role: "viewer", viewerType: "corista", active: true });
+                  setNewUser({ email: "", displayName: "", role: "viewer", viewerType: "corista", adminMode: "editor", active: true });
                 }}>
                   <UserPlus className="h-4 w-4" />
                   Agregar
@@ -1033,9 +1042,16 @@ export function Settings() {
                         <option value="musico">Músico</option>
                         <option value="medios">Medios</option>
                       </Select>
-                    ) : (
-                      <div className="hidden xl:block" />
-                    )}
+                    ) : user.role === "admin" ? (
+                      <Select
+                        value={user.adminMode || "editor"}
+                        onChange={(event) => saveAccessUser({ ...user, adminMode: event.target.value })}
+                        aria-label={`Tipo de administrador de ${user.email}`}
+                      >
+                        <option value="editor">Administrador editor</option>
+                        <option value="administrative">Administrador administrativo</option>
+                      </Select>
+                    ) : <div className="hidden xl:block" />}
                     <Button variant={user.active !== false ? "secondary" : "danger"} onClick={() => saveAccessUser({ ...user, active: user.active === false })}>
                       {user.active !== false ? "Activo" : "Inactivo"}
                     </Button>
@@ -1050,7 +1066,7 @@ export function Settings() {
           </Card>
         ) : null}
 
-        {import.meta.env.DEV && isAdmin ? (
+        {import.meta.env.DEV && isFullAdmin ? (
           <Card>
             <div className="flex items-center gap-3">
               <Database className="h-5 w-5 text-brass" />
@@ -1125,7 +1141,7 @@ export function Settings() {
               {pushSummary.lastAttemptFailed ? (
                 <div className="flex justify-between gap-3">
                   <dt>Último intento</dt>
-                  <dd className="text-right font-semibold text-brass">fall?: {pushTestResult?.body?.stage || "sin etapa"}</dd>
+                  <dd className="text-right font-semibold text-brass">falló en {pushTestResult?.body?.stage || "una etapa anterior"}</dd>
                 </div>
               ) : null}
               <div className="flex justify-between gap-3">
@@ -1160,11 +1176,11 @@ export function Settings() {
             <Button className="w-full" variant="secondary" isLoading={isUpdatingPush} disabled={isUpdatingPush} onClick={handleEnablePush}>
               Activar notificaciones
             </Button>
+            <Button className="w-full" variant="subtle" isLoading={isUpdatingPush} disabled={isUpdatingPush || pushCooldownActive || !isPushBackendConfigured()} onClick={sendSelfTestPush}>
+              {pushCooldownActive ? `Espera ${pushCooldownSeconds}s` : "Probar recepción en este dispositivo"}
+            </Button>
             {isAdmin ? (
               <>
-                <Button className="hidden w-full" variant="secondary" isLoading={isUpdatingPush} disabled={isUpdatingPush || pushCooldownActive || !isPushBackendConfigured()} onClick={sendSelfTestPush}>
-                  {pushCooldownActive ? `Espera ${pushCooldownSeconds}s` : "Enviar push de prueba a este dispositivo"}
-                </Button>
                 <Button className="hidden w-full" variant="subtle" isLoading={isUpdatingPush} disabled={isUpdatingPush || pushCooldownActive || !isPushBackendConfigured()} onClick={sendSelfTestDataOnlyPush}>
                   {pushCooldownActive ? `Espera ${pushCooldownSeconds}s` : "Enviar prueba FCM data-only"}
                 </Button>

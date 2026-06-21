@@ -35,7 +35,7 @@ registerRoute(
   })
 );
 
-const CACHE_NAME = "roca-eterna-musica-v1.0.12-vocal-practice";
+const CACHE_NAME = "roca-eterna-musica-v1.0.13-notifications";
 const OLD_ICON_PATTERNS = [
   "icon-192",
   "icon-512",
