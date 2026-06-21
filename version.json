@@ -1,11 +1,11 @@
 {
-  "version": "1.0.9",
+  "version": "1.0.10",
   "displayVersion": "1.1",
   "date": "2026-06-20",
   "critical": true,
   "changes": [
-    "Corrección del guardado al editar cantos",
-    "Portadas visuales opcionales para los cantos",
-    "Tipos de canto editables desde Configuración"
+    "Vista compacta para coristas y medios",
+    "Las tarjetas se adaptan sin dejar espacios vacíos",
+    "Instrumentistas conservan tono y capo"
   ]
 }
