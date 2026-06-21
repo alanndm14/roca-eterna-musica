@@ -1,9 +1,9 @@
 {
-  "version": "1.0.13",
+  "version": "1.0.14",
   "displayVersion": "1.1",
   "date": "2026-06-21",
   "critical": true,
   "changes": [
-    "Corrección de notificaciones"
+    "Mejoras visuales en Servicios"
   ]
 }
