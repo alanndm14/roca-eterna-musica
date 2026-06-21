@@ -21,6 +21,7 @@ import { formatDate, getCurrentOrNextSchedule, todayString } from "../services/d
 import { buildServiceSongs, getServiceDisplayLabel, getServiceFileName } from "../services/serviceSheetPdf";
 import { downloadBlob, getSongPdfSource, mergePdfFiles, mergeServiceLocalPdfs } from "../services/mergeServicePdfs";
 import { getOutstandingSongFollowUps, getReplacementCandidates, reviewServiceSchedule } from "../services/smartRecommendations";
+import { shouldShowMusicalKeyForUser } from "../services/memberPresentation";
 import { cleanupExpiredTemporaryServicePdfs, deleteTemporaryServicePdf, getTemporaryServicePdf, saveTemporaryServicePdf } from "../services/temporaryServicePdfStore";
 import {
   SPECIAL_PROGRAM_TYPES,
@@ -186,6 +187,7 @@ export function MusicianView({ mediaMode = false }) {
   const selectedServiceRef = useRef(null);
   const today = todayString();
   const [pickerDate, setPickerDate] = useState(() => searchParams.get("date") || savedSelection.date || today);
+  const showMusicalKey = shouldShowMusicalKeyForUser(profile);
 
   const scheduleOptions = useMemo(() => {
     const upcoming = schedules.filter((schedule) => schedule.date >= today).sort((a, b) => `${a.date}${a.time || ""}`.localeCompare(`${b.date}${b.time || ""}`));
@@ -751,13 +753,13 @@ export function MusicianView({ mediaMode = false }) {
         {serviceSongs.map((song) => (
           <Card
             key={`${song.index}-${song.title}`}
-            className={`relative overflow-hidden ${focusMode ? "p-6 md:p-8" : "p-4 md:p-6"}`}
+            className={`relative overflow-hidden ${focusMode ? (showMusicalKey ? "p-6 md:p-8" : "p-5 md:p-6") : (showMusicalKey ? "p-4 md:p-6" : "p-4 md:p-5")}`}
             style={songCoverAccentStyle(song)}
           >
             <SongCoverBackdrop song={song} />
-            <div className="relative z-[1] grid gap-4 md:grid-cols-[72px_1fr_240px] md:items-center">
+            <div className={`relative z-[1] grid gap-4 ${showMusicalKey ? "md:grid-cols-[72px_minmax(0,1fr)_240px] md:items-center" : "md:grid-cols-[72px_minmax(0,1fr)] md:items-start"}`}>
               <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-ink text-2xl font-bold text-white">{song.index}</div>
-              <div className="min-w-0">
+              <div className={`min-w-0 ${showMusicalKey ? "" : "max-w-5xl"}`}>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="flex min-w-0 items-start gap-3">
                     <SongCoverImage
@@ -769,7 +771,7 @@ export function MusicianView({ mediaMode = false }) {
                         <h3 className="min-w-0 text-2xl font-bold">
                           <SongNameLink songId={song.entry.songId} title={song.title} songs={songs}>{song.title}</SongNameLink>
                         </h3>
-                        {song.hasKeyChange ? <span className="rounded-full bg-brass/12 px-3 py-1 text-xs font-bold text-brass">Cambio de tono</span> : null}
+                        {showMusicalKey && song.hasKeyChange ? <span className="rounded-full bg-brass/12 px-3 py-1 text-xs font-bold text-brass">Cambio de tono</span> : null}
                       </div>
                       {song.artistOrSource ? <p className="mt-1 text-sm font-semibold text-ink/45">{song.artistOrSource}</p> : null}
                     </div>
@@ -780,20 +782,20 @@ export function MusicianView({ mediaMode = false }) {
                     </Button>
                   ) : null}
                 </div>
-                {!mediaMode ? <p className="mt-2 text-base text-ink/60">{song.notes || "Sin notas para este canto."}</p> : null}
+                {song.notes ? <p className="mt-2 text-base text-ink/60">{song.notes}</p> : !mediaMode ? <p className="mt-2 text-base text-ink/60">Sin notas para este canto.</p> : null}
                 {!isViewer ? <SongFollowUpNotice issues={getOutstandingSongFollowUps(song.entry.songId, schedules, selectedSchedule).slice(0, 1)} /> : null}
                 <div className="mt-3 flex flex-wrap gap-2">
                   {song.pdfUrl ? <a className="inline-flex items-center gap-2 rounded-xl bg-brass/12 px-3 py-2 text-sm font-bold text-brass" href={song.pdfUrl} target="_blank" rel="noreferrer">PDF de letra y acordes <ExternalLink className="h-4 w-4" /></a> : null}
                   <SongExternalLinks youtubeUrl={song.youtubeUrl} spotifyUrl={song.spotifyUrl} songTitle={song.title} />
                 </div>
               </div>
-              <div className="rounded-3xl bg-brass/12 p-4">
+              {showMusicalKey ? <div className="rounded-3xl bg-brass/12 p-4">
                 <p className="text-xs font-bold uppercase tracking-wide text-brass">Tono</p>
                 <p className="mt-1 text-lg font-bold text-ink">
                   {song.capo > 0 ? `Capo ${song.capo} · Suena en ${song.keyWithCapo || song.mainKey || "sin tono"}` : `Sin capo · Tono ${song.mainKey || song.keyWithCapo || "sin tono"}`}
                 </p>
                 {song.capo > 0 && song.mainKey ? <p className="mt-2 text-sm text-ink/55">Tono base: {song.mainKey}</p> : null}
-              </div>
+              </div> : null}
             </div>
           </Card>
         ))}

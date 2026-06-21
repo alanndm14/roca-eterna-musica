@@ -72,7 +72,7 @@ export function AuthProvider({ children }) {
               uid,
               id: snap.id,
               ...data,
-              viewerType: data.role === "viewer" ? data.viewerType || "corista" : null,
+              viewerType: data.viewerType || data.memberType || data.musicianType || (data.role === "viewer" ? "corista" : null),
               lastLoginAt: new Date(),
               lastSeenAt: new Date()
             });
@@ -111,7 +111,7 @@ export function AuthProvider({ children }) {
               email,
               displayName: firebaseUser.displayName || allowed.displayName || email,
               role: allowed.role || "viewer",
-              viewerType: allowed.role === "viewer" ? allowed.viewerType || "corista" : null,
+              viewerType: allowed.viewerType || allowed.memberType || allowed.musicianType || (allowed.role === "viewer" ? "corista" : null),
               active: true,
               themeMode: "system",
               accentColor: "#b6945f",

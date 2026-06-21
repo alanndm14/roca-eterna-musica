@@ -1,7 +1,21 @@
 export const appVersion = "1.1";
-export const appBuildVersion = "1.0.9";
+export const appBuildVersion = "1.0.10";
 
 export const changelog = [
+  {
+    version: "1.1",
+    date: "2026-06-20",
+    title: "Vista compacta para coristas y medios",
+    added: [],
+    changed: [
+      "La vista de servicio oculta tono y capo para coristas y equipo de medios",
+      "Las tarjetas se compactan automáticamente en móvil y escritorio",
+      "Instrumentistas y líderes conservan la información musical completa",
+      "Se mantienen portadas, PDFs y enlaces externos"
+    ],
+    fixed: [],
+    pending: []
+  },
   {
     version: "1.1",
     date: "2026-06-20",
