@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Download, Edit3, ExternalLink, FileText, Plus, Search, Trash2 } from "lucide-react";
+import { Download, Edit3, ExternalLink, FileText, Music2, Plus, Search, Trash2 } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -472,7 +472,7 @@ export function Songs() {
   const isViewer = profile?.role === "viewer";
   const location = useLocation();
   const navigate = useNavigate();
-  const { songs, schedules, themes, settings, deleteSong, saveSong } = useMusicData();
+  const { songs, schedules, plannedNewSongs = [], themes, settings, deleteSong, saveSong } = useMusicData();
   const [filters, setFilters] = useState({
     query: "",
     category: "",
@@ -499,6 +499,18 @@ export function Songs() {
   const [viewMode, setViewMode] = useState(() => localStorage.getItem("roca-eterna-song-view-mode") || "cards");
   const [editingSong, setEditingSong] = useState(null);
   const [isAdding, setIsAdding] = useState(false);
+  const activePlannedSongs = useMemo(
+    () => plannedNewSongs.filter((item) => !["estrenado", "cancelado"].includes(normalizeSearchText(item.status))),
+    [plannedNewSongs]
+  );
+  const plannedSongIds = useMemo(
+    () => new Set(activePlannedSongs.map((item) => item.songId).filter(Boolean)),
+    [activePlannedSongs]
+  );
+  const plannedWithoutSong = useMemo(
+    () => activePlannedSongs.filter((item) => !item.songId || !songs.some((song) => song.id === item.songId)),
+    [activePlannedSongs, songs]
+  );
 
   useEffect(() => {
     const editSongId = location.state?.editSongId;
@@ -854,6 +866,28 @@ export function Songs() {
         </div>
       </Card>
 
+      {plannedWithoutSong.length ? (
+        <Card className="border-brass/25 bg-brass/8">
+          <div className="flex items-center gap-2">
+            <Music2 className="h-5 w-5 text-brass" />
+            <h3 className="font-bold text-ink">Cantos nuevos todavía planificados</h3>
+          </div>
+          <div className="mt-3 grid gap-2 md:grid-cols-2">
+            {plannedWithoutSong.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className="rounded-xl border border-ink/10 bg-white/75 p-3 text-left transition hover:border-brass/40 dark:border-white/10 dark:bg-white/5"
+                onClick={() => navigate(`${isViewer ? "/servicios" : "/programacion"}?date=${item.plannedDate || ""}`)}
+              >
+                <p className="font-bold text-ink">{item.songTitle || "Canto nuevo"}</p>
+                <p className="mt-1 text-xs font-semibold text-ink/55">{item.plannedDate || "Fecha pendiente"} · Abrir planificación</p>
+              </button>
+            ))}
+          </div>
+        </Card>
+      ) : null}
+
       {filteredSongs.length && viewMode === "list" && !isViewer ? (
         <Card className="p-0">
           <div className="overflow-x-auto">
@@ -883,6 +917,12 @@ export function Songs() {
                           <SongCoverImage song={song} wrapperClassName="hidden h-10 w-10 rounded-xl sm:block" />
                           <div className="min-w-0">
                             <Link to={`/repertorio/${song.id}`} className="font-bold text-ink hover:text-brass">{song.title}</Link>
+                            {plannedSongIds.has(song.id) ? (
+                              <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-brass/14 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-brass">
+                                <Music2 className="h-2.5 w-2.5" />
+                                Canto nuevo
+                              </span>
+                            ) : null}
                             <p className="text-xs text-ink/50">{song.artistOrSource || "Sin fuente"}</p>
                             <SearchMatchStrip matches={matchLabels} />
                           </div>
@@ -936,6 +976,12 @@ export function Songs() {
                       <Link to={`/repertorio/${song.id}`} className="text-lg font-bold text-ink hover:text-brass" onClick={(event) => event.stopPropagation()}>
                         {song.title}
                       </Link>
+                      {plannedSongIds.has(song.id) ? (
+                        <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-brass/14 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-brass">
+                          <Music2 className="h-3 w-3" />
+                          Canto nuevo
+                        </span>
+                      ) : null}
                       <p className="mt-1 text-sm text-ink/55">{song.artistOrSource || "Sin artista registrado"}</p>
                     </div>
                   </div>

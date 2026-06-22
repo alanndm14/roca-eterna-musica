@@ -246,7 +246,9 @@ async function checkRole(decoded, payload = {}) {
     const requester = requesterSnap.data();
     const requesterEmail = String(requester?.email || "").trim().toLowerCase();
     if (requester?.active && requesterEmail && requesterEmail === tokenEmail) {
-      if (["admin", "editor"].includes(requester.role)) return requester;
+      if (["admin", "administrator", "editor"].includes(requester.role)) {
+        return { ...requester, role: requester.role === "administrator" ? "admin" : requester.role };
+      }
       if (requester.role === "viewer" && requester.viewerType === "medios" && isMediaSlidesPushRequest(payload)) {
         return requester;
       }

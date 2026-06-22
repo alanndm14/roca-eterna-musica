@@ -3,29 +3,36 @@ export const ADMIN_MODES = {
   ADMINISTRATIVE: "administrative"
 };
 
+export function normalizeRole(value = "") {
+  const role = String(value || "").trim().toLowerCase();
+  if (["admin", "administrator", "administrador"].includes(role)) return "admin";
+  if (["editor", "edicion", "edición"].includes(role)) return "editor";
+  return "viewer";
+}
+
 export function getAdminMode(profile = {}) {
-  if (profile?.role !== "admin") return "";
+  if (normalizeRole(profile?.role) !== "admin") return "";
   return profile.adminMode === ADMIN_MODES.ADMINISTRATIVE
     ? ADMIN_MODES.ADMINISTRATIVE
     : ADMIN_MODES.EDITOR;
 }
 
 export function isAdministrativeAdmin(profile = {}) {
-  return profile?.role === "admin" && getAdminMode(profile) === ADMIN_MODES.ADMINISTRATIVE;
+  return normalizeRole(profile?.role) === "admin" && getAdminMode(profile) === ADMIN_MODES.ADMINISTRATIVE;
 }
 
 export function isFullAdmin(profile = {}) {
-  return profile?.role === "admin" && getAdminMode(profile) === ADMIN_MODES.EDITOR;
+  return normalizeRole(profile?.role) === "admin";
 }
 
 export function canEditContent(profile = {}) {
-  return isFullAdmin(profile) || profile?.role === "editor";
+  return ["admin", "editor"].includes(normalizeRole(profile?.role));
 }
 
 export function canManageAccess(profile = {}) {
-  return profile?.role === "admin";
+  return normalizeRole(profile?.role) === "admin";
 }
 
 export function canEditServiceFollowUp(profile = {}) {
-  return profile?.role === "admin" || profile?.role === "editor";
+  return ["admin", "editor"].includes(normalizeRole(profile?.role));
 }

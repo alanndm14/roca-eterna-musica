@@ -1,7 +1,7 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { pdf } from "@react-pdf/renderer";
-import { ArrowDown, ArrowRightLeft, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, Download, ExternalLink, Eye, FileStack, FileText, Headphones, Maximize2, Minimize2, Music2, Pencil, Plus, Presentation, Save, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowRightLeft, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, Download, ExternalLink, Eye, FileStack, FileText, Headphones, Maximize2, Minimize2, Music2, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -167,7 +167,7 @@ export function MusicianView({ mediaMode = false }) {
   const { isAdmin, canEdit, profile } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const isViewer = profile?.role === "viewer";
-  const { schedules, songs, settings, plannedNewSongs = [], replaceScheduleSong, saveSchedule, saveScheduleSlidesUrl, useLocal } = useMusicData();
+  const { schedules, songs, settings, plannedNewSongs = [], replaceScheduleSong, saveSchedule, useLocal } = useMusicData();
   const selectionStorageKey = `roca-eterna-service-selection:${mediaMode ? "services" : "musicians"}:${profile?.uid || profile?.role || "user"}`;
   const savedSelection = (() => {
     try {
@@ -195,8 +195,6 @@ export function MusicianView({ mediaMode = false }) {
   const [serviceReviewOpen, setServiceReviewOpen] = useState(false);
   const [schedulePickerOpen, setSchedulePickerOpen] = useState(true);
   const [emptyDateSelected, setEmptyDateSelected] = useState(() => savedSelection.emptyDateSelected === true);
-  const [slidesUrlDraft, setSlidesUrlDraft] = useState("");
-  const [slidesStatus, setSlidesStatus] = useState("");
   const [practiceSong, setPracticeSong] = useState(null);
   const selectedServiceRef = useRef(null);
   const today = todayString();
@@ -262,8 +260,6 @@ export function MusicianView({ mediaMode = false }) {
   }, [sheetUrl]);
 
   const selectedSchedule = schedules.find((schedule) => schedule.id === selectedId) || (!mediaMode || !emptyDateSelected ? scheduleOptions[0] : null);
-  const canSeeSlides = isAdmin || canEdit || (isViewer && profile?.viewerType === "medios");
-  const canManageSlides = canSeeSlides;
   const daySchedules = useMemo(
     () => schedules.filter((schedule) => schedule.date === pickerDate).sort((a, b) => `${a.time || ""}`.localeCompare(`${b.time || ""}`)),
     [pickerDate, schedules]
@@ -307,10 +303,6 @@ export function MusicianView({ mediaMode = false }) {
     if (selectedSchedule?.date && !emptyDateSelected) setPickerDate(selectedSchedule.date);
   }, [emptyDateSelected, selectedSchedule?.date]);
 
-  useEffect(() => {
-    setSlidesUrlDraft(selectedSchedule?.slidesUrl || "");
-    setSlidesStatus("");
-  }, [selectedSchedule?.id, selectedSchedule?.slidesUrl]);
   const serviceSongs = useMemo(
     () => buildServiceSongs(selectedSchedule, songs, settings.keyPreference || "sharps"),
     [selectedSchedule, songs, settings.keyPreference]
@@ -468,21 +460,6 @@ export function MusicianView({ mediaMode = false }) {
       if (current) URL.revokeObjectURL(current);
       return "";
     });
-  };
-
-  const saveSlidesUrl = async () => {
-    if (!selectedSchedule || !canManageSlides) return;
-    const slidesUrl = slidesUrlDraft.trim();
-    if (slidesUrl && !/^https:\/\//i.test(slidesUrl)) {
-      setSlidesStatus("Usa un enlace seguro que comience con https://");
-      return;
-    }
-    try {
-      await saveScheduleSlidesUrl(selectedSchedule.id, slidesUrl);
-      setSlidesStatus(slidesUrl ? "Enlace guardado. Administradores y Medios recibirán el aviso." : "Enlace eliminado.");
-    } catch (error) {
-      setSlidesStatus(error?.message || "No se pudo guardar el enlace.");
-    }
   };
 
   const openSpecialProgramEditor = () => {
@@ -665,45 +642,6 @@ export function MusicianView({ mediaMode = false }) {
         ) : null}
         {selectedSchedule ? (
           <>
-        {canSeeSlides ? (
-          <div className="mt-4 rounded-3xl border-2 border-brass/45 bg-brass/10 p-4 shadow-[0_18px_50px_rgb(var(--color-brass)/0.12)] dark:border-brass/55 dark:bg-brass/12">
-            <div className="flex items-start gap-3">
-              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-brass text-white shadow-soft">
-                <Presentation className="h-6 w-6" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <h4 className="text-lg font-black text-ink">Diapositivas del servicio</h4>
-                <p className="mt-1 text-sm text-ink/60">Pega o abre aquí el enlace compartido para preparar la presentación.</p>
-                {canManageSlides ? (
-                  <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                    <Input
-                      type="url"
-                      value={slidesUrlDraft}
-                      onChange={(event) => setSlidesUrlDraft(event.target.value)}
-                      placeholder="Pega el enlace de iCloud Keynote"
-                    />
-                    <Button className="shrink-0" onClick={saveSlidesUrl}>
-                      <Save className="h-4 w-4" />
-                      Guardar enlace
-                    </Button>
-                  </div>
-                ) : null}
-                {selectedSchedule.slidesUrl ? (
-                  <a
-                    className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-xl bg-ink px-4 py-2 text-sm font-bold text-white dark:bg-white dark:text-ink"
-                    href={selectedSchedule.slidesUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Abrir diapositivas
-                    <ExternalLink className="h-4 w-4" />
-                  </a>
-                ) : <p className="mt-2 text-sm font-semibold text-ink/55">Todavía no se ha agregado el enlace.</p>}
-                {slidesStatus ? <p className="mt-2 text-xs font-semibold text-brass">{slidesStatus}</p> : null}
-              </div>
-            </div>
-          </div>
-        ) : null}
         {serviceReview && !isViewer ? (
           <div className="mt-4">
             <ServiceReviewPanel review={serviceReview} compact interactive open={serviceReviewOpen} onToggle={() => setServiceReviewOpen((current) => !current)} />
@@ -782,7 +720,7 @@ export function MusicianView({ mediaMode = false }) {
                 aria-label={`Sustituir ${song.title}`}
                 title="Sustituir canto"
               >
-                <ArrowRightLeft className="h-4 w-4" />
+                <ArrowRightLeft className="h-5 w-5" />
               </Button>
             ) : null}
             <div className={`relative z-[1] grid grid-cols-[44px_minmax(0,1fr)] gap-x-3 gap-y-3 sm:grid-cols-[52px_minmax(0,1fr)] sm:gap-x-4 ${showMusicalKey ? "xl:grid-cols-[52px_minmax(240px,1fr)_minmax(190px,auto)_240px] xl:items-center" : "xl:grid-cols-[52px_minmax(280px,1fr)_minmax(220px,auto)] xl:items-center"}`}>
@@ -809,7 +747,19 @@ export function MusicianView({ mediaMode = false }) {
                 {!isViewer ? <SongFollowUpNotice issues={getOutstandingSongFollowUps(song.entry.songId, schedules, selectedSchedule).slice(0, 1)} /> : null}
               </div>
               <div className="col-start-2 flex flex-wrap items-center gap-2 xl:col-start-auto xl:justify-end">
-                {song.pdfUrl ? <a className="inline-flex min-h-12 items-center gap-2 rounded-xl bg-brass/12 px-3 py-2 text-sm font-bold text-brass transition hover:-translate-y-0.5 hover:bg-brass/18 active:scale-95" href={song.pdfUrl} target="_blank" rel="noreferrer">PDF de letra y acordes <ExternalLink className="h-5 w-5" /></a> : null}
+                {song.pdfUrl ? (
+                  <a
+                    className="relative inline-flex min-h-12 min-w-12 items-center justify-center rounded-xl border border-ink/10 bg-white/80 px-3 text-brass shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-brass/40 hover:shadow-soft active:scale-95 dark:border-white/15 dark:bg-black/80 dark:hover:bg-black"
+                    href={song.pdfUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label="Abrir PDF de letra y acordes"
+                    title="Abrir PDF de letra y acordes"
+                  >
+                    <FileText className="h-6 w-6" />
+                    <ExternalLink className="absolute right-1.5 top-1.5 h-2.5 w-2.5" />
+                  </a>
+                ) : null}
                 <SongExternalLinks youtubeUrl={song.youtubeUrl} spotifyUrl={song.spotifyUrl} songTitle={song.title} />
                 {showVocalPractice ? (
                   <Button

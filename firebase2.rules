@@ -6,15 +6,6 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function bootstrapAdminEmails() {
-      // Cambia esta lista antes de publicar reglas en producción.
-      return ["liquea45@gmail.com"];
-    }
-
-    function isBootstrapAdmin() {
-      return signedIn() && request.auth.token.email in bootstrapAdminEmails();
-    }
-
     function userDoc() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid));
     }
@@ -44,8 +35,7 @@ service cloud.firestore {
     function isAuthorized() {
       return signedIn()
         && (
-          isBootstrapAdmin()
-          || (
+          (
             hasUserDoc()
             && userDoc().data.active == true
             && userDoc().data.email == request.auth.token.email
@@ -56,9 +46,7 @@ service cloud.firestore {
     }
 
     function role() {
-      return isBootstrapAdmin()
-        ? "admin"
-        : hasUserDoc()
+      return hasUserDoc()
           ? userDoc().data.role
           : hasAuthorizedEmailDoc()
             ? authorizedEmailDoc().data.role
@@ -66,15 +54,21 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isAuthorized() && role() == "admin";
+      return isAuthorized() && role() in ["admin", "administrator", "administrador"];
+    }
+
+    function rolesMatch(leftRole, rightRole) {
+      return leftRole == rightRole
+        || (
+          leftRole in ["admin", "administrator", "administrador"]
+          && rightRole in ["admin", "administrator", "administrador"]
+        );
     }
 
     function adminMode() {
-      return role() != "admin"
+      return !isAdmin()
         ? ""
-        : isBootstrapAdmin()
-          ? "editor"
-          : hasUserDoc()
+        : hasUserDoc()
             ? userDoc().data.get("adminMode", "editor")
             : hasAuthorizedEmailDoc()
               ? authorizedEmailDoc().data.get("adminMode", "editor")
@@ -82,7 +76,7 @@ service cloud.firestore {
     }
 
     function isFullAdmin() {
-      return isAdmin() && adminMode() != "administrative";
+      return isAdmin();
     }
 
     function isAdministrativeAdmin() {
@@ -90,13 +84,11 @@ service cloud.firestore {
     }
 
     function isEditor() {
-      return isAuthorized() && (isFullAdmin() || role() == "editor");
+      return isAuthorized() && (isAdmin() || role() == "editor");
     }
 
     function viewerType() {
-      return isBootstrapAdmin()
-        ? ""
-        : hasUserDoc()
+      return hasUserDoc()
           ? userDoc().data.get("viewerType", "")
           : hasAuthorizedEmailDoc()
             ? authorizedEmailDoc().data.get("viewerType", "")
@@ -110,7 +102,8 @@ service cloud.firestore {
     function canUseVocalPractice() {
       return isAuthorized()
         && (
-          isFullAdmin()
+          isAdmin()
+          || role() == "editor"
           || viewerType() in ["corista", "musico"]
         );
     }
@@ -118,8 +111,8 @@ service cloud.firestore {
     function canManageVocalPractice() {
       return isAuthorized()
         && (
-          isFullAdmin()
-          || (role() == "editor" && viewerType() in ["corista", "musico"])
+          isAdmin()
+          || role() == "editor"
         );
     }
 
@@ -186,8 +179,8 @@ service cloud.firestore {
           request.resource.data.get("coverBackgroundOpacity", null) == null
           || (
             request.resource.data.get("coverBackgroundOpacity", null) is int
-            && request.resource.data.get("coverBackgroundOpacity", null) >= 4
-            && request.resource.data.get("coverBackgroundOpacity", null) <= 60
+            && request.resource.data.get("coverBackgroundOpacity", null) >= 0
+            && request.resource.data.get("coverBackgroundOpacity", null) <= 100
           )
         )
         && (
@@ -373,8 +366,7 @@ service cloud.firestore {
       return signedIn()
         && request.auth.uid == userId
         && (
-          isBootstrapAdmin()
-          || (
+          (
             hasUserDoc()
             && userDoc().data.active == true
             && userDoc().data.email == request.auth.token.email
@@ -388,12 +380,12 @@ service cloud.firestore {
       allow read: if isAuthorized();
       allow create: if signedIn()
         && request.auth.uid == userId
-        && (isBootstrapAdmin() || hasAuthorizedEmailDoc() || hasLegacyAllowedEmailDoc())
+        && (hasAuthorizedEmailDoc() || hasLegacyAllowedEmailDoc())
         && request.resource.data.email == request.auth.token.email
         && request.resource.data.active == true
-        && request.resource.data.role in ["admin", "editor", "viewer"]
+        && request.resource.data.role in ["admin", "administrator", "administrador", "editor", "viewer"]
         && (
-          request.resource.data.role != "admin"
+          !(request.resource.data.role in ["admin", "administrator", "administrador"])
           || request.resource.data.get("adminMode", "editor") in ["editor", "administrative"]
         )
         && (
@@ -401,9 +393,8 @@ service cloud.firestore {
           || request.resource.data.get("viewerType", "corista") in ["corista", "musico", "medios"]
         )
         && (
-          isBootstrapAdmin()
-          || (hasAuthorizedEmailDoc() && request.resource.data.role == authorizedEmailDoc().data.role)
-          || (hasLegacyAllowedEmailDoc() && request.resource.data.role == legacyAllowedEmailDoc().data.role)
+          (hasAuthorizedEmailDoc() && rolesMatch(request.resource.data.role, authorizedEmailDoc().data.role))
+          || (hasLegacyAllowedEmailDoc() && rolesMatch(request.resource.data.role, legacyAllowedEmailDoc().data.role))
         );
       allow update: if isAdmin()
         || (

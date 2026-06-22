@@ -13,7 +13,8 @@ import {
   canManageAccess,
   getAdminMode,
   isAdministrativeAdmin,
-  isFullAdmin
+  isFullAdmin,
+  normalizeRole
 } from "../services/accessControl";
 
 const AuthContext = createContext(null);
@@ -71,6 +72,7 @@ export function AuthProvider({ children }) {
 
         if (snap.exists()) {
           const data = snap.data();
+          const normalizedRole = normalizeRole(data.role);
           await updateDoc(userRef, {
             lastLogin: serverTimestamp(),
             lastLoginAt: serverTimestamp(),
@@ -81,8 +83,9 @@ export function AuthProvider({ children }) {
               uid,
               id: snap.id,
               ...data,
-              adminMode: data.role === "admin" ? getAdminMode(data) : null,
-              viewerType: data.viewerType || data.memberType || data.musicianType || (data.role === "viewer" ? "corista" : null),
+              role: normalizedRole,
+              adminMode: normalizedRole === "admin" ? getAdminMode({ ...data, role: normalizedRole }) : null,
+              viewerType: data.viewerType || data.memberType || data.musicianType || (normalizedRole === "viewer" ? "corista" : null),
               lastLoginAt: new Date(),
               lastSeenAt: new Date()
             });
@@ -117,13 +120,14 @@ export function AuthProvider({ children }) {
 
           if (legacyAllowedSnap.exists() && legacyAllowedSnap.data().active) {
             const allowed = legacyAllowedSnap.data();
+            const normalizedRole = normalizeRole(allowed.role);
             const allowedProfile = {
               uid,
               email,
               displayName: firebaseUser.displayName || allowed.displayName || email,
-              role: allowed.role || "viewer",
-              adminMode: allowed.role === "admin" ? getAdminMode(allowed) : null,
-              viewerType: allowed.viewerType || allowed.memberType || allowed.musicianType || (allowed.role === "viewer" ? "corista" : null),
+              role: normalizedRole,
+              adminMode: normalizedRole === "admin" ? getAdminMode({ ...allowed, role: normalizedRole }) : null,
+              viewerType: allowed.viewerType || allowed.memberType || allowed.musicianType || (normalizedRole === "viewer" ? "corista" : null),
               active: true,
               themeMode: "system",
               accentColor: "#b6945f",
@@ -258,7 +262,7 @@ export function AuthProvider({ children }) {
 
   const permissions = useMemo(
     () => ({
-      isAdmin: profile?.role === "admin",
+      isAdmin: normalizeRole(profile?.role) === "admin",
       isFullAdmin: isFullAdmin(profile),
       isAdministrativeAdmin: isAdministrativeAdmin(profile),
       canManageAccess: canManageAccess(profile),

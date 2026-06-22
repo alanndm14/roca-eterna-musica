@@ -1,4 +1,4 @@
-import { isAdministrativeAdmin } from "./accessControl";
+import { isAdministrativeAdmin, normalizeRole } from "./accessControl";
 
 function normalizeMemberType(value = "") {
   return String(value || "")
@@ -47,11 +47,11 @@ export function shouldShowMusicalKeyForUser(profile) {
 }
 
 export function canUseVocalPractice(profile = {}) {
-  if (profile?.role === "admin") return !isAdministrativeAdmin(profile);
+  const role = normalizeRole(profile?.role);
+  if (role === "admin" || role === "editor") return true;
   return ["corista", "musico"].includes(getMemberType(profile));
 }
 
 export function canManageVocalPractice(profile = {}) {
-  if (profile?.role === "admin") return !isAdministrativeAdmin(profile);
-  return profile?.role === "editor" && ["corista", "musico"].includes(getMemberType(profile));
+  return ["admin", "editor"].includes(normalizeRole(profile?.role));
 }

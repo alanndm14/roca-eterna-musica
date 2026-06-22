@@ -1,7 +1,28 @@
-export const appVersion = "1.1";
-export const appBuildVersion = "1.0.14";
+export const appVersion = "1.2";
+export const appBuildVersion = "1.0.15";
 
 export const changelog = [
+  {
+    version: "1.2",
+    date: "2026-06-21",
+    title: "Acceso y herramientas mejoradas",
+    added: [
+      "Administracion completa de versiculos del dia",
+      "Busqueda de versiculos registrados desde Configuracion"
+    ],
+    changed: [
+      "Todos los administradores y editores autorizados comparten los permisos correspondientes a su rol",
+      "Practicar esta disponible para todos los administradores y editores",
+      "Servicios muestra acciones mas compactas y tarjetas mas claras en modo claro",
+      "El metronomo permite escribir libremente el BPM y sus controles recorren de 0 a 100%"
+    ],
+    fixed: [
+      "Los cantos nuevos vuelven a abrir correctamente desde Inicio y Repertorio",
+      "Se corrigieron permisos de edicion, portadas, PDFs y guias de practica",
+      "Se retiro el enlace de diapositivas de la vista de Servicios"
+    ],
+    pending: []
+  },
   {
     version: "1.1",
     date: "2026-06-21",

@@ -6,14 +6,6 @@ service firebase.storage {
       return request.auth != null;
     }
 
-    function bootstrapAdminEmails() {
-      return ["liquea45@gmail.com"];
-    }
-
-    function isBootstrapAdmin() {
-      return signedIn() && request.auth.token.email in bootstrapAdminEmails();
-    }
-
     function userDoc() {
       return firestore.get(/databases/(default)/documents/users/$(request.auth.uid));
     }
@@ -34,8 +26,7 @@ service firebase.storage {
     function isAuthorized() {
       return signedIn()
         && (
-          isBootstrapAdmin()
-          || (
+          (
             hasUserDoc()
             && userDoc().data.active == true
             && userDoc().data.email == request.auth.token.email
@@ -45,15 +36,13 @@ service firebase.storage {
     }
 
     function role() {
-      return isBootstrapAdmin()
-        ? "admin"
-        : hasUserDoc()
+      return hasUserDoc()
           ? userDoc().data.role
           : authorizedEmailDoc().data.role;
     }
 
     function isEditor() {
-      return isAuthorized() && (role() == "admin" || role() == "editor");
+      return isAuthorized() && role() in ["admin", "administrator", "administrador", "editor"];
     }
 
     match /song-pdfs/{songId}/{fileName} {

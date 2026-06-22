@@ -1,9 +1,11 @@
 {
-  "version": "1.0.14",
-  "displayVersion": "1.1",
+  "version": "1.0.15",
+  "displayVersion": "1.2",
   "date": "2026-06-21",
   "critical": true,
   "changes": [
-    "Mejoras visuales en Servicios"
+    "Acceso uniforme para administradores y editores",
+    "Practica disponible para todos los administradores",
+    "Mejoras visuales y herramientas de configuracion"
   ]
 }

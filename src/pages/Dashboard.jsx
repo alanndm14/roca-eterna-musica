@@ -256,12 +256,18 @@ export function Dashboard() {
 
       {nextNewSong ? (
         <Card
-          className={`overflow-hidden border-brass/30 bg-brass/10 p-0 dark:border-brass/35 dark:bg-zinc-900 ${nextNewSong.song?.id ? "cursor-pointer" : ""}`}
-          role={nextNewSong.song?.id ? "link" : undefined}
-          tabIndex={nextNewSong.song?.id ? 0 : undefined}
-          onClick={() => nextNewSong.song?.id && navigate(`/repertorio/${nextNewSong.song.id}`)}
+          className="cursor-pointer overflow-hidden border-brass/30 bg-brass/10 p-0 dark:border-brass/35 dark:bg-zinc-900"
+          role="link"
+          tabIndex={0}
+          onClick={() => navigate(nextNewSong.song?.id
+            ? `/repertorio/${nextNewSong.song.id}`
+            : scheduleRoute(nextNewSong.schedule, nextNewSong.planned.plannedDate))}
           onKeyDown={(event) => {
-            if (nextNewSong.song?.id && (event.key === "Enter" || event.key === " ")) navigate(`/repertorio/${nextNewSong.song.id}`);
+            if (event.key === "Enter" || event.key === " ") {
+              navigate(nextNewSong.song?.id
+                ? `/repertorio/${nextNewSong.song.id}`
+                : scheduleRoute(nextNewSong.schedule, nextNewSong.planned.plannedDate));
+            }
           }}
         >
           <div className="grid md:grid-cols-[180px_minmax(0,1fr)]">

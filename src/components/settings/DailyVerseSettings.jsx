@@ -11,7 +11,7 @@ import {
   setDoc,
   updateDoc
 } from "firebase/firestore";
-import { BookOpen, CalendarDays, Eye, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { BookOpen, CalendarDays, Eye, Pencil, Plus, RotateCcw, Search, Trash2 } from "lucide-react";
 import { db, isFirebaseConfigured } from "../../lib/firebase";
 import { fallbackLoginVerses, getLocalDateKey, getVerseForDate } from "../../services/dailyVerses";
 import { Button } from "../ui/Button";
@@ -31,6 +31,7 @@ export function DailyVerseSettings({ profile, logAuditEvent }) {
   const [selectedVerseId, setSelectedVerseId] = useState("");
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const load = async () => {
     if (!isFirebaseConfigured || !db || profile?.uid === "demo-admin") {
@@ -60,6 +61,12 @@ export function DailyVerseSettings({ profile, logAuditEvent }) {
   }, []);
 
   const activeVerses = useMemo(() => verses.filter((verse) => verse.active !== false), [verses]);
+  const filteredVerses = useMemo(() => {
+    const queryText = searchQuery.trim().toLocaleLowerCase("es");
+    if (!queryText) return verses;
+    return verses.filter((verse) => [verse.reference, verse.text, verse.translation]
+      .some((value) => String(value || "").toLocaleLowerCase("es").includes(queryText)));
+  }, [searchQuery, verses]);
   const todayVerse = useMemo(
     () => getVerseForDate(verses, overrides, getLocalDateKey()),
     [overrides, verses]
@@ -259,9 +266,20 @@ export function DailyVerseSettings({ profile, logAuditEvent }) {
           <p className="mt-2 font-bold text-brass">{todayVerse?.reference || fallbackLoginVerses[0].reference}</p>
         </div>
 
+        <div className="relative mt-5">
+          <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-ink/40" />
+          <Input
+            className="pl-9"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="Buscar por referencia, texto o traducción"
+            aria-label="Buscar versículos"
+          />
+        </div>
+
         <div className="mt-5 space-y-2">
           {loading ? <p className="text-sm text-ink/55">Cargando versículos...</p> : null}
-          {!loading && verses.length ? verses.map((verse) => (
+          {!loading && filteredVerses.length ? filteredVerses.map((verse) => (
             <article key={verse.id} className="grid gap-3 rounded-2xl border border-ink/10 bg-white/70 p-3 dark:border-white/10 dark:bg-white/5 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
@@ -287,6 +305,11 @@ export function DailyVerseSettings({ profile, logAuditEvent }) {
               </div>
             </article>
           )) : null}
+          {!loading && verses.length > 0 && filteredVerses.length === 0 ? (
+            <p className="rounded-xl bg-ink/5 p-4 text-sm font-semibold text-ink/55 dark:bg-white/5">
+              No hay versículos que coincidan con la búsqueda.
+            </p>
+          ) : null}
         </div>
 
         <div className="mt-6 border-t border-ink/10 pt-5 dark:border-white/10">

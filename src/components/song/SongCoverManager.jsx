@@ -326,8 +326,8 @@ export function SongCoverManager({ song, onCoverChanged }) {
           <Field label={`Intensidad del color · ${backgroundOpacity}%`}>
             <Input
               type="range"
-              min="4"
-              max="60"
+              min="0"
+              max="100"
               step="1"
               value={backgroundOpacity}
               disabled={busy}

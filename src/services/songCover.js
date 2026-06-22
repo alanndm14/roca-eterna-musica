@@ -46,7 +46,7 @@ export function normalizeCoverBackgroundMode(value = "") {
 export function normalizeCoverBackgroundOpacity(value) {
   const numericValue = Number(value);
   if (!Number.isFinite(numericValue)) return 22;
-  return Math.min(60, Math.max(4, Math.round(numericValue)));
+  return Math.min(100, Math.max(0, Math.round(numericValue)));
 }
 
 export function getSongCoverUrl(song = {}) {

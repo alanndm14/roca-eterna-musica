@@ -138,7 +138,8 @@ export async function verifyRequester(request, options = {}) {
   const user = userSnapshot.data() || {};
   const tokenEmail = String(decoded.email || "").trim().toLowerCase();
   const storedEmail = String(user.email || "").trim().toLowerCase();
-  const role = String(user.role || "").trim().toLowerCase();
+  const storedRole = String(user.role || "").trim().toLowerCase();
+  const role = ["administrator", "administrador"].includes(storedRole) ? "admin" : storedRole;
 
   if (user.active === false || !allowedRoles.includes(role) || !tokenEmail || tokenEmail !== storedEmail) {
     const error = new Error(forbiddenMessage);
@@ -550,12 +551,6 @@ export default async function handler(request, response) {
     initializeAdmin();
     await verifyAppCheckIfRequired(request);
     const requester = await verifyRequester(request);
-    if (requester.role === "admin" && requester.adminMode === "administrative") {
-      const error = new Error("Este perfil administrativo no puede reemplazar archivos del repertorio.");
-      error.status = 403;
-      error.code = "ADMINISTRATIVE_PROFILE_READ_ONLY";
-      throw error;
-    }
     enforceRateLimit(requester.uid);
     const body = parseBody(request);
     const songId = validateSongId(body.songId);

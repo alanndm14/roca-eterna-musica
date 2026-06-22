@@ -25,6 +25,7 @@ import { extractLocalPdfText } from "../services/pdfTextIndex";
 import { sendExternalPush } from "../services/externalPush";
 import { ensurePushBroadcastSubscription } from "../services/pushNotifications";
 import { createServiceReviewSnapshot, isNoteworthySongFollowUp, reviewServiceSchedule } from "../services/songScoring";
+import { normalizeRole } from "../services/accessControl";
 import { useAuth } from "./useAuth";
 
 const MusicDataContext = createContext(null);
@@ -1396,12 +1397,13 @@ export function MusicDataProvider({ children }) {
 
   const saveUser = async (user) => {
     const email = user.email.toLowerCase();
+    const role = normalizeRole(user.role);
     const payload = {
       email,
       displayName: user.displayName || email,
-      role: user.role || "viewer",
-      viewerType: (user.role || "viewer") === "viewer" ? user.viewerType || "corista" : null,
-      adminMode: (user.role || "viewer") === "admin"
+      role,
+      viewerType: role === "viewer" ? user.viewerType || "corista" : null,
+      adminMode: role === "admin"
         ? user.adminMode === "administrative" ? "administrative" : "editor"
         : null,
       active: Boolean(user.active)

@@ -13,7 +13,9 @@ export function Metronome({
   onStart,
   stopSignal = 0
 }) {
-  const [bpm, setBpm] = useState(() => clampBpm(initialBpm));
+  const initialValidBpm = clampBpm(initialBpm);
+  const [bpm, setBpm] = useState(initialValidBpm);
+  const [bpmInput, setBpmInput] = useState(String(initialValidBpm));
   const [signature, setSignature] = useState(TIME_SIGNATURES.includes(initialSignature) ? initialSignature : "4/4");
   const [volume, setVolume] = useState(22);
   const [countInMeasures, setCountInMeasures] = useState(0);
@@ -23,6 +25,7 @@ export function Metronome({
   const [error, setError] = useState("");
   const engineRef = useRef(null);
   const tapsRef = useRef([]);
+  const lastValidBpmRef = useRef(initialValidBpm);
 
   useEffect(() => () => {
     engineRef.current?.destroy();
@@ -34,7 +37,12 @@ export function Metronome({
   }, [bpm, signature, volume]);
 
   useEffect(() => {
-    if (!running) setBpm(clampBpm(initialBpm));
+    if (!running) {
+      const nextBpm = clampBpm(initialBpm);
+      setBpm(nextBpm);
+      setBpmInput(String(nextBpm));
+      lastValidBpmRef.current = nextBpm;
+    }
   }, [initialBpm, running]);
 
   useEffect(() => {
@@ -52,9 +60,28 @@ export function Metronome({
     setCountInBeat(0);
   };
 
+  const commitBpm = (value = bpmInput) => {
+    const trimmed = String(value ?? "").trim();
+    const nextBpm = trimmed
+      ? clampBpm(trimmed, lastValidBpmRef.current)
+      : lastValidBpmRef.current || clampBpm(initialBpm);
+    setBpm(nextBpm);
+    setBpmInput(String(nextBpm));
+    lastValidBpmRef.current = nextBpm;
+    return nextBpm;
+  };
+
+  const setConfirmedBpm = (value) => {
+    const nextBpm = clampBpm(value, lastValidBpmRef.current);
+    setBpm(nextBpm);
+    setBpmInput(String(nextBpm));
+    lastValidBpmRef.current = nextBpm;
+  };
+
   const start = async () => {
     setError("");
     try {
+      const confirmedBpm = commitBpm();
       onStart?.();
       if (!engineRef.current) {
         engineRef.current = await createMetronomeEngine({
@@ -64,7 +91,7 @@ export function Metronome({
           }
         });
       }
-      engineRef.current.start({ bpm, signature, volume: volume / 100, countInMeasures });
+      engineRef.current.start({ bpm: confirmedBpm, signature, volume: volume / 100, countInMeasures });
       setRunning(true);
     } catch (startError) {
       setError(startError.message || "No se pudo iniciar el metrónomo.");
@@ -74,7 +101,7 @@ export function Metronome({
   const tap = () => {
     const result = calculateTapTempo(tapsRef.current);
     tapsRef.current = result.timestamps;
-    if (result.bpm) setBpm(result.bpm);
+    if (result.bpm) setConfirmedBpm(result.bpm);
   };
 
   return (
@@ -85,11 +112,22 @@ export function Metronome({
           <div className="mt-1 flex items-end gap-2">
             <Input
               className="h-12 w-28 text-center text-2xl font-black tabular-nums"
-              type="number"
-              min="30"
-              max="240"
-              value={bpm}
-              onChange={(event) => setBpm(clampBpm(event.target.value))}
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={bpmInput}
+              onChange={(event) => {
+                const value = event.target.value;
+                if (/^\d*$/.test(value)) setBpmInput(value);
+              }}
+              onBlur={() => commitBpm()}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  commitBpm();
+                  event.currentTarget.blur();
+                }
+              }}
               aria-label="BPM del metrónomo"
             />
             <span className="pb-2 text-sm font-bold text-ink/45">BPM</span>
@@ -104,7 +142,7 @@ export function Metronome({
 
       <div className="mt-4 grid grid-cols-4 gap-2">
         {[[-5, "-5"], [-1, "-1"], [1, "+1"], [5, "+5"]].map(([amount, label]) => (
-          <Button key={amount} variant="subtle" className="px-2" onClick={() => setBpm((value) => clampBpm(value + amount))}>
+          <Button key={amount} variant="subtle" className="px-2" onClick={() => setConfirmedBpm(bpm + amount)}>
             {amount < 0 ? <Minus className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}{label.replace(/[+-]/, "")}
           </Button>
         ))}
@@ -116,7 +154,7 @@ export function Metronome({
           </Select>
         </Field>
         <Field label={`Volumen · ${volume}%`}>
-          <Input type="range" min="0" max="60" value={volume} onChange={(event) => setVolume(Number(event.target.value))} />
+          <Input type="range" min="0" max="100" value={volume} onChange={(event) => setVolume(Number(event.target.value))} />
         </Field>
         <Field label="Cuenta de entrada">
           <Select value={countInMeasures} onChange={(event) => setCountInMeasures(Number(event.target.value))} disabled={running}>
@@ -138,8 +176,8 @@ export function Metronome({
           {running ? "Detener" : "Iniciar"}
         </Button>
         <Button variant="secondary" onClick={tap}><TimerReset className="h-4 w-4" />Tap tempo</Button>
-        {originalBpm ? <Button variant="subtle" onClick={() => setBpm(clampBpm(originalBpm))}>BPM original</Button> : null}
-        {serviceBpm ? <Button variant="subtle" onClick={() => setBpm(clampBpm(serviceBpm))}>BPM del servicio</Button> : null}
+        {originalBpm ? <Button variant="subtle" onClick={() => setConfirmedBpm(originalBpm)}>BPM original</Button> : null}
+        {serviceBpm ? <Button variant="subtle" onClick={() => setConfirmedBpm(serviceBpm)}>BPM del servicio</Button> : null}
       </div>
     </section>
   );
