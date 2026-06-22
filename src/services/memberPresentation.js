@@ -1,4 +1,4 @@
-import { isAdministrativeAdmin, normalizeRole } from "./accessControl";
+import { normalizeRole } from "./accessControl";
 
 function normalizeMemberType(value = "") {
   return String(value || "")
@@ -26,7 +26,7 @@ export function getMemberType(profile = {}) {
 }
 
 export function shouldHideMusicalKeyForUser(profile = {}) {
-  return isAdministrativeAdmin(profile) || ["corista", "medios"].includes(getMemberType(profile));
+  return normalizeRole(profile?.role) === "viewer" && ["corista", "medios"].includes(getMemberType(profile));
 }
 
 export function shouldShowMusicalKeyForUser(profile) {

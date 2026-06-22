@@ -317,15 +317,15 @@ export function SongForm({ initialSong, themes = [], categoryOptions = [], keyPr
 
         {showVocalPracticeEditor ? (
           <>
-            <Section title="Práctica vocal">
+            <Section title="Versión de Roca Eterna">
               <div className="grid gap-4 md:grid-cols-4">
-                <Field label="Tonalidad original">
+                <Field label="Tonalidad usada">
                   <Input value={song.originalKey || ""} onChange={(event) => update("originalKey", event.target.value)} placeholder="C, Bb, F#m…" />
                 </Field>
-                <Field label="BPM original">
+                <Field label="BPM habitual">
                   <Input type="number" min="30" max="240" value={song.originalBpm || ""} onChange={(event) => update("originalBpm", event.target.value ? Number(event.target.value) : 0)} />
                 </Field>
-                <Field label="Compás original">
+                <Field label="Compás habitual">
                   <Select value={song.timeSignature || ""} onChange={(event) => update("timeSignature", event.target.value)}>
                     <option value="">Sin registrar</option>
                     {["2/4", "3/4", "4/4", "6/8"].map((item) => <option key={item}>{item}</option>)}
@@ -335,7 +335,7 @@ export function SongForm({ initialSong, themes = [], categoryOptions = [], keyPr
                   <Input value={song.originalEntryNote || ""} onChange={(event) => update("originalEntryNote", event.target.value)} placeholder="E4, C#4…" />
                 </Field>
               </div>
-              <p className="mt-3 text-sm text-ink/55">Estos datos describen la grabación original; no reemplazan el tono ni el capo usados por los músicos.</p>
+              <p className="mt-3 text-sm text-ink/55">Estos datos se usarán en Practicar para todos los servicios.</p>
             </Section>
 
             {song.id ? <PracticeGuideManager song={song} /> : null}

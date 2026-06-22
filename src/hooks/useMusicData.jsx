@@ -17,8 +17,7 @@ import {
   where,
   writeBatch
 } from "firebase/firestore";
-import { deleteObject, getDownloadURL, ref, uploadBytes } from "firebase/storage";
-import { db, isFirebaseConfigured, storage } from "../lib/firebase";
+import { db, isFirebaseConfigured } from "../lib/firebase";
 import { sampleSchedules, sampleSettings, sampleSongs, sampleThemes, sampleUsers } from "../data/mockData";
 import { canonicalThemeKey, normalizeSong, normalizeThemeName, resolveAppLogoForNotification } from "../services/songUtils";
 import { extractLocalPdfText } from "../services/pdfTextIndex";
@@ -628,40 +627,6 @@ export function MusicDataProvider({ children }) {
     }, { tipoEvento: "schedule_updated", eventoGuardado: true, novedadInternaCreada: true });
   };
 
-  const notifySlidesAddedBestEffort = (schedulePayload, scheduleId) => {
-    if (!isFutureSchedule(schedulePayload) || !scheduleId || !schedulePayload.slidesUrl) return;
-    const pushNotificationId = `slides-ready-${scheduleId}-${simpleHash(schedulePayload.slidesUrl)}`;
-    const label = formatScheduleShortLabel(schedulePayload);
-    const notificationPayload = {
-      type: "other",
-      title: "Diapositivas listas para revisión",
-      message: `Se agregó el enlace de las diapositivas para ${label}.`,
-      entityType: "schedule",
-      entityId: scheduleId,
-      scheduleId,
-      isFutureSchedule: true,
-      targetRoles: ["admin", "viewer"],
-      targetViewerTypes: ["medios"],
-      pushNotificationId
-    };
-    if (profile?.role === "admin" || (profile?.role === "viewer" && profile?.viewerType === "medios")) {
-      showInAppNovelty(notificationPayload);
-    }
-    createNotificationBestEffort(notificationPayload);
-    sendPushBestEffort({
-      mode: "targeted",
-      audience: "admins_media",
-      type: "other",
-      title: notificationPayload.title,
-      body: notificationPayload.message,
-      url: `/#/servicios?schedule=${scheduleId}`,
-      scheduleId,
-      notificationId: pushNotificationId,
-      icon: resolveAppLogoForNotification(settings, "light"),
-      badge: resolveAppLogoForNotification(settings, "light")
-    }, { tipoEvento: "slides_ready", eventoGuardado: true, novedadInternaCreada: true });
-  };
-
   const createNotification = async (notification) => {
     const payload = {
       type: notification.type || "other",
@@ -892,76 +857,6 @@ export function MusicDataProvider({ children }) {
     return metadata;
   };
 
-  const uploadSongPdf = async (songId, file) => {
-    if (!songId || !file) return null;
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]+/g, "-");
-    const storagePath = `song-pdfs/${songId}/${Date.now()}-${safeName}`;
-
-    if (useLocal) {
-      const storagePdfUrl = URL.createObjectURL(file);
-      const payload = {
-        storagePath,
-        storagePdfUrl,
-        originalFileName: file.name,
-        uploadedAt: new Date().toISOString(),
-        uploadedBy: profile.uid,
-        pdfReviewStatus: "completado",
-        format: "pdf"
-      };
-      setSongs((current) => current.map((song) => (song.id === songId ? { ...song, ...payload } : song)));
-      return payload;
-    }
-
-    if (!storage) {
-      throw new Error("Firebase Storage no está configurado. Usa links de Drive o Ruta PDF local.");
-    }
-
-    const storageRef = ref(storage, storagePath);
-    await uploadBytes(storageRef, file, { contentType: "application/pdf" });
-    const storagePdfUrl = await getDownloadURL(storageRef);
-    const payload = {
-      storagePath,
-      storagePdfUrl,
-      originalFileName: file.name,
-      uploadedAt: serverTimestamp(),
-      uploadedBy: profile.uid,
-      pdfReviewStatus: "completado",
-      format: "pdf",
-      updatedAt: serverTimestamp()
-    };
-    await updateDoc(doc(db, "songs", songId), payload);
-    return payload;
-  };
-
-  const deleteSongPdf = async (song) => {
-    if (!song?.id) return;
-    if (useLocal) {
-      setSongs((current) =>
-        current.map((item) =>
-          item.id === song.id
-            ? { ...item, storagePath: "", storagePdfUrl: "", originalFileName: "", uploadedAt: "", uploadedBy: "" }
-            : item
-        )
-      );
-      return;
-    }
-    if (song.storagePath) {
-      try {
-        await deleteObject(ref(storage, song.storagePath));
-      } catch (deleteError) {
-        console.warn("No se pudo eliminar el PDF anterior de Storage.", deleteError);
-      }
-    }
-    await updateDoc(doc(db, "songs", song.id), {
-      storagePath: "",
-      storagePdfUrl: "",
-      originalFileName: "",
-      uploadedAt: "",
-      uploadedBy: "",
-      updatedAt: serverTimestamp()
-    });
-  };
-
   const deleteSong = async (songId) => {
     const before = songs.find((song) => song.id === songId);
     if (useLocal) {
@@ -1124,13 +1019,10 @@ export function MusicDataProvider({ children }) {
       songs: schedule.songs || [],
       updatedAt: useLocal ? new Date().toISOString().slice(0, 10) : serverTimestamp()
     };
-    const slidesLinkChanged = Boolean(payload.slidesUrl) && payload.slidesUrl !== before?.slidesUrl;
-
     if (useLocal) {
       if (schedule.id) {
         setSchedules((current) => current.map((item) => (item.id === schedule.id ? { ...item, ...payload } : item)));
         notifyScheduleUpdatedBestEffort(payload, schedule.id, scheduleChange);
-        if (slidesLinkChanged) notifySlidesAddedBestEffort(payload, schedule.id);
         await logAuditEvent({ actionType: "update", entityType: "schedule", entityId: schedule.id, entityName: payload.serviceLabel || payload.date, summary: `Programación editada: ${payload.serviceLabel || payload.date}`, beforeData: before, afterData: payload });
       } else {
         const id = makeId("schedule");
@@ -1144,7 +1036,6 @@ export function MusicDataProvider({ children }) {
           }
         ]);
         notifyScheduleCreatedBestEffort(payload, id);
-        if (slidesLinkChanged) notifySlidesAddedBestEffort(payload, id);
         logAuditEventBestEffort({ actionType: "create", entityType: "schedule", entityId: id, entityName: payload.serviceLabel || payload.date, summary: `Programación creada: ${payload.serviceLabel || payload.date}`, afterData: payload });
         await syncScheduleSongNotes(payload.songs || [], before?.songs || null);
         return id;
@@ -1157,7 +1048,6 @@ export function MusicDataProvider({ children }) {
       const { id, ...data } = payload;
       await updateDoc(doc(db, "schedules", id), data);
       notifyScheduleUpdatedBestEffort(payload, id, scheduleChange);
-      if (slidesLinkChanged) notifySlidesAddedBestEffort(payload, id);
       await logAuditEvent({ actionType: "update", entityType: "schedule", entityId: id, entityName: data.serviceLabel || data.date, summary: `Programación editada: ${data.serviceLabel || data.date}`, beforeData: before, afterData: data });
       await syncScheduleSongNotes(payload.songs || [], before?.songs || null);
       return id;
@@ -1168,55 +1058,10 @@ export function MusicDataProvider({ children }) {
         createdBy: profile.uid
       });
       notifyScheduleCreatedBestEffort(payload, created.id);
-      if (slidesLinkChanged) notifySlidesAddedBestEffort(payload, created.id);
       logAuditEventBestEffort({ actionType: "create", entityType: "schedule", entityId: created.id, entityName: payload.serviceLabel || payload.date, summary: `Programación creada: ${payload.serviceLabel || payload.date}`, afterData: payload });
       await syncScheduleSongNotes(payload.songs || [], before?.songs || null);
       return created.id;
     }
-  };
-
-  const saveScheduleSlidesUrl = async (scheduleId, value = "") => {
-    const before = schedules.find((schedule) => schedule.id === scheduleId);
-    const isMediaViewer = profile?.role === "viewer" && profile?.viewerType === "medios";
-    if (!before) throw new Error("No se encontró la programación seleccionada.");
-    if (!["admin", "editor"].includes(profile?.role) && !isMediaViewer) {
-      throw new Error("Tu perfil no puede modificar las diapositivas.");
-    }
-
-    const slidesUrl = String(value || "").trim();
-    if (slidesUrl && !/^https:\/\//i.test(slidesUrl)) {
-      throw new Error("Usa un enlace seguro que comience con https://");
-    }
-    const actorName = profile?.preferredDisplayName || profile?.displayName || profile?.email || "";
-    const update = {
-      slidesUrl,
-      slidesUpdatedAt: useLocal ? new Date().toISOString() : serverTimestamp(),
-      slidesUpdatedByUid: profile?.uid || "",
-      slidesUpdatedByName: actorName
-    };
-    const updatedSchedule = { ...before, ...update };
-
-    if (useLocal) {
-      setSchedules((current) => current.map((schedule) => (
-        schedule.id === scheduleId ? updatedSchedule : schedule
-      )));
-    } else {
-      await updateDoc(doc(db, "schedules", scheduleId), update);
-    }
-
-    await logAuditEvent({
-      actionType: "update",
-      entityType: "schedule_slides",
-      entityId: scheduleId,
-      entityName: before.serviceLabel || before.date,
-      summary: slidesUrl ? `Enlace de diapositivas agregado: ${before.serviceLabel || before.date}` : `Enlace de diapositivas eliminado: ${before.serviceLabel || before.date}`,
-      beforeData: { slidesUrl: before.slidesUrl || "" },
-      afterData: { slidesUrl }
-    });
-    if (slidesUrl && slidesUrl !== before.slidesUrl) {
-      notifySlidesAddedBestEffort(updatedSchedule, scheduleId);
-    }
-    return scheduleId;
   };
 
   const deleteSchedule = async (scheduleId) => {
@@ -1403,9 +1248,6 @@ export function MusicDataProvider({ children }) {
       displayName: user.displayName || email,
       role,
       viewerType: role === "viewer" ? user.viewerType || "corista" : null,
-      adminMode: role === "admin"
-        ? user.adminMode === "administrative" ? "administrative" : "editor"
-        : null,
       active: Boolean(user.active)
     };
 
@@ -1733,15 +1575,12 @@ export function MusicDataProvider({ children }) {
       logAuditEvent,
       saveSong,
       saveSongCoverMetadata,
-      uploadSongPdf,
-      deleteSongPdf,
       deleteSong,
       duplicateSong,
       savePlannedNewSong,
       markPlannedNewSongIntroduced,
       deletePlannedNewSong,
       saveSchedule,
-      saveScheduleSlidesUrl,
       replaceScheduleSong,
       saveServiceFollowUp,
       closeScheduleService,

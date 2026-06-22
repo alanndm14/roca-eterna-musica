@@ -153,7 +153,6 @@ export async function verifyRequester(request, options = {}) {
     email: tokenEmail,
     displayName: user.preferredDisplayName || user.displayName || decoded.name || tokenEmail,
     role,
-    adminMode: role === "admin" ? String(user.adminMode || "editor").trim().toLowerCase() : "",
     viewerType: String(user.viewerType || user.memberType || "").trim().toLowerCase()
   };
 }

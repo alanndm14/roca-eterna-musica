@@ -73,7 +73,7 @@ export function Settings() {
     accentColor: profile?.accentColor || localStorage.getItem("roca-eterna-accent-color") || defaultColors.accentColor,
     blueGrayColor: profile?.blueGrayColor || defaultColors.blueGrayColor
   });
-  const [newUser, setNewUser] = useState({ email: "", displayName: "", role: "viewer", viewerType: "corista", adminMode: "editor", active: true });
+  const [newUser, setNewUser] = useState({ email: "", displayName: "", role: "viewer", viewerType: "corista", active: true });
   const [newTheme, setNewTheme] = useState("");
   const [themeQuery, setThemeQuery] = useState("");
   const [themeFilter, setThemeFilter] = useState("all");
@@ -998,16 +998,10 @@ export function Settings() {
                     <option value="medios">Medios</option>
                   </Select>
                 ) : null}
-                {newUser.role === "admin" ? (
-                  <Select className="w-full sm:w-64" value={newUser.adminMode || "editor"} onChange={(event) => setNewUser((current) => ({ ...current, adminMode: event.target.value }))}>
-                    <option value="editor">Administrador editor</option>
-                    <option value="administrative">Administrador administrativo</option>
-                  </Select>
-                ) : null}
                 <Button className="w-full sm:w-auto" onClick={async () => {
                   if (!newUser.email) return;
                   await saveAccessUser(newUser);
-                  setNewUser({ email: "", displayName: "", role: "viewer", viewerType: "corista", adminMode: "editor", active: true });
+                  setNewUser({ email: "", displayName: "", role: "viewer", viewerType: "corista", active: true });
                 }}>
                   <UserPlus className="h-4 w-4" />
                   Agregar
@@ -1041,15 +1035,6 @@ export function Settings() {
                         <option value="corista">Corista</option>
                         <option value="musico">Músico</option>
                         <option value="medios">Medios</option>
-                      </Select>
-                    ) : user.role === "admin" ? (
-                      <Select
-                        value={user.adminMode || "editor"}
-                        onChange={(event) => saveAccessUser({ ...user, adminMode: event.target.value })}
-                        aria-label={`Tipo de administrador de ${user.email}`}
-                      >
-                        <option value="editor">Administrador editor</option>
-                        <option value="administrative">Administrador administrativo</option>
                       </Select>
                     ) : <div className="hidden xl:block" />}
                     <Button variant={user.active !== false ? "secondary" : "danger"} onClick={() => saveAccessUser({ ...user, active: user.active === false })}>

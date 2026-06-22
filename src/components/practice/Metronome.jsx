@@ -7,8 +7,7 @@ import { createMetronomeEngine } from "../../services/vocalPracticeAudio";
 
 export function Metronome({
   initialBpm = 72,
-  originalBpm = 0,
-  serviceBpm = 0,
+  savedBpm = 0,
   initialSignature = "4/4",
   onStart,
   stopSignal = 0
@@ -176,8 +175,7 @@ export function Metronome({
           {running ? "Detener" : "Iniciar"}
         </Button>
         <Button variant="secondary" onClick={tap}><TimerReset className="h-4 w-4" />Tap tempo</Button>
-        {originalBpm ? <Button variant="subtle" onClick={() => setConfirmedBpm(originalBpm)}>BPM original</Button> : null}
-        {serviceBpm ? <Button variant="subtle" onClick={() => setConfirmedBpm(serviceBpm)}>BPM del servicio</Button> : null}
+        {savedBpm ? <Button variant="subtle" onClick={() => setConfirmedBpm(savedBpm)}>BPM guardado</Button> : null}
       </div>
     </section>
   );

@@ -11,8 +11,6 @@ import {
   canEditContent,
   canEditServiceFollowUp,
   canManageAccess,
-  getAdminMode,
-  isAdministrativeAdmin,
   isFullAdmin,
   normalizeRole
 } from "../services/accessControl";
@@ -25,7 +23,6 @@ const demoProfile = {
   displayName: "Admin Demo",
   preferredDisplayName: "Admin Demo",
   role: "admin",
-  adminMode: "editor",
   active: true,
   themeMode: localStorage.getItem("roca-eterna-theme-mode") || "light",
   accentColor: localStorage.getItem("roca-eterna-accent-color") || "#b6945f",
@@ -84,7 +81,6 @@ export function AuthProvider({ children }) {
               id: snap.id,
               ...data,
               role: normalizedRole,
-              adminMode: normalizedRole === "admin" ? getAdminMode({ ...data, role: normalizedRole }) : null,
               viewerType: data.viewerType || data.memberType || data.musicianType || (normalizedRole === "viewer" ? "corista" : null),
               lastLoginAt: new Date(),
               lastSeenAt: new Date()
@@ -100,7 +96,6 @@ export function AuthProvider({ children }) {
             email,
             displayName: firebaseUser.displayName || email,
             role: "admin",
-            adminMode: "editor",
             active: true,
             themeMode: "system",
             accentColor: "#b6945f",
@@ -126,7 +121,6 @@ export function AuthProvider({ children }) {
               email,
               displayName: firebaseUser.displayName || allowed.displayName || email,
               role: normalizedRole,
-              adminMode: normalizedRole === "admin" ? getAdminMode({ ...allowed, role: normalizedRole }) : null,
               viewerType: allowed.viewerType || allowed.memberType || allowed.musicianType || (normalizedRole === "viewer" ? "corista" : null),
               active: true,
               themeMode: "system",
@@ -264,7 +258,6 @@ export function AuthProvider({ children }) {
     () => ({
       isAdmin: normalizeRole(profile?.role) === "admin",
       isFullAdmin: isFullAdmin(profile),
-      isAdministrativeAdmin: isAdministrativeAdmin(profile),
       canManageAccess: canManageAccess(profile),
       canEdit: canEditContent(profile),
       canDelete: isFullAdmin(profile),

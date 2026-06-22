@@ -37,9 +37,6 @@ export function resolveScheduledSong(entry = {}, songsOrLookup = [], keyPreferen
     keyWithCapo: song.keyWithCapo || song.mainKey || "",
     hasKeyChange: Boolean(song.hasKeyChange),
     notes: song.internalNotes || "",
-    serviceBpm: Number(entry.serviceBpm || 0),
-    serviceTimeSignature: entry.serviceTimeSignature || "",
-    serviceEntryNote: entry.serviceEntryNote || "",
     pdfUrl: liveSong ? getSongPdfUrl(song) : entry.pdfUrl || getSongPdfUrl(song),
     previewUrl: liveSong
       ? getSongPreviewUrl(song) || getSongPdfUrl(song)

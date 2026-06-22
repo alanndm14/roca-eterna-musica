@@ -7,7 +7,6 @@ Esta guia resume las protecciones actuales y los pasos manuales necesarios para 
 La app debe tratar el frontend como una interfaz, no como la barrera de seguridad. Las decisiones reales viven en:
 
 - `firebase2.rules`
-- `storage.rules`
 - `api/sendPushNotification.js`
 
 Reglas esperadas:
@@ -77,7 +76,6 @@ Para activarlo:
 11. Cuando veas trafico valido, activa enforcement gradualmente en:
 
    - Firestore
-   - Storage
    - Authentication si aplica en tu configuracion
 
 No configures `VITE_FIREBASE_APPCHECK_DEBUG_TOKEN` en produccion. Ese valor es solo local.

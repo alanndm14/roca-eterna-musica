@@ -65,22 +65,8 @@ service cloud.firestore {
         );
     }
 
-    function adminMode() {
-      return !isAdmin()
-        ? ""
-        : hasUserDoc()
-            ? userDoc().data.get("adminMode", "editor")
-            : hasAuthorizedEmailDoc()
-              ? authorizedEmailDoc().data.get("adminMode", "editor")
-              : legacyAllowedEmailDoc().data.get("adminMode", "editor");
-    }
-
     function isFullAdmin() {
       return isAdmin();
-    }
-
-    function isAdministrativeAdmin() {
-      return isAdmin() && adminMode() == "administrative";
     }
 
     function isEditor() {
@@ -93,10 +79,6 @@ service cloud.firestore {
           : hasAuthorizedEmailDoc()
             ? authorizedEmailDoc().data.get("viewerType", "")
             : legacyAllowedEmailDoc().data.get("viewerType", "");
-    }
-
-    function isMediaViewer() {
-      return isAuthorized() && role() == "viewer" && viewerType() == "medios";
     }
 
     function canUseVocalPractice() {
@@ -128,7 +110,7 @@ service cloud.firestore {
       return value == null || (value is list && value.size() <= maxSize);
     }
 
-    function validSongData() {
+    function validSongCoreData() {
       return request.resource.data.keys().hasAll(["title"])
         && validShortString(request.resource.data.title, 160)
         && validOptionalString(request.resource.data.get("mainKey", null), 24)
@@ -153,7 +135,13 @@ service cloud.firestore {
         && validOptionalString(request.resource.data.get("drivePdfUrl", null), 1000)
         && validOptionalString(request.resource.data.get("youtubeUrl", null), 1000)
         && validOptionalString(request.resource.data.get("spotifyUrl", null), 1000)
-        && validOptionalString(request.resource.data.get("coverImagePath", null), 500)
+        && validOptionalList(request.resource.data.get("tags", null), 80)
+        && validOptionalList(request.resource.data.get("otherThemes", null), 40)
+        && validOptionalList(request.resource.data.get("lyricsSections", null), 200);
+    }
+
+    function validSongCoverData() {
+      return validOptionalString(request.resource.data.get("coverImagePath", null), 500)
         && validOptionalString(request.resource.data.get("coverFileName", null), 160)
         && (
           request.resource.data.get("coverVersion", null) == null
@@ -195,10 +183,24 @@ service cloud.firestore {
         && (
           request.resource.data.get("coverUpdatedAt", null) == null
           || request.resource.data.get("coverUpdatedAt", null) is timestamp
-        )
-        && validOptionalList(request.resource.data.get("tags", null), 80)
-        && validOptionalList(request.resource.data.get("otherThemes", null), 40)
-        && validOptionalList(request.resource.data.get("lyricsSections", null), 200);
+        );
+    }
+
+    function songCoverFieldsChanged() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        "coverImagePath",
+        "coverFileName",
+        "coverVersion",
+        "coverEnabled",
+        "coverPosition",
+        "coverIntensity",
+        "coverBackgroundMode",
+        "coverBackgroundOpacity",
+        "coverAccentColor",
+        "coverUpdatedAt",
+        "coverUpdatedBy",
+        "coverUpdatedByName"
+      ]);
     }
 
     function validScheduleSongs() {
@@ -274,7 +276,6 @@ service cloud.firestore {
         && validOptionalString(request.resource.data.get("leader", null), 160)
         && validOptionalString(request.resource.data.get("status", null), 60)
         && validOptionalString(request.resource.data.get("generalNotes", null), 4000)
-        && validOptionalString(request.resource.data.get("slidesUrl", null), 1000)
         && validScheduleSongs();
     }
 
@@ -341,15 +342,6 @@ service cloud.firestore {
         && validOptionalList(request.resource.data.get("targetViewerTypes", null), 5);
     }
 
-    function validMediaSlidesNotificationData() {
-      return validNotificationData()
-        && request.resource.data.type == "other"
-        && request.resource.data.get("entityType", "") == "schedule"
-        && validShortString(request.resource.data.get("scheduleId", ""), 160)
-        && request.resource.data.get("targetRoles", []) == ["admin", "viewer"]
-        && request.resource.data.get("targetViewerTypes", []) == ["medios"];
-    }
-
     function validAuditData() {
       return request.resource.data.performedByUid == request.auth.uid
         && request.resource.data.performedByEmail == request.auth.token.email
@@ -384,10 +376,6 @@ service cloud.firestore {
         && request.resource.data.email == request.auth.token.email
         && request.resource.data.active == true
         && request.resource.data.role in ["admin", "administrator", "administrador", "editor", "viewer"]
-        && (
-          !(request.resource.data.role in ["admin", "administrator", "administrador"])
-          || request.resource.data.get("adminMode", "editor") in ["editor", "administrative"]
-        )
         && (
           request.resource.data.role != "viewer"
           || request.resource.data.get("viewerType", "corista") in ["corista", "musico", "medios"]
@@ -439,10 +427,12 @@ service cloud.firestore {
     match /songs/{songId} {
       allow read: if isAuthorized();
       allow create: if isEditor()
-        && validSongData()
+        && validSongCoreData()
+        && validSongCoverData()
         && (canManageVocalPractice() || practiceSongFieldsAreEmpty());
       allow update: if isEditor()
-        && validSongData()
+        && validSongCoreData()
+        && (!songCoverFieldsChanged() || validSongCoverData())
         && (canManageVocalPractice() || practiceSongFieldsAreUnchanged());
       allow delete: if isFullAdmin();
 
@@ -463,31 +453,7 @@ service cloud.firestore {
     match /schedules/{scheduleId} {
       allow read: if isAuthorized();
       allow create: if isEditor() && validScheduleData();
-      allow update: if (isEditor() && validScheduleData())
-        || (
-          isMediaViewer()
-          && validScheduleData()
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            "slidesUrl",
-            "slidesUpdatedAt",
-            "slidesUpdatedByUid",
-            "slidesUpdatedByName"
-          ])
-          && request.resource.data.get("slidesUpdatedByUid", "") == request.auth.uid
-          && validOptionalString(request.resource.data.get("slidesUpdatedByName", null), 160)
-        )
-        || (
-          isAdministrativeAdmin()
-          && validScheduleData()
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            "serviceFollowUp",
-            "serviceReviewSnapshot",
-            "status",
-            "closedAt",
-            "closedBy",
-            "updatedAt"
-          ])
-        );
+      allow update: if isEditor() && validScheduleData();
       allow delete: if isFullAdmin();
     }
 
@@ -528,15 +494,13 @@ service cloud.firestore {
 
     match /auditLogs/{logId} {
       allow read: if isAdmin();
-      allow create: if validAuditData()
-        && (isAdmin() || isEditor() || (isMediaViewer() && request.resource.data.entityType == "schedule_slides"));
+      allow create: if validAuditData() && (isAdmin() || isEditor());
       allow update, delete: if false;
     }
 
     match /notifications/{notificationId} {
       allow read: if isAuthorized();
-      allow create: if (isEditor() && validNotificationData())
-        || (isMediaViewer() && validMediaSlidesNotificationData());
+      allow create: if isEditor() && validNotificationData();
       allow update: if isAuthorized()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["readBy"]);
       allow update: if isEditor()

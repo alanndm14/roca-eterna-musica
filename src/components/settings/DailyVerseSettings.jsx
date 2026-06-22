@@ -33,6 +33,22 @@ export function DailyVerseSettings({ profile, logAuditEvent }) {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
 
+  const ensureDefaultVerses = async (items) => {
+    if (items.length) return items;
+    await Promise.all(fallbackLoginVerses.map((verse) => setDoc(doc(db, "loginVerses", verse.id), {
+      text: verse.text,
+      reference: verse.reference,
+      translation: verse.translation || "",
+      active: true,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      createdBy: profile?.uid || "",
+      updatedBy: profile?.uid || ""
+    }, { merge: true })));
+    const seededSnapshot = await getDocs(query(collection(db, "loginVerses"), orderBy("reference")));
+    return normalizeSnapshot(seededSnapshot);
+  };
+
   const load = async () => {
     if (!isFirebaseConfigured || !db || profile?.uid === "demo-admin") {
       setVerses(fallbackLoginVerses.map((verse) => ({ ...verse, active: true })));
@@ -46,7 +62,8 @@ export function DailyVerseSettings({ profile, logAuditEvent }) {
         getDocs(query(collection(db, "loginVerses"), orderBy("reference"))),
         getDocs(query(collection(db, "dailyVerseOverrides"), orderBy("date")))
       ]);
-      setVerses(normalizeSnapshot(verseSnapshot));
+      const loadedVerses = await ensureDefaultVerses(normalizeSnapshot(verseSnapshot));
+      setVerses(loadedVerses);
       setOverrides(normalizeSnapshot(overrideSnapshot));
       setStatus("");
     } catch (error) {

@@ -1,7 +1,24 @@
 export const appVersion = "1.2";
-export const appBuildVersion = "1.0.15";
+export const appBuildVersion = "1.0.16";
 
 export const changelog = [
+  {
+    version: "1.2",
+    date: "2026-06-22",
+    title: "Permisos y práctica corregidos",
+    added: [],
+    changed: [
+      "Todos los administradores vuelven a tener acceso completo",
+      "Practicar usa una sola versión de Roca Eterna guardada en cada canto",
+      "La creación tradicional de programaciones ya no solicita datos musicales por servicio"
+    ],
+    fixed: [
+      "La edición de cantos funciona después de subir una portada",
+      "Los versículos registrados pueden consultarse y administrarse desde Configuración",
+      "Las tarjetas de Servicios comparten el fondo visual del detalle del canto"
+    ],
+    pending: []
+  },
   {
     version: "1.2",
     date: "2026-06-21",

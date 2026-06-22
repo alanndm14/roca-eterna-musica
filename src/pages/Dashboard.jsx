@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { BellRing, CalendarPlus, Clock, ExternalLink, FileClock, ListPlus, Music2, Presentation, RotateCcw, Sparkles } from "lucide-react";
+import { BellRing, CalendarPlus, Clock, ExternalLink, FileClock, ListPlus, Music2, RotateCcw, Sparkles } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { SongExternalLinks } from "../components/ui/SongExternalLinks";
@@ -128,7 +128,6 @@ export function Dashboard() {
     if (schedule?.id) return `${base}?schedule=${schedule.id}`;
     return fallbackDate ? `${base}?date=${fallbackDate}` : base;
   };
-  const canSeeSlides = profile?.role === "admin" || profile?.role === "editor" || (profile?.role === "viewer" && profile?.viewerType === "medios");
 
   useEffect(() => {
     const intervalMs = countdownActive ? 1000 : 60000;
@@ -352,14 +351,6 @@ export function Dashboard() {
                   {canEdit ? "Nueva programación" : "Ver próximo servicio"}
                 </Button>
               </Link>
-              {canSeeSlides && upcoming?.slidesUrl ? (
-                <a href={upcoming.slidesUrl} target="_blank" rel="noreferrer">
-                  <Button variant="darkSubtle">
-                    <Presentation className="h-4 w-4" />
-                    Abrir diapositivas
-                  </Button>
-                </a>
-              ) : null}
             </div>
           </div>
         </Card>

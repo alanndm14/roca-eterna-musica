@@ -34,15 +34,14 @@ npm run build
 2. Habilita Google Sign-In en Authentication.
 3. Crea Firestore en modo produccion.
 4. Llena `.env` con las variables `VITE_FIREBASE_*`.
-5. Agrega tu correo en `VITE_INITIAL_ADMIN_EMAILS`.
-6. Confirma el mismo correo en `firebase2.rules`, dentro de `bootstrapAdminEmails`.
-7. Publica las reglas:
+5. Agrega tu correo en `VITE_INITIAL_ADMIN_EMAILS` solo para el alta inicial.
+6. Publica las reglas:
 
 ```bash
 firebase deploy --only firestore:rules
 ```
 
-Firebase Storage no es requisito para esta version. No uses claves privadas ni service accounts en el frontend.
+La app no usa Firebase Storage. Los PDFs, portadas y audios administrados desde la app se publican en GitHub mediante el backend autorizado. No uses claves privadas ni service accounts en el frontend.
 
 ## Accesos y preferencias
 
@@ -259,7 +258,6 @@ Secrets requeridos:
 VITE_FIREBASE_API_KEY
 VITE_FIREBASE_AUTH_DOMAIN
 VITE_FIREBASE_PROJECT_ID
-VITE_FIREBASE_STORAGE_BUCKET
 VITE_FIREBASE_MESSAGING_SENDER_ID
 VITE_FIREBASE_APP_ID
 VITE_FIREBASE_MEASUREMENT_ID
