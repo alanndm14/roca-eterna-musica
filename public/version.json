@@ -1,11 +1,11 @@
 {
-  "version": "1.0.16",
+  "version": "1.0.17",
   "displayVersion": "1.2",
   "date": "2026-06-21",
   "critical": true,
   "changes": [
-    "Correccion de permisos al editar cantos",
-    "Practica unificada con la version de Roca Eterna",
-    "Mejoras en programacion y configuracion"
+    "Practica separada entre la version original y la version de la iglesia",
+    "Referencias musicales tomadas de los datos generales del canto",
+    "Mejora visual del boton de sustitucion"
   ]
 }

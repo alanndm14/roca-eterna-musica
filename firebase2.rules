@@ -129,6 +129,19 @@ service cloud.firestore {
           || request.resource.data.get("timeSignature", null) in ["", "2/4", "3/4", "4/4", "6/8"]
         )
         && validOptionalString(request.resource.data.get("originalEntryNote", null), 16)
+        && (
+          request.resource.data.get("churchBpm", null) == null
+          || (
+            request.resource.data.get("churchBpm", null) is int
+            && request.resource.data.get("churchBpm", null) >= 0
+            && request.resource.data.get("churchBpm", null) <= 240
+          )
+        )
+        && (
+          request.resource.data.get("churchTimeSignature", null) == null
+          || request.resource.data.get("churchTimeSignature", null) in ["", "2/4", "3/4", "4/4", "6/8"]
+        )
+        && validOptionalString(request.resource.data.get("churchEntryNote", null), 16)
         && validOptionalString(request.resource.data.get("mainTheme", null), 80)
         && validOptionalString(request.resource.data.get("category", null), 80)
         && validOptionalString(request.resource.data.get("localPdfPath", null), 500)
@@ -256,14 +269,20 @@ service cloud.firestore {
       return request.resource.data.get("originalKey", "") == ""
         && request.resource.data.get("originalBpm", 0) == 0
         && request.resource.data.get("timeSignature", "") == ""
-        && request.resource.data.get("originalEntryNote", "") == "";
+        && request.resource.data.get("originalEntryNote", "") == ""
+        && request.resource.data.get("churchBpm", 0) == 0
+        && request.resource.data.get("churchTimeSignature", "") == ""
+        && request.resource.data.get("churchEntryNote", "") == "";
     }
 
     function practiceSongFieldsAreUnchanged() {
       return request.resource.data.get("originalKey", "") == resource.data.get("originalKey", "")
         && request.resource.data.get("originalBpm", 0) == resource.data.get("originalBpm", resource.data.get("tempo", 0))
         && request.resource.data.get("timeSignature", "") == resource.data.get("timeSignature", "")
-        && request.resource.data.get("originalEntryNote", "") == resource.data.get("originalEntryNote", "");
+        && request.resource.data.get("originalEntryNote", "") == resource.data.get("originalEntryNote", "")
+        && request.resource.data.get("churchBpm", 0) == resource.data.get("churchBpm", 0)
+        && request.resource.data.get("churchTimeSignature", "") == resource.data.get("churchTimeSignature", "")
+        && request.resource.data.get("churchEntryNote", "") == resource.data.get("churchEntryNote", "");
     }
 
     function validScheduleData() {

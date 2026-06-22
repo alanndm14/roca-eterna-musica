@@ -42,6 +42,9 @@ const blankSong = {
   originalBpm: 0,
   timeSignature: "",
   originalEntryNote: "",
+  churchBpm: 0,
+  churchTimeSignature: "",
+  churchEntryNote: "",
   capo: 0,
   keyWithCapo: "",
   hasKeyChange: false,
@@ -317,25 +320,46 @@ export function SongForm({ initialSong, themes = [], categoryOptions = [], keyPr
 
         {showVocalPracticeEditor ? (
           <>
-            <Section title="Versión de Roca Eterna">
-              <div className="grid gap-4 md:grid-cols-4">
-                <Field label="Tonalidad usada">
-                  <Input value={song.originalKey || ""} onChange={(event) => update("originalKey", event.target.value)} placeholder="C, Bb, F#m…" />
+            <Section title="Versión de la iglesia">
+              <div className="mb-4 rounded-xl border border-brass/20 bg-brass/8 px-3 py-2 text-sm text-ink/65">
+                Tonalidad con capo: <strong className="text-ink">{song.keyWithCapo || song.mainKey || "Sin registrar"}</strong>
+              </div>
+              <div className="grid gap-4 md:grid-cols-3">
+                <Field label="BPM">
+                  <Input type="number" min="30" max="240" value={song.churchBpm || ""} onChange={(event) => update("churchBpm", event.target.value ? Number(event.target.value) : 0)} />
                 </Field>
-                <Field label="BPM habitual">
-                  <Input type="number" min="30" max="240" value={song.originalBpm || ""} onChange={(event) => update("originalBpm", event.target.value ? Number(event.target.value) : 0)} />
-                </Field>
-                <Field label="Compás habitual">
-                  <Select value={song.timeSignature || ""} onChange={(event) => update("timeSignature", event.target.value)}>
+                <Field label="Compás">
+                  <Select value={song.churchTimeSignature || ""} onChange={(event) => update("churchTimeSignature", event.target.value)}>
                     <option value="">Sin registrar</option>
                     {["2/4", "3/4", "4/4", "6/8"].map((item) => <option key={item}>{item}</option>)}
                   </Select>
                 </Field>
                 <Field label="Nota inicial">
+                  <Input value={song.churchEntryNote || ""} onChange={(event) => update("churchEntryNote", event.target.value)} placeholder="E4, C#4…" />
+                </Field>
+              </div>
+              <p className="mt-3 text-sm text-ink/55">Estos datos describen la versión que se usa de forma habitual en todos los servicios.</p>
+            </Section>
+
+            <Section title="Versión original">
+              <div className="grid gap-4 md:grid-cols-4">
+                <Field label="Tonalidad original">
+                  <Input value={song.originalKey || ""} onChange={(event) => update("originalKey", event.target.value)} placeholder="C, Bb, F#m…" />
+                </Field>
+                <Field label="BPM original">
+                  <Input type="number" min="30" max="240" value={song.originalBpm || ""} onChange={(event) => update("originalBpm", event.target.value ? Number(event.target.value) : 0)} />
+                </Field>
+                <Field label="Compás original">
+                  <Select value={song.timeSignature || ""} onChange={(event) => update("timeSignature", event.target.value)}>
+                    <option value="">Sin registrar</option>
+                    {["2/4", "3/4", "4/4", "6/8"].map((item) => <option key={item}>{item}</option>)}
+                  </Select>
+                </Field>
+                <Field label="Nota inicial original">
                   <Input value={song.originalEntryNote || ""} onChange={(event) => update("originalEntryNote", event.target.value)} placeholder="E4, C#4…" />
                 </Field>
               </div>
-              <p className="mt-3 text-sm text-ink/55">Estos datos se usarán en Practicar para todos los servicios.</p>
+              <p className="mt-3 text-sm text-ink/55">Estos datos corresponden a la grabación de referencia y permiten compararla con la versión de la iglesia.</p>
             </Section>
 
             {song.id ? <PracticeGuideManager song={song} /> : null}

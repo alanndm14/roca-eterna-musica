@@ -1,7 +1,23 @@
 export const appVersion = "1.2";
-export const appBuildVersion = "1.0.16";
+export const appBuildVersion = "1.0.17";
 
 export const changelog = [
+  {
+    version: "1.2",
+    date: "2026-06-22",
+    title: "Práctica musical afinada",
+    added: [],
+    changed: [
+      "Practicar distingue la versión original de la versión de la iglesia",
+      "La tonalidad de la iglesia se toma directamente de la tonalidad con capo del canto",
+      "Las referencias de tónica, acorde y nota inicial están disponibles para ambas versiones"
+    ],
+    fixed: [
+      "Se recuperó la comparación de altura entre la grabación original y la versión de la iglesia",
+      "El icono de sustitución es más visible sin aumentar el tamaño del botón"
+    ],
+    pending: []
+  },
   {
     version: "1.2",
     date: "2026-06-22",
