@@ -1,7 +1,18 @@
 export const appVersion = "1.2";
-export const appBuildVersion = "1.0.18";
+export const appBuildVersion = "1.0.19";
 
 export const changelog = [
+  {
+    version: "1.2",
+    date: "2026-06-27",
+    title: "Mejora visual",
+    added: [],
+    changed: [
+      "El icono de sustitución queda más discreto dentro de las tarjetas de Servicios"
+    ],
+    fixed: [],
+    pending: []
+  },
   {
     version: "1.2",
     date: "2026-06-27",

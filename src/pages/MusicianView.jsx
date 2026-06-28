@@ -720,7 +720,7 @@ export function MusicianView({ mediaMode = false }) {
                 aria-label={`Sustituir ${song.title}`}
                 title="Sustituir canto"
               >
-                <ArrowRightLeft className="!h-8 !w-8 shrink-0" size={32} strokeWidth={2.8} />
+                <ArrowRightLeft className="!h-5 !w-5 shrink-0" size={20} strokeWidth={2.8} />
               </Button>
             ) : null}
             <div className={`relative z-[1] grid grid-cols-[44px_minmax(0,1fr)] gap-x-3 gap-y-3 sm:grid-cols-[52px_minmax(0,1fr)] sm:gap-x-4 ${showMusicalKey ? "xl:grid-cols-[52px_minmax(240px,1fr)_minmax(190px,auto)_240px] xl:items-center" : "xl:grid-cols-[52px_minmax(280px,1fr)_minmax(220px,auto)] xl:items-center"}`}>
