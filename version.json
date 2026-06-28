@@ -1,9 +1,9 @@
 {
-  "version": "1.0.20",
-  "displayVersion": "1.2",
+  "version": "1.0.21",
+  "displayVersion": "1.3",
   "date": "2026-06-28",
   "critical": true,
   "changes": [
-    "Correccion de tipos de canto"
+    "Filtro por artista o fuente en Repertorio"
   ]
 }
