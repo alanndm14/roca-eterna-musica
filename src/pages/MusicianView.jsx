@@ -350,7 +350,7 @@ export function MusicianView({ mediaMode = false }) {
 
   const replacementSuggestions = useMemo(() => {
     if (!replaceTarget) return [];
-    return getReplacementCandidates(replaceTarget.full || {}, songs, schedules, selectedSchedule).slice(0, 8);
+    return getReplacementCandidates(replaceTarget.full || {}, songs, schedules, selectedSchedule).slice(0, 20);
   }, [replaceTarget, schedules, selectedSchedule, songs]);
 
   const enterFocusMode = async () => {
@@ -1001,8 +1001,15 @@ export function MusicianView({ mediaMode = false }) {
         </div>
       </Modal>
 
-      <Modal open={Boolean(replaceTarget)} title="Sustitución inteligente" onClose={() => setReplaceTarget(null)} wide panelClassName="flex max-h-[92dvh] flex-col pb-[calc(env(safe-area-inset-bottom)+1rem)] md:max-h-[90dvh]">
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain pr-1 touch-pan-y">
+      <Modal
+        open={Boolean(replaceTarget)}
+        title="Sustitución inteligente"
+        onClose={() => setReplaceTarget(null)}
+        wide
+        panelClassName="flex h-[min(92dvh,820px)] max-h-[92dvh] flex-col pb-[calc(env(safe-area-inset-bottom)+1rem)] md:max-h-[90dvh]"
+        contentClassName="min-h-0 flex-1 overflow-hidden"
+      >
+        <div className="h-full min-h-0 space-y-4 overflow-y-auto overscroll-contain pr-1 touch-pan-y [-webkit-overflow-scrolling:touch]">
           <div className="smart-current-song-card overflow-hidden rounded-[1.75rem] border border-brass/25 bg-[linear-gradient(135deg,rgba(255,255,255,0.82),rgba(182,148,95,0.12))] p-4 shadow-soft backdrop-blur-xl">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -1018,7 +1025,7 @@ export function MusicianView({ mediaMode = false }) {
               Las sugerencias comparan tema, categoría, tonalidad, Keynote, PDF disponible y rotación reciente.
             </p>
           </div>
-          <div className="grid gap-3 pb-4 md:grid-cols-2">
+          <div className="grid gap-3 pb-[calc(env(safe-area-inset-bottom)+2rem)] md:grid-cols-2 md:pb-4">
             {replacementSuggestions.map((item) => (
               <RecommendationCard
                 key={item.song.id}

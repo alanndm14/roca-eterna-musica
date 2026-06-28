@@ -216,6 +216,24 @@ service cloud.firestore {
       ]);
     }
 
+    function songCoverOnlyFieldsChanged() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        "coverImagePath",
+        "coverFileName",
+        "coverVersion",
+        "coverEnabled",
+        "coverPosition",
+        "coverIntensity",
+        "coverBackgroundMode",
+        "coverBackgroundOpacity",
+        "coverAccentColor",
+        "coverUpdatedAt",
+        "coverUpdatedBy",
+        "coverUpdatedByName",
+        "updatedAt"
+      ]);
+    }
+
     function validScheduleSongs() {
       return request.resource.data.get("songs", null) == null
         || (
@@ -450,9 +468,17 @@ service cloud.firestore {
         && validSongCoverData()
         && (canManageVocalPractice() || practiceSongFieldsAreEmpty());
       allow update: if isEditor()
-        && validSongCoreData()
-        && (!songCoverFieldsChanged() || validSongCoverData())
-        && (canManageVocalPractice() || practiceSongFieldsAreUnchanged());
+        && (
+          (
+            songCoverOnlyFieldsChanged()
+            && validSongCoverData()
+          )
+          || (
+            validSongCoreData()
+            && (!songCoverFieldsChanged() || validSongCoverData())
+            && (canManageVocalPractice() || practiceSongFieldsAreUnchanged())
+          )
+        );
       allow delete: if isFullAdmin();
 
       match /practiceGuides/{guideId} {

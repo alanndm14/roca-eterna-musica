@@ -1,7 +1,22 @@
 export const appVersion = "1.2";
-export const appBuildVersion = "1.0.17";
+export const appBuildVersion = "1.0.18";
 
 export const changelog = [
+  {
+    version: "1.2",
+    date: "2026-06-27",
+    title: "Correcciones de edición",
+    added: [],
+    changed: [
+      "El panel de sustitución permite revisar más sugerencias con scroll interno"
+    ],
+    fixed: [
+      "La portada y su fondo visual se pueden editar después de subir imagen",
+      "Los tipos de canto se pueden escribir y guardar sin perder el cursor",
+      "La versión visible sigue siendo 1.2 para todos"
+    ],
+    pending: []
+  },
   {
     version: "1.2",
     date: "2026-06-22",
