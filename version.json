@@ -1,11 +1,11 @@
 {
-  "version": "1.0.17",
+  "version": "1.0.18",
   "displayVersion": "1.2",
-  "date": "2026-06-22",
+  "date": "2026-06-27",
   "critical": true,
   "changes": [
-    "Practica separada entre la version original y la version de la iglesia",
-    "Referencias musicales tomadas de los datos generales del canto",
-    "Mejora visual del boton de sustitucion"
+    "Correccion de permisos de portada",
+    "Mejora del panel de sustitucion",
+    "Correccion del editor de tipos de canto"
   ]
 }
