@@ -1,11 +1,9 @@
 {
-  "version": "1.0.18",
+  "version": "1.0.19",
   "displayVersion": "1.2",
   "date": "2026-06-27",
   "critical": true,
   "changes": [
-    "Correccion de permisos de portada",
-    "Mejora del panel de sustitucion",
-    "Correccion del editor de tipos de canto"
+    "Mejora visual del boton de sustitucion"
   ]
 }
