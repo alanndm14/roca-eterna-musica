@@ -1,5 +1,5 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { pdf } from "@react-pdf/renderer";
 import { ArrowDown, ArrowRightLeft, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, Download, ExternalLink, Eye, FileStack, FileText, Headphones, Maximize2, Minimize2, Music2, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "../components/ui/Button";
@@ -165,6 +165,7 @@ function MusicianScheduleCalendar({ schedules, plannedNewSongs = [], selectedDat
 
 export function MusicianView({ mediaMode = false }) {
   const { isAdmin, canEdit, profile } = useAuth();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const isViewer = profile?.role === "viewer";
   const { schedules, songs, settings, plannedNewSongs = [], replaceScheduleSong, saveSchedule, useLocal } = useMusicData();
@@ -202,6 +203,11 @@ export function MusicianView({ mediaMode = false }) {
   const showMusicalKey = shouldShowMusicalKeyForUser(profile);
   const showVocalPractice = canUseVocalPractice(profile);
   const accentColor = profile?.accentColor || "#b6945f";
+  const filterByArtist = (artist) => {
+    const value = String(artist || "").trim();
+    if (!value) return;
+    navigate(`/repertorio?artist=${encodeURIComponent(value)}`);
+  };
 
   const scheduleOptions = useMemo(() => {
     const upcoming = schedules.filter((schedule) => schedule.date >= today).sort((a, b) => `${a.date}${a.time || ""}`.localeCompare(`${b.date}${b.time || ""}`));
@@ -740,7 +746,19 @@ export function MusicianView({ mediaMode = false }) {
                       </h3>
                       {showMusicalKey && song.hasKeyChange ? <span className="rounded-full bg-brass/12 px-3 py-1 text-xs font-bold text-brass">Cambio de tono</span> : null}
                     </div>
-                    {song.artistOrSource ? <p className="service-song-secondary mt-1 text-sm font-semibold text-ink/65 dark:text-white/60">{song.artistOrSource}</p> : null}
+                    {song.artistOrSource ? (
+                      <button
+                        type="button"
+                        className="service-song-secondary mt-1 block text-left text-sm font-semibold text-ink/65 underline-offset-2 transition hover:text-brass hover:underline dark:text-white/60 dark:hover:text-brass"
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          filterByArtist(song.artistOrSource);
+                        }}
+                      >
+                        {song.artistOrSource}
+                      </button>
+                    ) : null}
                   </div>
                 </div>
                 {song.notes ? <p className="service-song-secondary mt-2 text-base text-ink/75 dark:text-white/70">{song.notes}</p> : null}

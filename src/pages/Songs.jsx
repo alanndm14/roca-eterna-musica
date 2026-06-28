@@ -552,6 +552,7 @@ export function Songs() {
     const smartFilter = params.get("smartFilter") || "";
     const filterAlias = params.get("filter") || "";
     const query = params.get("q") || params.get("smart") || "";
+    const artist = params.get("artist") || "";
     const filterMap = {
       "missing-youtube": { youtube: "without", label: "Sin YouTube" },
       "missing-spotify": { spotify: "without", label: "Sin Spotify" },
@@ -570,13 +571,15 @@ export function Songs() {
     if (isViewer) {
       setFilters((current) => ({
         ...clearFilterValues,
-        query: query || current.query
+        query: query || current.query,
+        artist: artist || ""
       }));
       return;
     }
     setFilters((current) => ({
       ...current,
       query: query || current.query,
+      artist: artist || current.artist,
       youtube: aliasFilter.youtube || (smartFilter === "youtube" ? "without" : current.youtube),
       spotify: aliasFilter.spotify || (smartFilter === "spotify" ? "without" : current.spotify),
       driveLink: aliasFilter.driveLink || (smartFilter === "drive" ? "without" : current.driveLink),
@@ -595,6 +598,11 @@ export function Songs() {
   const keyOptions = useMemo(() => collectSongKeys(songs), [songs]);
   const capoOptions = useMemo(() => [...new Set(songs.map((song) => song.capo).filter((capo) => capo !== undefined && capo !== ""))].sort((a, b) => Number(a) - Number(b)), [songs]);
   const categories = useMemo(() => getSongCategoryOptions(settings, songs), [settings, songs]);
+  const artistOptions = useMemo(
+    () => [...new Set(songs.map((song) => String(song.artistOrSource || "").trim()).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" })),
+    [songs]
+  );
   const formats = useMemo(() => [...new Set([...SONG_FORMATS, ...songs.map((song) => song.format).filter(Boolean)])], [songs]);
   const realUsageBySong = useMemo(() => {
     const today = todayFile();
@@ -611,6 +619,12 @@ export function Songs() {
   }, [schedules]);
 
   const setFilter = (field, value) => setFilters((current) => ({ ...current, [field]: value }));
+  const filterByArtist = (artist) => {
+    const value = String(artist || "").trim();
+    if (!value) return;
+    setFilters({ ...clearFilterValues, artist: value });
+    navigate(`/repertorio?artist=${encodeURIComponent(value)}`);
+  };
   const clearFilterValues = {
     query: "",
     category: "",
@@ -666,7 +680,7 @@ export function Songs() {
         const matchesSung = !filters.sung || (filters.sung === "si" ? song.sungBefore : !song.sungBefore);
         const matchesFormat = !filters.format || song.format === filters.format;
         const matchesKeyChange = !filters.keyChange || (filters.keyChange === "si" ? song.hasKeyChange : !song.hasKeyChange);
-        const matchesArtist = !filters.artist || normalizeSearchText(song.artistOrSource).includes(normalizeSearchText(filters.artist));
+        const matchesArtist = !filters.artist || normalizeSearchText(song.artistOrSource) === normalizeSearchText(filters.artist);
         const links = linkCompleteness(song);
         const hasLocalPdf = links.localPdf;
         const matchesLocalPdf = !filters.localPdf
@@ -691,7 +705,7 @@ export function Songs() {
           || (filters.smartPreset === "unused-ready" && song.keynoteReviewStatus === "completado" && usageCount === 0)
           || (filters.smartPreset === "hymns-ready" && categoryText.includes("himno") && song.keynoteReviewStatus === "completado")
           || (filters.smartPreset === "repeated" && usageCount >= 2);
-        if (isViewer) return matchesQuery;
+        if (isViewer) return matchesQuery && matchesArtist;
         return matchesQuery && matchesCategory && matchesMainTheme && matchesOtherTheme && matchesKey && matchesCapo && matchesMusic && matchesKeynote && matchesPdf && matchesSung && matchesFormat && matchesKeyChange && matchesArtist && matchesLocalPdf && matchesYoutube && matchesSpotify && matchesDriveLink && matchesExternalPdf && matchesMissingLinks && matchesSmartPreset;
       }),
     [filters, isViewer, realUsageBySong, songs]
@@ -869,7 +883,10 @@ export function Songs() {
               <option value="missing">Falta algún enlace</option>
               <option value="complete">Completos</option>
             </Select>
-            <Input value={filters.artist} onChange={(event) => setFilter("artist", event.target.value)} placeholder="Artista o fuente" />
+            <Select value={filters.artist} onChange={(event) => setFilter("artist", event.target.value)}>
+              <option value="">Todos los artistas/fuentes</option>
+              {artistOptions.map((artist) => <option key={artist} value={artist}>{artist}</option>)}
+            </Select>
           </div>
         </details> : null}
 
@@ -879,6 +896,11 @@ export function Songs() {
             {filters.smartPresetLabel ? (
               <button type="button" onClick={clearSmartRouteFilter} className="rounded-full bg-brass/14 px-3 py-1 text-xs font-black text-brass">
                 {filters.smartPresetLabel} ×
+              </button>
+            ) : null}
+            {filters.artist ? (
+              <button type="button" onClick={clearSmartRouteFilter} className="rounded-full bg-brass/14 px-3 py-1 text-xs font-black text-brass">
+                Artista: {filters.artist} x
               </button>
             ) : null}
           </div>
@@ -947,7 +969,21 @@ export function Songs() {
                                 Canto nuevo
                               </span>
                             ) : null}
-                            <p className="text-xs text-ink/50">{song.artistOrSource || "Sin fuente"}</p>
+                            {song.artistOrSource ? (
+                              <button
+                                type="button"
+                                className="text-left text-xs font-semibold text-ink/50 underline-offset-2 transition hover:text-brass hover:underline"
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  filterByArtist(song.artistOrSource);
+                                }}
+                              >
+                                {song.artistOrSource}
+                              </button>
+                            ) : (
+                              <p className="text-xs text-ink/50">Sin fuente</p>
+                            )}
                             <SearchMatchStrip matches={matchLabels} />
                           </div>
                         </div>
@@ -1006,7 +1042,21 @@ export function Songs() {
                           Canto nuevo
                         </span>
                       ) : null}
-                      <p className="mt-1 text-sm text-ink/55">{song.artistOrSource || "Sin artista registrado"}</p>
+                      {song.artistOrSource ? (
+                        <button
+                          type="button"
+                          className="mt-1 block text-left text-sm font-semibold text-ink/55 underline-offset-2 transition hover:text-brass hover:underline"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            filterByArtist(song.artistOrSource);
+                          }}
+                        >
+                          {song.artistOrSource}
+                        </button>
+                      ) : (
+                        <p className="mt-1 text-sm text-ink/55">Sin artista registrado</p>
+                      )}
                     </div>
                   </div>
                   {!isViewer ? <span className="rounded-xl bg-ink px-3 py-1 text-sm font-bold text-white">{song.mainKey || "--"}</span> : null}

@@ -80,6 +80,11 @@ export function SongDetail() {
     .sort((a, b) => b.plannedDate.localeCompare(a.plannedDate));
   const activePlannedEntries = plannedEntries.filter((item) => ["planeado", "listo", "pospuesto"].includes(item.status));
   const introducedEntry = plannedEntries.find((item) => item.status === "estrenado");
+  const filterByArtist = (artist) => {
+    const value = String(artist || "").trim();
+    if (!value) return;
+    navigate(`/repertorio?artist=${encodeURIComponent(value)}`);
+  };
 
   const copyPdf = async () => {
     if (pdfUrl) await navigator.clipboard?.writeText(pdfUrl);
@@ -171,7 +176,17 @@ export function SongDetail() {
             <div className="min-w-0">
             {!isViewer ? <p className="text-sm font-semibold uppercase tracking-wide text-brass">{song.category || "normal"}</p> : null}
             <h2 className="mt-2 text-3xl font-bold tracking-normal sm:text-4xl">{song.title}</h2>
-            <p className="mt-2 text-ink/60 dark:text-white/65">{song.artistOrSource || "Sin artista registrado"}</p>
+            {song.artistOrSource ? (
+              <button
+                type="button"
+                className="mt-2 block text-left font-semibold text-ink/60 underline-offset-2 transition hover:text-brass hover:underline dark:text-white/65 dark:hover:text-brass"
+                onClick={() => filterByArtist(song.artistOrSource)}
+              >
+                {song.artistOrSource}
+              </button>
+            ) : (
+              <p className="mt-2 text-ink/60 dark:text-white/65">Sin artista registrado</p>
+            )}
             {!isViewer ? <div className="mt-5 flex flex-wrap gap-2">
               {song.mainTheme ? <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-brass">{song.mainTheme}</span> : null}
               {(song.otherThemes || []).map((theme) => (

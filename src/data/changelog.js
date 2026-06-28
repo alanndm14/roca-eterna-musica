@@ -1,7 +1,20 @@
-export const appVersion = "1.2";
-export const appBuildVersion = "1.0.20";
+export const appVersion = "1.3";
+export const appBuildVersion = "1.0.21";
 
 export const changelog = [
+  {
+    version: "1.3",
+    date: "2026-06-28",
+    title: "Filtro por artista o fuente",
+    added: [
+      "Filtro avanzado para artistas y fuentes en Repertorio"
+    ],
+    changed: [
+      "Tocar el artista o fuente abre Repertorio filtrado por ese dato"
+    ],
+    fixed: [],
+    pending: []
+  },
   {
     version: "1.2",
     date: "2026-06-28",

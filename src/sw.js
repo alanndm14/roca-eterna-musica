@@ -12,14 +12,14 @@ self.skipWaiting();
 clientsClaim();
 setCacheNameDetails({
   prefix: "roca-eterna-musica",
-  suffix: "v1.2-build-20",
+  suffix: "v1.3-build-21",
   precache: "precache",
   runtime: "runtime"
 });
 cleanupOutdatedCaches();
 precacheAndRoute(self.__WB_MANIFEST);
 
-const COVER_CACHE_NAME = "roca-eterna-musica-song-covers-v1.2";
+const COVER_CACHE_NAME = "roca-eterna-musica-song-covers-v1.3";
 
 registerRoute(
   ({ request, url }) => request.destination === "image" && /\/covers\/[^/]+\.webp$/i.test(url.pathname),
@@ -35,7 +35,7 @@ registerRoute(
   })
 );
 
-const CACHE_NAME = "roca-eterna-musica-v1.0.20-song-category-rename";
+const CACHE_NAME = "roca-eterna-musica-v1.0.21-artist-filter";
 const OLD_ICON_PATTERNS = [
   "icon-192",
   "icon-512",
