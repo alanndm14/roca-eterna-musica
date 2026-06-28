@@ -57,6 +57,7 @@ export function Settings() {
     mergeTheme,
     importSongs,
     removeUserAccess,
+    renameSongCategories,
     indexLocalPdfTexts,
     logAuditEvent,
     seedExampleData
@@ -109,6 +110,7 @@ export function Settings() {
   const [updateStatus, setUpdateStatus] = useState("");
   const [installPromptEvent, setInstallPromptEvent] = useState(null);
   const [installStatus, setInstallStatus] = useState("");
+  const [settingsSaveStatus, setSettingsSaveStatus] = useState("");
   const [isStandalone, setIsStandalone] = useState(() => {
     if (typeof window === "undefined") return false;
     return window.matchMedia?.("(display-mode: standalone)")?.matches || window.navigator?.standalone === true;
@@ -230,15 +232,23 @@ export function Settings() {
   }, [settings]);
 
   const saveInstitutionalSettings = async () => {
+    setSettingsSaveStatus("");
     const worshipLeaderOptions = (localSettings.worshipLeaderOptions || [])
       .map((value) => String(value || "").trim())
       .filter(Boolean);
     const serviceTypeOptions = (localSettings.serviceTypeOptions || [])
       .map(normalizeServiceTypeOption)
       .filter(Boolean);
-    const songCategoryOptions = [...new Set((localSettings.songCategoryOptions || [])
-      .map((value) => String(value || "").trim().toLowerCase())
-      .filter(Boolean))];
+    const seenSongCategories = new Set();
+    const songCategoryOptions = (localSettings.songCategoryOptions || [])
+      .map((value) => String(value || "").trim())
+      .filter(Boolean)
+      .filter((value) => {
+        const key = value.toLowerCase();
+        if (seenSongCategories.has(key)) return false;
+        seenSongCategories.add(key);
+        return true;
+      });
     if (!serviceTypeOptions.length) {
       alert("Debe quedar al menos un tipo de servicio.");
       return;
@@ -247,7 +257,22 @@ export function Settings() {
       alert("Debe quedar al menos un tipo de canto.");
       return;
     }
+    const previousSongCategoryOptions = Array.isArray(settings?.songCategoryOptions) && settings.songCategoryOptions.length
+      ? settings.songCategoryOptions.map((value) => String(value || "").trim()).filter(Boolean)
+      : getSongCategoryOptions(settings);
+    const categoryRenames = {};
+    previousSongCategoryOptions.forEach((previousValue, index) => {
+      const nextValue = songCategoryOptions[index];
+      if (!nextValue) return;
+      if (String(previousValue || "").trim() !== String(nextValue || "").trim()) {
+        categoryRenames[previousValue] = nextValue;
+      }
+    });
     await saveSettings({ ...localSettings, worshipLeaderOptions, serviceTypeOptions, songCategoryOptions });
+    const renameResult = await renameSongCategories(categoryRenames);
+    setSettingsSaveStatus(renameResult?.updated
+      ? `Ajustes guardados. Se actualizaron ${renameResult.updated} canto(s) con el tipo renombrado.`
+      : "Ajustes guardados.");
   };
 
   useEffect(() => {
@@ -699,9 +724,14 @@ export function Settings() {
           </div>
           <FileDiagnosticPanel result={logoTest} />
           {isAdmin ? (
-            <div className="mt-5 flex flex-wrap gap-3">
-              <Button onClick={saveInstitutionalSettings}><Save className="h-4 w-4" />Guardar ajustes</Button>
-              <Button variant="secondary" onClick={() => setLocalSettings((current) => ({ ...current, logoLightUrl: "", logoDarkUrl: "", logoAltText: "" }))}>Restaurar logo por defecto</Button>
+            <div className="mt-5">
+              <div className="flex flex-wrap gap-3">
+                <Button onClick={saveInstitutionalSettings}><Save className="h-4 w-4" />Guardar ajustes</Button>
+                <Button variant="secondary" onClick={() => setLocalSettings((current) => ({ ...current, logoLightUrl: "", logoDarkUrl: "", logoAltText: "" }))}>Restaurar logo por defecto</Button>
+              </div>
+              {settingsSaveStatus ? (
+                <p className="mt-3 rounded-xl bg-brass/10 px-3 py-2 text-sm font-semibold text-brass">{settingsSaveStatus}</p>
+              ) : null}
             </div>
           ) : null}
         </Card>

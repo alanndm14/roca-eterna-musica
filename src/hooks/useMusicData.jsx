@@ -1312,6 +1312,52 @@ export function MusicDataProvider({ children }) {
     await logAuditEvent({ actionType: "update", entityType: "settings", entityId: "main", entityName: "Configuración global", summary: "Configuración global actualizada", beforeData: before, afterData: nextSettings });
   };
 
+  const renameSongCategories = async (categoryRenames = {}) => {
+    const entries = Object.entries(categoryRenames)
+      .map(([from, to]) => [String(from || "").trim(), String(to || "").trim()])
+      .filter(([from, to]) => from && to && from !== to);
+    if (!entries.length) return { updated: 0 };
+
+    const renameByKey = new Map(entries.map(([from, to]) => [from.toLowerCase(), to]));
+    const affectedSongs = songs.filter((song) => renameByKey.has(String(song.category || "").trim().toLowerCase()));
+    if (!affectedSongs.length) return { updated: 0 };
+
+    if (useLocal) {
+      setSongs((current) => current.map((song) => {
+        const nextCategory = renameByKey.get(String(song.category || "").trim().toLowerCase());
+        return nextCategory ? { ...song, category: nextCategory } : song;
+      }));
+      await logAuditEvent({
+        actionType: "song_categories_renamed",
+        entityType: "song",
+        entityId: "bulk",
+        entityName: "Tipos de canto",
+        summary: `Tipos de canto actualizados en ${affectedSongs.length} canto(s)`,
+        afterData: { renames: entries.map(([from, to]) => ({ from, to })), updated: affectedSongs.length }
+      });
+      return { updated: affectedSongs.length };
+    }
+
+    const batch = writeBatch(db);
+    affectedSongs.forEach((song) => {
+      const nextCategory = renameByKey.get(String(song.category || "").trim().toLowerCase());
+      batch.update(doc(db, "songs", song.id), {
+        category: nextCategory,
+        updatedAt: serverTimestamp()
+      });
+    });
+    await batch.commit();
+    await logAuditEvent({
+      actionType: "song_categories_renamed",
+      entityType: "song",
+      entityId: "bulk",
+      entityName: "Tipos de canto",
+      summary: `Tipos de canto actualizados en ${affectedSongs.length} canto(s)`,
+      afterData: { renames: entries.map(([from, to]) => ({ from, to })), updated: affectedSongs.length }
+    });
+    return { updated: affectedSongs.length };
+  };
+
   const saveTheme = async (theme) => {
     const payload = {
       name: normalizeThemeName(theme.name),
@@ -1589,6 +1635,7 @@ export function MusicDataProvider({ children }) {
       saveUser,
       removeUserAccess,
       saveSettings,
+      renameSongCategories,
       saveTheme,
       mergeTheme,
       importSongs,

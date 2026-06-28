@@ -1,7 +1,20 @@
 export const appVersion = "1.2";
-export const appBuildVersion = "1.0.19";
+export const appBuildVersion = "1.0.20";
 
 export const changelog = [
+  {
+    version: "1.2",
+    date: "2026-06-28",
+    title: "Corrección de tipos de canto",
+    added: [],
+    changed: [
+      "Renombrar un tipo de canto actualiza los cantos que ya usaban ese tipo"
+    ],
+    fixed: [
+      "Los cambios de mayúsculas y acentos en tipos de canto se aplican correctamente"
+    ],
+    pending: []
+  },
   {
     version: "1.2",
     date: "2026-06-27",
