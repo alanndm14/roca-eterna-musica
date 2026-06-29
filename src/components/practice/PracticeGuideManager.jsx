@@ -48,7 +48,7 @@ function GuideForm({ initialValue, onSubmit, onCancel }) {
     }}>
       <Field label={draft.id ? "Reemplazar audio, opcional" : "Archivo de audio"}>
         <Input type="file" accept="audio/mpeg,audio/mp4,audio/x-m4a,audio/wav,audio/ogg,.mp3,.m4a,.wav,.ogg" onChange={(event) => setFile(event.target.files?.[0] || null)} />
-        <span className="mt-1 block text-xs text-ink/45">MP3, M4A, WAV u OGG · máximo 3 MB</span>
+        <span className="mt-1 block text-xs text-ink/45">MP3, M4A, WAV u OGG · máximo 25 MB</span>
       </Field>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Nombre">

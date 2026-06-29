@@ -8,7 +8,8 @@ import { getToken as getAppCheckToken } from "firebase/app-check";
 import { appCheck, auth, db, pushServerUrl } from "../lib/firebase";
 import { resolvePublicAssetUrl } from "./songUtils";
 
-export const MAX_PRACTICE_AUDIO_BYTES = 3 * 1024 * 1024;
+export const MAX_PRACTICE_AUDIO_BYTES = 25 * 1024 * 1024;
+export const SERVER_PRACTICE_AUDIO_BYTES = 3 * 1024 * 1024;
 export const PRACTICE_AUDIO_TYPES = new Set(["audio/mpeg", "audio/mp4", "audio/x-m4a", "audio/wav", "audio/ogg"]);
 const localKey = (songId) => `roca-eterna-practice-guides:${songId}`;
 
@@ -47,7 +48,7 @@ function mimeTypeFor(file) {
 export function validatePracticeAudio(file) {
   if (!file) throw new Error("Selecciona un archivo de audio.");
   if (!mimeTypeFor(file)) throw new Error("Formato no permitido. Usa MP3, M4A, WAV u OGG.");
-  if (!file.size || file.size > MAX_PRACTICE_AUDIO_BYTES) throw new Error("El audio debe pesar menos de 3 MB.");
+  if (!file.size || file.size > MAX_PRACTICE_AUDIO_BYTES) throw new Error("El audio debe pesar menos de 25 MB.");
 }
 
 export function readAudioDuration(file) {
@@ -201,6 +202,75 @@ async function requestPracticeGuide(method, payload) {
   }
 }
 
+async function githubApi(url, token, options = {}) {
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${token}`,
+      "X-GitHub-Api-Version": "2022-11-28",
+      ...(options.headers || {})
+    }
+  });
+  const text = await response.text();
+  let body = {};
+  try {
+    body = text ? JSON.parse(text) : {};
+  } catch {
+    body = { message: text };
+  }
+  if (!response.ok) {
+    const error = new Error(body.message || "No se pudo subir el audio a GitHub.");
+    error.status = response.status;
+    throw error;
+  }
+  return body;
+}
+
+async function uploadPracticeAudioDirectToGithub(upload, file) {
+  const { token, owner, repo, branch, storagePath, commitMessage } = upload || {};
+  if (!token || !owner || !repo || !branch || !storagePath) {
+    throw new Error("La subida directa a GitHub no está preparada.");
+  }
+  const apiBase = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
+  const encodedBranch = encodeURIComponent(branch);
+  const ref = await githubApi(`${apiBase}/git/ref/heads/${encodedBranch}`, token);
+  const baseCommitSha = ref.object?.sha || "";
+  if (!baseCommitSha) throw new Error("No se pudo ubicar la rama de GitHub.");
+  const baseCommit = await githubApi(`${apiBase}/git/commits/${baseCommitSha}`, token);
+  const baseTreeSha = baseCommit.tree?.sha || "";
+  if (!baseTreeSha) throw new Error("No se pudo preparar el árbol de GitHub.");
+  const content = await readFileAsBase64(file);
+  const blob = await githubApi(`${apiBase}/git/blobs`, token, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content, encoding: "base64" })
+  });
+  const tree = await githubApi(`${apiBase}/git/trees`, token, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      base_tree: baseTreeSha,
+      tree: [{ path: storagePath, mode: "100644", type: "blob", sha: blob.sha }]
+    })
+  });
+  const commit = await githubApi(`${apiBase}/git/commits`, token, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message: commitMessage || `Update audio ${storagePath}`,
+      tree: tree.sha,
+      parents: [baseCommitSha]
+    })
+  });
+  await githubApi(`${apiBase}/git/refs/heads/${encodedBranch}`, token, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sha: commit.sha })
+  });
+  return { commitSha: commit.sha };
+}
+
 export async function savePracticeGuide({ songId, guide = {}, file, profile, useLocal = false }) {
   if (!songId) throw new Error("El canto no es válido.");
   if (file) validatePracticeAudio(file);
@@ -255,6 +325,19 @@ export async function savePracticeGuide({ songId, guide = {}, file, profile, use
     order: Number(guide.order || 0),
     enabled: guide.enabled !== false
   };
+  if (file && file.size > SERVER_PRACTICE_AUDIO_BYTES) {
+    const init = await requestPracticeGuide("POST", { ...payload, mode: "direct_upload_init" });
+    const uploaded = await uploadPracticeAudioDirectToGithub(init.upload, file);
+    const response = await requestPracticeGuide(file || !guide.id ? "POST" : "PATCH", {
+      ...payload,
+      guideId: init.guideId || guideId,
+      githubDirectUpload: true,
+      storagePath: init.upload?.storagePath || "",
+      audioUrl: init.upload?.audioUrl || "",
+      commitSha: uploaded.commitSha || ""
+    });
+    return normalizeGuide(init.guideId || guideId, response.guide || { ...guide, ...payload });
+  }
   if (file) payload.fileBase64 = await readFileAsBase64(file);
   const response = await requestPracticeGuide(file || !guide.id ? "POST" : "PATCH", payload);
   return normalizeGuide(guideId, response.guide || { ...guide, ...payload });

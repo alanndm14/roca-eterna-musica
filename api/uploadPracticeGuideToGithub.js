@@ -1,4 +1,5 @@
 import admin from "firebase-admin";
+import crypto from "crypto";
 import {
   applyCors,
   encodeGithubPath,
@@ -11,7 +12,8 @@ import {
   verifyRequester
 } from "./uploadSongPdfToGithub.js";
 
-const MAX_AUDIO_BYTES = 3 * 1024 * 1024;
+const SERVER_UPLOAD_MAX_AUDIO_BYTES = 3 * 1024 * 1024;
+const GITHUB_DIRECT_MAX_AUDIO_BYTES = 25 * 1024 * 1024;
 const ALLOWED_TYPES = new Map([
   ["audio/mpeg", "mp3"],
   ["audio/mp4", "m4a"],
@@ -23,6 +25,23 @@ const VALID_SECTIONS = new Set(["full", "verse", "prechorus", "chorus", "bridge"
 const VALID_VOICES = new Set(["all", "melody", "soprano", "alto", "tenor", "second", "other"]);
 const VALID_SIGNATURES = new Set(["2/4", "3/4", "4/4", "6/8"]);
 const activeUpdates = new Set();
+
+function base64UrlJson(value) {
+  return Buffer.from(JSON.stringify(value)).toString("base64url");
+}
+
+function signGithubAppJwt(appId, privateKey) {
+  const now = Math.floor(Date.now() / 1000);
+  const unsigned = `${base64UrlJson({ alg: "RS256", typ: "JWT" })}.${base64UrlJson({
+    iat: now - 60,
+    exp: now + 540,
+    iss: appId
+  })}`;
+  const signer = crypto.createSign("RSA-SHA256");
+  signer.update(unsigned);
+  signer.end();
+  return `${unsigned}.${signer.sign(privateKey, "base64url")}`;
+}
 
 function safeSegment(value = "", fallback = "archivo") {
   return String(value || "")
@@ -77,8 +96,95 @@ function practiceConfig() {
   };
 }
 
+function githubAppConfig() {
+  const appId = process.env.GITHUB_PRACTICE_UPLOAD_APP_ID || process.env.GITHUB_APP_ID || "";
+  const installationId = process.env.GITHUB_PRACTICE_UPLOAD_INSTALLATION_ID || process.env.GITHUB_APP_INSTALLATION_ID || "";
+  const privateKey = (process.env.GITHUB_PRACTICE_UPLOAD_PRIVATE_KEY || process.env.GITHUB_APP_PRIVATE_KEY || "")
+    .replace(/\\n/g, "\n");
+  if (!appId || !installationId || !privateKey) {
+    const error = new Error("Para subir audios mayores de 3 MB configura una GitHub App de subida directa.");
+    error.status = 503;
+    error.code = "GITHUB_APP_NOT_CONFIGURED";
+    throw error;
+  }
+  return { appId, installationId, privateKey };
+}
+
 function contentUrl(config, repoPath) {
   return `https://api.github.com/repos/${encodeURIComponent(config.owner)}/${encodeURIComponent(config.repo)}/contents/${encodeGithubPath(repoPath)}`;
+}
+
+function extensionFromUpload(mimeType = "", fileName = "") {
+  const cleanMimeType = String(mimeType || "").toLowerCase();
+  const fromMime = ALLOWED_TYPES.get(cleanMimeType);
+  if (fromMime) return fromMime;
+  const fromName = String(fileName || "").split(".").pop()?.toLowerCase();
+  if (["mp3", "m4a", "mp4", "wav", "ogg"].includes(fromName)) return fromName;
+  return "";
+}
+
+function validateAudioUploadMeta(body = {}) {
+  const extension = extensionFromUpload(body.mimeType, body.fileName);
+  if (!extension) {
+    const error = new Error("Formato no permitido. Usa MP3, M4A, WAV u OGG.");
+    error.status = 400;
+    error.code = "INVALID_AUDIO_TYPE";
+    throw error;
+  }
+  const sizeBytes = Number(body.sizeBytes || 0);
+  if (!Number.isFinite(sizeBytes) || sizeBytes <= 0) {
+    const error = new Error("El audio seleccionado no es válido.");
+    error.status = 400;
+    error.code = "INVALID_AUDIO_SIZE";
+    throw error;
+  }
+  if (sizeBytes > GITHUB_DIRECT_MAX_AUDIO_BYTES) {
+    const error = new Error("El audio supera el límite de 25 MB.");
+    error.status = 413;
+    error.code = "AUDIO_TOO_LARGE";
+    throw error;
+  }
+  return { extension, sizeBytes };
+}
+
+function resolvePracticeGuidePath(config, songId, guideId, body = {}, existing = {}) {
+  const { extension } = validateAudioUploadMeta(body);
+  const previousStoragePath = String(existing.storagePath || "");
+  if (previousStoragePath && previousStoragePath.toLowerCase().endsWith(`.${extension}`)) {
+    return previousStoragePath;
+  }
+  const fileName = `${safeSegment(body.title || existing.title || "guia")}-${guideId}.${extension}`;
+  return `${config.basePath}/${safeSegment(songId, "canto")}/${fileName}`;
+}
+
+async function createGithubAppUploadToken() {
+  const appConfig = githubAppConfig();
+  const jwt = signGithubAppJwt(appConfig.appId, appConfig.privateKey);
+  const response = await fetch(`https://api.github.com/app/installations/${encodeURIComponent(appConfig.installationId)}/access_tokens`, {
+    method: "POST",
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${jwt}`,
+      "Content-Type": "application/json",
+      "X-GitHub-Api-Version": "2022-11-28",
+      "User-Agent": "Roca-Eterna-Musica-Practice-Uploader"
+    },
+    body: JSON.stringify({ permissions: { contents: "write" } })
+  });
+  const text = await response.text();
+  let payload = {};
+  try {
+    payload = text ? JSON.parse(text) : {};
+  } catch {
+    payload = {};
+  }
+  if (!response.ok || !payload.token) {
+    const error = new Error("No se pudo preparar la subida directa a GitHub.");
+    error.status = response.status === 401 || response.status === 403 ? 503 : 502;
+    error.code = "GITHUB_APP_TOKEN_FAILED";
+    throw error;
+  }
+  return { token: payload.token, expiresAt: payload.expires_at || "" };
 }
 
 async function getGithubFile(config, repoPath) {
@@ -164,15 +270,15 @@ function audioBuffer(body = {}) {
     error.code = "INVALID_AUDIO_BASE64";
     throw error;
   }
-  if (fileBase64.length > Math.ceil(MAX_AUDIO_BYTES * 4 / 3) + 8) {
-    const error = new Error("La guía supera el límite de 3 MB.");
+  if (fileBase64.length > Math.ceil(SERVER_UPLOAD_MAX_AUDIO_BYTES * 4 / 3) + 8) {
+    const error = new Error("La guía supera el límite de 3 MB para esta ruta. Usa subida directa a GitHub.");
     error.status = 413;
     error.code = "AUDIO_TOO_LARGE";
     throw error;
   }
   const buffer = Buffer.from(fileBase64, "base64");
-  if (!buffer.length || buffer.length > MAX_AUDIO_BYTES) {
-    const error = new Error("La guía supera el límite de 3 MB.");
+  if (!buffer.length || buffer.length > SERVER_UPLOAD_MAX_AUDIO_BYTES) {
+    const error = new Error("La guía supera el límite de 3 MB para esta ruta. Usa subida directa a GitHub.");
     error.status = 413;
     error.code = "AUDIO_TOO_LARGE";
     throw error;
@@ -318,6 +424,35 @@ export default async function handler(request, response) {
     const existing = guideSnapshot.exists ? guideSnapshot.data() || {} : {};
     const config = practiceConfig();
 
+    if (body.mode === "direct_upload_init") {
+      if (request.method !== "POST" && request.method !== "PATCH") {
+        const error = new Error("Método no permitido para preparar la subida directa.");
+        error.status = 405;
+        error.code = "METHOD_NOT_ALLOWED";
+        throw error;
+      }
+      validateAudioUploadMeta(body);
+      const storagePath = resolvePracticeGuidePath(config, songId, guideId, body, existing);
+      const appToken = await createGithubAppUploadToken();
+      response.status(200).json({
+        ok: true,
+        mode: "direct_upload",
+        guideId,
+        upload: {
+          token: appToken.token,
+          expiresAt: appToken.expiresAt,
+          owner: config.owner,
+          repo: config.repo,
+          branch: config.branch,
+          storagePath,
+          previousStoragePath: String(existing.storagePath || ""),
+          audioUrl: rawGithubUrl(config, storagePath),
+          commitMessage: `${existing.storagePath ? "Actualizar" : "Agregar"} audio de ensayo para ${song.title || songId}`
+        }
+      });
+      return;
+    }
+
     if (request.method === "DELETE") {
       await deleteGithubFile(config, String(existing.storagePath || ""), song.title || songId);
       await guideRef.delete();
@@ -337,10 +472,21 @@ export default async function handler(request, response) {
     const previousStoragePath = String(existing.storagePath || "");
     let storagePath = previousStoragePath;
     let commitSha = "";
-    if (body.fileBase64) {
+    if (body.githubDirectUpload === true) {
+      validateAudioUploadMeta(body);
+      const expectedPath = resolvePracticeGuidePath(config, songId, guideId, body, existing);
+      const providedPath = String(body.storagePath || "");
+      if (!providedPath || providedPath !== expectedPath) {
+        const error = new Error("La ruta del audio subido no coincide con la ruta autorizada.");
+        error.status = 400;
+        error.code = "INVALID_DIRECT_UPLOAD_PATH";
+        throw error;
+      }
+      storagePath = providedPath;
+      commitSha = String(body.commitSha || "");
+    } else if (body.fileBase64) {
       const audio = audioBuffer(body);
-      const fileName = `${safeSegment(body.title || existing.title || "guia")}-${guideId}.${audio.extension}`;
-      const nextPath = `${config.basePath}/${safeSegment(songId, "canto")}/${fileName}`;
+      const nextPath = resolvePracticeGuidePath(config, songId, guideId, { ...body, mimeType: audio.mimeType, sizeBytes: audio.buffer.length }, existing);
       commitSha = await putGithubFile(config, nextPath, audio.buffer, song.title || songId);
       storagePath = nextPath;
     }
@@ -359,7 +505,7 @@ export default async function handler(request, response) {
     try {
       await guideRef.set(payload, { merge: true });
     } catch (writeError) {
-      if (body.fileBase64 && storagePath !== previousStoragePath) {
+      if ((body.fileBase64 || body.githubDirectUpload === true) && storagePath !== previousStoragePath) {
         await deleteGithubFile(config, storagePath, song.title || songId).catch(() => false);
       }
       const error = new Error("El audio se procesó, pero no se pudo guardar la guía.");
@@ -368,7 +514,7 @@ export default async function handler(request, response) {
       error.cause = writeError;
       throw error;
     }
-    if (body.fileBase64 && previousStoragePath && previousStoragePath !== storagePath) {
+    if ((body.fileBase64 || body.githubDirectUpload === true) && previousStoragePath && previousStoragePath !== storagePath) {
       await deleteGithubFile(config, previousStoragePath, song.title || songId).catch(() => false);
     }
     const responseGuide = publicGuideData(guideId, {
