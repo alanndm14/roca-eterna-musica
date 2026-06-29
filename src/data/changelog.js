@@ -1,5 +1,5 @@
 export const appVersion = "1.3";
-export const appBuildVersion = "1.0.21";
+export const appBuildVersion = "1.0.22";
 
 export const changelog = [
   {
@@ -616,7 +616,7 @@ export const changelog = [
     date: "2026-06-06",
     title: "Avisos y programación inteligente",
     added: [
-      "Notificación cuando un canto reciente se programa por primera vez",
+      "Recordatorios para cantos nuevos planeados por día",
       "Creación inteligente por tema, letra/PDF o ambos"
     ],
     changed: [

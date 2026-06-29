@@ -12,7 +12,7 @@ self.skipWaiting();
 clientsClaim();
 setCacheNameDetails({
   prefix: "roca-eterna-musica",
-  suffix: "v1.3-build-21",
+  suffix: "v1.3-build-22",
   precache: "precache",
   runtime: "runtime"
 });
@@ -35,7 +35,7 @@ registerRoute(
   })
 );
 
-const CACHE_NAME = "roca-eterna-musica-v1.0.21-artist-filter";
+const CACHE_NAME = "roca-eterna-musica-v1.0.22-practice-audio";
 const OLD_ICON_PATTERNS = [
   "icon-192",
   "icon-512",
@@ -110,7 +110,7 @@ function normalizeMessage(payload = {}) {
   const notificationId = data.notificationId || data.scheduleId || data.songId || payload.messageId || `${Date.now()}`;
   const url = resolveUrl(data.url || fcmOptions.link || self.registration.scope || "/");
   return {
-    title: notification.title || data.title || "Roca Eterna Musica",
+    title: notification.title || data.title || "Roca Eterna Música",
     body: notification.body || data.body || data.message || "",
     icon: notification.icon || data.icon || iconPath,
     badge: data.badge || iconPath,
@@ -185,7 +185,7 @@ self.addEventListener("push", (event) => {
   try {
     data = event.data ? event.data.json() : {};
   } catch {
-    data = { title: "Roca Eterna Musica", body: event.data?.text?.() || "Nueva notificacion" };
+    data = { title: "Roca Eterna Música", body: event.data?.text?.() || "Nueva notificación" };
   }
 
   event.waitUntil(showNotificationOnce(data.data ? { data: data.data, notification: data.notification } : data));
