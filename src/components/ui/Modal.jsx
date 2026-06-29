@@ -5,6 +5,24 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "./Button";
 
 const openModalStack = [];
+let lockedBodyOverflow = "";
+
+function lockBodyScroll(modalId) {
+  if (!openModalStack.length) lockedBodyOverflow = document.body.style.overflow;
+  openModalStack.push(modalId);
+  document.body.style.overflow = "hidden";
+}
+
+function unlockBodyScroll(modalId) {
+  const stackIndex = openModalStack.lastIndexOf(modalId);
+  if (stackIndex >= 0) openModalStack.splice(stackIndex, 1);
+  if (!openModalStack.length) {
+    document.body.style.overflow = lockedBodyOverflow;
+    lockedBodyOverflow = "";
+  } else {
+    document.body.style.overflow = "hidden";
+  }
+}
 
 export function Modal({
   open,
@@ -26,9 +44,7 @@ export function Modal({
     if (!open) return undefined;
     const modalId = modalIdRef.current;
     const previousFocus = document.activeElement;
-    openModalStack.push(modalId);
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    lockBodyScroll(modalId);
     const closeOnEscape = (event) => {
       if (openModalStack[openModalStack.length - 1] !== modalId) return;
       if (event.key === "Escape") onCloseRef.current?.();
@@ -53,11 +69,9 @@ export function Modal({
       panelRef.current?.querySelector("button, a[href], input, select, textarea")?.focus();
     }, 30);
     return () => {
-      document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", closeOnEscape);
       window.clearTimeout(focusTimer);
-      const stackIndex = openModalStack.lastIndexOf(modalId);
-      if (stackIndex >= 0) openModalStack.splice(stackIndex, 1);
+      unlockBodyScroll(modalId);
       if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus();
     };
   }, [open]);
