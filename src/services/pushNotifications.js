@@ -75,12 +75,7 @@ const deniedInstructions = "Las notificaciones están bloqueadas para este sitio
 const androidDefaultInstructions = "Este sitio todavia no tiene permiso de notificaciones. Toca Activar notificaciones para solicitarlo. Los permisos generales de Chrome no bastan; este sitio debe tener permiso propio.";
 
 const iconUrl = () => {
-  const preferred =
-    localStorage.getItem("roca-eterna-logo-light-src")
-    || localStorage.getItem("roca-eterna-logo-dark-src")
-    || localStorage.getItem("roca-eterna-logo-src")
-    || "";
-  return resolvePublicAssetUrl(preferred || "icons/pwa-192.png");
+  return resolvePublicAssetUrl("icons/notification-icon.png");
 };
 
 const normalizePushPayload = (payload = {}) => {

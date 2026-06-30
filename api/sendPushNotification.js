@@ -188,7 +188,7 @@ function absoluteAppUrl(url = "") {
 }
 
 function publicIconUrl() {
-  return `${appBaseUrl()}/icons/pwa-192.png`;
+  return `${appBaseUrl()}/icons/notification-icon.png`;
 }
 
 function stringData(payload) {

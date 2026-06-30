@@ -12,7 +12,7 @@ self.skipWaiting();
 clientsClaim();
 setCacheNameDetails({
   prefix: "roca-eterna-musica",
-  suffix: "v1.3-build-23",
+  suffix: "v1.3-build-24",
   precache: "precache",
   runtime: "runtime"
 });
@@ -35,7 +35,7 @@ registerRoute(
   })
 );
 
-const CACHE_NAME = "roca-eterna-musica-v1.0.23-modal-scroll";
+const CACHE_NAME = "roca-eterna-musica-v1.0.24-notification-icon";
 const OLD_ICON_PATTERNS = [
   "icon-192",
   "icon-512",
@@ -53,7 +53,7 @@ const firebaseConfig = {
 };
 
 const baseUrl = new URL(self.registration.scope).pathname || "/";
-const iconPath = `${baseUrl.replace(/\/$/, "")}/icons/pwa-192.png`;
+const iconPath = `${baseUrl.replace(/\/$/, "")}/icons/notification-icon.png`;
 const hasConfig = Object.values(firebaseConfig).every(Boolean);
 const shownTags = new Set();
 
@@ -64,6 +64,7 @@ self.addEventListener("install", (event) => {
       `${baseUrl}favicon.png`,
       `${baseUrl}icons/roca-eterna-logo-light.png`,
       `${baseUrl}icons/roca-eterna-logo-dark.png`,
+      `${baseUrl}icons/notification-icon.png`,
       `${baseUrl}icons/pwa-192.png`,
       `${baseUrl}icons/pwa-512.png`,
       `${baseUrl}icons/pwa-maskable-192.png`,

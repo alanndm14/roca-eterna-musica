@@ -206,10 +206,7 @@ export function getInstitutionalLogo(settings = {}, fallback = "", themeMode = "
 }
 
 export function resolveAppLogoForNotification(settings = {}, themeMode = "light") {
-  const effectiveMode = getEffectiveThemeMode(themeMode);
-  const preferred = effectiveMode === "dark" ? settings.logoDarkUrl : settings.logoLightUrl;
-  const alternate = effectiveMode === "dark" ? settings.logoLightUrl : settings.logoDarkUrl;
-  return resolvePublicAssetUrl(preferred || alternate || "icons/pwa-192.png");
+  return resolvePublicAssetUrl("icons/notification-icon.png");
 }
 
 export function shouldInvertInstitutionalLogo(settings = {}, themeMode = "system") {
