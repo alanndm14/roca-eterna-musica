@@ -20,7 +20,20 @@ import { getAssistantServiceOptions } from "../../services/serviceOptions";
 
 const searchTabs = [
   { id: "title", label: "Cantos y letra", icon: Music2 },
+  { id: "history", label: "Por historial", icon: CalendarDays },
   { id: "theme", label: "Por tema", icon: Tags }
+];
+
+const historyFilterOptions = [
+  { value: "", label: "Última vez" },
+  { value: "none", label: "Sin historial" },
+  ...Array.from({ length: 11 }, (_, index) => {
+    const months = index + 2;
+    return {
+      value: `m${months}`,
+      label: months === 12 ? "Hace un año" : `Hace ${months} meses`
+    };
+  })
 ];
 
 function suggestedServiceType(dateValue = "") {
@@ -163,6 +176,99 @@ function selectedItemId(item = {}) {
   return item.song?.id || item.songId || item.id;
 }
 
+function usageForSong(usageIndex, songId) {
+  return usageIndex?.usage?.get(songId) || null;
+}
+
+function historyMonthBucket(daysSince) {
+  if (daysSince === null || daysSince === undefined || !Number.isFinite(daysSince)) return null;
+  return Math.floor(Number(daysSince) / 30);
+}
+
+function historyLabel(usage) {
+  if (!usage?.lastUsedAt) return "Sin historial previo";
+  const days = Number(usage.lastUsedDays);
+  if (!Number.isFinite(days)) return `Último uso: ${usage.lastUsedAt}`;
+  if (days < 30) return `Último uso: hace ${days} día(s)`;
+  const months = Math.floor(days / 30);
+  const rest = days % 30;
+  return rest ? `Último uso: hace ${months} mes(es) y ${rest} día(s)` : `Último uso: hace ${months} mes(es)`;
+}
+
+function historyFilterMatches(usage, filter) {
+  if (!filter) return true;
+  if (filter === "none") return !usage?.lastUsedAt;
+  const months = Number(String(filter).replace("m", ""));
+  if (!Number.isFinite(months)) return true;
+  const bucket = historyMonthBucket(usage?.lastUsedDays);
+  if (bucket === null) return false;
+  return months >= 12 ? bucket >= 12 : bucket === months;
+}
+
+function readinessSignals(song = {}) {
+  const positives = [];
+  const penalties = [];
+  if (song.keynoteReviewStatus === "completado") positives.push({ value: 4, label: "Keynote listo" });
+  else penalties.push({ value: -3, label: "Keynote pendiente" });
+  if (song.pdfReviewStatus === "completado" || song.drivePdfUrl || song.pdfUrl || song.localPdfPath) positives.push({ value: 4, label: "PDF listo" });
+  else penalties.push({ value: -3, label: "PDF pendiente" });
+  if (song.mainKey || song.keyWithCapo) positives.push({ value: 2, label: "Tono definido" });
+  else penalties.push({ value: -2, label: "Falta tono" });
+  return { positives, penalties };
+}
+
+function buildHistoryRecommendations(songs = [], usageIndex, { filter = "", sort = "oldest" } = {}) {
+  const rows = songs
+    .map((song) => {
+      const usage = usageForSong(usageIndex, song.id);
+      const hasHistory = Boolean(usage?.lastUsedAt);
+      const daysSince = hasHistory && Number.isFinite(Number(usage.lastUsedDays)) ? Number(usage.lastUsedDays) : Number.POSITIVE_INFINITY;
+      return { song, usage, hasHistory, daysSince };
+    })
+    .filter((item) => historyFilterMatches(item.usage, filter));
+
+  rows.sort((a, b) => {
+    if (sort === "recent") {
+      if (a.hasHistory !== b.hasHistory) return a.hasHistory ? -1 : 1;
+      return a.daysSince - b.daysSince || String(a.song.title || "").localeCompare(String(b.song.title || ""), "es");
+    }
+    if (a.hasHistory !== b.hasHistory) return a.hasHistory ? 1 : -1;
+    return b.daysSince - a.daysSince || String(a.song.title || "").localeCompare(String(b.song.title || ""), "es");
+  });
+
+  return rows.map((item, index) => {
+    const score = Math.max(1, 100 - index);
+    const signals = readinessSignals(item.song);
+    const usageText = historyLabel(item.usage);
+    const positives = [
+      { value: score, label: item.hasHistory ? usageText : "Sin historial previo" },
+      ...signals.positives
+    ];
+    const penalties = [
+      ...signals.penalties,
+      ...(item.hasHistory && item.daysSince < 30 ? [{ value: -8, label: "Uso reciente" }] : [])
+    ];
+    return {
+      song: item.song,
+      score,
+      reasons: positives.map((entry) => entry.label),
+      warnings: penalties.map((entry) => entry.label),
+      usageSummary: {
+        lastUse: usageText,
+        monthly: `${item.usage?.recent30Count || 0} uso(s) en 30 días`
+      },
+      scoreDetails: {
+        positives,
+        penalties,
+        warnings: [],
+        rawScore: score,
+        finalScore: score,
+        usage: item.usage || null
+      }
+    };
+  });
+}
+
 export function SongSuggestionAssistant({
   songs = [],
   schedules = [],
@@ -191,7 +297,9 @@ export function SongSuggestionAssistant({
   const [titleQuery, setTitleQuery] = useState("");
   const [selectedThemes, setSelectedThemes] = useState([]);
   const [pdfTerms, setPdfTerms] = useState([]);
-  const [rotationPriority, setRotationPriority] = useState("underused");
+  const [historyFilter, setHistoryFilter] = useState("");
+  const [historySort, setHistorySort] = useState("oldest");
+  const rotationPriority = "strict";
   const [categoryChoice, setCategoryChoice] = useState("cualquiera");
   const [hasSearched, setHasSearched] = useState(false);
   const [dismissedIds, setDismissedIds] = useState([]);
@@ -317,6 +425,10 @@ export function SongSuggestionAssistant({
 
   const recommendations = useMemo(() => {
     if (!hasSearched) return [];
+    if (searchTab === "history") {
+      return buildHistoryRecommendations(safeSongs, usageIndex, { filter: historyFilter, sort: historySort })
+        .filter((item) => !dismissedIds.includes(item.song.id));
+    }
     return getSongRecommendations(safeSongs, safeSchedules, searchOptions)
       .map((item) => ({
         ...item,
@@ -339,18 +451,23 @@ export function SongSuggestionAssistant({
   }, [
     dismissedIds,
     hasSearched,
+    historyFilter,
+    historySort,
     normalizedThemes,
     normalizedTitleQuery,
     pdfTerms.length,
     safeSchedules,
     safeSongs,
+    searchTab,
     searchOptions,
-    titleSearchMatches
+    titleSearchMatches,
+    usageIndex
   ]);
 
   const selectedIds = useMemo(() => new Set(selectedItems.map(selectedItemId)), [selectedItems]);
   const activeCriteria = [
     normalizedTitleQuery ? `Título: ${titleQuery.trim()}` : "",
+    searchTab === "history" && historyFilter ? historyFilterOptions.find((item) => item.value === historyFilter)?.label : "",
     selectedThemes.length ? `${selectedThemes.length} tema(s)` : "",
     pdfTerms.length ? `${pdfTerms.length} palabra(s) o frase(s)` : ""
   ].filter(Boolean);
@@ -427,6 +544,54 @@ export function SongSuggestionAssistant({
       setIsIndexing(false);
     }
   };
+
+  const renderSelectionPanel = (className = "") => (
+    <SmartPanel className={className}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-black uppercase tracking-wide text-brass">Programación</p>
+          <h3 className="mt-1 text-xl font-black text-ink">{selectedItems.length} canto(s)</h3>
+        </div>
+        <span className="grid h-10 w-10 place-items-center rounded-xl bg-ink text-white dark:bg-brass dark:text-ink">
+          <ListMusic className="h-5 w-5" />
+        </span>
+      </div>
+      <p className="mt-2 text-sm leading-6 text-ink/55">Agrega solo los cantos que elijas y arrástralos para ordenar el servicio.</p>
+
+      <div className="mt-4">
+        {selectedItems.length ? (
+          <SortableList items={selectedItems} getId={selectedItemId} onReorder={setSelectedItems} className="grid gap-2">
+            {(item, index, dragHandleProps) => (
+              <article className="grid min-w-0 grid-cols-[40px_auto_minmax(0,1fr)_36px] items-center gap-2 rounded-xl border border-ink/10 bg-white/70 p-2.5 dark:border-white/10 dark:bg-white/7">
+                <SortableHandle {...dragHandleProps} />
+                <SongCoverImage song={item.song} wrapperClassName="h-10 w-10 rounded-xl" />
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-black text-ink">{index + 1}. {item.song.title}</p>
+                  <p className="truncate text-xs font-semibold text-ink/45">{item.song.category || "Sin categoría"} · {item.song.keyWithCapo || item.song.mainKey || "Sin tono"}</p>
+                </div>
+                <button
+                  type="button"
+                  aria-label={`Quitar ${item.song.title}`}
+                  onClick={() => removeSong(item.song.id)}
+                  className="grid h-9 w-9 place-items-center rounded-lg text-ink/40 transition hover:bg-red-500/10 hover:text-red-600"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </article>
+            )}
+          </SortableList>
+        ) : (
+          <div className="rounded-2xl bg-ink/5 p-4 text-sm text-ink/55 dark:bg-white/7">Todavía no has agregado cantos.</div>
+        )}
+      </div>
+
+      {status ? <p className="mt-4 rounded-xl border border-brass/20 bg-brass/10 p-3 text-sm font-bold text-ink">{status}</p> : null}
+      <Button className="mt-4 w-full" onClick={saveSelection} disabled={!canEdit || !selectedItems.length} isLoading={isSaving}>
+        {targetSchedule ? <Check className="h-4 w-4" /> : <CalendarDays className="h-4 w-4" />}
+        {targetSchedule ? "Guardar programación" : "Crear programación"}
+      </Button>
+    </SmartPanel>
+  );
 
   return (
     <section className="mt-6 grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(300px,0.65fr)]">
@@ -519,6 +684,25 @@ export function SongSuggestionAssistant({
                 </div>
               </div>
             ) : null}
+            {searchTab === "history" ? (
+              <div className="grid gap-4 md:grid-cols-2">
+                <section className="rounded-2xl border border-ink/10 bg-white/70 p-4 dark:border-white/12 dark:bg-black/20">
+                  <p className="text-xs font-black uppercase tracking-wide text-brass">Última vez</p>
+                  <Select className="mt-3" value={historyFilter} onChange={(event) => setHistoryFilter(event.target.value)}>
+                    {historyFilterOptions.map((option) => (
+                      <option key={option.value || "all"} value={option.value}>{option.label}</option>
+                    ))}
+                  </Select>
+                </section>
+                <section className="rounded-2xl border border-ink/10 bg-white/70 p-4 dark:border-white/12 dark:bg-black/20">
+                  <p className="text-xs font-black uppercase tracking-wide text-brass">Ordenar por</p>
+                  <Select className="mt-3" value={historySort} onChange={(event) => setHistorySort(event.target.value)}>
+                    <option value="oldest">Más tiempo sin cantarse</option>
+                    <option value="recent">Más recientes primero</option>
+                  </Select>
+                </section>
+              </div>
+            ) : null}
             {searchTab === "theme" ? (
               <div className="grid gap-3">
                 <Field label="Temas">
@@ -545,14 +729,7 @@ export function SongSuggestionAssistant({
             ) : null}
           </div>
 
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            <Field label="Rotación">
-              <Select value={rotationPriority} onChange={(event) => setRotationPriority(event.target.value)}>
-                <option value="underused">Priorizar mayor tiempo sin cantarse</option>
-                <option value="balanced">Equilibrada</option>
-                <option value="strict">Evitar fuertemente los recientes</option>
-              </Select>
-            </Field>
+          <div className="mt-5 grid gap-3">
             <Field label="Categoría">
               <Select value={categoryChoice} onChange={(event) => setCategoryChoice(event.target.value)}>
                 <option value="cualquiera">Cualquiera</option>
@@ -567,15 +744,19 @@ export function SongSuggestionAssistant({
             <div className="mt-4 flex flex-wrap gap-2">
               {activeCriteria.map((criterion) => <span key={criterion} className="rounded-full bg-brass/12 px-3 py-1 text-xs font-bold text-brass">{criterion}</span>)}
             </div>
-          ) : (
-            <p className="mt-4 text-xs font-semibold text-ink/50">Sin búsqueda específica: se ordenará todo el repertorio por rotación y preparación.</p>
-          )}
+          ) : searchTab !== "history" ? (
+            <p className="mt-4 text-xs font-semibold text-ink/50">
+              Sin búsqueda específica: se ordenará todo el repertorio por rotación y preparación.
+            </p>
+          ) : null}
 
           <Button variant="accent" className="mt-4 w-full" onClick={search}>
             <Search className="h-4 w-4" />
             Buscar sugerencias
           </Button>
         </SmartPanel>
+
+        {renderSelectionPanel("xl:hidden")}
 
         {hasSearched ? (
           <SmartPanel>
@@ -611,17 +792,18 @@ export function SongSuggestionAssistant({
         ) : null}
       </div>
 
+      <div className="hidden xl:block">
       <SmartPanel className="h-fit xl:sticky xl:top-24">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-black uppercase tracking-wide text-brass">Programación</p>
+          <p className="text-xs font-black uppercase tracking-wide text-brass">Programación</p>
             <h3 className="mt-1 text-xl font-black text-ink">{selectedItems.length} canto(s)</h3>
           </div>
           <span className="grid h-10 w-10 place-items-center rounded-xl bg-ink text-white dark:bg-brass dark:text-ink">
             <ListMusic className="h-5 w-5" />
           </span>
         </div>
-        <p className="mt-2 text-sm leading-6 text-ink/55">Agrega solo los cantos que elijas y arrástralos para ordenar el servicio.</p>
+      <p className="mt-2 text-sm leading-6 text-ink/55">Agrega solo los cantos que elijas y arrástralos para ordenar el servicio.</p>
 
         <div className="mt-4">
           {selectedItems.length ? (
@@ -632,7 +814,7 @@ export function SongSuggestionAssistant({
                   <SongCoverImage song={item.song} wrapperClassName="h-10 w-10 rounded-xl" />
                   <div className="min-w-0">
                     <p className="truncate text-sm font-black text-ink">{index + 1}. {item.song.title}</p>
-                    <p className="truncate text-xs font-semibold text-ink/45">{item.song.category || "Sin categoría"} · {item.song.keyWithCapo || item.song.mainKey || "Sin tono"}</p>
+                  <p className="truncate text-xs font-semibold text-ink/45">{item.song.category || "Sin categoría"} · {item.song.keyWithCapo || item.song.mainKey || "Sin tono"}</p>
                   </div>
                   <button
                     type="button"
@@ -646,16 +828,17 @@ export function SongSuggestionAssistant({
               )}
             </SortableList>
           ) : (
-            <div className="rounded-2xl bg-ink/5 p-4 text-sm text-ink/55 dark:bg-white/7">Todavía no has agregado cantos.</div>
+          <div className="rounded-2xl bg-ink/5 p-4 text-sm text-ink/55 dark:bg-white/7">Todavía no has agregado cantos.</div>
           )}
         </div>
 
         {status ? <p className="mt-4 rounded-xl border border-brass/20 bg-brass/10 p-3 text-sm font-bold text-ink">{status}</p> : null}
         <Button className="mt-4 w-full" onClick={saveSelection} disabled={!canEdit || !selectedItems.length} isLoading={isSaving}>
           {targetSchedule ? <Check className="h-4 w-4" /> : <CalendarDays className="h-4 w-4" />}
-          {targetSchedule ? "Guardar programación" : "Crear programación"}
+        {targetSchedule ? "Guardar programación" : "Crear programación"}
         </Button>
       </SmartPanel>
+      </div>
     </section>
   );
 }

@@ -518,7 +518,8 @@ export function Songs() {
     missingLinks: "",
     smartPreset: "",
     smartPresetLabel: "",
-    artist: ""
+    artist: "",
+    history: ""
   });
   const [viewMode, setViewMode] = useState(() => localStorage.getItem("roca-eterna-song-view-mode") || "cards");
   const [editingSong, setEditingSong] = useState(null);
@@ -646,7 +647,8 @@ export function Songs() {
     missingLinks: "",
     smartPreset: "",
     smartPresetLabel: "",
-    artist: ""
+    artist: "",
+    history: ""
   };
   const clearFilters = () => setFilters(clearFilterValues);
 
@@ -681,6 +683,10 @@ export function Songs() {
         const matchesFormat = !filters.format || song.format === filters.format;
         const matchesKeyChange = !filters.keyChange || (filters.keyChange === "si" ? song.hasKeyChange : !song.hasKeyChange);
         const matchesArtist = !filters.artist || normalizeSearchText(song.artistOrSource) === normalizeSearchText(filters.artist);
+        const hasHistory = (realUsageBySong.get(song.id) || 0) > 0;
+        const matchesHistory = !filters.history
+          || (filters.history === "with" && hasHistory)
+          || (filters.history === "without" && !hasHistory);
         const links = linkCompleteness(song);
         const hasLocalPdf = links.localPdf;
         const matchesLocalPdf = !filters.localPdf
@@ -706,7 +712,7 @@ export function Songs() {
           || (filters.smartPreset === "hymns-ready" && categoryText.includes("himno") && song.keynoteReviewStatus === "completado")
           || (filters.smartPreset === "repeated" && usageCount >= 2);
         if (isViewer) return matchesQuery && matchesArtist;
-        return matchesQuery && matchesCategory && matchesMainTheme && matchesOtherTheme && matchesKey && matchesCapo && matchesMusic && matchesKeynote && matchesPdf && matchesSung && matchesFormat && matchesKeyChange && matchesArtist && matchesLocalPdf && matchesYoutube && matchesSpotify && matchesDriveLink && matchesExternalPdf && matchesMissingLinks && matchesSmartPreset;
+        return matchesQuery && matchesCategory && matchesMainTheme && matchesOtherTheme && matchesKey && matchesCapo && matchesMusic && matchesKeynote && matchesPdf && matchesSung && matchesFormat && matchesKeyChange && matchesArtist && matchesHistory && matchesLocalPdf && matchesYoutube && matchesSpotify && matchesDriveLink && matchesExternalPdf && matchesMissingLinks && matchesSmartPreset;
       }),
     [filters, isViewer, realUsageBySong, songs]
   );
@@ -796,7 +802,7 @@ export function Songs() {
           ) : null}
         </div>
 
-        <div className={`mt-5 grid gap-3 ${isViewer ? "" : "lg:grid-cols-[1.6fr_0.8fr_0.8fr_0.7fr]"}`}>
+        <div className={`mt-5 grid gap-3 ${isViewer ? "" : "lg:grid-cols-[1.35fr_0.75fr_0.85fr_0.75fr_0.75fr]"}`}>
           <div className="relative">
             <Search className="absolute left-3 top-3 h-4 w-4 text-ink/35" />
             <Input className="pl-9" placeholder={isViewer ? "Buscar por título o letra del PDF" : "Buscar por nombre, fuente, tema, tono o comentario"} value={filters.query} onChange={(event) => setFilter("query", event.target.value)} />
@@ -805,19 +811,28 @@ export function Songs() {
             <option value="">Todas las categorías</option>
             {categories.map((category) => <option key={category}>{category}</option>)}
           </Select>
+          <Select value={filters.artist} onChange={(event) => setFilter("artist", event.target.value)}>
+            <option value="">Todos los artistas/fuentes</option>
+            {artistOptions.map((artist) => <option key={artist} value={artist}>{artist}</option>)}
+          </Select>
           <Select value={filters.mainTheme} onChange={(event) => setFilter("mainTheme", event.target.value)}>
             <option value="">Tema principal</option>
             {themeOptions.map((theme) => <option key={theme}>{theme}</option>)}
           </Select>
-          <Select value={filters.key} onChange={(event) => setFilter("key", event.target.value)}>
-            <option value="">Todos los tonos</option>
-            {keyOptions.map((key) => <option key={key}>{key}</option>)}
+          <Select value={filters.history} onChange={(event) => setFilter("history", event.target.value)}>
+            <option value="">Historial</option>
+            <option value="with">Con historial</option>
+            <option value="without">Sin historial</option>
           </Select></> : null}
         </div>
 
         {!isViewer ? <details className="mt-4 rounded-2xl border border-ink/10 bg-white p-4 dark:border-white/10 dark:bg-white/5">
           <summary className="cursor-pointer text-sm font-bold text-ink">Filtros avanzados</summary>
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <Select value={filters.key} onChange={(event) => setFilter("key", event.target.value)}>
+              <option value="">Todos los tonos</option>
+              {keyOptions.map((key) => <option key={key}>{key}</option>)}
+            </Select>
             <Select value={filters.otherTheme} onChange={(event) => setFilter("otherTheme", event.target.value)}>
               <option value="">Otros temas</option>
               {themeOptions.map((theme) => <option key={theme}>{theme}</option>)}
@@ -883,10 +898,6 @@ export function Songs() {
               <option value="missing">Falta algún enlace</option>
               <option value="complete">Completos</option>
             </Select>
-            <Select value={filters.artist} onChange={(event) => setFilter("artist", event.target.value)}>
-              <option value="">Todos los artistas/fuentes</option>
-              {artistOptions.map((artist) => <option key={artist} value={artist}>{artist}</option>)}
-            </Select>
           </div>
         </details> : null}
 
@@ -901,6 +912,11 @@ export function Songs() {
             {filters.artist ? (
               <button type="button" onClick={clearSmartRouteFilter} className="rounded-full bg-brass/14 px-3 py-1 text-xs font-black text-brass">
                 Artista: {filters.artist} x
+              </button>
+            ) : null}
+            {filters.history ? (
+              <button type="button" onClick={clearSmartRouteFilter} className="rounded-full bg-brass/14 px-3 py-1 text-xs font-black text-brass">
+                {filters.history === "with" ? "Con historial" : "Sin historial"} x
               </button>
             ) : null}
           </div>

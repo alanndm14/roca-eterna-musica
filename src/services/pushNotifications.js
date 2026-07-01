@@ -72,7 +72,7 @@ const pushBaseDiagnostic = (overrides = {}) => ({
 
 const deniedInstructions = "Las notificaciones están bloqueadas para este sitio. Reactívalas desde Chrome > Configuración > Configuración de sitios > Notificaciones y permite musica.rocaeternamexico.com.mx. También revisa Ajustes del teléfono > Apps > Chrome > Notificaciones.";
 
-const androidDefaultInstructions = "Este sitio todavia no tiene permiso de notificaciones. Toca Activar notificaciones para solicitarlo. Los permisos generales de Chrome no bastan; este sitio debe tener permiso propio.";
+const androidDefaultInstructions = "Este sitio todavía no tiene permiso de notificaciones. Toca Activar notificaciones para solicitarlo. Los permisos generales de Chrome no bastan; este sitio debe tener permiso propio.";
 
 const iconUrl = () => {
   return resolvePublicAssetUrl("icons/notification-icon.png");
@@ -86,7 +86,7 @@ const normalizePushPayload = (payload = {}) => {
   return {
     id: notificationId,
     notificationId,
-    title: notification.title || data.title || "Roca Eterna Musica",
+    title: notification.title || data.title || "Roca Eterna Música",
     body: notification.body || data.body || data.message || "",
     icon: notification.icon || data.icon || iconUrl(),
     badge: data.badge || iconUrl(),
@@ -264,7 +264,7 @@ export async function getPushSupportStatus() {
   }
   if (!firebaseVapidKey) {
     return pushBaseDiagnostic({
-      reason: "Las notificaciones push aun no estan configuradas. Las notificaciones dentro de la app siguen activas."
+      reason: "Las notificaciones push aún no están configuradas. Las notificaciones dentro de la app siguen activas."
     });
   }
   if (!("Notification" in window)) {
@@ -649,7 +649,7 @@ export async function requestSiteNotificationPermissionOnly() {
   const permission = await Notification.requestPermission();
   result.permissionAfter = permission;
   if (permission === "default") {
-    result.error = "Chrome no mostro el permiso. En algunos Android, las push web requieren instalar la app como PWA o abrir el sitio desde Chrome completo, no desde una vista embebida. Abre el sitio en Chrome, menu de tres puntos, Agregar a pantalla principal o Instalar app, abre desde el icono instalado y toca Activar notificaciones.";
+    result.error = "Chrome no mostró el permiso. En algunos Android, las push web requieren instalar la app como PWA o abrir el sitio desde Chrome completo, no desde una vista embebida. Abre el sitio en Chrome, menú de tres puntos, Agregar a pantalla principal o Instalar app, abre desde el ícono instalado y toca Activar notificaciones.";
   } else if (permission !== "granted") {
     result.error = "El permiso de notificaciones no fue concedido.";
   }
@@ -768,7 +768,7 @@ export async function testLocalNotification(options = {}) {
     result.attempted = true;
     const localResult = await showLocalTestNotification({
       title: options.requireInteraction ? "Prueba local persistente" : "Prueba local",
-      body: "Chrome puede mostrar notificaciones para Roca Eterna Musica.",
+      body: "Chrome puede mostrar notificaciones para Roca Eterna Música.",
       requireInteraction: Boolean(options.requireInteraction)
     });
     result.method = localResult.method;

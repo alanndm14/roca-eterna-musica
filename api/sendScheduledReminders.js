@@ -94,7 +94,7 @@ function normalizeText(value = "") {
 
 function serviceName(serviceType = "") {
   const normalized = normalizeText(serviceType);
-  if (normalized.includes("miercoles")) return "miercoles de oracion";
+  if (normalized.includes("miercoles")) return "miércoles de oración";
   if (normalized.includes("domingo") && (normalized.includes("pm") || normalized.includes("tarde"))) return "domingo PM";
   if (normalized.includes("domingo")) return "domingo AM";
   if (normalized.includes("especial")) return "servicio especial";
@@ -103,7 +103,7 @@ function serviceName(serviceType = "") {
 
 function targetWeekdayWord(serviceType = "", plannedDate = "") {
   const normalized = normalizeText(serviceType);
-  if (normalized.includes("miercoles")) return "miercoles";
+  if (normalized.includes("miercoles")) return "miércoles";
   if (normalized.includes("domingo")) return "domingo";
   const date = parseDateOnly(plannedDate);
   if (!date) return "servicio";
@@ -118,7 +118,7 @@ function reminderKind(plannedSong, today) {
   if (days === 2) {
     return {
       id: "two-days",
-      title: "Canto nuevo en 2 dias"
+      title: "Canto nuevo en 2 días"
     };
   }
 
@@ -131,7 +131,7 @@ function reminderKind(plannedSong, today) {
   if ((isWednesday && days === 6) || (isSunday && days === 3)) {
     return {
       id: "previous-thursday",
-      title: `Canto nuevo el proximo ${targetWeekdayWord(plannedSong.serviceType, plannedDate)}`
+      title: `Canto nuevo el próximo ${targetWeekdayWord(plannedSong.serviceType, plannedDate)}`
     };
   }
 
@@ -195,7 +195,7 @@ async function createInternalNotification(plannedSong, reminder, notificationId,
     dismissedBy: [],
     createdBy: "system",
     createdByUid: "system",
-    createdByName: "Recordatorio automatico",
+    createdByName: "Recordatorio automático",
     createdByEmail: "",
     createdAt: admin.firestore.FieldValue.serverTimestamp()
   });
@@ -254,7 +254,7 @@ function hasValidCronSecret(request) {
 
 export default async function handler(request, response) {
   if (!["GET", "POST"].includes(request.method)) {
-    return sendJson(response, 405, { ok: false, message: "Metodo no permitido." });
+    return sendJson(response, 405, { ok: false, message: "Método no permitido." });
   }
 
   if (!hasValidCronSecret(request)) {
@@ -293,7 +293,7 @@ export default async function handler(request, response) {
 
       due += 1;
       const notificationId = notificationIdFor(plannedSong, reminder);
-      const body = `${plannedSong.songTitle || "Canto nuevo"} - ${serviceName(plannedSong.serviceType)} ${shortDate(plannedSong.plannedDate)}`;
+      const body = `${plannedSong.songTitle || "Canto nuevo"} · ${serviceName(plannedSong.serviceType)} · ${shortDate(plannedSong.plannedDate)}`;
 
       try {
         const reserved = await reserveDelivery(notificationId);

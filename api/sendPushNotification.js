@@ -166,7 +166,7 @@ function safeInternalUrl(url = "") {
     const parsed = new URL(value);
     const appUrl = new URL(appBaseUrl());
     if (parsed.origin !== appUrl.origin) {
-      const error = new Error("La URL de la notificacion debe pertenecer a la app.");
+      const error = new Error("La URL de la notificación debe pertenecer a la app.");
       error.status = 400;
       error.stage = "validate_payload";
       throw error;
@@ -199,7 +199,7 @@ async function verifyRequester(request) {
   const authHeader = request.headers.authorization || "";
   const idToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
   if (!idToken) {
-    const error = new Error("Falta token de autenticacion.");
+    const error = new Error("Falta token de autenticación.");
     error.status = 401;
     error.stage = "verify_id_token";
     throw error;
@@ -215,7 +215,7 @@ async function verifyAppCheckIfRequired(request) {
     // cliente publicado termina de recibir su clave de App Check.
     logSafe("App Check warning", {
       stage: "verify_app_check",
-      message: "Cliente autenticado sin token de App Check; se permitio compatibilidad temporal."
+      message: "Cliente autenticado sin token de App Check; se permitió compatibilidad temporal."
     });
     return;
   }
@@ -241,7 +241,7 @@ async function checkRole(decoded, payload = {}) {
     const requesterSnap = await withFirestoreTimeout(
       admin.firestore().doc(`users/${decoded.uid}`).get(),
       "check_role",
-      "Validacion de permisos en Firestore"
+      "Validación de permisos en Firestore"
     );
     const requester = requesterSnap.data();
     const requesterEmail = String(requester?.email || "").trim().toLowerCase();
@@ -275,7 +275,7 @@ function enforceRateLimit(uid = "") {
   const bucket = requestBuckets.get(key) || [];
   const recent = bucket.filter((timestamp) => now - timestamp < RATE_LIMIT_WINDOW_MS);
   if (recent.length >= RATE_LIMIT_MAX_REQUESTS) {
-    const error = new Error("Demasiados intentos de envio push. Espera un minuto.");
+    const error = new Error("Demasiados intentos de envío push. Espera un minuto.");
     error.status = 429;
     error.stage = "rate_limit";
     throw error;
@@ -290,16 +290,16 @@ function validatePayload(payload = {}) {
   const type = String(payload.type || "other");
   const mode = String(payload.mode || "broadcast");
   if (!allowedTypes.has(type)) {
-    return { ok: false, code: "INVALID_TYPE", message: "Tipo de notificacion no permitido." };
+    return { ok: false, code: "INVALID_TYPE", message: "Tipo de notificación no permitido." };
   }
   if (!title || !body) {
-    return { ok: false, code: "MISSING_TITLE_BODY", message: "Faltan titulo o mensaje." };
+    return { ok: false, code: "MISSING_TITLE_BODY", message: "Faltan título o mensaje." };
   }
   if (title.length > 160 || body.length > 500) {
-    return { ok: false, code: "PAYLOAD_TOO_LONG", message: "Titulo o mensaje demasiado largo." };
+    return { ok: false, code: "PAYLOAD_TOO_LONG", message: "Título o mensaje demasiado largo." };
   }
   if (!["broadcast", "targeted", "self_test", "self_test_data_only", "register_topic"].includes(mode)) {
-    return { ok: false, code: "INVALID_MODE", message: "Modo de envio no permitido." };
+    return { ok: false, code: "INVALID_MODE", message: "Modo de envío no permitido." };
   }
   safeInternalUrl(payload.url || "/");
   return { ok: true };
@@ -307,7 +307,7 @@ function validatePayload(payload = {}) {
 
 async function registerBroadcastTopic(token = "") {
   if (!token || token.length < 40) {
-    const error = new Error("Token FCM invalido para registrar el dispositivo.");
+    const error = new Error("Token FCM inválido para registrar el dispositivo.");
     error.status = 400;
     error.stage = "register_topic";
     throw error;
@@ -631,7 +631,7 @@ export default async function handler(request, response) {
   applyCors(request, response);
 
   if (request.method === "OPTIONS") return response.status(204).end();
-  if (request.method !== "POST") return sendJson(response, 405, { ok: false, stage: "method", message: "Metodo no permitido." });
+  if (request.method !== "POST") return sendJson(response, 405, { ok: false, stage: "method", message: "Método no permitido." });
   if (!isAllowedOrigin(request.headers.origin || "")) {
     return sendJson(response, 403, { ok: false, stage: "origin", message: "Origen no permitido." });
   }
@@ -721,7 +721,7 @@ export default async function handler(request, response) {
           deduplicated: true,
           stage: "dedupe",
           notificationId,
-          message: "Este envio push ya fue procesado o esta en proceso.",
+          message: "Este envío push ya fue procesado o está en proceso.",
           previous: reservation.data || null
         });
       }
@@ -828,14 +828,14 @@ export default async function handler(request, response) {
     const partial = sendResult.failed > 0 && sendResult.sent > 0;
     const ok = sendResult.sent > 0 || sendResult.failed === 0;
     const message = sendResult.quotaExceeded
-      ? "FCM reporto cuota excedida. Se pausaron los reintentos."
+      ? "FCM reportó cuota excedida. Se pausaron los reintentos."
       : sendResult.failedPrecondition
-        ? "FCM reporto FAILED_PRECONDITION. Revisa Cloud Messaging API, VAPID key y service account del mismo proyecto."
+        ? "FCM reportó FAILED_PRECONDITION. Revisa Cloud Messaging API, VAPID key y service account del mismo proyecto."
         : partial
           ? "Push enviado parcialmente."
           : ok
             ? "Push enviado."
-            : "No se pudo enviar push a ningun dispositivo.";
+            : "No se pudo enviar push a ningún dispositivo.";
 
     const result = {
       ok,
@@ -896,18 +896,18 @@ export default async function handler(request, response) {
       notificationId,
       ...sanitized,
       message: errorStage === "check_role" && isQuotaError(error)
-        ? "Firestore reporto cuota excedida al validar permisos. El evento se guardo, pero el push no se envio."
+        ? "Firestore reportó cuota excedida al validar permisos. El evento se guardó, pero el push no se envió."
         : errorStage === "read_tokens"
         ? isQuotaError(error)
-          ? "Firestore reporto cuota excedida al leer tokens."
-          : sanitized.message || "Firestore/Admin SDK fallo al leer tokens."
+          ? "Firestore reportó cuota excedida al leer tokens."
+          : sanitized.message || "Firestore/Admin SDK falló al leer tokens."
         : isQuotaError(error)
-        ? "FCM reporto cuota excedida. Se pausaron los reintentos."
+        ? "FCM reportó cuota excedida. Se pausaron los reintentos."
         : isPreconditionError(error)
-          ? "FCM reporto FAILED_PRECONDITION. Revisa Cloud Messaging API, VAPID key y service account del mismo proyecto."
+          ? "FCM reportó FAILED_PRECONDITION. Revisa Cloud Messaging API, VAPID key y service account del mismo proyecto."
           : sanitized.message,
       hint: fromFirestore
-        ? "Fallo en Firestore/Admin SDK antes de enviar a FCM. No es un error de FCM todavia."
+        ? "Falló en Firestore/Admin SDK antes de enviar a FCM. No es un error de FCM todavía."
         : "",
       env: stage === "initialize_admin" ? {
         hasProjectId: Boolean(process.env.FIREBASE_PROJECT_ID),

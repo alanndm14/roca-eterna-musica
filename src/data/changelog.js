@@ -1,5 +1,5 @@
 export const appVersion = "1.3";
-export const appBuildVersion = "1.0.24";
+export const appBuildVersion = "1.0.25";
 
 export const changelog = [
   {

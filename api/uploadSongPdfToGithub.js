@@ -537,7 +537,7 @@ export default async function handler(request, response) {
     return;
   }
   if (request.method !== "POST") {
-    response.status(405).json({ ok: false, code: "METHOD_NOT_ALLOWED", message: "Metodo no permitido." });
+    response.status(405).json({ ok: false, code: "METHOD_NOT_ALLOWED", message: "Método no permitido." });
     return;
   }
   if (!isAllowedOrigin(request.headers.origin || "")) {

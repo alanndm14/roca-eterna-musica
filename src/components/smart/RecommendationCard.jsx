@@ -32,6 +32,10 @@ function compactWarning(text = "") {
   return String(text || "").replace(/:.+$/, "").slice(0, 34);
 }
 
+function shouldHideCompactChip(label = "") {
+  return normalizeSearchText(label) === "tono definido";
+}
+
 function recommendationTone(score = 0) {
   const value = Number(score) || 0;
   if (value >= 90) return { label: "Muy recomendado", chip: "bg-emerald-500/12 text-emerald-800 dark:bg-emerald-400/14 dark:text-emerald-100", bar: "bg-emerald-500" };
@@ -50,7 +54,7 @@ function getVisibleChips(item = {}) {
   const combined = [...positives, ...penalties];
   const seen = new Set();
   return combined.filter((chip) => {
-    if (!chip.label || seen.has(chip.label)) return false;
+    if (!chip.label || shouldHideCompactChip(chip.label) || seen.has(chip.label)) return false;
     seen.add(chip.label);
     return true;
   }).slice(0, 4);

@@ -96,21 +96,6 @@ const formatPlannedNewSongLabel = (plannedSong = {}) => {
   return `${service} ${date}`;
 };
 
-const toDateMs = (value) => {
-  if (!value) return null;
-  if (value?.toDate) return value.toDate().getTime();
-  if (typeof value === "object" && Number.isFinite(value.seconds)) return value.seconds * 1000;
-  const parsed = new Date(value).getTime();
-  return Number.isFinite(parsed) ? parsed : null;
-};
-
-const isRecentlyCreatedSong = (song = {}, days = 30) => {
-  const createdMs = toDateMs(song.createdAt);
-  if (!createdMs) return false;
-  const age = Date.now() - createdMs;
-  return age >= 0 && age <= days * 24 * 60 * 60 * 1000;
-};
-
 const scheduleEntryId = (entry = {}) => entry.songId || entry.titleSnapshot || "";
 
 const simpleHash = (value = "") => {
@@ -122,11 +107,11 @@ const simpleHash = (value = "") => {
   return (hash >>> 0).toString(36);
 };
 
-const summarizeTitles = (titles = [], singularVerb = "Se agrego", pluralVerb = "Se agregaron") => {
+const summarizeTitles = (titles = [], singularVerb = "Se agregó", pluralVerb = "Se agregaron") => {
   const clean = titles.filter(Boolean);
   if (!clean.length) return "";
   if (clean.length === 1) return `${singularVerb}: ${clean[0]}`;
-  return `${pluralVerb}: ${clean.slice(0, 3).join(", ")}${clean.length > 3 ? ` y ${clean.length - 3} mas` : ""}`;
+  return `${pluralVerb}: ${clean.slice(0, 3).join(", ")}${clean.length > 3 ? ` y ${clean.length - 3} más` : ""}`;
 };
 
 const buildScheduleChange = (before = {}, after = {}) => {
@@ -145,13 +130,13 @@ const buildScheduleChange = (before = {}, after = {}) => {
 
   if (beforeEntries.length !== afterEntries.length) parts.push(`Cantidad de cantos: ${beforeEntries.length} a ${afterEntries.length}`);
   const addedSummary = summarizeTitles(addedEntries.map((entry) => entry.titleSnapshot || entry.songId));
-  const removedSummary = summarizeTitles(removedEntries.map((entry) => entry.titleSnapshot || entry.songId), "Se quito", "Se quitaron");
+  const removedSummary = summarizeTitles(removedEntries.map((entry) => entry.titleSnapshot || entry.songId), "Se quitó", "Se quitaron");
   if (addedSummary) parts.push(addedSummary);
   if (removedSummary) parts.push(removedSummary);
-  if (JSON.stringify(commonBefore) !== JSON.stringify(commonAfter)) parts.push("Cambio el orden de los cantos");
-  if (before.date !== after.date) parts.push(`Cambio la fecha a ${after.date || "sin fecha"}`);
-  if (before.time !== after.time) parts.push(`Cambio la hora a ${after.time || "sin hora"}`);
-  if ((before.leader || "") !== (after.leader || "")) parts.push(`Cambio el lider a ${after.leader || "sin definir"}`);
+  if (JSON.stringify(commonBefore) !== JSON.stringify(commonAfter)) parts.push("Cambió el orden de los cantos");
+  if (before.date !== after.date) parts.push(`Cambió la fecha a ${after.date || "sin fecha"}`);
+  if (before.time !== after.time) parts.push(`Cambió la hora a ${after.time || "sin hora"}`);
+  if ((before.leader || "") !== (after.leader || "")) parts.push(`Cambió el líder a ${after.leader || "sin definir"}`);
 
   return {
     relevant: parts.length > 0,
@@ -461,7 +446,7 @@ export function MusicDataProvider({ children }) {
     Promise.resolve()
       .then(() => createNotification(notification))
       .catch((error) => {
-        console.warn("[Push] No se pudo crear la notificacion interna persistente.", {
+        console.warn("[Push] No se pudo crear la notificación interna persistente.", {
           notificationId: notification.pushNotificationId || "",
           message: error?.message || String(error)
         });
@@ -482,7 +467,7 @@ export function MusicDataProvider({ children }) {
     });
     const request = ensurePushBroadcastSubscription(profile)
       .catch((error) => {
-        console.warn("[Push] No se pudo confirmar la suscripcion antes del envio.", error?.message || error);
+        console.warn("[Push] No se pudo confirmar la suscripción antes del envío.", error?.message || error);
         return { ok: false };
       })
       .then((registration) => sendExternalPush({
@@ -550,62 +535,12 @@ export function MusicDataProvider({ children }) {
     }, { tipoEvento: "schedule_created", eventoGuardado: true, novedadInternaCreada: true });
   };
 
-  const getFirstUseRecentSongs = (addedEntries = [], scheduleId = "") => {
-    const previouslyScheduledIds = new Set();
-    schedules.forEach((schedule) => {
-      if (!schedule || schedule.id === scheduleId || schedule.deleted || schedule.active === false) return;
-      (schedule.songs || []).forEach((entry) => {
-        if (entry.songId) previouslyScheduledIds.add(entry.songId);
-      });
-    });
-    return addedEntries
-      .map((entry) => songs.find((song) => song.id === entry.songId))
-      .filter((song) => song?.id && isRecentlyCreatedSong(song) && !previouslyScheduledIds.has(song.id));
-  };
-
-  const notifyNewSongsScheduledBestEffort = (schedulePayload, scheduleId, addedEntries = []) => {
-    if (!isFutureSchedule(schedulePayload) || !scheduleId) return;
-    const newSongs = getFirstUseRecentSongs(addedEntries, scheduleId);
-    if (!newSongs.length) return;
-    const serviceLabel = formatScheduleShortLabel(schedulePayload);
-    const songTitles = newSongs.map((song) => song.title).filter(Boolean);
-    const title = newSongs.length === 1 ? `Canto nuevo para ${serviceLabel}` : `Cantos nuevos para ${serviceLabel}`;
-    const message = newSongs.length === 1
-      ? `${songTitles[0]} se agrego por primera vez a una programación.`
-      : `${songTitles.slice(0, 3).join(", ")}${songTitles.length > 3 ? ` y ${songTitles.length - 3} mas` : ""} se agregaron por primera vez.`;
-    const pushNotificationId = `new-song-scheduled-${scheduleId}-${simpleHash(newSongs.map((song) => song.id).sort().join("|"))}`;
-    const notificationPayload = {
-      type: "new_song",
-      title,
-      message,
-      entityType: "schedule",
-      entityId: scheduleId,
-      scheduleId,
-      songId: newSongs.length === 1 ? newSongs[0].id : "",
-      isFutureSchedule: true,
-      pushNotificationId
-    };
-    showInAppNovelty(notificationPayload);
-    createNotificationBestEffort(notificationPayload);
-    sendPushBestEffort({
-      type: "new_song",
-      title,
-      body: message,
-      url: `/#/programacion?schedule=${scheduleId}`,
-      scheduleId,
-      songId: newSongs.length === 1 ? newSongs[0].id : "",
-      notificationId: pushNotificationId,
-      icon: resolveAppLogoForNotification(settings, "light"),
-      badge: resolveAppLogoForNotification(settings, "light")
-    }, { tipoEvento: "new_song_scheduled", eventoGuardado: true, novedadInternaCreada: true });
-  };
-
   const notifyScheduleUpdatedBestEffort = (schedulePayload, scheduleId, change = {}) => {
     if (!isFutureSchedule(schedulePayload) || !scheduleId || !change.relevant || !change.summary) return;
     const pushNotificationId = `schedule-updated-${scheduleId}-${simpleHash(change.signature || change.summary)}`;
     const notificationPayload = {
       type: "updated_schedule",
-      title: "Programacion actualizada",
+      title: "Programación actualizada",
       message: `${formatScheduleShortLabel(schedulePayload)}: ${change.summary}`,
       entityType: "schedule",
       entityId: scheduleId,
@@ -617,7 +552,7 @@ export function MusicDataProvider({ children }) {
     createNotificationBestEffort(notificationPayload);
     sendPushBestEffort({
       type: "updated_schedule",
-      title: "Programacion actualizada",
+      title: "Programación actualizada",
       body: notificationPayload.message,
       url: `/#/programacion?schedule=${scheduleId}`,
       scheduleId,

@@ -358,6 +358,8 @@ export function MusicianView({ mediaMode = false }) {
     if (!replaceTarget) return [];
     return getReplacementCandidates(replaceTarget.full || {}, songs, schedules, selectedSchedule).slice(0, 20);
   }, [replaceTarget, schedules, selectedSchedule, songs]);
+  const bestReplacementSuggestion = replacementSuggestions[0] || null;
+  const alternateReplacementSuggestions = bestReplacementSuggestion ? replacementSuggestions.slice(1) : replacementSuggestions;
 
   const enterFocusMode = async () => {
     setFocusMode(true);
@@ -1029,22 +1031,41 @@ export function MusicianView({ mediaMode = false }) {
       >
         <div className="h-full min-h-0 space-y-4 overflow-y-auto overscroll-contain pr-1 touch-pan-y [-webkit-overflow-scrolling:touch]">
           <div className="smart-current-song-card overflow-hidden rounded-[1.75rem] border border-brass/25 bg-[linear-gradient(135deg,rgba(255,255,255,0.82),rgba(182,148,95,0.12))] p-4 shadow-soft backdrop-blur-xl">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-brass">Canto actual</p>
-                <h3 className="mt-1 text-2xl font-black text-ink">{replaceTarget?.title}</h3>
-                <p className="mt-1 text-sm text-ink/60">
-                  {replaceTarget?.full?.mainTheme || "Sin tema"} · {replaceTarget?.full?.category || "sin categoría"} · {replaceTarget?.full?.keyWithCapo || replaceTarget?.full?.mainKey || "Sin tono"}
-                </p>
+            {bestReplacementSuggestion ? (
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-brass">La mejor opción</p>
+                    <h3 className="mt-1 text-2xl font-black text-ink">{bestReplacementSuggestion.song.title}</h3>
+                    <p className="mt-1 text-sm text-ink/60">
+                      {bestReplacementSuggestion.song.mainTheme || "Sin tema"} · {bestReplacementSuggestion.song.category || "sin categoría"} · {bestReplacementSuggestion.song.keyWithCapo || bestReplacementSuggestion.song.mainKey || "Sin tono"}
+                    </p>
+                  </div>
+                  <ScoreBadge score={bestReplacementSuggestion.score || 0} label="Compatibilidad" />
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Button className="flex-1" onClick={() => confirmReplacement(bestReplacementSuggestion)}>
+                    Sustituir por esta opción
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    className="flex-1"
+                    onClick={() => window.open(`#/repertorio/${bestReplacementSuggestion.song.id}`, "_blank", "noopener,noreferrer")}
+                  >
+                    Ver detalle
+                  </Button>
+                </div>
               </div>
-              <ScoreBadge score={replacementSuggestions[0]?.score || 0} label="Mejor compatibilidad" />
-            </div>
-            <p className="mt-3 text-sm leading-6 text-ink/62">
-              Las sugerencias comparan tema, categoría, tonalidad, Keynote, PDF disponible y rotación reciente.
-            </p>
+            ) : (
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-brass">La mejor opción</p>
+                <h3 className="mt-1 text-2xl font-black text-ink">Sin sugerencias disponibles</h3>
+                <p className="mt-1 text-sm text-ink/60">No hay cantos alternativos fuera de esta programación.</p>
+              </div>
+            )}
           </div>
           <div className="grid gap-3 pb-[calc(env(safe-area-inset-bottom)+2rem)] md:grid-cols-2 md:pb-4">
-            {replacementSuggestions.map((item) => (
+            {alternateReplacementSuggestions.map((item) => (
               <RecommendationCard
                 key={item.song.id}
                 item={{ ...item, label: "Compatibilidad de sustitución" }}

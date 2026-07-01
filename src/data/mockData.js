@@ -191,6 +191,86 @@ export const sampleSongs = [
     createdAt: "2026-01-12",
     updatedAt: "2026-02-16",
     createdBy: "seed"
+  },
+  {
+    id: "song-grande-fidelidad",
+    title: "Grande es tu fidelidad",
+    artistOrSource: "Himnario congregacional",
+    category: "himno",
+    mainTheme: "gratitud",
+    otherThemes: ["esperanza"],
+    mainKey: "G",
+    capo: 0,
+    keyWithCapo: "G",
+    format: "pdf",
+    keynoteReviewStatus: "completado",
+    pdfReviewStatus: "completado",
+    musicReviewStatus: "completado",
+    internalNotes: "Himno recomendado para apertura.",
+    tags: ["gratitud", "esperanza"],
+    createdAt: "2026-01-15",
+    updatedAt: "2026-01-15",
+    createdBy: "seed"
+  },
+  {
+    id: "song-solo-en-jesus",
+    title: "Solo en Jesus",
+    artistOrSource: "Referencia congregacional",
+    category: "normal",
+    mainTheme: "fe",
+    otherThemes: ["cruz", "gracia"],
+    mainKey: "A",
+    capo: 0,
+    keyWithCapo: "A",
+    format: "pdf",
+    keynoteReviewStatus: "completado",
+    pdfReviewStatus: "pendiente",
+    musicReviewStatus: "completado",
+    internalNotes: "Funciona bien como respuesta.",
+    tags: ["fe", "gracia"],
+    createdAt: "2026-01-20",
+    updatedAt: "2026-01-20",
+    createdBy: "seed"
+  },
+  {
+    id: "song-cerca-de-ti",
+    title: "Cerca de ti",
+    artistOrSource: "Referencia congregacional",
+    category: "normal",
+    mainTheme: "oracion",
+    otherThemes: ["entrega"],
+    mainKey: "D",
+    capo: 0,
+    keyWithCapo: "D",
+    format: "pdf",
+    keynoteReviewStatus: "pendiente",
+    pdfReviewStatus: "completado",
+    musicReviewStatus: "en revision",
+    internalNotes: "Canto sencillo para miercoles.",
+    tags: ["oracion", "entrega"],
+    createdAt: "2026-02-01",
+    updatedAt: "2026-02-01",
+    createdBy: "seed"
+  },
+  {
+    id: "song-dios-de-promesas",
+    title: "Dios de promesas",
+    artistOrSource: "Referencia congregacional",
+    category: "normal",
+    mainTheme: "esperanza",
+    otherThemes: ["fe"],
+    mainKey: "E",
+    capo: 0,
+    keyWithCapo: "E",
+    format: "pdf",
+    keynoteReviewStatus: "completado",
+    pdfReviewStatus: "completado",
+    musicReviewStatus: "completado",
+    internalNotes: "Sin historial para probar sugerencias.",
+    tags: ["esperanza", "fe"],
+    createdAt: "2026-06-01",
+    updatedAt: "2026-06-01",
+    createdBy: "seed"
   }
 ];
 
@@ -255,6 +335,78 @@ export const sampleSchedules = [
     generalNotes: "Servicio entre semana, mantener lista compacta.",
     createdAt: "2026-05-01",
     updatedAt: "2026-05-09",
+    createdBy: "seed"
+  },
+  {
+    id: "schedule-demo-january",
+    date: "2026-01-18",
+    time: "11:00",
+    type: "domingo",
+    serviceType: "domingo-manana",
+    serviceLabel: "Domingo manana",
+    status: "confirmado",
+    leader: "Equipo de alabanza",
+    songs: [
+      { songId: "song-grande-fidelidad", titleSnapshot: "Grande es tu fidelidad", keySnapshot: "G", notes: "" },
+      { songId: "song-solo-en-jesus", titleSnapshot: "Solo en Jesus", keySnapshot: "A", notes: "" }
+    ],
+    generalNotes: "Programacion demo para historial.",
+    createdAt: "2026-01-10",
+    updatedAt: "2026-01-10",
+    createdBy: "seed"
+  },
+  {
+    id: "schedule-demo-february",
+    date: "2026-02-25",
+    time: "19:00",
+    type: "miercoles",
+    serviceType: "miercoles-oracion",
+    serviceLabel: "Miercoles de oracion",
+    status: "confirmado",
+    leader: "Director de musica",
+    songs: [
+      { songId: "song-cerca-de-ti", titleSnapshot: "Cerca de ti", keySnapshot: "D", notes: "" },
+      { songId: "song-recordamos-hoy", titleSnapshot: "Recordamos hoy", keySnapshot: "F", notes: "" }
+    ],
+    generalNotes: "Programacion demo para historial.",
+    createdAt: "2026-02-12",
+    updatedAt: "2026-02-12",
+    createdBy: "seed"
+  },
+  {
+    id: "schedule-demo-march",
+    date: "2026-03-22",
+    time: "17:00",
+    type: "domingo",
+    serviceType: "domingo-tarde",
+    serviceLabel: "Domingo tarde",
+    status: "confirmado",
+    leader: "Equipo de alabanza",
+    songs: [
+      { songId: "song-tu-gloria", titleSnapshot: "Tu gloria", keySnapshot: "G", notes: "" },
+      { songId: "song-solo-en-jesus", titleSnapshot: "Solo en Jesus", keySnapshot: "A", notes: "" }
+    ],
+    generalNotes: "Programacion demo para historial.",
+    createdAt: "2026-03-10",
+    updatedAt: "2026-03-10",
+    createdBy: "seed"
+  },
+  {
+    id: "schedule-demo-april",
+    date: "2026-04-12",
+    time: "11:00",
+    type: "domingo",
+    serviceType: "domingo-manana",
+    serviceLabel: "Domingo manana",
+    status: "confirmado",
+    leader: "Equipo de alabanza",
+    songs: [
+      { songId: "song-grande-fidelidad", titleSnapshot: "Grande es tu fidelidad", keySnapshot: "G", notes: "" },
+      { songId: "song-te-alabamos", titleSnapshot: "Te alabamos", keySnapshot: "E", notes: "" }
+    ],
+    generalNotes: "Programacion demo para historial.",
+    createdAt: "2026-04-01",
+    updatedAt: "2026-04-01",
     createdBy: "seed"
   }
 ];

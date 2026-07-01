@@ -497,7 +497,7 @@ export function Settings() {
         {
           mode: "self_test",
           type: "other",
-          title: "Prueba de Roca Eterna Musica",
+          title: "Prueba de Roca Eterna Música",
           body: "Este dispositivo ya puede recibir push.",
           url: "/#/configuracion",
           token: tokenResult.token,
@@ -605,7 +605,7 @@ export function Settings() {
   const reinstallServiceWorker = async () => {
     const result = await reinstallMessagingServiceWorker();
     setPushDiagnostic({ serviceWorkerRegistered: false, serviceWorkerUrl: result.serviceWorkerUrl, serviceWorkerRemoved: result.removed });
-    setPushStatus("Service worker eliminado para esta app. Recarga la pagina y vuelve a activar notificaciones.");
+    setPushStatus("Service worker eliminado para esta app. Recarga la página y vuelve a activar notificaciones.");
   };
 
   return (
@@ -673,7 +673,7 @@ export function Settings() {
               <Input value={localSettings.logoDarkUrl || ""} disabled={!isAdmin} placeholder="/icons/roca-eterna-logo-dark.png" onChange={(event) => updateSettings("logoDarkUrl", event.target.value)} />
             </Field>
             <Field label="Texto alternativo del logo">
-              <Input value={localSettings.logoAltText || ""} disabled={!isAdmin} placeholder="Roca Eterna Musica" onChange={(event) => updateSettings("logoAltText", event.target.value)} />
+              <Input value={localSettings.logoAltText || ""} disabled={!isAdmin} placeholder="Roca Eterna Música" onChange={(event) => updateSettings("logoAltText", event.target.value)} />
             </Field>
             <Field label="Preferencia de tonalidad">
               <Select value={localSettings.keyPreference || "sharps"} disabled={!isAdmin} onChange={(event) => updateSettings("keyPreference", event.target.value)}>
@@ -710,14 +710,14 @@ export function Settings() {
               title="Vista en modo claro"
               logo={lightLogo}
               source={lightLogoSource}
-              alt={localSettings.logoAltText || "Roca Eterna Musica"}
+              alt={localSettings.logoAltText || "Roca Eterna Música"}
               onDiagnose={async () => setLogoTest(await diagnosePublicAsset(lightLogoSource, "image"))}
             />
             <LogoPreview
               title="Vista en modo oscuro"
               logo={darkLogo}
               source={darkLogoSource}
-              alt={localSettings.logoAltText || "Roca Eterna Musica"}
+              alt={localSettings.logoAltText || "Roca Eterna Música"}
               dark
               onDiagnose={async () => setLogoTest(await diagnosePublicAsset(darkLogoSource, "image"))}
             />
@@ -1346,7 +1346,7 @@ export function Settings() {
                     permisoAntes: localNotificationResult.permissionBefore,
                     permisoDespues: localNotificationResult.permissionAfter,
                     metodoUsado: localNotificationResult.method || "sin metodo",
-                    notificacionLocalIntentada: localNotificationResult.attempted ? "si" : "no",
+                    notificacionLocalIntentada: localNotificationResult.attempted ? "sí" : "no",
                     notificationApiEjecutadaSinError: localNotificationResult.executed ? "si" : "no",
                     origin: localNotificationResult.origin,
                     href: localNotificationResult.href,
@@ -1386,7 +1386,7 @@ export function Settings() {
                   <p className="font-semibold text-ink">Recepción background / service worker</p>
                   <p>{backgroundPushResult ? `Mensaje recibido por service worker: ${backgroundPushResult.title}` : "Sin mensaje background registrado en este navegador."}</p>
                 </div>
-                <p className="pt-2 font-semibold text-ink">Ultimo envio automatico</p>
+                <p className="pt-2 font-semibold text-ink">Último envío automático</p>
                 {pushAutoResult ? (
                   <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-xl bg-ink/5 p-2 text-[11px] dark:bg-white/10">{JSON.stringify({
                     hora: pushAutoResult.at,
@@ -1412,7 +1412,7 @@ export function Settings() {
                     etapa: pushAutoResult.body?.stage,
                     mensaje: pushAutoResult.body?.message || pushAutoResult.error
                   }, null, 2)}</pre>
-                ) : <p>Sin envio automatico registrado en este navegador.</p>}
+                ) : <p>Sin envío automático registrado en este navegador.</p>}
                 {tokenCleanupResult ? (
                   <div className="rounded-xl bg-ink/5 p-2 text-[11px] leading-5 dark:bg-white/10">
                     <p className="font-semibold text-ink">Limpieza de tokens</p>
