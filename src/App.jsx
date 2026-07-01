@@ -9,6 +9,7 @@ import { WelcomeSplash } from "./components/ui/WelcomeSplash";
 import { Button } from "./components/ui/Button";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
 import { MusicDataProvider, useMusicData } from "./hooks/useMusicData";
+import { useUserActivityTracking } from "./hooks/useUserActivityTracking";
 import { appDarkLogo, appLogo } from "./assets/logo";
 import { getEffectiveThemeMode, getInstitutionalLogo } from "./services/songUtils";
 import { Dashboard } from "./pages/Dashboard";
@@ -66,6 +67,7 @@ function DataReady({ children }) {
   const [showGuide, setShowGuide] = useState(false);
   const [guideChecked, setGuideChecked] = useState(false);
   const [updateCheck, setUpdateCheck] = useState({ checked: false, update: null });
+  useUserActivityTracking(profile);
   const dataProgress = initialLoad?.ready ? 1 : Math.max(0, Math.min(1, Number(initialLoad?.progress || 0)));
   const routeProgress = startupLoad.complete ? 1 : Math.max(0, Math.min(1, Number(startupLoad.progress || 0)));
   const startupProgress = Math.round(((dataProgress * 0.72) + (routeProgress * 0.28)) * 100);

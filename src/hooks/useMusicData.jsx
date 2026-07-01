@@ -42,6 +42,8 @@ const defaultLocalData = {
 
 const sampleAuditLogs = [];
 const sampleNotifications = [];
+const sampleUserActivity = [];
+const activityOwnerEmail = "liquea45@gmail.com";
 const obsoleteTestSchedulePushIds = new Set([
   "schedule-created-8Tr8Sa2ulHG89a8Tyd5z",
   "schedule-created-kcU7yosLAZ8BguQbTmM0",
@@ -192,6 +194,7 @@ export function MusicDataProvider({ children }) {
   const [settings, setSettings] = useState(sampleSettings);
   const [auditLogs, setAuditLogs] = useState(sampleAuditLogs);
   const [notifications, setNotifications] = useState(sampleNotifications);
+  const [userActivity, setUserActivity] = useState(sampleUserActivity);
   const [loading, setLoading] = useState(true);
   const [initialLoad, setInitialLoad] = useState({
     completed: 0,
@@ -231,6 +234,7 @@ export function MusicDataProvider({ children }) {
       setSettings(localData.settings || sampleSettings);
       setAuditLogs(localData.auditLogs || sampleAuditLogs);
       setNotifications(localData.notifications || sampleNotifications);
+      setUserActivity(localData.userActivity || sampleUserActivity);
       setLoading(false);
       setInitialLoad({ completed: 6, received: 6, total: 6, progress: 1, ready: true, source: "local" });
       return undefined;
@@ -361,10 +365,18 @@ export function MusicDataProvider({ children }) {
         onSnapshot(query(collection(db, "authorizedEmails"), orderBy("email")), (snapshot) => setAuthorizedEmails(snapshot.docs.map(withId)), (snapshotError) => setError(snapshotError.message)),
         onSnapshot(query(collection(db, "auditLogs"), orderBy("createdAt", "desc"), limit(250)), (snapshot) => setAuditLogs(snapshot.docs.map(withId)), (snapshotError) => setError(snapshotError.message))
       );
+      if (String(profile.email || "").toLowerCase() === activityOwnerEmail) {
+        unsubscribers.push(
+          onSnapshot(query(collection(db, "userActivity"), orderBy("createdAt", "desc"), limit(1000)), (snapshot) => setUserActivity(snapshot.docs.map(withId)), (snapshotError) => setError(snapshotError.message))
+        );
+      } else {
+        setUserActivity([]);
+      }
     } else {
       setUsers([]);
       setAuthorizedEmails([]);
       setAuditLogs([]);
+      setUserActivity([]);
     }
     return () => {
       window.clearTimeout(startupTimeout);
@@ -374,8 +386,8 @@ export function MusicDataProvider({ children }) {
 
   useEffect(() => {
     if (!profile || !useLocal) return;
-    localStorage.setItem(storageKey, JSON.stringify({ songs, schedules, plannedNewSongs, users, authorizedEmails, themes, settings, auditLogs, notifications }));
-  }, [auditLogs, authorizedEmails, notifications, plannedNewSongs, profile, schedules, settings, songs, themes, useLocal, users]);
+    localStorage.setItem(storageKey, JSON.stringify({ songs, schedules, plannedNewSongs, users, authorizedEmails, themes, settings, auditLogs, notifications, userActivity }));
+  }, [auditLogs, authorizedEmails, notifications, plannedNewSongs, profile, schedules, settings, songs, themes, useLocal, userActivity, users]);
 
   useEffect(() => {
     if (!profile?.uid || profile.role !== "admin" || useLocal || !notifications.length) return;
@@ -1549,6 +1561,7 @@ export function MusicDataProvider({ children }) {
       settings,
       auditLogs,
       notifications,
+      userActivity,
       loading,
       initialLoad,
       error,
@@ -1580,7 +1593,7 @@ export function MusicDataProvider({ children }) {
       restoreFromAuditLog,
       seedExampleData
     }),
-    [auditLogs, authorizedEmails, error, initialLoad, loading, notifications, plannedNewSongs, schedules, settings, songs, themes, useLocal, users]
+    [auditLogs, authorizedEmails, error, initialLoad, loading, notifications, plannedNewSongs, schedules, settings, songs, themes, useLocal, userActivity, users]
   );
 
   return <MusicDataContext.Provider value={value}>{children}</MusicDataContext.Provider>;

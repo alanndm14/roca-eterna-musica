@@ -16,7 +16,7 @@ import {
 } from "../../services/smartRecommendations";
 import { formatDate, getScheduleStartDate, isCountableSchedule } from "../../services/dateUtils";
 import { normalizeSearchText } from "../../services/songUtils";
-import { getAssistantServiceOptions } from "../../services/serviceOptions";
+import { getAssistantServiceOptions, getWorshipLeaderOptions } from "../../services/serviceOptions";
 
 const searchTabs = [
   { id: "title", label: "Cantos y letra", icon: Music2 },
@@ -285,6 +285,7 @@ export function SongSuggestionAssistant({
   const safeSongs = Array.isArray(songs) ? songs : [];
   const safeSchedules = Array.isArray(schedules) ? schedules : [];
   const serviceOptions = useMemo(() => getAssistantServiceOptions(settings), [settings]);
+  const worshipLeaderOptions = useMemo(() => [...new Set([...getWorshipLeaderOptions(settings), "Otro"])], [settings]);
   const serviceMeta = useMemo(
     () => Object.fromEntries(serviceOptions.map((option) => [option.assistantLabel, option])),
     [serviceOptions]
@@ -293,6 +294,8 @@ export function SongSuggestionAssistant({
   const [targetDate, setTargetDate] = useState(schedule?.date || initialDate || "");
   const [targetScheduleId, setTargetScheduleId] = useState(schedule?.id || "");
   const [serviceType, setServiceType] = useState(() => schedule ? inferSmartServiceType(schedule) : suggestedServiceType(initialDate));
+  const [leaderChoice, setLeaderChoice] = useState(() => (schedule?.leader && worshipLeaderOptions.includes(schedule.leader)) ? schedule.leader : schedule?.leader ? "Otro" : "");
+  const [manualLeader, setManualLeader] = useState(() => (schedule?.leader && !worshipLeaderOptions.includes(schedule.leader)) ? schedule.leader : "");
   const [searchTab, setSearchTab] = useState("title");
   const [titleQuery, setTitleQuery] = useState("");
   const [selectedThemes, setSelectedThemes] = useState([]);
@@ -328,7 +331,9 @@ export function SongSuggestionAssistant({
     )) || null;
     setTargetScheduleId(nextSchedule?.id || "");
     setServiceType(nextSchedule ? inferSmartServiceType(nextSchedule) : suggestedServiceType(nextDate));
-  }, [initialDate, safeSchedules, schedule]);
+    setLeaderChoice(nextSchedule?.leader && worshipLeaderOptions.includes(nextSchedule.leader) ? nextSchedule.leader : nextSchedule?.leader ? "Otro" : "");
+    setManualLeader(nextSchedule?.leader && !worshipLeaderOptions.includes(nextSchedule.leader) ? nextSchedule.leader : "");
+  }, [initialDate, safeSchedules, schedule, worshipLeaderOptions]);
 
   useEffect(() => {
     const source = targetSchedule?.songs || [];
@@ -341,7 +346,11 @@ export function SongSuggestionAssistant({
   useEffect(() => {
     if (!targetSchedule) return;
     setServiceType(inferSmartServiceType(targetSchedule));
-  }, [targetSchedule]);
+    setLeaderChoice(targetSchedule?.leader && worshipLeaderOptions.includes(targetSchedule.leader) ? targetSchedule.leader : targetSchedule?.leader ? "Otro" : "");
+    setManualLeader(targetSchedule?.leader && !worshipLeaderOptions.includes(targetSchedule.leader) ? targetSchedule.leader : "");
+  }, [targetSchedule, worshipLeaderOptions]);
+
+  const selectedLeader = leaderChoice === "Otro" ? manualLeader.trim() : leaderChoice;
 
   const referenceSchedule = useMemo(() => targetSchedule || (
     targetDate && serviceType
@@ -507,7 +516,7 @@ export function SongSuggestionAssistant({
     try {
       const scheduleSongs = buildScheduleSongs(selectedItems, serviceType);
       if (targetSchedule?.id) {
-        await saveSchedule({ ...targetSchedule, songs: scheduleSongs });
+        await saveSchedule({ ...targetSchedule, leader: selectedLeader, songs: scheduleSongs });
         setStatus("Programación actualizada.");
         navigate?.(`/programacion?schedule=${targetSchedule.id}`);
         return;
@@ -519,7 +528,7 @@ export function SongSuggestionAssistant({
         serviceLabel: meta.serviceLabel,
         type: meta.serviceLabel,
         time: meta.time,
-        leader: "",
+        leader: selectedLeader,
         songs: scheduleSongs,
         generalNotes: "",
         isSpecialService: Boolean(meta.special || meta.value === "especial"),
@@ -635,6 +644,29 @@ export function SongSuggestionAssistant({
                 {serviceOptions.map((type) => <option key={type.value} value={type.assistantLabel}>{type.assistantLabel}</option>)}
               </Select>
             </Field>
+            <Field label="Líder de adoración">
+              <Select
+                value={leaderChoice}
+                onChange={(event) => {
+                  setLeaderChoice(event.target.value);
+                  if (event.target.value !== "Otro") setManualLeader("");
+                }}
+              >
+                <option value="">Sin líder definido</option>
+                {worshipLeaderOptions.map((leader) => (
+                  <option key={leader} value={leader}>{leader}</option>
+                ))}
+              </Select>
+            </Field>
+            {leaderChoice === "Otro" ? (
+              <Field label="Nombre del líder">
+                <Input
+                  value={manualLeader}
+                  onChange={(event) => setManualLeader(event.target.value)}
+                  placeholder="Escribe el nombre"
+                />
+              </Field>
+            ) : null}
           </div>
         </SmartPanel>
 

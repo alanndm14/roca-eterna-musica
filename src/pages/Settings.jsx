@@ -1,5 +1,5 @@
 ﻿import { useEffect, useMemo, useState } from "react";
-import { BellRing, Database, Download, FileSearch, HelpCircle, Image as ImageIcon, LogOut, Palette, Save, Tags, Trash2, Upload, UserPlus } from "lucide-react";
+import { Activity, BellRing, Clock, Database, Download, FileSearch, HelpCircle, Image as ImageIcon, LogOut, MousePointerClick, Palette, Save, Tags, Trash2, Upload, UserPlus } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { Field, Input, Select, Textarea } from "../components/ui/Field";
@@ -32,6 +32,51 @@ const formatAccessDate = (value) => {
   return Number.isNaN(date.getTime()) ? "Sin conexión registrada" : date.toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" });
 };
 
+const activityOwnerEmail = "liquea45@gmail.com";
+
+const resolveDateValue = (value) => {
+  if (!value) return null;
+  if (typeof value?.toDate === "function") return value.toDate();
+  if (typeof value?.seconds === "number") return new Date(value.seconds * 1000);
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const formatExactDate = (value, fallback = "Sin registro") => {
+  const date = resolveDateValue(value);
+  if (!date) return fallback;
+  return date.toLocaleString("es-MX", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+  });
+};
+
+const formatDuration = (milliseconds = 0) => {
+  const totalSeconds = Math.max(0, Math.round(Number(milliseconds || 0) / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) return `${hours} h ${minutes} min ${seconds} s`;
+  if (minutes > 0) return `${minutes} min ${seconds} s`;
+  return `${seconds} s`;
+};
+
+const activityTimestamp = (activity) => {
+  const date = resolveDateValue(activity?.createdAt) || resolveDateValue(activity?.clientTimestamp);
+  return date?.getTime() || 0;
+};
+
+const activityTypeLabel = (type) => {
+  if (type === "click") return "Clic";
+  if (type === "section_view") return "Vista";
+  if (type === "disconnect") return "Desconexión";
+  return type || "Actividad";
+};
+
 const boolLabel = (value) => (value === true ? "si" : value === false ? "no" : "sin confirmar");
 const permissionLabel = (value) => {
   if (value === "granted") return "concedido";
@@ -59,6 +104,7 @@ export function Settings() {
     removeUserAccess,
     renameSongCategories,
     indexLocalPdfTexts,
+    userActivity,
     logAuditEvent,
     seedExampleData
   } = useMusicData();
@@ -102,6 +148,9 @@ export function Settings() {
   const [isUpdatingPush, setIsUpdatingPush] = useState(false);
   const [showNotificationWizard, setShowNotificationWizard] = useState(false);
   const [showAdvancedPushDiagnostics, setShowAdvancedPushDiagnostics] = useState(false);
+  const [activityUser, setActivityUser] = useState(null);
+  const [activitySectionFilter, setActivitySectionFilter] = useState("all");
+  const [activityTypeFilter, setActivityTypeFilter] = useState("all");
   const [pushCooldownUntil, setPushCooldownUntil] = useState(0);
   const [pushCooldownNow, setPushCooldownNow] = useState(Date.now());
   const [tokenCleanupResult, setTokenCleanupResult] = useState(null);
@@ -219,6 +268,34 @@ export function Settings() {
     });
     return [...byEmail.values()].sort((a, b) => a.email.localeCompare(b.email));
   }, [authorizedEmails, users]);
+
+  const canViewUserActivity = String(profile?.email || "").toLowerCase() === activityOwnerEmail;
+  const safeUserActivity = useMemo(() => (Array.isArray(userActivity) ? userActivity : []), [userActivity]);
+  const selectedUserActivity = useMemo(() => {
+    if (!activityUser) return [];
+    const selectedEmail = String(activityUser.email || "").toLowerCase();
+    return safeUserActivity
+      .filter((item) => String(item.email || "").toLowerCase() === selectedEmail)
+      .filter((item) => activitySectionFilter === "all" || item.section === activitySectionFilter)
+      .filter((item) => activityTypeFilter === "all" || item.eventType === activityTypeFilter)
+      .sort((a, b) => activityTimestamp(b) - activityTimestamp(a));
+  }, [activitySectionFilter, activityTypeFilter, activityUser, safeUserActivity]);
+  const activitySections = useMemo(() => {
+    const selectedEmail = String(activityUser?.email || "").toLowerCase();
+    return [...new Set(safeUserActivity
+      .filter((item) => String(item.email || "").toLowerCase() === selectedEmail)
+      .map((item) => item.section)
+      .filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, "es"));
+  }, [activityUser?.email, safeUserActivity]);
+  const activityTypes = useMemo(() => {
+    const selectedEmail = String(activityUser?.email || "").toLowerCase();
+    return [...new Set(safeUserActivity
+      .filter((item) => String(item.email || "").toLowerCase() === selectedEmail)
+      .map((item) => item.eventType)
+      .filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, "es"));
+  }, [activityUser?.email, safeUserActivity]);
 
   const activeAdmins = userRows.filter((user) => user.active !== false && user.role === "admin").length;
 
@@ -1047,10 +1124,16 @@ export function Settings() {
                       <p className="font-semibold text-ink">{user.displayName || user.email}</p>
                       <p className="break-all text-sm text-ink/55">{user.email}</p>
                       <p className="text-xs text-ink/45">Última conexión: {formatAccessDate(user.lastSeenAt || user.lastLoginAt || user.lastLogin)}</p>
+                      {canViewUserActivity ? (
+                        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink/45">
+                          <span>Tiempo en app: {formatDuration(user.activityTotalMs || 0)}</span>
+                          <span>Desconexión: {formatExactDate(user.lastDisconnectedAt, "Sin desconexión registrada")}</span>
+                        </div>
+                      ) : null}
                     </div>
                     <span className="shrink-0 text-sm font-semibold text-ink/60">{statusForUser(user)}</span>
                   </div>
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
                     <Select value={user.role || "viewer"} onChange={(event) => saveAccessUser({ ...user, role: event.target.value })}>
                       <option value="viewer">viewer</option>
                       <option value="editor">editor</option>
@@ -1070,6 +1153,19 @@ export function Settings() {
                     <Button variant={user.active !== false ? "secondary" : "danger"} onClick={() => saveAccessUser({ ...user, active: user.active === false })}>
                       {user.active !== false ? "Activo" : "Inactivo"}
                     </Button>
+                    {canViewUserActivity ? (
+                      <Button
+                        variant="secondary"
+                        onClick={() => {
+                          setActivityUser(user);
+                          setActivitySectionFilter("all");
+                          setActivityTypeFilter("all");
+                        }}
+                      >
+                        <Activity className="h-4 w-4" />
+                        Ver actividad
+                      </Button>
+                    ) : null}
                     <Button variant="danger" onClick={() => deleteAccessUser(user)}>
                       <Trash2 className="h-4 w-4" />
                       Eliminar
@@ -1479,6 +1575,75 @@ export function Settings() {
 
       </aside>
     </div>
+
+    {canViewUserActivity ? (
+      <Modal
+        open={Boolean(activityUser)}
+        title={activityUser ? `Actividad de ${activityUser.displayName || activityUser.email}` : "Actividad"}
+        onClose={() => setActivityUser(null)}
+        wide
+      >
+        <div className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="rounded-2xl border border-ink/10 bg-ink/[0.03] p-4">
+              <p className="text-xs font-bold uppercase tracking-wide text-ink/45">Tiempo acumulado</p>
+              <p className="mt-2 text-2xl font-black text-ink">{formatDuration(activityUser?.activityTotalMs || 0)}</p>
+            </div>
+            <div className="rounded-2xl border border-ink/10 bg-ink/[0.03] p-4">
+              <p className="text-xs font-bold uppercase tracking-wide text-ink/45">Última desconexión</p>
+              <p className="mt-2 text-sm font-bold text-ink">{formatExactDate(activityUser?.lastDisconnectedAt, "Sin registro")}</p>
+            </div>
+            <div className="rounded-2xl border border-ink/10 bg-ink/[0.03] p-4">
+              <p className="text-xs font-bold uppercase tracking-wide text-ink/45">Eventos mostrados</p>
+              <p className="mt-2 text-2xl font-black text-ink">{selectedUserActivity.length}</p>
+            </div>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            <Field label="Sección">
+              <Select value={activitySectionFilter} onChange={(event) => setActivitySectionFilter(event.target.value)}>
+                <option value="all">Todas</option>
+                {activitySections.map((section) => <option key={section} value={section}>{section}</option>)}
+              </Select>
+            </Field>
+            <Field label="Tipo de actividad">
+              <Select value={activityTypeFilter} onChange={(event) => setActivityTypeFilter(event.target.value)}>
+                <option value="all">Todas</option>
+                {activityTypes.map((type) => <option key={type} value={type}>{activityTypeLabel(type)}</option>)}
+              </Select>
+            </Field>
+          </div>
+
+          <div className="max-h-[55vh] space-y-3 overflow-y-auto pr-1">
+            {selectedUserActivity.length ? selectedUserActivity.map((item) => (
+              <div key={item.id || `${item.sessionId}-${item.clientTimestamp}-${item.targetLabel}`} className="rounded-2xl border border-ink/10 bg-white/80 p-4 text-sm shadow-soft dark:bg-white/8">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-brass/12 px-2.5 py-1 text-xs font-black uppercase tracking-wide text-brass">
+                        {item.eventType === "click" ? <MousePointerClick className="h-3.5 w-3.5" /> : <Clock className="h-3.5 w-3.5" />}
+                        {activityTypeLabel(item.eventType)}
+                      </span>
+                      <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-bold text-ink/60">{item.section || "sin sección"}</span>
+                    </div>
+                    {item.targetLabel ? <p className="mt-2 font-bold text-ink">{item.targetLabel}</p> : null}
+                    <p className="mt-1 break-all text-xs text-ink/50">{item.route || "sin ruta"}</p>
+                  </div>
+                  <p className="shrink-0 text-xs font-bold text-ink/50">{formatExactDate(item.createdAt || item.clientTimestamp, "Sin hora")}</p>
+                </div>
+                {item.durationMs ? (
+                  <p className="mt-3 text-xs font-semibold text-ink/60">Duración: {formatDuration(item.durationMs)}</p>
+                ) : null}
+              </div>
+            )) : (
+              <div className="rounded-2xl border border-dashed border-ink/15 p-5 text-sm text-ink/55">
+                No hay actividad registrada con estos filtros.
+              </div>
+            )}
+          </div>
+        </div>
+      </Modal>
+    ) : null}
     </>
   );
 }

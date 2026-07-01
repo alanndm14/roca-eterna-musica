@@ -69,6 +69,10 @@ service cloud.firestore {
       return isAdmin();
     }
 
+    function isActivityOwner() {
+      return signedIn() && request.auth.token.email == "liquea45@gmail.com";
+    }
+
     function isEditor() {
       return isAuthorized() && (isAdmin() || role() == "editor");
     }
@@ -108,6 +112,24 @@ service cloud.firestore {
 
     function validOptionalList(value, maxSize) {
       return value == null || (value is list && value.size() <= maxSize);
+    }
+
+    function validActivityData() {
+      return request.resource.data.keys().hasAll(["uid", "email", "eventType", "section", "route", "sessionId", "clientTimestamp"])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.eventType in ["section_view", "click", "disconnect"]
+        && validOptionalString(request.resource.data.get("section", null), 80)
+        && validOptionalString(request.resource.data.get("route", null), 240)
+        && validOptionalString(request.resource.data.get("targetLabel", null), 180)
+        && validOptionalString(request.resource.data.get("targetTag", null), 40)
+        && validOptionalString(request.resource.data.get("sessionId", null), 80)
+        && (
+          request.resource.data.get("durationMs", 0) is int
+          || request.resource.data.get("durationMs", 0) is float
+        )
+        && request.resource.data.get("durationMs", 0) >= 0
+        && request.resource.data.get("durationMs", 0) <= 8 * 60 * 60 * 1000;
     }
 
     function validSongCoreData() {
@@ -440,6 +462,10 @@ service cloud.firestore {
             "wantsPushNotifications",
             "pushNotificationsEnabled",
             "pushNotificationsEnabledAt",
+            "lastActivityAt",
+            "lastActivitySection",
+            "lastDisconnectedAt",
+            "activityTotalMs",
             "preferencesUpdatedAt"
           ])
         );
@@ -454,6 +480,12 @@ service cloud.firestore {
     match /authorizedEmails/{email} {
       allow get: if isAdmin() || (signedIn() && request.auth.token.email == email);
       allow list, create, update, delete: if isAdmin();
+    }
+
+    match /userActivity/{activityId} {
+      allow read: if isActivityOwner();
+      allow create: if isAuthorized() && validActivityData();
+      allow update, delete: if false;
     }
 
     match /allowedEmails/{email} {
