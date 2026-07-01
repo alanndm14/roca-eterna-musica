@@ -1,10 +1,11 @@
 import { useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
-import { addDoc, collection, doc, increment, serverTimestamp, updateDoc } from "firebase/firestore";
-import { db, isFirebaseConfigured } from "../lib/firebase";
+import { auth, isFirebaseConfigured } from "../lib/firebase";
+import { activityApiUrl, authenticatedHeaders } from "../services/userActivityApi";
 
-const ownerEmail = "liquea45@gmail.com";
 const sessionKey = "roca-eterna-activity-session-id";
+const pendingKey = "roca-eterna-pending-activity-events";
+const maxPendingEvents = 40;
 
 const sectionLabels = {
   "/": "Inicio",
@@ -45,34 +46,60 @@ function cleanLabel(value = "") {
 
 function shouldTrack(profile) {
   const email = String(profile?.email || "").toLowerCase();
-  return Boolean(isFirebaseConfigured && db && profile?.uid && email && email !== ownerEmail && profile.uid !== "demo-admin");
+  return Boolean(isFirebaseConfigured && auth?.currentUser && profile?.uid && email && profile.uid !== "demo-admin" && activityApiUrl("logUserActivity"));
 }
 
-async function saveActivity(profile, payload = {}, durationMs = 0) {
+function savePendingEvent(payload = {}) {
+  try {
+    const current = JSON.parse(localStorage.getItem(pendingKey) || "[]");
+    current.push(payload);
+    localStorage.setItem(pendingKey, JSON.stringify(current.slice(-maxPendingEvents)));
+  } catch {
+    // La actividad no debe afectar el uso normal de la app.
+  }
+}
+
+function readPendingEvents() {
+  try {
+    const current = JSON.parse(localStorage.getItem(pendingKey) || "[]");
+    localStorage.removeItem(pendingKey);
+    return Array.isArray(current) ? current : [];
+  } catch {
+    return [];
+  }
+}
+
+async function postActivity(profile, payload = {}) {
   if (!shouldTrack(profile)) return;
-  const email = String(profile.email || "").toLowerCase();
-  const basePayload = {
-    uid: profile.uid,
-    email,
-    displayName: profile.preferredDisplayName || profile.displayName || email,
-    role: profile.role || "",
-    viewerType: profile.viewerType || "",
+  const endpoint = activityApiUrl("logUserActivity");
+  const body = {
     sessionId: getSessionId(),
-    createdAt: serverTimestamp(),
     clientTimestamp: new Date().toISOString(),
     userAgent: navigator.userAgent || "",
     ...payload
   };
+  try {
+    const headers = await authenticatedHeaders();
+    if (!headers) return;
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+      keepalive: true
+    });
+    if (!response.ok) savePendingEvent(body);
+  } catch {
+    savePendingEvent(body);
+  }
+}
 
-  await addDoc(collection(db, "userActivity"), basePayload);
-
-  const userUpdate = {
-    lastActivityAt: serverTimestamp(),
-    lastActivitySection: payload.section || ""
-  };
-  if (durationMs > 0) userUpdate.activityTotalMs = increment(Math.max(0, Math.round(durationMs)));
-  if (payload.eventType === "disconnect") userUpdate.lastDisconnectedAt = serverTimestamp();
-  await updateDoc(doc(db, "users", profile.uid), userUpdate);
+async function flushPendingEvents(profile) {
+  if (!shouldTrack(profile)) return;
+  const pending = readPendingEvents();
+  if (!pending.length) return;
+  for (const event of pending.slice(-12)) {
+    await postActivity(profile, event);
+  }
 }
 
 export function useUserActivityTracking(profile) {
@@ -86,6 +113,21 @@ export function useUserActivityTracking(profile) {
 
   useEffect(() => {
     if (!shouldTrack(profile)) return undefined;
+    flushPendingEvents(profile).catch(() => undefined);
+    postActivity(profile, {
+      eventType: "section_view",
+      section: sectionFromPath(location.pathname),
+      route: `${location.pathname}${location.search || ""}${location.hash || ""}`,
+      reason: "enter",
+      startedAt: new Date().toISOString(),
+      endedAt: "",
+      durationMs: 0
+    }).catch(() => undefined);
+    return undefined;
+  }, [profile?.uid]);
+
+  useEffect(() => {
+    if (!shouldTrack(profile)) return undefined;
 
     const closeActiveView = (reason = "route_change") => {
       const current = activeViewRef.current;
@@ -93,7 +135,7 @@ export function useUserActivityTracking(profile) {
       activeViewRef.current = null;
       const endedAt = Date.now();
       const durationMs = Math.max(0, endedAt - current.startedAt);
-      saveActivity(profileRef.current, {
+      postActivity(profileRef.current, {
         eventType: "section_view",
         section: current.section,
         route: current.route,
@@ -101,7 +143,7 @@ export function useUserActivityTracking(profile) {
         startedAt: new Date(current.startedAt).toISOString(),
         endedAt: new Date(endedAt).toISOString(),
         durationMs
-      }, durationMs).catch(() => undefined);
+      }).catch(() => undefined);
     };
 
     closeActiveView("route_change");
@@ -122,14 +164,15 @@ export function useUserActivityTracking(profile) {
       if (!target) return;
       const label = cleanLabel(target.getAttribute("aria-label") || target.innerText || target.textContent || target.title || target.href);
       if (!label) return;
-      saveActivity(profileRef.current, {
+      postActivity(profileRef.current, {
         eventType: "click",
         section: activeViewRef.current?.section || sectionFromPath(location.pathname),
         route: `${location.pathname}${location.search || ""}${location.hash || ""}`,
         targetLabel: label,
         targetTag: target.tagName?.toLowerCase?.() || "",
         targetRole: target.getAttribute("role") || "",
-        targetHref: target.getAttribute("href") || ""
+        targetHref: target.getAttribute("href") || "",
+        durationMs: 0
       }).catch(() => undefined);
     };
 
@@ -138,7 +181,7 @@ export function useUserActivityTracking(profile) {
       const endedAt = Date.now();
       const durationMs = current ? Math.max(0, endedAt - current.startedAt) : 0;
       activeViewRef.current = null;
-      saveActivity(profileRef.current, {
+      const payload = {
         eventType: "disconnect",
         section: current?.section || sectionFromPath(location.pathname),
         route: current?.route || `${location.pathname}${location.search || ""}${location.hash || ""}`,
@@ -146,7 +189,8 @@ export function useUserActivityTracking(profile) {
         startedAt: current ? new Date(current.startedAt).toISOString() : "",
         endedAt: new Date(endedAt).toISOString(),
         durationMs
-      }, durationMs).catch(() => undefined);
+      };
+      postActivity(profileRef.current, payload).catch(() => savePendingEvent(payload));
     };
 
     const handleVisibility = () => {
@@ -158,6 +202,7 @@ export function useUserActivityTracking(profile) {
           route: `${location.pathname}${location.search || ""}${location.hash || ""}`,
           startedAt: Date.now()
         };
+        flushPendingEvents(profileRef.current).catch(() => undefined);
       }
     };
 

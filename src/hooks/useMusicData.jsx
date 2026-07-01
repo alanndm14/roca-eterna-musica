@@ -23,6 +23,7 @@ import { canonicalThemeKey, normalizeSong, normalizeThemeName, resolveAppLogoFor
 import { extractLocalPdfText } from "../services/pdfTextIndex";
 import { sendExternalPush } from "../services/externalPush";
 import { ensurePushBroadcastSubscription } from "../services/pushNotifications";
+import { fetchUserActivity } from "../services/userActivityApi";
 import { createServiceReviewSnapshot, isNoteworthySongFollowUp, reviewServiceSchedule } from "../services/songScoring";
 import { normalizeRole } from "../services/accessControl";
 import { useAuth } from "./useAuth";
@@ -366,8 +367,20 @@ export function MusicDataProvider({ children }) {
         onSnapshot(query(collection(db, "auditLogs"), orderBy("createdAt", "desc"), limit(250)), (snapshot) => setAuditLogs(snapshot.docs.map(withId)), (snapshotError) => setError(snapshotError.message))
       );
       if (String(profile.email || "").toLowerCase() === activityOwnerEmail) {
+        const loadActivityFromBackend = () => {
+          fetchUserActivity()
+            .then((rows) => setUserActivity(rows))
+            .catch(() => undefined);
+        };
+        loadActivityFromBackend();
+        const activityRefresh = window.setInterval(loadActivityFromBackend, 30000);
+        unsubscribers.push(() => window.clearInterval(activityRefresh));
         unsubscribers.push(
-          onSnapshot(query(collection(db, "userActivity"), orderBy("createdAt", "desc"), limit(1000)), (snapshot) => setUserActivity(snapshot.docs.map(withId)), (snapshotError) => setError(snapshotError.message))
+          onSnapshot(
+            query(collection(db, "userActivity"), orderBy("createdAt", "desc"), limit(1000)),
+            (snapshot) => setUserActivity(snapshot.docs.map(withId)),
+            () => loadActivityFromBackend()
+          )
         );
       } else {
         setUserActivity([]);
