@@ -63,6 +63,12 @@ export default async function handler(request, response) {
   }
 
   try {
+    const body = parseBody(request);
+    if (safeString(body.eventType, 40) !== "disconnect") {
+      response.status(200).json({ ok: true, ignored: true });
+      return;
+    }
+
     initializeAdmin();
     await verifyAppCheckIfRequired(request);
     const requester = await verifyRequester(request, {
@@ -71,12 +77,6 @@ export default async function handler(request, response) {
       forbiddenMessage: "No tienes permiso para registrar desconexión."
     });
     enforceDisconnectRateLimit(requester.uid);
-
-    const body = parseBody(request);
-    if (safeString(body.eventType, 40) !== "disconnect") {
-      response.status(200).json({ ok: true, ignored: true });
-      return;
-    }
 
     await admin.firestore().doc(`users/${requester.uid}`).set({
       lastDisconnectedAt: admin.firestore.FieldValue.serverTimestamp(),
