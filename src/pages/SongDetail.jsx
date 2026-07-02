@@ -25,6 +25,7 @@ import {
 } from "../services/songUtils";
 import { SongForm } from "./Songs";
 import { shouldShowMusicalKeyForUser } from "../services/memberPresentation";
+import { downloadSongLyricsPdf } from "../services/lyricsPdf";
 
 function InfoRow({ label, value }) {
   return (
@@ -197,6 +198,10 @@ export function SongDetail() {
           </div>
           <div className="flex flex-wrap gap-2">
             {showMusicalKey ? <span className="rounded-2xl bg-ink px-4 py-3 text-2xl font-bold text-white dark:bg-white dark:text-ink">{song.mainKey || "--"}</span> : null}
+            <Button variant="secondary" onClick={() => downloadSongLyricsPdf(song)}>
+              <FileText className="h-4 w-4" />
+              Exportar letra
+            </Button>
             {canEdit ? (
               <>
                 <Button variant="light" onClick={() => setEditingSong(true)}>

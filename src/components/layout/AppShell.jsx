@@ -12,6 +12,7 @@ import { activateLatestAppVersion, compareVersions, dismissUpdate, fetchLatestVe
 import { appBuildVersion, appVersion } from "../../data/changelog";
 import { Button } from "../ui/Button";
 import { ErrorBoundary } from "../ui/ErrorBoundary";
+import { UpdateProgressOverlay } from "../ui/UpdateProgressOverlay";
 import { BottomNav } from "./BottomNav";
 import { Sidebar } from "./Sidebar";
 import { preloadRoutePath } from "../../services/routePreload";
@@ -72,6 +73,19 @@ const isMessageForProfile = (message = {}, profile = {}) => {
   }
   if (recipientEmail) return String(profile?.email || "").toLowerCase() === recipientEmail;
   return true;
+};
+
+const isLocalDemo = import.meta.env.DEV && ["127.0.0.1", "localhost"].includes(window.location.hostname);
+const demoInternalUpdate = {
+  version: "demo-local-update",
+  displayVersion: "Demo local",
+  critical: false,
+  installedVersion: appVersion,
+  changes: [
+    "Vista previa de actualización interna",
+    "Animación con barra minimalista",
+    "Recarga automática al terminar"
+  ]
 };
 
 const relativeTime = (value) => {
@@ -203,6 +217,7 @@ export function AppShell() {
   const [foregroundPushes, setForegroundPushes] = useState([]);
   const [availableUpdate, setAvailableUpdate] = useState(null);
   const [updateHidden, setUpdateHidden] = useState(false);
+  const [updateProgress, setUpdateProgress] = useState(null);
   const [routeLeaving, setRouteLeaving] = useState(false);
   const routeTransitionActive = useRef(false);
   const seenInternalNotifications = useRef(new Set());
@@ -434,6 +449,15 @@ export function AppShell() {
   }, []);
 
   useEffect(() => {
+    if (!isLocalDemo) return;
+    const pendingDemo = localStorage.getItem("roca-eterna-demo-internal-update");
+    if (!pendingDemo) return;
+    localStorage.removeItem("roca-eterna-demo-internal-update");
+    setUpdateHidden(false);
+    setAvailableUpdate({ ...demoInternalUpdate, version: `demo-local-update-${pendingDemo}` });
+  }, []);
+
+  useEffect(() => {
     if (logoSrc) localStorage.setItem("roca-eterna-logo-src", logoSrc);
     localStorage.setItem("roca-eterna-logo-light-src", getInstitutionalLogo(settings, appLogo, "light"));
     localStorage.setItem("roca-eterna-logo-dark-src", getInstitutionalLogo(settings, appDarkLogo, "dark"));
@@ -656,8 +680,33 @@ export function AppShell() {
     if (novelty?.source === "internal" && novelty.id) markNotificationRead(novelty.id).catch(() => undefined);
   };
 
+  const startAvailableUpdate = (version = "") => {
+    const targetVersion = version || availableUpdate?.version || appVersion;
+    setUpdateProgress({ progress: 4, label: "Preparando actualización...", stage: "starting" });
+    activateLatestAppVersion(targetVersion, { onProgress: setUpdateProgress }).catch((error) => {
+      setUpdateProgress({
+        progress: 0,
+        label: error?.message || "No se pudo iniciar la actualización. Recarga la página.",
+        stage: "error"
+      });
+    });
+  };
+
+  const showDemoInternalUpdate = () => {
+    setUpdateHidden(false);
+    setAvailableUpdate({ ...demoInternalUpdate, version: `demo-local-update-${Date.now()}` });
+  };
+
   return (
     <div className="min-h-screen bg-stonewash text-ink" style={shellStyle}>
+      <UpdateProgressOverlay
+        open={Boolean(updateProgress)}
+        progress={updateProgress?.progress || 0}
+        label={updateProgress?.label}
+        stage={updateProgress?.stage}
+        logoSrc={logoSrc}
+        logoAlt={logoAlt}
+      />
       <Sidebar
         profile={profile}
         collapsed={sidebarCollapsed}
@@ -666,6 +715,15 @@ export function AppShell() {
         logoMode={effectiveTheme}
         onNavigate={navigateSection}
       />
+      {isLocalDemo ? (
+        <button
+          type="button"
+          onClick={showDemoInternalUpdate}
+          className="fixed bottom-24 right-4 z-[9000] rounded-full border border-brass/35 bg-ink px-4 py-2 text-xs font-black uppercase tracking-wide text-white shadow-2xl transition hover:-translate-y-0.5 hover:bg-brass lg:bottom-5"
+        >
+          Demo update
+        </button>
+      ) : null}
       <main className={`app-main min-w-0 overflow-x-hidden pb-[calc(8rem+env(safe-area-inset-bottom))] transition-all duration-200 lg:pb-0 ${sidebarCollapsed ? "lg:ml-20" : "lg:ml-72"}`}>
         <header className="app-header sticky top-0 z-30 border-b border-ink/10 bg-stonewash/86 px-3 py-3 backdrop-blur md:px-8 md:py-4">
           <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
@@ -748,9 +806,9 @@ export function AppShell() {
                   </p>
                 </div>
                 <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
-                  <Button onClick={() => activateLatestAppVersion(availableUpdate.version)}>
-                    <RefreshCw className="h-4 w-4" />
-                    Actualizar ahora
+                  <Button onClick={() => startAvailableUpdate(availableUpdate.version)} disabled={Boolean(updateProgress)}>
+                    <RefreshCw className={`h-4 w-4 ${updateProgress ? "animate-spin" : ""}`} />
+                    {updateProgress ? "Actualizando..." : "Actualizar ahora"}
                   </Button>
                   {profile?.role === "admin" || profile?.role === "editor" ? (
                     <Button variant="secondary" onClick={() => navigate("/actualizaciones")}>Ver cambios</Button>

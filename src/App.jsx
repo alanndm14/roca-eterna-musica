@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { AppShell } from "./components/layout/AppShell";
 import { OnboardingGuide } from "./components/ui/OnboardingGuide";
 import { DailyVerseWelcome } from "./components/ui/DailyVerseWelcome";
+import { UpdateProgressOverlay } from "./components/ui/UpdateProgressOverlay";
 import { WelcomeSplash } from "./components/ui/WelcomeSplash";
 import { Button } from "./components/ui/Button";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
@@ -240,30 +241,50 @@ function DataReady({ children }) {
 }
 
 function StartupUpdateScreen({ update }) {
+  const [updateProgress, setUpdateProgress] = useState(null);
+  const startUpdate = () => {
+    setUpdateProgress({ progress: 4, label: "Preparando actualización...", stage: "starting" });
+    activateLatestAppVersion(update.version, { onProgress: setUpdateProgress }).catch((error) => {
+      setUpdateProgress({
+        progress: 0,
+        label: error?.message || "No se pudo iniciar la actualización. Recarga la página.",
+        stage: "error"
+      });
+    });
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-stonewash p-5 text-ink">
-      <motion.section
-        className="w-full max-w-xl rounded-[2rem] border border-brass/35 bg-white p-6 shadow-2xl dark:border-brass/25 dark:bg-zinc-900"
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.25 }}
-      >
-        <div className="inline-flex items-center gap-2 rounded-full bg-brass/12 px-3 py-1 text-xs font-black uppercase tracking-wide text-brass">
-          <Sparkles className="h-4 w-4" />
-          Actualización disponible
-        </div>
-        <h1 className="mt-4 text-2xl font-black text-ink">Hay una nueva versión de Roca Eterna Música.</h1>
-        <p className="mt-2 text-sm leading-6 text-ink/65">Actualiza antes de cargar la app para usar la versión más reciente.</p>
-        <ul className="mt-4 space-y-2 text-sm font-semibold text-ink/70">
-          {(update.changes || []).slice(0, 3).map((change) => <li key={change}>- {change}</li>)}
-        </ul>
-        <p className="mt-4 text-xs font-bold text-ink/45">Instalada: {appVersion} · Disponible: {update.displayVersion || appVersion}</p>
-        <Button className="mt-5 w-full" onClick={() => activateLatestAppVersion(update.version)}>
-          <RefreshCw className="h-4 w-4" />
-          Actualizar ahora
-        </Button>
-      </motion.section>
-    </div>
+    <>
+      <div className="flex min-h-screen items-center justify-center bg-stonewash p-5 text-ink">
+        <motion.section
+          className="w-full max-w-xl rounded-[2rem] border border-brass/35 bg-white p-6 shadow-2xl dark:border-brass/25 dark:bg-zinc-900"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25 }}
+        >
+          <div className="inline-flex items-center gap-2 rounded-full bg-brass/12 px-3 py-1 text-xs font-black uppercase tracking-wide text-brass">
+            <Sparkles className="h-4 w-4" />
+            Actualización disponible
+          </div>
+          <h1 className="mt-4 text-2xl font-black text-ink">Hay una nueva versión de Roca Eterna Música.</h1>
+          <p className="mt-2 text-sm leading-6 text-ink/65">Actualiza antes de cargar la app para usar la versión más reciente.</p>
+          <ul className="mt-4 space-y-2 text-sm font-semibold text-ink/70">
+            {(update.changes || []).slice(0, 3).map((change) => <li key={change}>- {change}</li>)}
+          </ul>
+          <p className="mt-4 text-xs font-bold text-ink/45">Instalada: {appVersion} · Disponible: {update.displayVersion || appVersion}</p>
+          <Button className="mt-5 w-full" onClick={startUpdate} disabled={Boolean(updateProgress)}>
+            <RefreshCw className={`h-4 w-4 ${updateProgress ? "animate-spin" : ""}`} />
+            {updateProgress ? "Actualizando..." : "Actualizar ahora"}
+          </Button>
+        </motion.section>
+      </div>
+      <UpdateProgressOverlay
+        open={Boolean(updateProgress)}
+        progress={updateProgress?.progress || 0}
+        label={updateProgress?.label}
+        stage={updateProgress?.stage}
+      />
+    </>
   );
 }
 

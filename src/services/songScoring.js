@@ -802,7 +802,7 @@ export function getSongRecommendations(songs = [], schedules = [], options = {})
       if (categoryChoice === "himno") return isHymn(song);
       if (categoryChoice === "navidad") return isChristmasCategory(song);
       if (categoryChoice === "normal") return !isHymn(song) && !isChristmasCategory(song);
-      return true;
+      return normalizeSearchText(song.category || "") === categoryChoice;
     })
     .filter((song) => options.allowPending !== false || (
       song.keynoteReviewStatus === "completado"

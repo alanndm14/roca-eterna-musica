@@ -1034,12 +1034,21 @@ export function MusicianView({ mediaMode = false }) {
             {bestReplacementSuggestion ? (
               <div className="flex flex-col gap-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-brass">La mejor opción</p>
-                    <h3 className="mt-1 text-2xl font-black text-ink">{bestReplacementSuggestion.song.title}</h3>
-                    <p className="mt-1 text-sm text-ink/60">
-                      {bestReplacementSuggestion.song.mainTheme || "Sin tema"} · {bestReplacementSuggestion.song.category || "sin categoría"} · {bestReplacementSuggestion.song.keyWithCapo || bestReplacementSuggestion.song.mainKey || "Sin tono"}
-                    </p>
+                  <div className="flex min-w-0 items-start gap-3">
+                    <SongCoverImage
+                      song={bestReplacementSuggestion.song}
+                      wrapperClassName="h-16 w-16 rounded-2xl border border-white/15 shadow-soft sm:h-20 sm:w-20"
+                    />
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold uppercase tracking-[0.18em] text-brass">La mejor opción</p>
+                      <h3 className="mt-1 text-2xl font-black text-ink">{bestReplacementSuggestion.song.title}</h3>
+                      <p className="mt-1 text-sm text-ink/60">
+                        {bestReplacementSuggestion.song.mainTheme || "Sin tema"} · {bestReplacementSuggestion.song.category || "sin categoría"} · {bestReplacementSuggestion.song.keyWithCapo || bestReplacementSuggestion.song.mainKey || "Sin tono"}
+                      </p>
+                      <p className="mt-2 text-xs font-bold text-ink/50">
+                        {bestReplacementSuggestion.usageSummary?.lastUse || "Sin historial previo"} · {bestReplacementSuggestion.usageSummary?.monthly || "0 usos en 30 días"}
+                      </p>
+                    </div>
                   </div>
                   <ScoreBadge score={bestReplacementSuggestion.score || 0} label="Compatibilidad" />
                 </div>

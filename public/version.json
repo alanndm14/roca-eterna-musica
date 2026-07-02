@@ -1,9 +1,12 @@
 {
-  "version": "1.0.21",
-  "displayVersion": "1.3",
-  "date": "2026-06-28",
+  "version": "1.0.30",
+  "displayVersion": "1.3.1",
+  "date": "2026-07-02",
   "critical": true,
   "changes": [
-    "Filtro por artista o fuente en Repertorio"
+    "Animación de actualización con progreso",
+    "Categorías reales en el asistente",
+    "Exportación de letras en PDF",
+    "Sustitución con mejor opción más clara"
   ]
 }

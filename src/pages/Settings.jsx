@@ -5,6 +5,7 @@ import { Card } from "../components/ui/Card";
 import { Field, Input, Select, Textarea } from "../components/ui/Field";
 import { FileDiagnosticPanel } from "../components/ui/FileDiagnosticPanel";
 import { Modal } from "../components/ui/Modal";
+import { UpdateProgressOverlay } from "../components/ui/UpdateProgressOverlay";
 import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
 import { analyzeImport, parseSongsTable } from "../services/importSongs";
@@ -180,6 +181,7 @@ export function Settings() {
   const [latestVersion, setLatestVersion] = useState(null);
   const [isRefreshingApp, setIsRefreshingApp] = useState(false);
   const [updateStatus, setUpdateStatus] = useState("");
+  const [updateProgress, setUpdateProgress] = useState(null);
   const [installPromptEvent, setInstallPromptEvent] = useState(null);
   const [installStatus, setInstallStatus] = useState("");
   const [settingsSaveStatus, setSettingsSaveStatus] = useState("");
@@ -498,10 +500,12 @@ export function Settings() {
   const refreshApp = async () => {
     setIsRefreshingApp(true);
     setUpdateStatus("Preparando la versión más reciente...");
+    setUpdateProgress({ progress: 4, label: "Preparando actualización...", stage: "starting" });
     try {
-      await activateLatestAppVersion(latestVersion?.version || appVersion);
+      await activateLatestAppVersion(latestVersion?.version || appVersion, { onProgress: setUpdateProgress });
     } catch (error) {
       setUpdateStatus(error?.message || "No se pudo iniciar la actualización. Recarga la página e inténtalo nuevamente.");
+      setUpdateProgress(null);
       setIsRefreshingApp(false);
     }
   };
@@ -719,6 +723,14 @@ export function Settings() {
 
   return (
     <>
+    <UpdateProgressOverlay
+      open={Boolean(updateProgress)}
+      progress={updateProgress?.progress || 0}
+      label={updateProgress?.label}
+      stage={updateProgress?.stage}
+      logoSrc={lightLogo}
+      logoAlt={localSettings.logoAltText || "Roca Eterna Música"}
+    />
     <AndroidNotificationPermissionWizard
       open={showNotificationWizard}
       onClose={() => setShowNotificationWizard(false)}

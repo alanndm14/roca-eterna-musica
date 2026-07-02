@@ -30,6 +30,7 @@ import {
 } from "../services/songUtils";
 import { isCountableSchedule } from "../services/dateUtils";
 import { canManageVocalPractice } from "../services/memberPresentation";
+import { downloadRepertoireLyricsPdf } from "../services/lyricsPdf";
 
 const blankSong = {
   title: "",
@@ -793,6 +794,10 @@ export function Songs() {
               <Button variant="secondary" onClick={exportRepertoire}>
                 <Download className="h-4 w-4" />
                 Exportar repertorio
+              </Button>
+              <Button variant="secondary" onClick={() => downloadRepertoireLyricsPdf(filteredSongs)}>
+                <FileText className="h-4 w-4" />
+                Exportar letras
               </Button>
               <Button onClick={() => setIsAdding(true)} data-tour="song-add">
                 <Plus className="h-4 w-4" />

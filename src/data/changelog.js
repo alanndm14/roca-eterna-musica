@@ -1,7 +1,24 @@
-export const appVersion = "1.3";
-export const appBuildVersion = "1.0.29";
+export const appVersion = "1.3.1";
+export const appBuildVersion = "1.0.30";
 
 export const changelog = [
+  {
+    version: "1.3.1",
+    date: "2026-07-02",
+    title: "Asistente y exportación de letras",
+    added: [
+      "Animación de actualización con barra de progreso",
+      "Exportación de letras del repertorio y de cada canto en PDF"
+    ],
+    changed: [
+      "El asistente usa las categorías reales del repertorio",
+      "La sustitución inteligente muestra la mejor opción con portada y último uso"
+    ],
+    fixed: [
+      "El filtro de categoría también funciona en la búsqueda por historial"
+    ],
+    pending: []
+  },
   {
     version: "1.3",
     date: "2026-06-28",

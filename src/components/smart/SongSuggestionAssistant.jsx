@@ -15,7 +15,7 @@ import {
   toSongEntry
 } from "../../services/smartRecommendations";
 import { formatDate, getScheduleStartDate, isCountableSchedule } from "../../services/dateUtils";
-import { normalizeSearchText } from "../../services/songUtils";
+import { getSongCategoryOptions, normalizeSearchText } from "../../services/songUtils";
 import { getAssistantServiceOptions, getWorshipLeaderOptions } from "../../services/serviceOptions";
 
 const searchTabs = [
@@ -217,8 +217,15 @@ function readinessSignals(song = {}) {
   return { positives, penalties };
 }
 
-function buildHistoryRecommendations(songs = [], usageIndex, { filter = "", sort = "oldest" } = {}) {
+function categoryMatches(song = {}, categoryChoice = "cualquiera") {
+  const selected = normalizeSearchText(categoryChoice || "cualquiera");
+  if (!selected || selected === "cualquiera") return true;
+  return normalizeSearchText(song.category || "") === selected;
+}
+
+function buildHistoryRecommendations(songs = [], usageIndex, { filter = "", sort = "oldest", categoryChoice = "cualquiera" } = {}) {
   const rows = songs
+    .filter((song) => categoryMatches(song, categoryChoice))
     .map((song) => {
       const usage = usageForSong(usageIndex, song.id);
       const hasHistory = Boolean(usage?.lastUsedAt);
@@ -380,6 +387,11 @@ export function SongSuggestionAssistant({
     return [...values].filter(Boolean).sort((a, b) => String(a).localeCompare(String(b), "es"));
   }, [safeSongs, themes]);
 
+  const categoryOptions = useMemo(
+    () => getSongCategoryOptions(settings, safeSongs).sort((a, b) => String(a).localeCompare(String(b), "es", { sensitivity: "base" })),
+    [safeSongs, settings]
+  );
+
   const indexableSongs = useMemo(
     () => safeSongs.filter((song) => song.localPdfPath),
     [safeSongs]
@@ -435,7 +447,7 @@ export function SongSuggestionAssistant({
   const recommendations = useMemo(() => {
     if (!hasSearched) return [];
     if (searchTab === "history") {
-      return buildHistoryRecommendations(safeSongs, usageIndex, { filter: historyFilter, sort: historySort })
+      return buildHistoryRecommendations(safeSongs, usageIndex, { filter: historyFilter, sort: historySort, categoryChoice })
         .filter((item) => !dismissedIds.includes(item.song.id));
     }
     return getSongRecommendations(safeSongs, safeSchedules, searchOptions)
@@ -460,6 +472,7 @@ export function SongSuggestionAssistant({
   }, [
     dismissedIds,
     hasSearched,
+    categoryChoice,
     historyFilter,
     historySort,
     normalizedThemes,
@@ -765,9 +778,9 @@ export function SongSuggestionAssistant({
             <Field label="Categoría">
               <Select value={categoryChoice} onChange={(event) => setCategoryChoice(event.target.value)}>
                 <option value="cualquiera">Cualquiera</option>
-                <option value="normal">Normal</option>
-                <option value="himno">Himno</option>
-                <option value="navidad">Navidad</option>
+                {categoryOptions.map((category) => (
+                  <option key={category} value={category}>{category}</option>
+                ))}
               </Select>
             </Field>
           </div>

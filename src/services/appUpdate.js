@@ -6,6 +6,8 @@ const pendingStorageKey = "roca-eterna-force-update-version";
 const updateAttemptStorageKey = "roca-eterna-force-update-attempt";
 const updateWaitMs = 8000;
 
+const wait = (ms = 0) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
 export function compareVersions(a = "0.0.0", b = "0.0.0") {
   const left = String(a).split(".").map((part) => Number.parseInt(part, 10) || 0);
   const right = String(b).split(".").map((part) => Number.parseInt(part, 10) || 0);
@@ -105,8 +107,11 @@ async function clearAppCaches() {
     .map((key) => caches.delete(key)));
 }
 
-export async function activateLatestAppVersion(version = "") {
+export async function activateLatestAppVersion(version = "", options = {}) {
   const targetVersion = version || appBuildVersion;
+  const onProgress = typeof options.onProgress === "function" ? options.onProgress : null;
+  const report = (progress, label, stage) => onProgress?.({ progress, label, stage });
+  report(6, "Preparando actualización...", "starting");
   clearDismissedUpdate(targetVersion);
   try {
     sessionStorage.setItem(pendingStorageKey, targetVersion);
@@ -117,12 +122,14 @@ export async function activateLatestAppVersion(version = "") {
   }
 
   try {
+    report(22, "Limpiando caché anterior...", "clearing-cache");
     await clearAppCaches();
   } catch {
     // Algunos navegadores restringen Cache Storage en modo privado.
   }
 
   try {
+    report(48, "Activando versión nueva...", "service-worker");
     const registrations = await navigator.serviceWorker?.getRegistrations?.();
     for (const registration of registrations || []) {
       const controllerChange = waitForControllerChange();
@@ -138,6 +145,12 @@ export async function activateLatestAppVersion(version = "") {
     // La recarga sigue siendo segura aunque el navegador no permita controlar el service worker.
   }
 
+  report(86, "Terminando ajustes...", "finishing");
+  await wait(onProgress ? 420 : 0);
+  report(100, "Actualización lista", "success");
+  await wait(onProgress ? options.successDelayMs ?? 1600 : 0);
+  report(100, "Actualización lista", "closing");
+  await wait(onProgress ? options.closeDelayMs ?? 520 : 0);
   const base = import.meta.env.BASE_URL || "/";
   const hash = window.location.hash || "";
   const separator = base.includes("?") ? "&" : "?";

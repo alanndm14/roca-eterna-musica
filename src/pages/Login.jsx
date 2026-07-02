@@ -4,15 +4,81 @@ import { motion } from "framer-motion";
 import { FcGoogle } from "react-icons/fc";
 import { appDarkLogo, appLogo } from "../assets/logo";
 import { Button } from "../components/ui/Button";
+import { UpdateProgressOverlay } from "../components/ui/UpdateProgressOverlay";
 import { useAuth } from "../hooks/useAuth";
 import { firebaseMissingConfigKeys, isDemoModeAllowed } from "../lib/firebase";
 import { fetchDailyVerse, fallbackLoginVerses, getDeterministicDailyVerse, getLocalDateKey } from "../services/dailyVerses";
 import { getEffectiveThemeMode, resolvePublicAssetUrl } from "../services/songUtils";
+import { activateLatestAppVersion } from "../services/appUpdate";
+
+const isLocalDemo = import.meta.env.DEV && ["127.0.0.1", "localhost"].includes(window.location.hostname);
+
+const demoUpdate = {
+  version: "demo-local-update",
+  displayVersion: "Demo local",
+  changes: [
+    "Vista previa de actualización",
+    "Animación con barra de progreso",
+    "Recarga automática al finalizar"
+  ]
+};
+
+function ForcedUpdateDemo({ logoSrc, logoAlt, onClose }) {
+  const [updateProgress, setUpdateProgress] = useState(null);
+  const startUpdate = () => {
+    setUpdateProgress({ progress: 4, label: "Preparando actualización...", stage: "starting" });
+    activateLatestAppVersion(demoUpdate.version, { onProgress: setUpdateProgress }).catch((error) => {
+      setUpdateProgress({
+        progress: 0,
+        label: error?.message || "No se pudo iniciar la actualización. Recarga la página.",
+        stage: "error"
+      });
+    });
+  };
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-stonewash p-5 text-ink dark:bg-zinc-950 dark:text-white">
+      <motion.section
+        className="w-full max-w-xl rounded-[2rem] border border-brass/35 bg-white p-6 shadow-2xl dark:border-brass/25 dark:bg-zinc-900"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.25 }}
+      >
+        <div className="inline-flex items-center gap-2 rounded-full bg-brass/12 px-3 py-1 text-xs font-black uppercase tracking-wide text-brass">
+          Actualización disponible
+        </div>
+        <h1 className="mt-4 text-2xl font-black text-ink">Hay una nueva versión de Roca Eterna Música.</h1>
+        <p className="mt-2 text-sm leading-6 text-ink/65">Esta es una simulación local del aviso obligatorio al iniciar.</p>
+        <ul className="mt-4 space-y-2 text-sm font-semibold text-ink/70">
+          {demoUpdate.changes.map((change) => <li key={change}>- {change}</li>)}
+        </ul>
+        <p className="mt-4 text-xs font-bold text-ink/45">Instalada: local · Disponible: {demoUpdate.displayVersion}</p>
+        <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+          <Button className="flex-1" onClick={startUpdate} disabled={Boolean(updateProgress)}>
+            {updateProgress ? "Actualizando..." : "Actualizar ahora"}
+          </Button>
+          <Button variant="secondary" onClick={onClose} disabled={Boolean(updateProgress)}>
+            Volver
+          </Button>
+        </div>
+      </motion.section>
+      <UpdateProgressOverlay
+        open={Boolean(updateProgress)}
+        progress={updateProgress?.progress || 0}
+        label={updateProgress?.label}
+        stage={updateProgress?.stage}
+        logoSrc={logoSrc}
+        logoAlt={logoAlt}
+      />
+    </div>
+  );
+}
 
 export function Login() {
   const { signInWithGoogle, enterDemoMode, error, isFirebaseConfigured } = useAuth();
   const dateKey = getLocalDateKey();
   const [dailyVerse, setDailyVerse] = useState(() => getDeterministicDailyVerse(fallbackLoginVerses, dateKey));
+  const [showForcedUpdateDemo, setShowForcedUpdateDemo] = useState(false);
   const showDemoMode = isDemoModeAllowed;
   const themeMode = localStorage.getItem("roca-eterna-theme-mode") || "system";
   const effectiveTheme = getEffectiveThemeMode(themeMode);
@@ -38,6 +104,10 @@ export function Login() {
       cancelled = true;
     };
   }, [dateKey]);
+
+  if (showForcedUpdateDemo) {
+    return <ForcedUpdateDemo logoSrc={logoSrc} logoAlt={logoAlt} onClose={() => setShowForcedUpdateDemo(false)} />;
+  }
 
   return (
     <div className="grid min-h-screen bg-ink text-white lg:grid-cols-[1.15fr_0.85fr]">
@@ -74,6 +144,22 @@ export function Login() {
               </Button>
             ) : null}
           </div>
+          {isLocalDemo ? (
+            <div className="mt-5 flex flex-col gap-2 rounded-3xl border border-white/10 bg-white/5 p-3 text-sm sm:flex-row">
+              <Button variant="darkSubtle" onClick={() => setShowForcedUpdateDemo(true)}>
+                Demo aviso forzado
+              </Button>
+              <Button
+                variant="darkSubtle"
+                onClick={() => {
+                  localStorage.setItem("roca-eterna-demo-internal-update", String(Date.now()));
+                  alert("Demo listo: entra a la app en modo demo local para ver el aviso interno.");
+                }}
+              >
+                Demo aviso interno
+              </Button>
+            </div>
+          ) : null}
           {firebasePublishWarning ? (
             <div className="mt-4 rounded-2xl border border-red-300/30 bg-red-500/12 p-4 text-sm leading-6 text-red-100">
               <p className="font-semibold">{firebasePublishWarning}</p>
