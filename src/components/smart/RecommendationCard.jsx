@@ -100,7 +100,8 @@ export function RecommendationCard({
   actionLabel = "Agregar a programación",
   titleQuery = "",
   relation = null,
-  isAdded = false
+  isAdded = false,
+  hideScore = false
 }) {
   const song = item.song || item;
   const chips = getVisibleChips(item);
@@ -112,7 +113,7 @@ export function RecommendationCard({
           <SongCoverImage song={song} wrapperClassName="h-11 w-11 rounded-xl" />
           <div className="min-w-0">
           <div className="flex flex-wrap gap-1.5">
-            <p className={`inline-flex max-w-full truncate rounded-full px-2.5 py-1 text-[11px] font-black uppercase tracking-wide ${tone.chip}`}>{tone.label}</p>
+            {!hideScore ? <p className={`inline-flex max-w-full truncate rounded-full px-2.5 py-1 text-[11px] font-black uppercase tracking-wide ${tone.chip}`}>{tone.label}</p> : null}
             {relation?.kind === "related" ? (
               <span
                 className="inline-flex rounded-full bg-brass/14 px-2.5 py-1 text-[11px] font-black uppercase tracking-wide text-brass"
@@ -130,10 +131,10 @@ export function RecommendationCard({
           </p>
           </div>
         </div>
-        <div className="w-20 shrink-0 text-right">
+        {!hideScore ? <div className="w-20 shrink-0 text-right">
           <span className="text-2xl font-black text-ink">{Math.round(Number(item.score) || 0)}%</span>
           <ScoreMiniBar score={item.score} />
-        </div>
+        </div> : null}
       </div>
 
       <div className="mt-3 flex min-h-7 flex-wrap gap-1.5">

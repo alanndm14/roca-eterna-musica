@@ -223,7 +223,7 @@ function categoryMatches(song = {}, categoryChoice = "cualquiera") {
   return normalizeSearchText(song.category || "") === selected;
 }
 
-function buildHistoryRecommendations(songs = [], usageIndex, { filter = "", sort = "oldest", categoryChoice = "cualquiera" } = {}) {
+function buildHistoryRecommendations(songs = [], usageIndex, { filter = "", sort = "az", categoryChoice = "cualquiera" } = {}) {
   const rows = songs
     .filter((song) => categoryMatches(song, categoryChoice))
     .map((song) => {
@@ -235,20 +235,15 @@ function buildHistoryRecommendations(songs = [], usageIndex, { filter = "", sort
     .filter((item) => historyFilterMatches(item.usage, filter));
 
   rows.sort((a, b) => {
-    if (sort === "recent") {
-      if (a.hasHistory !== b.hasHistory) return a.hasHistory ? -1 : 1;
-      return a.daysSince - b.daysSince || String(a.song.title || "").localeCompare(String(b.song.title || ""), "es");
-    }
-    if (a.hasHistory !== b.hasHistory) return a.hasHistory ? 1 : -1;
-    return b.daysSince - a.daysSince || String(a.song.title || "").localeCompare(String(b.song.title || ""), "es");
+    const titleCompare = String(a.song.title || "").localeCompare(String(b.song.title || ""), "es", { sensitivity: "base" });
+    return sort === "za" ? -titleCompare : titleCompare;
   });
 
   return rows.map((item, index) => {
-    const score = Math.max(1, 100 - index);
     const signals = readinessSignals(item.song);
     const usageText = historyLabel(item.usage);
     const positives = [
-      { value: score, label: item.hasHistory ? usageText : "Sin historial previo" },
+      { value: 0, label: item.hasHistory ? usageText : "Sin historial previo" },
       ...signals.positives
     ];
     const penalties = [
@@ -257,7 +252,7 @@ function buildHistoryRecommendations(songs = [], usageIndex, { filter = "", sort
     ];
     return {
       song: item.song,
-      score,
+      score: 0,
       reasons: positives.map((entry) => entry.label),
       warnings: penalties.map((entry) => entry.label),
       usageSummary: {
@@ -268,8 +263,8 @@ function buildHistoryRecommendations(songs = [], usageIndex, { filter = "", sort
         positives,
         penalties,
         warnings: [],
-        rawScore: score,
-        finalScore: score,
+        rawScore: 0,
+        finalScore: 0,
         usage: item.usage || null
       }
     };
@@ -308,7 +303,7 @@ export function SongSuggestionAssistant({
   const [selectedThemes, setSelectedThemes] = useState([]);
   const [pdfTerms, setPdfTerms] = useState([]);
   const [historyFilter, setHistoryFilter] = useState("");
-  const [historySort, setHistorySort] = useState("oldest");
+  const [historySort, setHistorySort] = useState("az");
   const rotationPriority = "strict";
   const [categoryChoice, setCategoryChoice] = useState("cualquiera");
   const [hasSearched, setHasSearched] = useState(false);
@@ -742,8 +737,8 @@ export function SongSuggestionAssistant({
                 <section className="rounded-2xl border border-ink/10 bg-white/70 p-4 dark:border-white/12 dark:bg-black/20">
                   <p className="text-xs font-black uppercase tracking-wide text-brass">Ordenar por</p>
                   <Select className="mt-3" value={historySort} onChange={(event) => setHistorySort(event.target.value)}>
-                    <option value="oldest">Más tiempo sin cantarse</option>
-                    <option value="recent">Más recientes primero</option>
+                    <option value="az">A a Z</option>
+                    <option value="za">Z a A</option>
                   </Select>
                 </section>
               </div>
@@ -810,7 +805,9 @@ export function SongSuggestionAssistant({
                 <p className="text-xs font-black uppercase tracking-wide text-brass">Resultados</p>
                 <h3 className="mt-1 text-xl font-black text-ink">{recommendations.length} canto(s) encontrados</h3>
               </div>
-              <p className="text-xs font-semibold text-ink/50">Ordenados por coincidencia, rotación y preparación</p>
+              <p className="text-xs font-semibold text-ink/50">
+                {searchTab === "history" ? "Ordenados por título" : "Ordenados por coincidencia, rotación y preparación"}
+              </p>
             </div>
             <div className="mt-4 grid gap-3 lg:grid-cols-2">
               {recommendations.map((item) => (
@@ -823,8 +820,9 @@ export function SongSuggestionAssistant({
                   actionLabel={selectedIds.has(item.song.id) ? "Agregado" : "Agregar"}
                   onAdd={canEdit ? addSong : undefined}
                   onView={(song) => navigate?.(`/repertorio/${song.id}`)}
-                  onExplain={onExplainScore}
+                  onExplain={searchTab === "history" ? undefined : onExplainScore}
                   onDismiss={(song) => setDismissedIds((current) => [...current, song.id])}
+                  hideScore={searchTab === "history"}
                 />
               ))}
             </div>

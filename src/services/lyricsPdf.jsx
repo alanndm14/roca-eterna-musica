@@ -47,19 +47,14 @@ function sanitizeFileName(value = "archivo") {
     .slice(0, 120) || "archivo";
 }
 
-function getSongLyricsSections(song = {}) {
-  const sections = Array.isArray(song.lyricsSections)
-    ? song.lyricsSections
-        .map((section) => ({
-          type: String(section?.type || "Letra").trim(),
-          text: String(section?.text || "").trim()
-        }))
-        .filter((section) => section.text)
-    : [];
-  if (sections.length) return sections;
+function getSongPdfIndexedText(song = {}) {
+  return String(song.pdfSearchText || song.pdfOcrText || song.pdfText || "").trim();
+}
 
-  const fallbackText = String(song.lyricsText || song.manualLyrics || song.lyrics || "").trim();
-  return fallbackText ? [{ type: "Letra", text: fallbackText }] : [];
+function getSongLyricsSections(song = {}) {
+  const indexedText = getSongPdfIndexedText(song);
+  if (!indexedText) return [];
+  return [{ type: song.pdfOcrText ? "Texto OCR del PDF" : "Texto indexado del PDF", text: indexedText }];
 }
 
 function SongLyricsBlock({ song, first = false }) {
@@ -76,7 +71,7 @@ function SongLyricsBlock({ song, first = false }) {
           </View>
         ))
       ) : (
-        <Text style={styles.empty}>Sin letra manual registrada.</Text>
+        <Text style={styles.empty}>Sin texto de PDF indexado.</Text>
       )}
     </View>
   );

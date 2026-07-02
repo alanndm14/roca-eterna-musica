@@ -1,12 +1,9 @@
 {
-  "version": "1.0.30",
+  "version": "1.0.31",
   "displayVersion": "1.3.1",
   "date": "2026-07-02",
   "critical": true,
   "changes": [
-    "Animación de actualización con progreso",
-    "Categorías reales en el asistente",
-    "Exportación de letras en PDF",
-    "Sustitución con mejor opción más clara"
+    "Corrección de errores"
   ]
 }
