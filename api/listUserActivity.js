@@ -55,7 +55,7 @@ export default async function handler(request, response) {
     const snapshot = await admin.firestore()
       .collection("userActivity")
       .orderBy("createdAt", "desc")
-      .limit(1000)
+      .limit(300)
       .get();
 
     response.status(200).json({

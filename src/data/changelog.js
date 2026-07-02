@@ -1,7 +1,18 @@
 export const appVersion = "1.3a";
-export const appBuildVersion = "1.0.32";
+export const appBuildVersion = "1.0.33";
 
 export const changelog = [
+  {
+    version: "1.3a",
+    date: "2026-07-02",
+    title: "Corrección de actividad y desconexión",
+    added: [],
+    changed: [],
+    fixed: [
+      "Corrección de actividad y desconexión"
+    ],
+    pending: []
+  },
   {
     version: "1.3a",
     date: "2026-07-02",

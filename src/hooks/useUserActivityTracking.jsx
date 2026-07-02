@@ -6,7 +6,9 @@ import { activityApiUrl, authenticatedHeaders } from "../services/userActivityAp
 const sessionKey = "roca-eterna-activity-session-id";
 const pendingKey = "roca-eterna-pending-activity-events";
 const currentSessionKey = "roca-eterna-current-activity-session";
+const backoffKey = "roca-eterna-activity-backoff-until";
 const maxPendingEvents = 40;
+const retryBackoffMs = 5 * 60 * 1000;
 
 const sectionLabels = {
   "/": "Inicio",
@@ -63,6 +65,30 @@ function buildActivityBody(payload = {}) {
 function shouldTrack(profile) {
   const email = String(profile?.email || "").toLowerCase();
   return Boolean(isFirebaseConfigured && auth?.currentUser && profile?.uid && email && profile.uid !== "demo-admin" && activityApiUrl("logUserActivity"));
+}
+
+function isBackedOff() {
+  try {
+    return Date.now() < Number(localStorage.getItem(backoffKey) || 0);
+  } catch {
+    return false;
+  }
+}
+
+function setBackoff() {
+  try {
+    localStorage.setItem(backoffKey, String(Date.now() + retryBackoffMs));
+  } catch {
+    // La actividad no debe afectar el uso normal de la app.
+  }
+}
+
+function clearBackoff() {
+  try {
+    localStorage.removeItem(backoffKey);
+  } catch {
+    // La actividad no debe afectar el uso normal de la app.
+  }
 }
 
 function savePendingEvent(payload = {}) {
@@ -140,6 +166,10 @@ async function postActivity(profile, payload = {}, headersOverride = null) {
   if (!shouldTrack(profile)) return;
   const endpoint = activityApiUrl("logUserActivity");
   const body = buildActivityBody(payload);
+  if (isBackedOff()) {
+    savePendingEvent(body);
+    return;
+  }
   try {
     const headers = headersOverride || await authenticatedHeaders();
     if (!headers) {
@@ -152,8 +182,13 @@ async function postActivity(profile, payload = {}, headersOverride = null) {
       body: JSON.stringify(body),
       keepalive: true
     });
-    if (response.ok) removePendingEvent(body.eventId);
-    else savePendingEvent(body);
+    if (response.ok) {
+      clearBackoff();
+      removePendingEvent(body.eventId);
+    } else {
+      if (response.status === 429 || response.status >= 500) setBackoff();
+      savePendingEvent(body);
+    }
   } catch {
     savePendingEvent(body);
   }
@@ -162,7 +197,7 @@ async function postActivity(profile, payload = {}, headersOverride = null) {
 function postActivityFast(profile, payload = {}, headers = null) {
   const body = buildActivityBody(payload);
   if (body.eventType === "disconnect") savePendingEvent(body);
-  if (!shouldTrack(profile) || !headers) {
+  if (!shouldTrack(profile) || !headers || isBackedOff()) {
     savePendingEvent(body);
     return;
   }
@@ -174,8 +209,13 @@ function postActivityFast(profile, payload = {}, headers = null) {
     keepalive: true
   })
     .then((response) => {
-      if (response.ok) removePendingEvent(body.eventId);
-      else savePendingEvent(body);
+      if (response.ok) {
+        clearBackoff();
+        removePendingEvent(body.eventId);
+      } else {
+        if (response.status === 429 || response.status >= 500) setBackoff();
+        savePendingEvent(body);
+      }
     })
     .catch(() => savePendingEvent(body));
 }
@@ -360,12 +400,14 @@ export function useUserActivityTracking(profile) {
     const heartbeat = window.setInterval(rememberHeartbeat, 15000);
     document.addEventListener("click", handleClick, true);
     document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("roca-eterna-force-disconnect", handleDisconnect);
     window.addEventListener("beforeunload", handleDisconnect);
     window.addEventListener("pagehide", handleDisconnect);
     return () => {
       window.clearInterval(heartbeat);
       document.removeEventListener("click", handleClick, true);
       document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("roca-eterna-force-disconnect", handleDisconnect);
       window.removeEventListener("beforeunload", handleDisconnect);
       window.removeEventListener("pagehide", handleDisconnect);
     };

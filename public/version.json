@@ -1,9 +1,9 @@
 {
-  "version": "1.0.32",
+  "version": "1.0.33",
   "displayVersion": "1.3a",
   "date": "2026-07-02",
   "critical": true,
   "changes": [
-    "Correcciones para los roles de Coristas, Músicos y Medios"
+    "Corrección de actividad y desconexión"
   ]
 }

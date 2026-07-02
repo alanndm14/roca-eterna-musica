@@ -372,12 +372,9 @@ export function MusicDataProvider({ children }) {
             .then((rows) => setUserActivity(rows))
             .catch(() => undefined);
         };
-        loadActivityFromBackend();
-        const activityRefresh = window.setInterval(loadActivityFromBackend, 30000);
-        unsubscribers.push(() => window.clearInterval(activityRefresh));
         unsubscribers.push(
           onSnapshot(
-            query(collection(db, "userActivity"), orderBy("createdAt", "desc"), limit(1000)),
+            query(collection(db, "userActivity"), orderBy("createdAt", "desc"), limit(300)),
             (snapshot) => setUserActivity(snapshot.docs.map(withId)),
             () => loadActivityFromBackend()
           )
