@@ -69,10 +69,6 @@ service cloud.firestore {
       return isAdmin();
     }
 
-    function isActivityOwner() {
-      return signedIn() && request.auth.token.email == "liquea45@gmail.com";
-    }
-
     function isEditor() {
       return isAuthorized() && (isAdmin() || role() == "editor");
     }
