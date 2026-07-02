@@ -93,6 +93,7 @@ const normalizePushPayload = (payload = {}) => {
     url,
     tag: data.tag || notificationId,
     type: data.type || "other",
+    recipientEmail: data.recipientEmail || "",
     hasNotificationPayload: Boolean(payload.notification?.title || payload.notification?.body),
     scheduleId: data.scheduleId || "",
     songId: data.songId || "",
@@ -461,6 +462,7 @@ export async function enablePushNotificationsForUser(profile) {
       doc(db, "users", profile.uid, "fcmTokens", tokenId),
       {
         token,
+        email: profile.email || "",
         userAgent: navigator.userAgent,
         role: profile.role || "viewer",
         viewerType: profile.role === "viewer" ? profile.viewerType || "corista" : "",

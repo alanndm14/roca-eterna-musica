@@ -56,6 +56,7 @@ const baseUrl = new URL(self.registration.scope).pathname || "/";
 const iconPath = `${baseUrl.replace(/\/$/, "")}/icons/notification-icon.png`;
 const hasConfig = Object.values(firebaseConfig).every(Boolean);
 const shownTags = new Set();
+let activeProfileEmail = "";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -121,7 +122,18 @@ function normalizeMessage(payload = {}) {
   };
 }
 
+function shouldShowMessage(message = {}) {
+  const data = message.data || {};
+  const recipientEmail = String(data.recipientEmail || "").toLowerCase();
+  if (data.type === "user_online") {
+    return recipientEmail === "liquea45@gmail.com" && activeProfileEmail === recipientEmail;
+  }
+  if (recipientEmail && activeProfileEmail && recipientEmail !== activeProfileEmail) return false;
+  return true;
+}
+
 function notifyClients(message) {
+  if (!shouldShowMessage(message)) return;
   const payload = {
     type: "roca-eterna-background-push",
     payload: {
@@ -129,9 +141,12 @@ function notifyClients(message) {
       body: message.body,
       url: message.url,
       tag: message.tag,
+      type: message.data?.type || "",
+      recipientEmail: message.data?.recipientEmail || "",
       notificationId: message.data?.notificationId || "",
       scheduleId: message.data?.scheduleId || "",
       songId: message.data?.songId || "",
+      data: message.data || {},
       receivedAt: new Date().toISOString()
     }
   };
@@ -151,6 +166,7 @@ function notifyClients(message) {
 
 function showNotificationOnce(payload) {
   const message = normalizeMessage(payload);
+  if (!shouldShowMessage(message)) return Promise.resolve();
   notifyClients(message);
   if (shownTags.has(message.tag)) return Promise.resolve();
   shownTags.add(message.tag);
@@ -195,6 +211,10 @@ self.addEventListener("push", (event) => {
 self.addEventListener("message", (event) => {
   if (event.data?.type === "SKIP_WAITING") {
     self.skipWaiting();
+    return;
+  }
+  if (event.data?.type === "roca-eterna-active-profile") {
+    activeProfileEmail = String(event.data.email || "").toLowerCase();
     return;
   }
   if (event.data?.type === "roca-eterna-fcm-ping") {

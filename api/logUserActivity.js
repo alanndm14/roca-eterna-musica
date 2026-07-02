@@ -104,10 +104,11 @@ async function ownerUser() {
 async function ownerTokens(uid = "") {
   if (!uid) return [];
   const snapshot = await admin.firestore().collection(`users/${uid}/fcmTokens`).get();
-  return snapshot.docs
+  const tokens = snapshot.docs
     .map((doc) => ({ id: doc.id, ...(doc.data() || {}) }))
-    .filter((item) => item.enabled !== false && item.token)
+    .filter((item) => item.active === true && item.token && String(item.email || "").toLowerCase() === OWNER_EMAIL)
     .map((item) => item.token);
+  return [...new Set(tokens)];
 }
 
 async function maybeNotifyOwnerOnline(payload = {}) {
@@ -137,27 +138,21 @@ async function maybeNotifyOwnerOnline(payload = {}) {
   if (!tokens.length) return false;
 
   const userName = payload.displayName || payload.email;
+  const title = `${userName} está en línea`;
+  const body = payload.section ? `Entró a ${payload.section}.` : "Abrió la app.";
   await admin.messaging().sendEachForMulticast({
     tokens,
-    notification: {
-      title: `${userName} está en línea`,
-      body: payload.section ? `Entró a ${payload.section}.` : "Abrió la app."
-    },
     data: {
       type: "user_online",
+      title,
+      body,
+      recipientEmail: OWNER_EMAIL,
       userEmail: payload.email,
       uid: payload.uid,
       section: payload.section || "",
       url: "/#/configuracion"
     },
     webpush: {
-      notification: {
-        icon: notificationIconUrl(),
-        badge: notificationIconUrl(),
-        tag: `online-${payload.uid}`,
-        renotify: false,
-        requireInteraction: false
-      },
       fcmOptions: {
         link: `${appBaseUrl()}/#/configuracion`
       }

@@ -353,6 +353,34 @@ async function upsertPushTokenRegistry(decoded, token, tokenId = "") {
   return { saved: true, devices: pushTokens.length, tokenId };
 }
 
+async function deactivateDuplicateFirestoreTokens(decoded, token = "") {
+  if (!token || !decoded?.uid) return { duplicatesDeactivated: 0 };
+  const snap = await withFirestoreTimeout(
+    admin.firestore()
+      .collectionGroup("fcmTokens")
+      .where("token", "==", token)
+      .limit(20)
+      .get(),
+    "cleanup_duplicate_tokens",
+    "Limpieza de tokens duplicados"
+  );
+  let duplicatesDeactivated = 0;
+  await Promise.all(snap.docs.map(async (docSnap) => {
+    const uid = docSnap.ref.path.split("/")[1] || "";
+    if (!uid || uid === decoded.uid) return;
+    const data = docSnap.data() || {};
+    if (data.active === false) return;
+    duplicatesDeactivated += 1;
+    await docSnap.ref.set({
+      active: false,
+      inactiveReason: "same_token_registered_by_another_user",
+      replacedByUid: decoded.uid,
+      deactivatedAt: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+  }));
+  return { duplicatesDeactivated };
+}
+
 async function reserveNotificationSend(notificationId, requesterUid) {
   if (!notificationId) return { reserved: true, duplicate: false };
   const ref = admin.firestore().doc(`pushDeliveries/${notificationId}`);
@@ -667,16 +695,19 @@ export default async function handler(request, response) {
 
     if (mode === "register_topic") {
       stage = "register_topic";
-      const [topicAttempt, registryAttempt] = await Promise.allSettled([
+      const [topicAttempt, registryAttempt, cleanupAttempt] = await Promise.allSettled([
         registerBroadcastTopic(token),
-        upsertPushTokenRegistry(decoded, token, tokenId)
+        upsertPushTokenRegistry(decoded, token, tokenId),
+        deactivateDuplicateFirestoreTokens(decoded, token)
       ]);
       if (topicAttempt.status === "rejected" && registryAttempt.status === "rejected") {
         throw topicAttempt.reason || registryAttempt.reason;
       }
       const topicResult = topicAttempt.status === "fulfilled" ? topicAttempt.value : { successCount: 0, failureCount: 1 };
       const registryResult = registryAttempt.status === "fulfilled" ? registryAttempt.value : { saved: false, devices: 0 };
+      const cleanupResult = cleanupAttempt.status === "fulfilled" ? cleanupAttempt.value : { duplicatesDeactivated: 0 };
       const registryError = registryAttempt.status === "rejected" ? sanitizeError(registryAttempt.reason) : null;
+      const cleanupError = cleanupAttempt.status === "rejected" ? sanitizeError(cleanupAttempt.reason) : null;
       logSafe("Topic registration", {
         stage,
         uid: decoded.uid,
@@ -684,7 +715,9 @@ export default async function handler(request, response) {
         failureCount: topicResult.failureCount,
         registrySaved: registryResult.saved,
         registryDevices: registryResult.devices,
-        registryError
+        registryError,
+        duplicatesDeactivated: cleanupResult.duplicatesDeactivated,
+        cleanupError
       });
       return sendJson(response, 200, {
         ok: true,
@@ -695,7 +728,9 @@ export default async function handler(request, response) {
         failureCount: topicResult.failureCount,
         registrySaved: registryResult.saved,
         registryDevices: registryResult.devices,
-        registryError
+        registryError,
+        duplicatesDeactivated: cleanupResult.duplicatesDeactivated,
+        cleanupError
       });
     }
 

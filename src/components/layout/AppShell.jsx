@@ -56,6 +56,7 @@ const notificationToNovelty = (notification = {}) => ({
   title: notification.title || "Novedad",
   body: notification.message || notification.body || "",
   type: notification.type || "other",
+  recipientEmail: notification.recipientEmail || notification.data?.recipientEmail || "",
   scheduleId: notification.scheduleId || "",
   songId: notification.songId || "",
   url: notification.songId ? `/#/repertorio/${notification.songId}` : notification.scheduleId ? "/#/programacion" : "",
@@ -64,6 +65,14 @@ const notificationToNovelty = (notification = {}) => ({
 });
 
 const notificationKey = (notification = {}) => notification.pushNotificationId || notification.notificationId || notification.id || "";
+const isMessageForProfile = (message = {}, profile = {}) => {
+  const recipientEmail = String(message.recipientEmail || message.data?.recipientEmail || "").toLowerCase();
+  if (message.type === "user_online") {
+    return recipientEmail === "liquea45@gmail.com" && String(profile?.email || "").toLowerCase() === recipientEmail;
+  }
+  if (recipientEmail) return String(profile?.email || "").toLowerCase() === recipientEmail;
+  return true;
+};
 
 const relativeTime = (value) => {
   if (!value) return "";
@@ -209,6 +218,7 @@ export function AppShell() {
   const songIds = useMemo(() => new Set(songs.map((song) => song.id)), [songs]);
   const targetedNotifications = useMemo(() => notifications.filter((item) => {
     if (isObsoleteTestScheduleNotification(item)) return false;
+    if (!isMessageForProfile(item, profile)) return false;
     const targetUsers = item.targetUsers || [];
     const targetRoles = item.targetRoles || [];
     const targetViewerTypes = item.targetViewerTypes || [];
@@ -216,7 +226,7 @@ export function AppShell() {
     if (targetRoles.length && !targetRoles.includes(profile?.role)) return false;
     if (profile?.role === "viewer" && targetViewerTypes.length) return targetViewerTypes.includes(profile?.viewerType);
     return true;
-  }), [notifications, profile?.role, profile?.uid, profile?.viewerType]);
+  }), [notifications, profile?.email, profile?.role, profile?.uid, profile?.viewerType]);
   const isNotificationEntityDeleted = (item) => Boolean(
     item?.deleted
     || item?.relatedEntityDeleted
@@ -442,6 +452,21 @@ export function AppShell() {
   };
 
   useEffect(() => {
+    navigator.serviceWorker?.ready
+      ?.then((registration) => {
+        registration.active?.postMessage({
+          type: "roca-eterna-active-profile",
+          email: profile?.email || ""
+        });
+      })
+      .catch(() => undefined);
+    navigator.serviceWorker?.controller?.postMessage({
+      type: "roca-eterna-active-profile",
+      email: profile?.email || ""
+    });
+  }, [profile?.email]);
+
+  useEffect(() => {
     let unsubscribe = () => {};
     let cancelled = false;
     const shown = new Map();
@@ -464,6 +489,7 @@ export function AppShell() {
     };
 
     subscribeForegroundPushMessages((message) => {
+      if (!isMessageForProfile(message, profile)) return;
       const tag = message.tag || message.notificationId || message.scheduleId || message.songId || `${message.type}-${Math.floor(Date.now() / 10000)}`;
       if (cancelled || shown.has(tag) || (message.notificationId && seenInternalNotifications.current.has(message.notificationId))) return;
       shown.set(tag, Date.now());
@@ -499,11 +525,12 @@ export function AppShell() {
       cancelled = true;
       unsubscribe();
     };
-  }, [navigate]);
+  }, [navigate, profile?.email]);
 
   useEffect(() => {
     const handleInternalNotification = (event) => {
       const notification = event.detail;
+      if (!isMessageForProfile(notification, profile)) return;
       const id = notification?.id || notification?.pushNotificationId;
       if (
         !id
@@ -517,7 +544,7 @@ export function AppShell() {
     };
     window.addEventListener("roca-eterna-internal-notification", handleInternalNotification);
     return () => window.removeEventListener("roca-eterna-internal-notification", handleInternalNotification);
-  }, []);
+  }, [profile?.email]);
 
   useEffect(() => {
     const visibleIds = activeNotifications.map((item) => item.id).filter(Boolean);
@@ -552,6 +579,7 @@ export function AppShell() {
         ...(event.data.payload || {}),
         receivedAt: new Date().toISOString()
       };
+      if (!isMessageForProfile(message, profile)) return;
       saveLastBackgroundPush(message);
       window.dispatchEvent(new CustomEvent("roca-eterna-background-push", { detail: message }));
     };
@@ -567,7 +595,7 @@ export function AppShell() {
       navigator.serviceWorker?.removeEventListener?.("message", handleServiceWorkerMessage);
       channel?.close?.();
     };
-  }, []);
+  }, [profile?.email]);
 
   useEffect(() => {
     const media = window.matchMedia?.("(prefers-color-scheme: dark)");
