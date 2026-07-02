@@ -114,24 +114,6 @@ service cloud.firestore {
       return value == null || (value is list && value.size() <= maxSize);
     }
 
-    function validActivityData() {
-      return request.resource.data.keys().hasAll(["uid", "email", "eventType", "section", "route", "sessionId", "clientTimestamp"])
-        && request.resource.data.uid == request.auth.uid
-        && request.resource.data.email == request.auth.token.email
-        && request.resource.data.eventType in ["section_view", "click", "disconnect"]
-        && validOptionalString(request.resource.data.get("section", null), 80)
-        && validOptionalString(request.resource.data.get("route", null), 240)
-        && validOptionalString(request.resource.data.get("targetLabel", null), 180)
-        && validOptionalString(request.resource.data.get("targetTag", null), 40)
-        && validOptionalString(request.resource.data.get("sessionId", null), 80)
-        && (
-          request.resource.data.get("durationMs", 0) is int
-          || request.resource.data.get("durationMs", 0) is float
-        )
-        && request.resource.data.get("durationMs", 0) >= 0
-        && request.resource.data.get("durationMs", 0) <= 8 * 60 * 60 * 1000;
-    }
-
     function validSongCoreData() {
       return request.resource.data.keys().hasAll(["title"])
         && validShortString(request.resource.data.title, 160)
@@ -483,8 +465,7 @@ service cloud.firestore {
     }
 
     match /userActivity/{activityId} {
-      allow read: if isActivityOwner();
-      allow create: if isAuthorized() && validActivityData();
+      allow read, write: if false;
       allow update, delete: if false;
     }
 

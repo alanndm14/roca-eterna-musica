@@ -1,7 +1,20 @@
 export const appVersion = "1.3a";
-export const appBuildVersion = "1.0.33";
+export const appBuildVersion = "1.0.34";
 
 export const changelog = [
+  {
+    version: "1.3a",
+    date: "2026-07-02",
+    title: "Ahorro de cuota de Firebase",
+    added: [],
+    changed: [
+      "Se desactivó el registro detallado de actividad para reducir lecturas y escrituras."
+    ],
+    fixed: [
+      "La desconexión queda como registro liviano sin consultar historial de actividad."
+    ],
+    pending: []
+  },
   {
     version: "1.3a",
     date: "2026-07-02",

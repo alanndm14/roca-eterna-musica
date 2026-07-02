@@ -1,5 +1,5 @@
 ﻿import { useEffect, useMemo, useState } from "react";
-import { Activity, BellRing, Clock, Database, Download, FileSearch, HelpCircle, Image as ImageIcon, LogOut, MousePointerClick, Palette, Save, Tags, Trash2, Upload, UserPlus } from "lucide-react";
+import { BellRing, Database, Download, FileSearch, HelpCircle, Image as ImageIcon, LogOut, Palette, Save, Tags, Trash2, Upload, UserPlus } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { Field, Input, Select, Textarea } from "../components/ui/Field";
@@ -33,8 +33,6 @@ const formatAccessDate = (value) => {
   return Number.isNaN(date.getTime()) ? "Sin conexión registrada" : date.toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" });
 };
 
-const activityOwnerEmail = "liquea45@gmail.com";
-
 const resolveDateValue = (value) => {
   if (!value) return null;
   if (typeof value?.toDate === "function") return value.toDate();
@@ -54,50 +52,6 @@ const formatExactDate = (value, fallback = "Sin registro") => {
     minute: "2-digit",
     second: "2-digit"
   });
-};
-
-const formatDuration = (milliseconds = 0) => {
-  const totalSeconds = Math.max(0, Math.round(Number(milliseconds || 0) / 1000));
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  if (hours > 0) return `${hours} h ${minutes} min ${seconds} s`;
-  if (minutes > 0) return `${minutes} min ${seconds} s`;
-  return `${seconds} s`;
-};
-
-const activityTimestamp = (activity) => {
-  const date = resolveDateValue(activity?.createdAt) || resolveDateValue(activity?.clientTimestamp);
-  return date?.getTime() || 0;
-};
-
-const activityDateKey = (activity) => {
-  const timestamp = activityTimestamp(activity);
-  if (!timestamp) return "";
-  const date = new Date(timestamp);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
-
-const formatActivityDay = (dateKey = "") => {
-  if (!dateKey) return "Sin fecha";
-  const date = new Date(`${dateKey}T12:00:00`);
-  if (Number.isNaN(date.getTime())) return dateKey;
-  return date.toLocaleDateString("es-MX", {
-    weekday: "short",
-    day: "2-digit",
-    month: "short",
-    year: "numeric"
-  });
-};
-
-const activityTypeLabel = (type) => {
-  if (type === "click") return "Clic";
-  if (type === "section_view") return "Vista";
-  if (type === "disconnect") return "Desconexión";
-  return type || "Actividad";
 };
 
 const boolLabel = (value) => (value === true ? "si" : value === false ? "no" : "sin confirmar");
@@ -127,7 +81,6 @@ export function Settings() {
     removeUserAccess,
     renameSongCategories,
     indexLocalPdfTexts,
-    userActivity,
     logAuditEvent,
     seedExampleData
   } = useMusicData();
@@ -171,10 +124,6 @@ export function Settings() {
   const [isUpdatingPush, setIsUpdatingPush] = useState(false);
   const [showNotificationWizard, setShowNotificationWizard] = useState(false);
   const [showAdvancedPushDiagnostics, setShowAdvancedPushDiagnostics] = useState(false);
-  const [activityUser, setActivityUser] = useState(null);
-  const [activityDayFilter, setActivityDayFilter] = useState("all");
-  const [activitySectionFilter, setActivitySectionFilter] = useState("all");
-  const [activityTypeFilter, setActivityTypeFilter] = useState("all");
   const [pushCooldownUntil, setPushCooldownUntil] = useState(0);
   const [pushCooldownNow, setPushCooldownNow] = useState(Date.now());
   const [tokenCleanupResult, setTokenCleanupResult] = useState(null);
@@ -293,43 +242,6 @@ export function Settings() {
     });
     return [...byEmail.values()].sort((a, b) => a.email.localeCompare(b.email));
   }, [authorizedEmails, users]);
-
-  const canViewUserActivity = String(profile?.email || "").toLowerCase() === activityOwnerEmail;
-  const safeUserActivity = useMemo(() => (Array.isArray(userActivity) ? userActivity : []), [userActivity]);
-  const selectedUserActivity = useMemo(() => {
-    if (!activityUser) return [];
-    const selectedEmail = String(activityUser.email || "").toLowerCase();
-    return safeUserActivity
-      .filter((item) => String(item.email || "").toLowerCase() === selectedEmail)
-      .filter((item) => activityDayFilter === "all" || activityDateKey(item) === activityDayFilter)
-      .filter((item) => activitySectionFilter === "all" || item.section === activitySectionFilter)
-      .filter((item) => activityTypeFilter === "all" || item.eventType === activityTypeFilter)
-      .sort((a, b) => activityTimestamp(b) - activityTimestamp(a));
-  }, [activityDayFilter, activitySectionFilter, activityTypeFilter, activityUser, safeUserActivity]);
-  const activityDays = useMemo(() => {
-    const selectedEmail = String(activityUser?.email || "").toLowerCase();
-    return [...new Set(safeUserActivity
-      .filter((item) => String(item.email || "").toLowerCase() === selectedEmail)
-      .map(activityDateKey)
-      .filter(Boolean))]
-      .sort((a, b) => b.localeCompare(a));
-  }, [activityUser?.email, safeUserActivity]);
-  const activitySections = useMemo(() => {
-    const selectedEmail = String(activityUser?.email || "").toLowerCase();
-    return [...new Set(safeUserActivity
-      .filter((item) => String(item.email || "").toLowerCase() === selectedEmail)
-      .map((item) => item.section)
-      .filter(Boolean))]
-      .sort((a, b) => a.localeCompare(b, "es"));
-  }, [activityUser?.email, safeUserActivity]);
-  const activityTypes = useMemo(() => {
-    const selectedEmail = String(activityUser?.email || "").toLowerCase();
-    return [...new Set(safeUserActivity
-      .filter((item) => String(item.email || "").toLowerCase() === selectedEmail)
-      .map((item) => item.eventType)
-      .filter(Boolean))]
-      .sort((a, b) => a.localeCompare(b, "es"));
-  }, [activityUser?.email, safeUserActivity]);
 
   const activeAdmins = userRows.filter((user) => user.active !== false && user.role === "admin").length;
 
@@ -1168,12 +1080,7 @@ export function Settings() {
                       <p className="font-semibold text-ink">{user.displayName || user.email}</p>
                       <p className="break-all text-sm text-ink/55">{user.email}</p>
                       <p className="text-xs text-ink/45">Última conexión: {formatAccessDate(user.lastSeenAt || user.lastLoginAt || user.lastLogin)}</p>
-                      {canViewUserActivity ? (
-                        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink/45">
-                          <span>Tiempo en app: {formatDuration(user.activityTotalMs || 0)}</span>
-                          <span>Desconexión: {formatExactDate(user.lastDisconnectedAt, "Sin desconexión registrada")}</span>
-                        </div>
-                      ) : null}
+                      <p className="text-xs text-ink/45">Desconexión: {formatExactDate(user.lastDisconnectedAt, "Sin desconexión registrada")}</p>
                     </div>
                     <span className="shrink-0 text-sm font-semibold text-ink/60">{statusForUser(user)}</span>
                   </div>
@@ -1197,20 +1104,6 @@ export function Settings() {
                     <Button variant={user.active !== false ? "secondary" : "danger"} onClick={() => saveAccessUser({ ...user, active: user.active === false })}>
                       {user.active !== false ? "Activo" : "Inactivo"}
                     </Button>
-                    {canViewUserActivity ? (
-                      <Button
-                        variant="secondary"
-                        onClick={() => {
-                          setActivityUser(user);
-                          setActivityDayFilter("all");
-                          setActivitySectionFilter("all");
-                          setActivityTypeFilter("all");
-                        }}
-                      >
-                        <Activity className="h-4 w-4" />
-                        Ver actividad
-                      </Button>
-                    ) : null}
                     <Button variant="danger" onClick={() => deleteAccessUser(user)}>
                       <Trash2 className="h-4 w-4" />
                       Eliminar
@@ -1621,81 +1514,6 @@ export function Settings() {
       </aside>
     </div>
 
-    {canViewUserActivity ? (
-      <Modal
-        open={Boolean(activityUser)}
-        title={activityUser ? `Actividad de ${activityUser.displayName || activityUser.email}` : "Actividad"}
-        onClose={() => setActivityUser(null)}
-        wide
-      >
-        <div className="space-y-4">
-          <div className="grid gap-3 md:grid-cols-3">
-            <div className="rounded-2xl border border-ink/10 bg-white/85 p-4 shadow-soft dark:border-white/10 dark:bg-white/[0.07]">
-              <p className="text-xs font-bold uppercase tracking-wide text-ink/45 dark:text-white/45">Tiempo acumulado</p>
-              <p className="mt-2 text-2xl font-black text-ink dark:text-white">{formatDuration(activityUser?.activityTotalMs || 0)}</p>
-            </div>
-            <div className="rounded-2xl border border-ink/10 bg-white/85 p-4 shadow-soft dark:border-white/10 dark:bg-white/[0.07]">
-              <p className="text-xs font-bold uppercase tracking-wide text-ink/45 dark:text-white/45">Última desconexión</p>
-              <p className="mt-2 text-sm font-bold text-ink dark:text-white">{formatExactDate(activityUser?.lastDisconnectedAt, "Sin registro")}</p>
-            </div>
-            <div className="rounded-2xl border border-ink/10 bg-white/85 p-4 shadow-soft dark:border-white/10 dark:bg-white/[0.07]">
-              <p className="text-xs font-bold uppercase tracking-wide text-ink/45 dark:text-white/45">Eventos mostrados</p>
-              <p className="mt-2 text-2xl font-black text-ink dark:text-white">{selectedUserActivity.length}</p>
-            </div>
-          </div>
-
-          <div className="grid gap-3 md:grid-cols-3">
-            <Field label="Día">
-              <Select value={activityDayFilter} onChange={(event) => setActivityDayFilter(event.target.value)}>
-                <option value="all">Todos los días</option>
-                {activityDays.map((day) => <option key={day} value={day}>{formatActivityDay(day)}</option>)}
-              </Select>
-            </Field>
-            <Field label="Sección">
-              <Select value={activitySectionFilter} onChange={(event) => setActivitySectionFilter(event.target.value)}>
-                <option value="all">Todas</option>
-                {activitySections.map((section) => <option key={section} value={section}>{section}</option>)}
-              </Select>
-            </Field>
-            <Field label="Tipo de actividad">
-              <Select value={activityTypeFilter} onChange={(event) => setActivityTypeFilter(event.target.value)}>
-                <option value="all">Todas</option>
-                {activityTypes.map((type) => <option key={type} value={type}>{activityTypeLabel(type)}</option>)}
-              </Select>
-            </Field>
-          </div>
-
-          <div className="max-h-[55vh] space-y-3 overflow-y-auto pr-1">
-            {selectedUserActivity.length ? selectedUserActivity.map((item) => (
-              <div key={item.id || `${item.sessionId}-${item.clientTimestamp}-${item.targetLabel}`} className="rounded-2xl border border-ink/10 bg-white/90 p-4 text-sm shadow-soft dark:border-white/10 dark:bg-zinc-900/95">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="inline-flex items-center gap-1 rounded-full bg-brass/12 px-2.5 py-1 text-xs font-black uppercase tracking-wide text-brass">
-                        {item.eventType === "click" ? <MousePointerClick className="h-3.5 w-3.5" /> : <Clock className="h-3.5 w-3.5" />}
-                        {activityTypeLabel(item.eventType)}
-                      </span>
-                      <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-bold text-ink/60 dark:bg-white/10 dark:text-white/70">{item.section || "sin sección"}</span>
-                      <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-bold text-ink/50 dark:bg-white/10 dark:text-white/60">{formatActivityDay(activityDateKey(item))}</span>
-                    </div>
-                    {item.targetLabel ? <p className="mt-2 font-bold text-ink dark:text-white">{item.targetLabel}</p> : null}
-                    <p className="mt-1 break-all text-xs text-ink/50 dark:text-white/55">{item.route || "sin ruta"}</p>
-                  </div>
-                  <p className="shrink-0 rounded-full bg-ink/5 px-2.5 py-1 text-xs font-bold text-ink/55 dark:bg-white/10 dark:text-white/65">{formatExactDate(item.createdAt || item.clientTimestamp, "Sin hora")}</p>
-                </div>
-                {item.durationMs ? (
-                  <p className="mt-3 text-xs font-semibold text-ink/60 dark:text-white/65">Duración: {formatDuration(item.durationMs)}</p>
-                ) : null}
-              </div>
-            )) : (
-              <div className="rounded-2xl border border-dashed border-ink/15 p-5 text-sm text-ink/55 dark:border-white/15 dark:bg-white/[0.04] dark:text-white/60">
-                No hay actividad registrada con estos filtros.
-              </div>
-            )}
-          </div>
-        </div>
-      </Modal>
-    ) : null}
     </>
   );
 }

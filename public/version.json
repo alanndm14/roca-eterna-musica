@@ -1,9 +1,9 @@
 {
-  "version": "1.0.33",
+  "version": "1.0.34",
   "displayVersion": "1.3a",
   "date": "2026-07-02",
   "critical": true,
   "changes": [
-    "Corrección de actividad y desconexión"
+    "Ahorro de cuota de Firebase"
   ]
 }

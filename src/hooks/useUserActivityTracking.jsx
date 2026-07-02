@@ -1,27 +1,12 @@
 import { useEffect, useRef } from "react";
-import { useLocation } from "react-router-dom";
 import { auth, isFirebaseConfigured } from "../lib/firebase";
 import { activityApiUrl, authenticatedHeaders } from "../services/userActivityApi";
 
 const sessionKey = "roca-eterna-activity-session-id";
 const pendingKey = "roca-eterna-pending-activity-events";
-const currentSessionKey = "roca-eterna-current-activity-session";
 const backoffKey = "roca-eterna-activity-backoff-until";
-const maxPendingEvents = 40;
+const maxPendingEvents = 6;
 const retryBackoffMs = 5 * 60 * 1000;
-
-const sectionLabels = {
-  "/": "Inicio",
-  "/repertorio": "Repertorio",
-  "/programacion": "Programación",
-  "/musicos": "Servicios",
-  "/servicios": "Servicios",
-  "/historial": "Historial",
-  "/estadisticas": "Estadísticas",
-  "/configuracion": "Configuración",
-  "/auditoria": "Auditoría",
-  "/actualizaciones": "Actualizaciones"
-};
 
 function getSessionId() {
   try {
@@ -35,29 +20,18 @@ function getSessionId() {
   }
 }
 
-function sectionFromPath(pathname = "/") {
-  if (pathname.startsWith("/repertorio/")) return "Detalle de canto";
-  return sectionLabels[pathname] || pathname.replace("/", "") || "Inicio";
-}
-
-function cleanLabel(value = "") {
-  return String(value || "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 160);
-}
-
-function makeEventId(eventType = "event") {
+function makeDisconnectEventId() {
   const randomPart = Math.random().toString(36).slice(2, 10);
-  return `${getSessionId()}-${eventType}-${Date.now()}-${randomPart}`;
+  return `${getSessionId()}-disconnect-${Date.now()}-${randomPart}`;
 }
 
 function buildActivityBody(payload = {}) {
   return {
-    eventId: payload.eventId || makeEventId(payload.eventType || "event"),
+    eventId: payload.eventId || makeDisconnectEventId(),
     sessionId: payload.sessionId || getSessionId(),
     clientTimestamp: payload.clientTimestamp || new Date().toISOString(),
     userAgent: payload.userAgent || navigator.userAgent || "",
+    eventType: "disconnect",
     ...payload
   };
 }
@@ -123,45 +97,6 @@ function readPendingEvents() {
   }
 }
 
-function rememberSessionState(payload = {}) {
-  try {
-    localStorage.setItem(currentSessionKey, JSON.stringify({
-      sessionId: getSessionId(),
-      lastSeenAt: new Date().toISOString(),
-      disconnected: false,
-      ...payload
-    }));
-  } catch {
-    // La actividad no debe afectar el uso normal de la app.
-  }
-}
-
-function markSessionDisconnectPending(payload = {}) {
-  try {
-    const current = JSON.parse(localStorage.getItem(currentSessionKey) || "{}");
-    localStorage.setItem(currentSessionKey, JSON.stringify({
-      ...current,
-      disconnected: false,
-      disconnectPending: true,
-      pendingDisconnectEventId: payload.eventId || "",
-      disconnectedAt: payload.endedAt || new Date().toISOString()
-    }));
-  } catch {
-    // La actividad no debe afectar el uso normal de la app.
-  }
-}
-
-function readPreviousOpenSession() {
-  try {
-    const current = JSON.parse(localStorage.getItem(currentSessionKey) || "null");
-    if (current?.disconnectPending) return null;
-    if (!current || current.disconnected || current.sessionId === getSessionId()) return null;
-    return current;
-  } catch {
-    return null;
-  }
-}
-
 async function postActivity(profile, payload = {}, headersOverride = null) {
   if (!shouldTrack(profile)) return;
   const endpoint = activityApiUrl("logUserActivity");
@@ -224,17 +159,16 @@ async function flushPendingEvents(profile) {
   if (!shouldTrack(profile)) return;
   const pending = readPendingEvents();
   if (!pending.length) return;
-  for (const event of pending.slice(-12)) {
+  for (const event of pending.slice(-3)) {
     await postActivity(profile, event);
   }
 }
 
 export function useUserActivityTracking(profile) {
-  const location = useLocation();
-  const activeViewRef = useRef(null);
   const profileRef = useRef(profile);
   const cachedHeadersRef = useRef(null);
   const disconnectSentRef = useRef(false);
+  const sessionStartedAtRef = useRef(Date.now());
 
   useEffect(() => {
     profileRef.current = profile;
@@ -260,156 +194,54 @@ export function useUserActivityTracking(profile) {
 
   useEffect(() => {
     if (!shouldTrack(profile)) return undefined;
-    const previous = readPreviousOpenSession();
-    if (previous) {
-      postActivity(profile, {
-        eventType: "disconnect",
-        section: previous.section || "Inicio",
-        route: previous.route || "/",
-        reason: "previous_session_closed",
-        startedAt: previous.startedAt || "",
-        endedAt: previous.lastSeenAt || new Date().toISOString(),
-        durationMs: previous.startedAt && previous.lastSeenAt
-          ? Math.max(0, new Date(previous.lastSeenAt).getTime() - new Date(previous.startedAt).getTime())
-          : 0
-      }).catch(() => undefined);
-    }
+    sessionStartedAtRef.current = Date.now();
+    disconnectSentRef.current = false;
     flushPendingEvents(profile).catch(() => undefined);
-    postActivity(profile, {
-      eventType: "section_view",
-      section: sectionFromPath(location.pathname),
-      route: `${location.pathname}${location.search || ""}${location.hash || ""}`,
-      reason: "enter",
-      startedAt: new Date().toISOString(),
-      endedAt: "",
-      durationMs: 0
-    }).catch(() => undefined);
-    rememberSessionState({
-      section: sectionFromPath(location.pathname),
-      route: `${location.pathname}${location.search || ""}${location.hash || ""}`,
-      startedAt: new Date().toISOString()
-    });
     return undefined;
   }, [profile?.uid]);
 
   useEffect(() => {
     if (!shouldTrack(profile)) return undefined;
 
-    const closeActiveView = (reason = "route_change") => {
-      const current = activeViewRef.current;
-      if (!current) return;
-      activeViewRef.current = null;
-      const endedAt = Date.now();
-      const durationMs = Math.max(0, endedAt - current.startedAt);
-      postActivity(profileRef.current, {
-        eventType: "section_view",
-        section: current.section,
-        route: current.route,
-        reason,
-        startedAt: new Date(current.startedAt).toISOString(),
-        endedAt: new Date(endedAt).toISOString(),
-        durationMs
-      }).catch(() => undefined);
-    };
-
-    closeActiveView("route_change");
-    disconnectSentRef.current = false;
-    activeViewRef.current = {
-      section: sectionFromPath(location.pathname),
-      route: `${location.pathname}${location.search || ""}${location.hash || ""}`,
-      startedAt: Date.now()
-    };
-    rememberSessionState({
-      section: activeViewRef.current.section,
-      route: activeViewRef.current.route,
-      startedAt: new Date(activeViewRef.current.startedAt).toISOString()
-    });
-
-    return () => closeActiveView("route_change");
-  }, [location.pathname, location.search, location.hash, profile?.uid]);
-
-  useEffect(() => {
-    if (!shouldTrack(profile)) return undefined;
-
-    const handleClick = (event) => {
-      const target = event.target?.closest?.("button,a,[role='button']");
-      if (!target) return;
-      const label = cleanLabel(target.getAttribute("aria-label") || target.innerText || target.textContent || target.title || target.href);
-      if (!label) return;
-      postActivity(profileRef.current, {
-        eventType: "click",
-        section: activeViewRef.current?.section || sectionFromPath(location.pathname),
-        route: `${location.pathname}${location.search || ""}${location.hash || ""}`,
-        targetLabel: label,
-        targetTag: target.tagName?.toLowerCase?.() || "",
-        targetRole: target.getAttribute("role") || "",
-        targetHref: target.getAttribute("href") || "",
-        durationMs: 0
-      }).catch(() => undefined);
-    };
-
-    const handleDisconnect = () => {
+    const handleDisconnect = (reason = "") => {
       if (disconnectSentRef.current) return;
       disconnectSentRef.current = true;
-      const current = activeViewRef.current;
       const endedAt = Date.now();
-      const durationMs = current ? Math.max(0, endedAt - current.startedAt) : 0;
-      activeViewRef.current = null;
+      const durationMs = Math.max(0, endedAt - sessionStartedAtRef.current);
       const payload = {
-        eventId: makeEventId("disconnect"),
+        eventId: makeDisconnectEventId(),
         eventType: "disconnect",
-        section: current?.section || sectionFromPath(location.pathname),
-        route: current?.route || `${location.pathname}${location.search || ""}${location.hash || ""}`,
-        reason: document.visibilityState === "hidden" ? "hidden" : "pagehide",
-        startedAt: current ? new Date(current.startedAt).toISOString() : "",
+        reason: reason || (document.visibilityState === "hidden" ? "hidden" : "pagehide"),
+        startedAt: new Date(sessionStartedAtRef.current).toISOString(),
         endedAt: new Date(endedAt).toISOString(),
         durationMs
       };
-      markSessionDisconnectPending(payload);
       postActivityFast(profileRef.current, payload, cachedHeadersRef.current);
     };
 
     const handleVisibility = () => {
       if (document.visibilityState === "hidden") {
-        handleDisconnect();
-      } else if (!activeViewRef.current) {
+        handleDisconnect("hidden");
+      } else {
         disconnectSentRef.current = false;
-        activeViewRef.current = {
-          section: sectionFromPath(location.pathname),
-          route: `${location.pathname}${location.search || ""}${location.hash || ""}`,
-          startedAt: Date.now()
-        };
-        rememberSessionState({
-          section: activeViewRef.current.section,
-          route: activeViewRef.current.route,
-          startedAt: new Date(activeViewRef.current.startedAt).toISOString()
-        });
+        sessionStartedAtRef.current = Date.now();
         flushPendingEvents(profileRef.current).catch(() => undefined);
       }
     };
 
-    const rememberHeartbeat = () => {
-      const current = activeViewRef.current;
-      rememberSessionState({
-        section: current?.section || sectionFromPath(location.pathname),
-        route: current?.route || `${location.pathname}${location.search || ""}${location.hash || ""}`,
-        startedAt: current ? new Date(current.startedAt).toISOString() : new Date().toISOString()
-      });
-    };
+    const handleForcedDisconnect = () => handleDisconnect("signout");
+    const handleBeforeUnload = () => handleDisconnect("beforeunload");
+    const handlePageHide = () => handleDisconnect("pagehide");
 
-    const heartbeat = window.setInterval(rememberHeartbeat, 15000);
-    document.addEventListener("click", handleClick, true);
     document.addEventListener("visibilitychange", handleVisibility);
-    window.addEventListener("roca-eterna-force-disconnect", handleDisconnect);
-    window.addEventListener("beforeunload", handleDisconnect);
-    window.addEventListener("pagehide", handleDisconnect);
+    window.addEventListener("roca-eterna-force-disconnect", handleForcedDisconnect);
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    window.addEventListener("pagehide", handlePageHide);
     return () => {
-      window.clearInterval(heartbeat);
-      document.removeEventListener("click", handleClick, true);
       document.removeEventListener("visibilitychange", handleVisibility);
-      window.removeEventListener("roca-eterna-force-disconnect", handleDisconnect);
-      window.removeEventListener("beforeunload", handleDisconnect);
-      window.removeEventListener("pagehide", handleDisconnect);
+      window.removeEventListener("roca-eterna-force-disconnect", handleForcedDisconnect);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      window.removeEventListener("pagehide", handlePageHide);
     };
-  }, [location.pathname, location.search, location.hash, profile?.uid]);
+  }, [profile?.uid]);
 }

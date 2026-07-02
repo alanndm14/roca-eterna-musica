@@ -33,19 +33,3 @@ export async function authenticatedHeaders() {
   }
   return headers;
 }
-
-export async function fetchUserActivity() {
-  const endpoint = activityApiUrl("listUserActivity");
-  const headers = await authenticatedHeaders();
-  if (!endpoint || !headers) return [];
-  const response = await fetch(endpoint, {
-    method: "GET",
-    headers,
-    cache: "no-store"
-  });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok || body.ok === false) {
-    throw new Error(body.message || "No se pudo leer la actividad.");
-  }
-  return Array.isArray(body.activity) ? body.activity : [];
-}
