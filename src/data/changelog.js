@@ -1,7 +1,18 @@
-export const appVersion = "1.3.1";
-export const appBuildVersion = "1.0.31";
+export const appVersion = "1.3a";
+export const appBuildVersion = "1.0.32";
 
 export const changelog = [
+  {
+    version: "1.3a",
+    date: "2026-07-02",
+    title: "Correcciones para los roles de Coristas, Músicos y Medios",
+    added: [],
+    changed: [],
+    fixed: [
+      "Correcciones para los roles de Coristas, Músicos y Medios"
+    ],
+    pending: []
+  },
   {
     version: "1.3.1",
     date: "2026-07-02",

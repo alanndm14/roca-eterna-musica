@@ -45,6 +45,21 @@ function cleanLabel(value = "") {
     .slice(0, 160);
 }
 
+function makeEventId(eventType = "event") {
+  const randomPart = Math.random().toString(36).slice(2, 10);
+  return `${getSessionId()}-${eventType}-${Date.now()}-${randomPart}`;
+}
+
+function buildActivityBody(payload = {}) {
+  return {
+    eventId: payload.eventId || makeEventId(payload.eventType || "event"),
+    sessionId: payload.sessionId || getSessionId(),
+    clientTimestamp: payload.clientTimestamp || new Date().toISOString(),
+    userAgent: payload.userAgent || navigator.userAgent || "",
+    ...payload
+  };
+}
+
 function shouldTrack(profile) {
   const email = String(profile?.email || "").toLowerCase();
   return Boolean(isFirebaseConfigured && auth?.currentUser && profile?.uid && email && profile.uid !== "demo-admin" && activityApiUrl("logUserActivity"));
@@ -53,8 +68,20 @@ function shouldTrack(profile) {
 function savePendingEvent(payload = {}) {
   try {
     const current = JSON.parse(localStorage.getItem(pendingKey) || "[]");
-    current.push(payload);
-    localStorage.setItem(pendingKey, JSON.stringify(current.slice(-maxPendingEvents)));
+    const nextEvent = buildActivityBody(payload);
+    const deduped = current.filter((event) => event.eventId !== nextEvent.eventId);
+    deduped.push(nextEvent);
+    localStorage.setItem(pendingKey, JSON.stringify(deduped.slice(-maxPendingEvents)));
+  } catch {
+    // La actividad no debe afectar el uso normal de la app.
+  }
+}
+
+function removePendingEvent(eventId = "") {
+  if (!eventId) return;
+  try {
+    const current = JSON.parse(localStorage.getItem(pendingKey) || "[]");
+    localStorage.setItem(pendingKey, JSON.stringify(current.filter((event) => event.eventId !== eventId)));
   } catch {
     // La actividad no debe afectar el uso normal de la app.
   }
@@ -83,13 +110,15 @@ function rememberSessionState(payload = {}) {
   }
 }
 
-function markSessionDisconnected() {
+function markSessionDisconnectPending(payload = {}) {
   try {
     const current = JSON.parse(localStorage.getItem(currentSessionKey) || "{}");
     localStorage.setItem(currentSessionKey, JSON.stringify({
       ...current,
-      disconnected: true,
-      disconnectedAt: new Date().toISOString()
+      disconnected: false,
+      disconnectPending: true,
+      pendingDisconnectEventId: payload.eventId || "",
+      disconnectedAt: payload.endedAt || new Date().toISOString()
     }));
   } catch {
     // La actividad no debe afectar el uso normal de la app.
@@ -99,6 +128,7 @@ function markSessionDisconnected() {
 function readPreviousOpenSession() {
   try {
     const current = JSON.parse(localStorage.getItem(currentSessionKey) || "null");
+    if (current?.disconnectPending) return null;
     if (!current || current.disconnected || current.sessionId === getSessionId()) return null;
     return current;
   } catch {
@@ -109,45 +139,45 @@ function readPreviousOpenSession() {
 async function postActivity(profile, payload = {}, headersOverride = null) {
   if (!shouldTrack(profile)) return;
   const endpoint = activityApiUrl("logUserActivity");
-  const body = {
-    sessionId: getSessionId(),
-    clientTimestamp: new Date().toISOString(),
-    userAgent: navigator.userAgent || "",
-    ...payload
-  };
+  const body = buildActivityBody(payload);
   try {
     const headers = headersOverride || await authenticatedHeaders();
-    if (!headers) return;
+    if (!headers) {
+      savePendingEvent(body);
+      return;
+    }
     const response = await fetch(endpoint, {
       method: "POST",
       headers,
       body: JSON.stringify(body),
       keepalive: true
     });
-    if (!response.ok) savePendingEvent(body);
+    if (response.ok) removePendingEvent(body.eventId);
+    else savePendingEvent(body);
   } catch {
     savePendingEvent(body);
   }
 }
 
 function postActivityFast(profile, payload = {}, headers = null) {
+  const body = buildActivityBody(payload);
+  if (body.eventType === "disconnect") savePendingEvent(body);
   if (!shouldTrack(profile) || !headers) {
-    savePendingEvent(payload);
+    savePendingEvent(body);
     return;
   }
   const endpoint = activityApiUrl("logUserActivity");
-  const body = {
-    sessionId: getSessionId(),
-    clientTimestamp: new Date().toISOString(),
-    userAgent: navigator.userAgent || "",
-    ...payload
-  };
   fetch(endpoint, {
     method: "POST",
     headers,
     body: JSON.stringify(body),
     keepalive: true
-  }).catch(() => savePendingEvent(body));
+  })
+    .then((response) => {
+      if (response.ok) removePendingEvent(body.eventId);
+      else savePendingEvent(body);
+    })
+    .catch(() => savePendingEvent(body));
 }
 
 async function flushPendingEvents(profile) {
@@ -286,6 +316,7 @@ export function useUserActivityTracking(profile) {
       const durationMs = current ? Math.max(0, endedAt - current.startedAt) : 0;
       activeViewRef.current = null;
       const payload = {
+        eventId: makeEventId("disconnect"),
         eventType: "disconnect",
         section: current?.section || sectionFromPath(location.pathname),
         route: current?.route || `${location.pathname}${location.search || ""}${location.hash || ""}`,
@@ -294,7 +325,7 @@ export function useUserActivityTracking(profile) {
         endedAt: new Date(endedAt).toISOString(),
         durationMs
       };
-      markSessionDisconnected();
+      markSessionDisconnectPending(payload);
       postActivityFast(profileRef.current, payload, cachedHeadersRef.current);
     };
 

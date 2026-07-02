@@ -23,6 +23,13 @@ function safeString(value = "", maxLength = 180) {
     .slice(0, maxLength);
 }
 
+function safeEventId(value = "") {
+  return String(value || "")
+    .replace(/[^a-zA-Z0-9_-]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 120);
+}
+
 function safeDuration(value = 0) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return 0;
@@ -39,6 +46,7 @@ function safeActivityPayload(body = {}, requester = {}) {
   }
 
   return {
+    eventId: safeEventId(body.eventId),
     uid: requester.uid,
     email: requester.email,
     displayName: requester.displayName || requester.email,
@@ -68,6 +76,25 @@ function responseError(error = {}) {
     code: error.code || "ACTIVITY_LOG_FAILED",
     message: error.message || "No se pudo registrar la actividad."
   };
+}
+
+async function saveActivityEvent(payload = {}) {
+  if (!payload.eventId) {
+    await admin.firestore().collection("userActivity").add(payload);
+    return { duplicate: false };
+  }
+
+  const ref = admin.firestore().doc(`userActivity/${payload.eventId}`);
+  let duplicate = false;
+  await admin.firestore().runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(ref);
+    if (snapshot.exists) {
+      duplicate = true;
+      return;
+    }
+    transaction.set(ref, payload);
+  });
+  return { duplicate };
 }
 
 function enforceActivityRateLimit(uid = "") {
@@ -133,13 +160,29 @@ async function maybeNotifyOwnerOnline(payload = {}) {
   });
   if (!shouldNotify) return false;
 
-  const owner = await ownerUser();
-  const tokens = await ownerTokens(owner?.uid || "");
-  if (!tokens.length) return false;
-
   const userName = payload.displayName || payload.email;
   const title = `${userName} está en línea`;
   const body = payload.section ? `Entró a ${payload.section}.` : "Abrió la app.";
+  const owner = await ownerUser();
+  await admin.firestore().collection("notifications").add({
+    type: "user_online",
+    title,
+    message: body,
+    recipientEmail: OWNER_EMAIL,
+    targetUsers: owner?.uid ? [owner.uid] : [],
+    targetRoles: [],
+    targetViewerTypes: [],
+    uid: payload.uid,
+    userEmail: payload.email,
+    section: payload.section || "",
+    active: true,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    pushNotificationId: `user-online-${payload.uid}-${now}`
+  }).catch(() => undefined);
+
+  const tokens = await ownerTokens(owner?.uid || "");
+  if (!tokens.length) return true;
+
   await admin.messaging().sendEachForMulticast({
     tokens,
     data: {
@@ -180,29 +223,32 @@ export default async function handler(request, response) {
     initializeAdmin();
     await verifyAppCheckIfRequired(request);
     const requester = await verifyRequester(request, {
-      allowedRoles: ["admin", "editor", "viewer"],
+      allowedRoles: ["admin", "editor", "viewer", "corista", "musico", "músico", "musician", "medios", "medio", "media", "administrativo"],
       unauthenticatedMessage: "Necesitas iniciar sesión para registrar actividad.",
       forbiddenMessage: "No tienes permiso para registrar actividad."
     });
     enforceActivityRateLimit(requester.uid);
 
     const payload = safeActivityPayload(parseBody(request), requester);
-    await admin.firestore().collection("userActivity").add(payload);
+    const saveResult = await saveActivityEvent(payload);
 
-    const userUpdate = {
-      lastActivityAt: admin.firestore.FieldValue.serverTimestamp(),
-      lastActivitySection: payload.section
-    };
-    if (payload.durationMs > 0) {
-      userUpdate.activityTotalMs = admin.firestore.FieldValue.increment(payload.durationMs);
+    let ownerNotified = false;
+    if (!saveResult.duplicate) {
+      const userUpdate = {
+        lastActivityAt: admin.firestore.FieldValue.serverTimestamp(),
+        lastActivitySection: payload.section
+      };
+      if (payload.durationMs > 0) {
+        userUpdate.activityTotalMs = admin.firestore.FieldValue.increment(payload.durationMs);
+      }
+      if (payload.eventType === "disconnect") {
+        userUpdate.lastDisconnectedAt = admin.firestore.FieldValue.serverTimestamp();
+      }
+      await admin.firestore().doc(`users/${requester.uid}`).set(userUpdate, { merge: true });
+      ownerNotified = await maybeNotifyOwnerOnline(payload).catch(() => false);
     }
-    if (payload.eventType === "disconnect") {
-      userUpdate.lastDisconnectedAt = admin.firestore.FieldValue.serverTimestamp();
-    }
-    await admin.firestore().doc(`users/${requester.uid}`).set(userUpdate, { merge: true });
-    const ownerNotified = await maybeNotifyOwnerOnline(payload).catch(() => false);
 
-    response.status(200).json({ ok: true, ownerNotified });
+    response.status(200).json({ ok: true, ownerNotified, duplicate: saveResult.duplicate });
   } catch (error) {
     const status = Number(error.status) || 500;
     if (status >= 500) {
