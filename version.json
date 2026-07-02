@@ -1,0 +1,9 @@
+{
+  "version": "1.0.34",
+  "displayVersion": "1.3a",
+  "date": "2026-07-02",
+  "critical": true,
+  "changes": [
+    "Ahorro de cuota de Firebase"
+  ]
+}
