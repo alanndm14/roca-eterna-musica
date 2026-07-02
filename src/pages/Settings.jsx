@@ -70,6 +70,28 @@ const activityTimestamp = (activity) => {
   return date?.getTime() || 0;
 };
 
+const activityDateKey = (activity) => {
+  const timestamp = activityTimestamp(activity);
+  if (!timestamp) return "";
+  const date = new Date(timestamp);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const formatActivityDay = (dateKey = "") => {
+  if (!dateKey) return "Sin fecha";
+  const date = new Date(`${dateKey}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return dateKey;
+  return date.toLocaleDateString("es-MX", {
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+    year: "numeric"
+  });
+};
+
 const activityTypeLabel = (type) => {
   if (type === "click") return "Clic";
   if (type === "section_view") return "Vista";
@@ -149,6 +171,7 @@ export function Settings() {
   const [showNotificationWizard, setShowNotificationWizard] = useState(false);
   const [showAdvancedPushDiagnostics, setShowAdvancedPushDiagnostics] = useState(false);
   const [activityUser, setActivityUser] = useState(null);
+  const [activityDayFilter, setActivityDayFilter] = useState("all");
   const [activitySectionFilter, setActivitySectionFilter] = useState("all");
   const [activityTypeFilter, setActivityTypeFilter] = useState("all");
   const [pushCooldownUntil, setPushCooldownUntil] = useState(0);
@@ -276,10 +299,19 @@ export function Settings() {
     const selectedEmail = String(activityUser.email || "").toLowerCase();
     return safeUserActivity
       .filter((item) => String(item.email || "").toLowerCase() === selectedEmail)
+      .filter((item) => activityDayFilter === "all" || activityDateKey(item) === activityDayFilter)
       .filter((item) => activitySectionFilter === "all" || item.section === activitySectionFilter)
       .filter((item) => activityTypeFilter === "all" || item.eventType === activityTypeFilter)
       .sort((a, b) => activityTimestamp(b) - activityTimestamp(a));
-  }, [activitySectionFilter, activityTypeFilter, activityUser, safeUserActivity]);
+  }, [activityDayFilter, activitySectionFilter, activityTypeFilter, activityUser, safeUserActivity]);
+  const activityDays = useMemo(() => {
+    const selectedEmail = String(activityUser?.email || "").toLowerCase();
+    return [...new Set(safeUserActivity
+      .filter((item) => String(item.email || "").toLowerCase() === selectedEmail)
+      .map(activityDateKey)
+      .filter(Boolean))]
+      .sort((a, b) => b.localeCompare(a));
+  }, [activityUser?.email, safeUserActivity]);
   const activitySections = useMemo(() => {
     const selectedEmail = String(activityUser?.email || "").toLowerCase();
     return [...new Set(safeUserActivity
@@ -1158,6 +1190,7 @@ export function Settings() {
                         variant="secondary"
                         onClick={() => {
                           setActivityUser(user);
+                          setActivityDayFilter("all");
                           setActivitySectionFilter("all");
                           setActivityTypeFilter("all");
                         }}
@@ -1585,21 +1618,27 @@ export function Settings() {
       >
         <div className="space-y-4">
           <div className="grid gap-3 md:grid-cols-3">
-            <div className="rounded-2xl border border-ink/10 bg-ink/[0.03] p-4">
-              <p className="text-xs font-bold uppercase tracking-wide text-ink/45">Tiempo acumulado</p>
-              <p className="mt-2 text-2xl font-black text-ink">{formatDuration(activityUser?.activityTotalMs || 0)}</p>
+            <div className="rounded-2xl border border-ink/10 bg-white/85 p-4 shadow-soft dark:border-white/10 dark:bg-white/[0.07]">
+              <p className="text-xs font-bold uppercase tracking-wide text-ink/45 dark:text-white/45">Tiempo acumulado</p>
+              <p className="mt-2 text-2xl font-black text-ink dark:text-white">{formatDuration(activityUser?.activityTotalMs || 0)}</p>
             </div>
-            <div className="rounded-2xl border border-ink/10 bg-ink/[0.03] p-4">
-              <p className="text-xs font-bold uppercase tracking-wide text-ink/45">Última desconexión</p>
-              <p className="mt-2 text-sm font-bold text-ink">{formatExactDate(activityUser?.lastDisconnectedAt, "Sin registro")}</p>
+            <div className="rounded-2xl border border-ink/10 bg-white/85 p-4 shadow-soft dark:border-white/10 dark:bg-white/[0.07]">
+              <p className="text-xs font-bold uppercase tracking-wide text-ink/45 dark:text-white/45">Última desconexión</p>
+              <p className="mt-2 text-sm font-bold text-ink dark:text-white">{formatExactDate(activityUser?.lastDisconnectedAt, "Sin registro")}</p>
             </div>
-            <div className="rounded-2xl border border-ink/10 bg-ink/[0.03] p-4">
-              <p className="text-xs font-bold uppercase tracking-wide text-ink/45">Eventos mostrados</p>
-              <p className="mt-2 text-2xl font-black text-ink">{selectedUserActivity.length}</p>
+            <div className="rounded-2xl border border-ink/10 bg-white/85 p-4 shadow-soft dark:border-white/10 dark:bg-white/[0.07]">
+              <p className="text-xs font-bold uppercase tracking-wide text-ink/45 dark:text-white/45">Eventos mostrados</p>
+              <p className="mt-2 text-2xl font-black text-ink dark:text-white">{selectedUserActivity.length}</p>
             </div>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid gap-3 md:grid-cols-3">
+            <Field label="Día">
+              <Select value={activityDayFilter} onChange={(event) => setActivityDayFilter(event.target.value)}>
+                <option value="all">Todos los días</option>
+                {activityDays.map((day) => <option key={day} value={day}>{formatActivityDay(day)}</option>)}
+              </Select>
+            </Field>
             <Field label="Sección">
               <Select value={activitySectionFilter} onChange={(event) => setActivitySectionFilter(event.target.value)}>
                 <option value="all">Todas</option>
@@ -1616,7 +1655,7 @@ export function Settings() {
 
           <div className="max-h-[55vh] space-y-3 overflow-y-auto pr-1">
             {selectedUserActivity.length ? selectedUserActivity.map((item) => (
-              <div key={item.id || `${item.sessionId}-${item.clientTimestamp}-${item.targetLabel}`} className="rounded-2xl border border-ink/10 bg-white/80 p-4 text-sm shadow-soft dark:bg-white/8">
+              <div key={item.id || `${item.sessionId}-${item.clientTimestamp}-${item.targetLabel}`} className="rounded-2xl border border-ink/10 bg-white/90 p-4 text-sm shadow-soft dark:border-white/10 dark:bg-zinc-900/95">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
@@ -1624,19 +1663,20 @@ export function Settings() {
                         {item.eventType === "click" ? <MousePointerClick className="h-3.5 w-3.5" /> : <Clock className="h-3.5 w-3.5" />}
                         {activityTypeLabel(item.eventType)}
                       </span>
-                      <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-bold text-ink/60">{item.section || "sin sección"}</span>
+                      <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-bold text-ink/60 dark:bg-white/10 dark:text-white/70">{item.section || "sin sección"}</span>
+                      <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-bold text-ink/50 dark:bg-white/10 dark:text-white/60">{formatActivityDay(activityDateKey(item))}</span>
                     </div>
-                    {item.targetLabel ? <p className="mt-2 font-bold text-ink">{item.targetLabel}</p> : null}
-                    <p className="mt-1 break-all text-xs text-ink/50">{item.route || "sin ruta"}</p>
+                    {item.targetLabel ? <p className="mt-2 font-bold text-ink dark:text-white">{item.targetLabel}</p> : null}
+                    <p className="mt-1 break-all text-xs text-ink/50 dark:text-white/55">{item.route || "sin ruta"}</p>
                   </div>
-                  <p className="shrink-0 text-xs font-bold text-ink/50">{formatExactDate(item.createdAt || item.clientTimestamp, "Sin hora")}</p>
+                  <p className="shrink-0 rounded-full bg-ink/5 px-2.5 py-1 text-xs font-bold text-ink/55 dark:bg-white/10 dark:text-white/65">{formatExactDate(item.createdAt || item.clientTimestamp, "Sin hora")}</p>
                 </div>
                 {item.durationMs ? (
-                  <p className="mt-3 text-xs font-semibold text-ink/60">Duración: {formatDuration(item.durationMs)}</p>
+                  <p className="mt-3 text-xs font-semibold text-ink/60 dark:text-white/65">Duración: {formatDuration(item.durationMs)}</p>
                 ) : null}
               </div>
             )) : (
-              <div className="rounded-2xl border border-dashed border-ink/15 p-5 text-sm text-ink/55">
+              <div className="rounded-2xl border border-dashed border-ink/15 p-5 text-sm text-ink/55 dark:border-white/15 dark:bg-white/[0.04] dark:text-white/60">
                 No hay actividad registrada con estos filtros.
               </div>
             )}

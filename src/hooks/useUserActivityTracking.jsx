@@ -5,6 +5,7 @@ import { activityApiUrl, authenticatedHeaders } from "../services/userActivityAp
 
 const sessionKey = "roca-eterna-activity-session-id";
 const pendingKey = "roca-eterna-pending-activity-events";
+const currentSessionKey = "roca-eterna-current-activity-session";
 const maxPendingEvents = 40;
 
 const sectionLabels = {
@@ -69,7 +70,43 @@ function readPendingEvents() {
   }
 }
 
-async function postActivity(profile, payload = {}) {
+function rememberSessionState(payload = {}) {
+  try {
+    localStorage.setItem(currentSessionKey, JSON.stringify({
+      sessionId: getSessionId(),
+      lastSeenAt: new Date().toISOString(),
+      disconnected: false,
+      ...payload
+    }));
+  } catch {
+    // La actividad no debe afectar el uso normal de la app.
+  }
+}
+
+function markSessionDisconnected() {
+  try {
+    const current = JSON.parse(localStorage.getItem(currentSessionKey) || "{}");
+    localStorage.setItem(currentSessionKey, JSON.stringify({
+      ...current,
+      disconnected: true,
+      disconnectedAt: new Date().toISOString()
+    }));
+  } catch {
+    // La actividad no debe afectar el uso normal de la app.
+  }
+}
+
+function readPreviousOpenSession() {
+  try {
+    const current = JSON.parse(localStorage.getItem(currentSessionKey) || "null");
+    if (!current || current.disconnected || current.sessionId === getSessionId()) return null;
+    return current;
+  } catch {
+    return null;
+  }
+}
+
+async function postActivity(profile, payload = {}, headersOverride = null) {
   if (!shouldTrack(profile)) return;
   const endpoint = activityApiUrl("logUserActivity");
   const body = {
@@ -79,7 +116,7 @@ async function postActivity(profile, payload = {}) {
     ...payload
   };
   try {
-    const headers = await authenticatedHeaders();
+    const headers = headersOverride || await authenticatedHeaders();
     if (!headers) return;
     const response = await fetch(endpoint, {
       method: "POST",
@@ -91,6 +128,26 @@ async function postActivity(profile, payload = {}) {
   } catch {
     savePendingEvent(body);
   }
+}
+
+function postActivityFast(profile, payload = {}, headers = null) {
+  if (!shouldTrack(profile) || !headers) {
+    savePendingEvent(payload);
+    return;
+  }
+  const endpoint = activityApiUrl("logUserActivity");
+  const body = {
+    sessionId: getSessionId(),
+    clientTimestamp: new Date().toISOString(),
+    userAgent: navigator.userAgent || "",
+    ...payload
+  };
+  fetch(endpoint, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+    keepalive: true
+  }).catch(() => savePendingEvent(body));
 }
 
 async function flushPendingEvents(profile) {
@@ -106,6 +163,8 @@ export function useUserActivityTracking(profile) {
   const location = useLocation();
   const activeViewRef = useRef(null);
   const profileRef = useRef(profile);
+  const cachedHeadersRef = useRef(null);
+  const disconnectSentRef = useRef(false);
 
   useEffect(() => {
     profileRef.current = profile;
@@ -113,6 +172,38 @@ export function useUserActivityTracking(profile) {
 
   useEffect(() => {
     if (!shouldTrack(profile)) return undefined;
+    let cancelled = false;
+    const refreshHeaders = () => {
+      authenticatedHeaders()
+        .then((headers) => {
+          if (!cancelled && headers) cachedHeadersRef.current = headers;
+        })
+        .catch(() => undefined);
+    };
+    refreshHeaders();
+    const interval = window.setInterval(refreshHeaders, 4 * 60 * 1000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [profile?.uid]);
+
+  useEffect(() => {
+    if (!shouldTrack(profile)) return undefined;
+    const previous = readPreviousOpenSession();
+    if (previous) {
+      postActivity(profile, {
+        eventType: "disconnect",
+        section: previous.section || "Inicio",
+        route: previous.route || "/",
+        reason: "previous_session_closed",
+        startedAt: previous.startedAt || "",
+        endedAt: previous.lastSeenAt || new Date().toISOString(),
+        durationMs: previous.startedAt && previous.lastSeenAt
+          ? Math.max(0, new Date(previous.lastSeenAt).getTime() - new Date(previous.startedAt).getTime())
+          : 0
+      }).catch(() => undefined);
+    }
     flushPendingEvents(profile).catch(() => undefined);
     postActivity(profile, {
       eventType: "section_view",
@@ -123,6 +214,11 @@ export function useUserActivityTracking(profile) {
       endedAt: "",
       durationMs: 0
     }).catch(() => undefined);
+    rememberSessionState({
+      section: sectionFromPath(location.pathname),
+      route: `${location.pathname}${location.search || ""}${location.hash || ""}`,
+      startedAt: new Date().toISOString()
+    });
     return undefined;
   }, [profile?.uid]);
 
@@ -147,11 +243,17 @@ export function useUserActivityTracking(profile) {
     };
 
     closeActiveView("route_change");
+    disconnectSentRef.current = false;
     activeViewRef.current = {
       section: sectionFromPath(location.pathname),
       route: `${location.pathname}${location.search || ""}${location.hash || ""}`,
       startedAt: Date.now()
     };
+    rememberSessionState({
+      section: activeViewRef.current.section,
+      route: activeViewRef.current.route,
+      startedAt: new Date(activeViewRef.current.startedAt).toISOString()
+    });
 
     return () => closeActiveView("route_change");
   }, [location.pathname, location.search, location.hash, profile?.uid]);
@@ -177,6 +279,8 @@ export function useUserActivityTracking(profile) {
     };
 
     const handleDisconnect = () => {
+      if (disconnectSentRef.current) return;
+      disconnectSentRef.current = true;
       const current = activeViewRef.current;
       const endedAt = Date.now();
       const durationMs = current ? Math.max(0, endedAt - current.startedAt) : 0;
@@ -190,28 +294,48 @@ export function useUserActivityTracking(profile) {
         endedAt: new Date(endedAt).toISOString(),
         durationMs
       };
-      postActivity(profileRef.current, payload).catch(() => savePendingEvent(payload));
+      markSessionDisconnected();
+      postActivityFast(profileRef.current, payload, cachedHeadersRef.current);
     };
 
     const handleVisibility = () => {
       if (document.visibilityState === "hidden") {
         handleDisconnect();
       } else if (!activeViewRef.current) {
+        disconnectSentRef.current = false;
         activeViewRef.current = {
           section: sectionFromPath(location.pathname),
           route: `${location.pathname}${location.search || ""}${location.hash || ""}`,
           startedAt: Date.now()
         };
+        rememberSessionState({
+          section: activeViewRef.current.section,
+          route: activeViewRef.current.route,
+          startedAt: new Date(activeViewRef.current.startedAt).toISOString()
+        });
         flushPendingEvents(profileRef.current).catch(() => undefined);
       }
     };
 
+    const rememberHeartbeat = () => {
+      const current = activeViewRef.current;
+      rememberSessionState({
+        section: current?.section || sectionFromPath(location.pathname),
+        route: current?.route || `${location.pathname}${location.search || ""}${location.hash || ""}`,
+        startedAt: current ? new Date(current.startedAt).toISOString() : new Date().toISOString()
+      });
+    };
+
+    const heartbeat = window.setInterval(rememberHeartbeat, 15000);
     document.addEventListener("click", handleClick, true);
     document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("beforeunload", handleDisconnect);
     window.addEventListener("pagehide", handleDisconnect);
     return () => {
+      window.clearInterval(heartbeat);
       document.removeEventListener("click", handleClick, true);
       document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("beforeunload", handleDisconnect);
       window.removeEventListener("pagehide", handleDisconnect);
     };
   }, [location.pathname, location.search, location.hash, profile?.uid]);

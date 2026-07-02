@@ -12,6 +12,8 @@ const VALID_EVENT_TYPES = new Set(["section_view", "click", "disconnect"]);
 const MAX_DURATION_MS = 8 * 60 * 60 * 1000;
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const RATE_LIMIT_MAX_REQUESTS = 180;
+const OWNER_EMAIL = "liquea45@gmail.com";
+const ONLINE_NOTIFY_COOLDOWN_MS = 20 * 60 * 1000;
 const requestBuckets = new Map();
 
 function safeString(value = "", maxLength = 180) {
@@ -81,6 +83,89 @@ function enforceActivityRateLimit(uid = "") {
   requestBuckets.set(uid, recent);
 }
 
+function appBaseUrl() {
+  return (process.env.PUSH_APP_BASE_URL || process.env.PUSH_ALLOWED_ORIGIN || "https://musica.rocaeternamexico.com.mx").replace(/\/$/, "");
+}
+
+function notificationIconUrl() {
+  return `${appBaseUrl()}/icons/notification-icon.png`;
+}
+
+async function ownerUser() {
+  const snapshot = await admin.firestore()
+    .collection("users")
+    .where("email", "==", OWNER_EMAIL)
+    .limit(1)
+    .get();
+  if (snapshot.empty) return null;
+  return { uid: snapshot.docs[0].id, ...(snapshot.docs[0].data() || {}) };
+}
+
+async function ownerTokens(uid = "") {
+  if (!uid) return [];
+  const snapshot = await admin.firestore().collection(`users/${uid}/fcmTokens`).get();
+  return snapshot.docs
+    .map((doc) => ({ id: doc.id, ...(doc.data() || {}) }))
+    .filter((item) => item.enabled !== false && item.token)
+    .map((item) => item.token);
+}
+
+async function maybeNotifyOwnerOnline(payload = {}) {
+  if (payload.email === OWNER_EMAIL) return false;
+  if (payload.eventType !== "section_view" || !["enter", "route_change"].includes(payload.reason || "")) return false;
+
+  const presenceRef = admin.firestore().doc(`userActivityPresence/${payload.uid}`);
+  const now = Date.now();
+  let shouldNotify = false;
+  await admin.firestore().runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(presenceRef);
+    const lastNotifiedAt = snapshot.exists ? Number(snapshot.data()?.lastOnlineNotifiedAt || 0) : 0;
+    shouldNotify = !lastNotifiedAt || now - lastNotifiedAt > ONLINE_NOTIFY_COOLDOWN_MS;
+    transaction.set(presenceRef, {
+      uid: payload.uid,
+      email: payload.email,
+      displayName: payload.displayName || payload.email,
+      lastOnlineAt: admin.firestore.FieldValue.serverTimestamp(),
+      lastSection: payload.section || "",
+      ...(shouldNotify ? { lastOnlineNotifiedAt: now } : {})
+    }, { merge: true });
+  });
+  if (!shouldNotify) return false;
+
+  const owner = await ownerUser();
+  const tokens = await ownerTokens(owner?.uid || "");
+  if (!tokens.length) return false;
+
+  const userName = payload.displayName || payload.email;
+  await admin.messaging().sendEachForMulticast({
+    tokens,
+    notification: {
+      title: `${userName} está en línea`,
+      body: payload.section ? `Entró a ${payload.section}.` : "Abrió la app."
+    },
+    data: {
+      type: "user_online",
+      userEmail: payload.email,
+      uid: payload.uid,
+      section: payload.section || "",
+      url: "/#/configuracion"
+    },
+    webpush: {
+      notification: {
+        icon: notificationIconUrl(),
+        badge: notificationIconUrl(),
+        tag: `online-${payload.uid}`,
+        renotify: false,
+        requireInteraction: false
+      },
+      fcmOptions: {
+        link: `${appBaseUrl()}/#/configuracion`
+      }
+    }
+  });
+  return true;
+}
+
 export default async function handler(request, response) {
   applyCors(request, response);
   if (request.method === "OPTIONS") {
@@ -120,8 +205,9 @@ export default async function handler(request, response) {
       userUpdate.lastDisconnectedAt = admin.firestore.FieldValue.serverTimestamp();
     }
     await admin.firestore().doc(`users/${requester.uid}`).set(userUpdate, { merge: true });
+    const ownerNotified = await maybeNotifyOwnerOnline(payload).catch(() => false);
 
-    response.status(200).json({ ok: true });
+    response.status(200).json({ ok: true, ownerNotified });
   } catch (error) {
     const status = Number(error.status) || 500;
     if (status >= 500) {
