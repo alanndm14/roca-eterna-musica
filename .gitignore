@@ -68,6 +68,8 @@ skills-lock.json
 
 # dotenv environment variables file
 .env
+.env.local
+.env.*.local
 
 # dataconnect generated files
 .dataconnect
