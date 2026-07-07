@@ -3,6 +3,8 @@ import { buildServiceSongs, getServiceFileName } from "./serviceSheetPdf";
 import { resolvePublicPdfPath, resolveSongLocalPdfUrl } from "./songUtils";
 import { fetchValidPdfArrayBuffer } from "./publicPdfTools";
 
+const FLATTEN_RENDER_SCALE = 2;
+
 export function extractGoogleDriveFileId(url = "") {
   const value = String(url || "").trim();
   if (!value) return "";
@@ -54,12 +56,80 @@ export async function mergePdfBuffers(buffers) {
   return merged.save();
 }
 
+function canvasToPngBytes(canvas) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(async (blob) => {
+      if (!blob) {
+        reject(new Error("No se pudo renderizar una pagina del PDF."));
+        return;
+      }
+      resolve(await blob.arrayBuffer());
+    }, "image/png");
+  });
+}
+
+async function loadPdfJs() {
+  const pdfjsLib = await import("pdfjs-dist");
+  const worker = await import("pdfjs-dist/build/pdf.worker.min.mjs?url");
+  pdfjsLib.GlobalWorkerOptions.workerSrc = worker.default;
+  return pdfjsLib;
+}
+
+export async function flattenPdfBuffers(buffers, options = {}) {
+  if (typeof window === "undefined" || typeof document === "undefined") {
+    return mergePdfBuffers(buffers);
+  }
+
+  const pdfjsLib = await loadPdfJs();
+  const merged = await PDFDocument.create();
+  const scale = options.scale || FLATTEN_RENDER_SCALE;
+
+  for (const buffer of buffers) {
+    const sourceBytes = buffer instanceof ArrayBuffer ? buffer.slice(0) : buffer;
+    const documentProxy = await pdfjsLib.getDocument({ data: sourceBytes }).promise;
+
+    for (let pageNumber = 1; pageNumber <= documentProxy.numPages; pageNumber += 1) {
+      const page = await documentProxy.getPage(pageNumber);
+      const displayViewport = page.getViewport({ scale: 1 });
+      const renderViewport = page.getViewport({ scale });
+      const canvas = window.document.createElement("canvas");
+      const context = canvas.getContext("2d", { alpha: false });
+
+      canvas.width = Math.ceil(renderViewport.width);
+      canvas.height = Math.ceil(renderViewport.height);
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+
+      await page.render({
+        canvasContext: context,
+        viewport: renderViewport,
+        annotationMode: pdfjsLib.AnnotationMode?.ENABLE
+      }).promise;
+
+      const pngBytes = await canvasToPngBytes(canvas);
+      const image = await merged.embedPng(pngBytes);
+      const outputPage = merged.addPage([displayViewport.width, displayViewport.height]);
+      outputPage.drawImage(image, {
+        x: 0,
+        y: 0,
+        width: displayViewport.width,
+        height: displayViewport.height
+      });
+
+      canvas.width = 0;
+      canvas.height = 0;
+    }
+  }
+
+  return merged.save();
+}
+
 export async function mergePdfFiles(files = []) {
   const buffers = [];
   for (const file of files) {
     buffers.push(await file.arrayBuffer());
   }
-  const mergedBytes = await mergePdfBuffers(buffers);
+  const mergedBytes = await flattenPdfBuffers(buffers);
   return new Blob([mergedBytes], { type: "application/pdf" });
 }
 
@@ -98,7 +168,7 @@ export async function mergeServiceLocalPdfs(schedule, songs, keyPreference = "sh
     }
   }
 
-  const mergedBytes = buffers.length ? await mergePdfBuffers(buffers) : null;
+  const mergedBytes = buffers.length ? await flattenPdfBuffers(buffers) : null;
   const blob = mergedBytes ? new Blob([mergedBytes], { type: "application/pdf" }) : null;
 
   return {

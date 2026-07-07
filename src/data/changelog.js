@@ -1,7 +1,18 @@
-export const appVersion = "1.3a";
-export const appBuildVersion = "1.0.34";
+export const appVersion = "1.3b";
+export const appBuildVersion = "1.0.35";
 
 export const changelog = [
+  {
+    version: "1.3b",
+    date: "2026-07-07",
+    title: "Inclusión de anotaciones al generar pdfs",
+    added: [],
+    changed: [
+      "Inclusión de anotaciones al generar pdfs"
+    ],
+    fixed: [],
+    pending: []
+  },
   {
     version: "1.3a",
     date: "2026-07-02",
