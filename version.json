@@ -1,9 +1,9 @@
 {
-  "version": "1.0.34",
-  "displayVersion": "1.3a",
-  "date": "2026-07-02",
+  "version": "1.0.35",
+  "displayVersion": "1.3b",
+  "date": "2026-07-07",
   "critical": true,
   "changes": [
-    "Ahorro de cuota de Firebase"
+    "Inclusión de anotaciones al generar pdfs"
   ]
 }
