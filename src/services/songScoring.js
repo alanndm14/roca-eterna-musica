@@ -316,6 +316,36 @@ function songThemeText(song = {}) {
   ].filter(Boolean).join(" "));
 }
 
+function themeValueMatches(value = "", target = "") {
+  const normalizedValue = normalizeSearchText(value);
+  const normalizedTarget = normalizeSearchText(target);
+  return Boolean(
+    normalizedValue
+      && normalizedTarget
+      && (normalizedValue === normalizedTarget
+        || normalizedValue.includes(normalizedTarget)
+        || normalizedTarget.includes(normalizedValue))
+  );
+}
+
+// `tags` may be a legacy mirror of both theme fields. Prefer the structured
+// fields so a secondary tag never receives the main-theme score by accident.
+function getThemeMatchLevel(song = {}, target = "") {
+  if (!target) return "none";
+  if (themeValueMatches(song.mainTheme, target)) return "main";
+
+  const declaredOtherThemes = Array.isArray(song.otherThemes) ? song.otherThemes : [];
+  const fallbackThemes = declaredOtherThemes.length
+    ? declaredOtherThemes
+    : Array.isArray(song.tags)
+      ? song.tags.filter((tag) => !themeValueMatches(tag, song.mainTheme))
+      : [];
+
+  return fallbackThemes.some((theme) => themeValueMatches(theme, target))
+    ? "other"
+    : "none";
+}
+
 function songIndexedText(song = {}) {
   return [
     song.pdfSearchText,
@@ -546,8 +576,6 @@ export function scoreSong(song = {}, options = {}, context = {}) {
     addUniqueReason(warnings, reason);
   };
 
-  const mainTheme = normalizeSearchText(song.mainTheme || "");
-  const otherThemes = [...(song.otherThemes || []), ...(song.tags || [])].map((theme) => normalizeSearchText(theme));
   const fullThemeText = songThemeText(song);
   const ideaTerms = splitSearchTerms(options.ideaQuery || "");
   const titleQuery = normalizeSearchText(options.titleQuery || "");
@@ -565,18 +593,25 @@ export function scoreSong(song = {}, options = {}, context = {}) {
   }
 
   if (normalizedPrimaryTheme) {
-    if (mainTheme.includes(normalizedPrimaryTheme) || fullThemeText.includes(normalizedPrimaryTheme)) {
+    const primaryMatchLevel = getThemeMatchLevel(song, primaryTheme);
+    if (primaryMatchLevel === "main") {
       addPositive(25, `Tema principal coincide: ${primaryTheme}`);
+    } else if (primaryMatchLevel === "other") {
+      addPositive(10, `Coincide en otros temas: ${primaryTheme}`);
     } else {
       addPenalty(10, `No coincide bien con el tema: ${primaryTheme}`);
     }
   }
 
-  const additionalMatches = additionalThemes.filter((theme) => {
-    const normalized = normalizeSearchText(theme);
-    return normalized && (otherThemes.some((other) => other.includes(normalized)) || fullThemeText.includes(normalized));
-  });
-  additionalMatches.slice(0, 3).forEach((theme) => addPositive(10, `Tema adicional coincide: ${theme}`));
+  additionalThemes
+    .map((theme) => ({ theme, level: getThemeMatchLevel(song, theme) }))
+    .filter(({ level }) => level !== "none")
+    .slice(0, 3)
+    .forEach(({ theme, level }) => {
+      addPositive(level === "main" ? 10 : 6, level === "main"
+        ? `Tema adicional coincide: ${theme}`
+        : `Tema adicional en otros temas: ${theme}`);
+    });
 
   if (ideaTerms.length) {
     const metadataMatches = ideaTerms.filter((term) => fullThemeText.includes(normalizeSearchText(term)));

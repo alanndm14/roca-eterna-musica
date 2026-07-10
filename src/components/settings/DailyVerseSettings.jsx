@@ -34,8 +34,11 @@ export function DailyVerseSettings({ profile, logAuditEvent }) {
   const [searchQuery, setSearchQuery] = useState("");
 
   const ensureDefaultVerses = async (items) => {
-    if (items.length) return items;
-    await Promise.all(fallbackLoginVerses.map((verse) => setDoc(doc(db, "loginVerses", verse.id), {
+    const existingIds = new Set(items.map((verse) => verse.id).filter(Boolean));
+    const missingVerses = fallbackLoginVerses.filter((verse) => !existingIds.has(verse.id));
+    if (!missingVerses.length) return items;
+
+    await Promise.all(missingVerses.map((verse) => setDoc(doc(db, "loginVerses", verse.id), {
       text: verse.text,
       reference: verse.reference,
       translation: verse.translation || "",
