@@ -1,5 +1,5 @@
 import { PDFDocument } from "pdf-lib";
-import { downloadBlob, flattenPdfBuffers } from "./mergeServicePdfs";
+import { downloadBlob, mergePdfBuffers } from "./mergeServicePdfs";
 import { fetchValidPdfArrayBuffer } from "./publicPdfTools";
 import { resolvePublicPdfPath } from "./songUtils";
 
@@ -51,7 +51,7 @@ export async function downloadFullRepertoirePdf(songs = []) {
     throw new Error("No hay PDFs locales disponibles para generar el repertorio.");
   }
 
-  const mergedBytes = await flattenPdfBuffers(buffers);
+  const mergedBytes = await mergePdfBuffers(buffers);
   const blob = new Blob([mergedBytes], { type: "application/pdf" });
   const fileName = getRepertoirePdfFileName();
   downloadBlob(blob, fileName);
