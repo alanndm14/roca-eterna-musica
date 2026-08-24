@@ -31,6 +31,7 @@ import {
 import { isCountableSchedule } from "../services/dateUtils";
 import { canManageVocalPractice } from "../services/memberPresentation";
 import { downloadRepertoireLyricsPdf } from "../services/lyricsPdf";
+import { downloadFullRepertoirePdf } from "../services/repertoirePdf";
 
 const blankSong = {
   title: "",
@@ -772,6 +773,17 @@ export function Songs() {
     downloadCsv(`repertorio-roca-eterna-${todayFile()}.csv`, rows);
   };
 
+  const downloadCompleteRepertoire = async () => {
+    try {
+      const result = await downloadFullRepertoirePdf(songs);
+      if (result.omitted.length) {
+        window.alert(`Se descargó ${result.fileName} con ${result.includedCount} PDFs. Se omitieron ${result.omitted.length} canto(s) sin PDF local disponible.`);
+      }
+    } catch (error) {
+      window.alert(error?.message || "No se pudo generar el PDF completo del repertorio.");
+    }
+  };
+
   const closeModal = () => {
     setEditingSong(null);
     setIsAdding(false);
@@ -794,6 +806,10 @@ export function Songs() {
               <Button variant="secondary" onClick={exportRepertoire}>
                 <Download className="h-4 w-4" />
                 Exportar repertorio
+              </Button>
+              <Button variant="secondary" onClick={downloadCompleteRepertoire}>
+                <FileText className="h-4 w-4" />
+                Descargar repertorio completo
               </Button>
               <Button variant="secondary" onClick={() => downloadRepertoireLyricsPdf(filteredSongs)}>
                 <FileText className="h-4 w-4" />
