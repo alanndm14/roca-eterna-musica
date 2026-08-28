@@ -1,12 +1,14 @@
 {
-  "version": "1.0.35",
-  "displayVersion": "1.3b",
+  "version": "1.0.36",
+  "displayVersion": "1.3c",
   "buildVersion": "1.0.36",
-  "releaseId": "2026-07-10-theme-and-verses",
-  "date": "2026-07-10",
-  "critical": false,
-  "silent": true,
+  "releaseId": "2026-08-28-full-repertoire-ocr",
+  "date": "2026-08-28",
+  "critical": true,
+  "silent": false,
   "changes": [
-    "Ajustes internos"
+    "Nuevo botón para generar y descargar el repertorio completo en PDF",
+    "Cantos ordenados alfabéticamente en un solo archivo",
+    "OCR automático para que los PDFs escaneados tengan texto seleccionable"
   ]
 }
