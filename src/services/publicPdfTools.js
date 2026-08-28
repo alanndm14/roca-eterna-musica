@@ -24,7 +24,7 @@ function messageFor({ status, isHtml, isPdf, isImage, expectedType, error }) {
   return "Archivo encontrado.";
 }
 
-export async function diagnosePublicAsset(path, expectedType = "file") {
+export async function diagnosePublicAsset(path, expectedType = "file", options = {}) {
   const savedPath = path || "";
   const normalizedPath = normalizePublicAssetPath(savedPath);
   const finalUrl = resolvePublicAssetUrl(savedPath);
@@ -70,7 +70,8 @@ export async function diagnosePublicAsset(path, expectedType = "file") {
       isImage,
       isHtml,
       firstBytes: signature,
-      message: messageFor({ status: response.status, isHtml, isPdf, isImage, expectedType })
+      message: messageFor({ status: response.status, isHtml, isPdf, isImage, expectedType }),
+      ...(options.includeBuffer ? { buffer } : {})
     };
   } catch (error) {
     return {
@@ -94,7 +95,7 @@ export async function testPublicPdfPath(localPdfPath, pdfVersion = "") {
 }
 
 export async function fetchValidPdfArrayBuffer(path) {
-  const diagnosis = await diagnosePublicAsset(path, "pdf");
+  const diagnosis = await diagnosePublicAsset(path, "pdf", { includeBuffer: true });
   if (!diagnosis.ok) {
     const reason = diagnosis.isHtml
       ? "se recibio HTML en lugar de PDF"
@@ -105,9 +106,10 @@ export async function fetchValidPdfArrayBuffer(path) {
     error.diagnosis = diagnosis;
     throw error;
   }
-  const response = await fetch(diagnosis.finalUrl, { method: "GET", cache: "no-store", credentials: "omit" });
+  const buffer = diagnosis.buffer;
+  delete diagnosis.buffer;
   return {
-    buffer: await response.arrayBuffer(),
+    buffer,
     diagnosis
   };
 }

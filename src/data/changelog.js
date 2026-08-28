@@ -1,7 +1,22 @@
-export const appVersion = "1.3b";
-export const appBuildVersion = "1.0.35";
+export const appVersion = "1.3c";
+export const appBuildVersion = "1.0.36";
 
 export const changelog = [
+  {
+    version: "1.3c",
+    date: "2026-08-28",
+    title: "Repertorio completo en PDF",
+    added: [
+      "Botón Generar repertorio PDF disponible para todos los roles",
+      "Unión alfabética de todos los PDFs locales en una sola descarga",
+      "OCR automático para agregar texto seleccionable a las páginas escaneadas"
+    ],
+    changed: [
+      "La descarga usa el nombre repertorio_Roca_Eterna_mes_año.pdf y muestra el avance del proceso"
+    ],
+    fixed: [],
+    pending: []
+  },
   {
     version: "1.3b",
     date: "2026-07-07",

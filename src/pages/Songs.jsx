@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Download, Edit3, ExternalLink, FileText, Music2, Plus, Search, Trash2 } from "lucide-react";
+import { Download, Edit3, ExternalLink, FileDown, FileText, Music2, Plus, Search, Trash2, X } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -31,6 +31,7 @@ import {
 import { isCountableSchedule } from "../services/dateUtils";
 import { canManageVocalPractice } from "../services/memberPresentation";
 import { downloadRepertoireLyricsPdf } from "../services/lyricsPdf";
+import { downloadFullRepertoirePdf } from "../services/repertoirePdf";
 
 const blankSong = {
   title: "",
@@ -495,6 +496,7 @@ export function SongForm({ initialSong, themes = [], categoryOptions = [], keyPr
 export function Songs() {
   const { canEdit, canDelete, profile } = useAuth();
   const isViewer = profile?.role === "viewer";
+  const [repertoirePdfProgress, setRepertoirePdfProgress] = useState(null);
   const location = useLocation();
   const navigate = useNavigate();
   const { songs, schedules, plannedNewSongs = [], themes, settings, deleteSong, saveSong } = useMusicData();
@@ -772,6 +774,33 @@ export function Songs() {
     downloadCsv(`repertorio-roca-eterna-${todayFile()}.csv`, rows);
   };
 
+  const generateFullRepertoire = async () => {
+    if (repertoirePdfProgress?.status === "running") return;
+    setRepertoirePdfProgress({
+      status: "running",
+      percent: 1,
+      message: "Preparando el repertorio completo…"
+    });
+    try {
+      const result = await downloadFullRepertoirePdf(songs, { onProgress: setRepertoirePdfProgress });
+      const warningCount = result.omitted.length + result.ocrFailures.length;
+      setRepertoirePdfProgress({
+        status: warningCount ? "warning" : "done",
+        percent: 100,
+        message: warningCount
+          ? `${result.fileName} se descargó con ${result.included.length} cantos; revisa el resumen.`
+          : `${result.fileName} se descargó correctamente.`,
+        result
+      });
+    } catch (error) {
+      setRepertoirePdfProgress({
+        status: "error",
+        percent: 0,
+        message: error?.message || "No se pudo generar el PDF completo del repertorio."
+      });
+    }
+  };
+
   const closeModal = () => {
     setEditingSong(null);
     setIsAdding(false);
@@ -789,8 +818,17 @@ export function Songs() {
             <h2 className="text-xl font-bold text-ink">Repertorio de cantos</h2>
             <p className="mt-1 text-sm text-ink/55">Gestor de canciones, PDFs, revisión y programación.</p>
           </div>
-          {canEdit ? (
-            <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="secondary"
+              onClick={generateFullRepertoire}
+              isLoading={repertoirePdfProgress?.status === "running"}
+            >
+              <FileDown className="h-4 w-4" />
+              Generar repertorio PDF
+            </Button>
+            {canEdit ? (
+              <>
               <Button variant="secondary" onClick={exportRepertoire}>
                 <Download className="h-4 w-4" />
                 Exportar repertorio
@@ -803,9 +841,71 @@ export function Songs() {
                 <Plus className="h-4 w-4" />
                 Agregar canto
               </Button>
-            </div>
-          ) : null}
+              </>
+            ) : null}
+          </div>
         </div>
+
+        {repertoirePdfProgress ? (
+          <div
+            className={`mt-4 rounded-2xl border px-4 py-3 ${
+              repertoirePdfProgress.status === "error"
+                ? "border-red-200 bg-red-50 text-red-800 dark:border-red-500/30 dark:bg-red-950/35 dark:text-red-100"
+                : repertoirePdfProgress.status === "warning"
+                  ? "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/30 dark:bg-amber-950/35 dark:text-amber-100"
+                  : "border-brass/25 bg-brass/8 text-ink"
+            }`}
+            role="status"
+            aria-live="polite"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-bold">{repertoirePdfProgress.message}</p>
+                {repertoirePdfProgress.status === "running" ? (
+                  <>
+                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-ink/10">
+                      <div
+                        className="h-full rounded-full bg-brass transition-[width] duration-300"
+                        style={{ width: `${Math.max(2, repertoirePdfProgress.percent || 0)}%` }}
+                      />
+                    </div>
+                    <p className="mt-1 text-xs font-semibold opacity-65">
+                      {repertoirePdfProgress.percent || 0}%
+                      {repertoirePdfProgress.pageNumber
+                        ? ` · página ${repertoirePdfProgress.pageNumber} de ${repertoirePdfProgress.totalPages}`
+                        : ""}
+                      {Number.isFinite(repertoirePdfProgress.ocrProgress)
+                        ? ` · OCR ${repertoirePdfProgress.ocrProgress}%`
+                        : ""}
+                    </p>
+                  </>
+                ) : null}
+                {repertoirePdfProgress.result ? (
+                  <div className="mt-1 space-y-1 text-xs font-semibold opacity-70">
+                    <p>
+                      {repertoirePdfProgress.result.totalPages} páginas · {repertoirePdfProgress.result.ocrPageCount} con OCR
+                      {repertoirePdfProgress.result.omitted.length ? ` · ${repertoirePdfProgress.result.omitted.length} cantos omitidos` : ""}
+                      {repertoirePdfProgress.result.ocrFailures.length ? ` · ${repertoirePdfProgress.result.ocrFailures.length} páginas sin OCR` : ""}
+                    </p>
+                    {repertoirePdfProgress.result.omitted.length ? (
+                      <p>Omitidos: {repertoirePdfProgress.result.omitted.slice(0, 4).map((item) => item.title).join(", ")}{repertoirePdfProgress.result.omitted.length > 4 ? "…" : ""}</p>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+              {repertoirePdfProgress.status !== "running" ? (
+                <button
+                  type="button"
+                  className="rounded-lg p-1 opacity-55 transition hover:bg-black/5 hover:opacity-100"
+                  onClick={() => setRepertoirePdfProgress(null)}
+                  aria-label="Cerrar resumen"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
 
         <div className={`mt-5 grid gap-3 ${isViewer ? "" : "lg:grid-cols-[1.35fr_0.75fr_0.85fr_0.75fr_0.75fr]"}`}>
           <div className="relative">
