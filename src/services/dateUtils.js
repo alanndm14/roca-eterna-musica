@@ -1,5 +1,4 @@
-export const todayString = () => {
-  const now = new Date();
+export const todayString = (now = new Date()) => {
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, "0");
   const day = String(now.getDate()).padStart(2, "0");
@@ -121,10 +120,10 @@ export const getCurrentOrNextSchedule = (schedules = [], now = new Date()) => {
 
 export const getUpcomingSchedule = (schedules) => getCurrentOrNextSchedule(schedules);
 
-export const getPastSchedules = (schedules = [], now = new Date()) => {
+export const getPastSchedules = (schedules = [], now = new Date(), { includeYouth = false } = {}) => {
   const safeSchedules = Array.isArray(schedules) ? schedules : [];
   return safeSchedules
-    .filter(isCountableSchedule)
+    .filter((schedule) => schedule && (includeYouth || isCountableSchedule(schedule)))
     .map((schedule) => ({
       schedule,
       start: getScheduleStartDate(schedule),

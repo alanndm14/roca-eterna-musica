@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Download, Edit3, ExternalLink, FileDown, FileText, Music2, Plus, Search, Trash2, X } from "lucide-react";
+import { CalendarDays, Download, Edit3, ExternalLink, FileDown, FileText, Music2, Plus, Search, Trash2, X } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
@@ -29,7 +29,8 @@ import {
   normalizeSong
 } from "../services/songUtils";
 import { isPlannedSpecial } from "../services/plannedSong";
-import { isCountableSchedule } from "../services/dateUtils";
+import { todayString } from "../services/dateUtils";
+import { formatSongLastSung, getRecordedSongUsage } from "../services/songHistory";
 import { canManageVocalPractice } from "../services/memberPresentation";
 import { downloadRepertoireLyricsPdf } from "../services/lyricsPdf";
 import { downloadFullRepertoirePdf } from "../services/repertoirePdf";
@@ -113,6 +114,15 @@ const toneSummary = (song) => {
 
 const csvEscape = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
 const todayFile = () => new Date().toISOString().slice(0, 10);
+
+function SongLastSung({ date, today }) {
+  return (
+    <p className="flex items-start gap-1.5 text-xs font-semibold leading-5 text-ink/65">
+      <CalendarDays className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+      {date ? <span>Última vez: <time dateTime={date}>{formatSongLastSung(date, today)}</time></span> : <span>Sin fecha de canto registrada</span>}
+    </p>
+  );
+}
 
 const downloadCsv = (fileName, rows) => {
   const csv = rows.map((row) => row.map(csvEscape).join(",")).join("\n");
@@ -609,19 +619,13 @@ export function Songs() {
     [songs]
   );
   const formats = useMemo(() => [...new Set([...SONG_FORMATS, ...songs.map((song) => song.format).filter(Boolean)])], [songs]);
-  const realUsageBySong = useMemo(() => {
-    const today = todayFile();
-    const counts = new Map();
-    schedules.forEach((schedule) => {
-      if (!isCountableSchedule(schedule)) return;
-      if (schedule.date && schedule.date > today) return;
-      (schedule.songs || []).forEach((entry) => {
-        if (!entry.songId) return;
-        counts.set(entry.songId, (counts.get(entry.songId) || 0) + 1);
-      });
-    });
-    return counts;
-  }, [schedules]);
+  const [historyNow, setHistoryNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = window.setInterval(() => setHistoryNow(new Date()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const historyToday = todayString(historyNow);
+  const realUsageBySong = useMemo(() => getRecordedSongUsage(songs, schedules, historyNow), [songs, schedules, historyNow]);
 
   const setFilter = (field, value) => setFilters((current) => ({ ...current, [field]: value }));
   const filterByArtist = (artist) => {
@@ -687,7 +691,8 @@ export function Songs() {
         const matchesFormat = !filters.format || song.format === filters.format;
         const matchesKeyChange = !filters.keyChange || (filters.keyChange === "si" ? song.hasKeyChange : !song.hasKeyChange);
         const matchesArtist = !filters.artist || normalizeSearchText(song.artistOrSource) === normalizeSearchText(filters.artist);
-        const hasHistory = (realUsageBySong.get(song.id) || 0) > 0;
+        const usageCount = realUsageBySong.get(song.id)?.count || 0;
+        const hasHistory = usageCount > 0;
         const matchesHistory = !filters.history
           || (filters.history === "with" && hasHistory)
           || (filters.history === "without" && !hasHistory);
@@ -707,7 +712,6 @@ export function Songs() {
           || (filters.missingLinks === "complete" && requiredLinks.every(Boolean));
         const categoryText = normalizeSearchText(song.category);
         const hasIndexedText = Boolean(song.pdfSearchText || song.pdfOcrText || song.pdfText || (song.pdfSearchTokens || []).length);
-        const usageCount = realUsageBySong.get(song.id) || 0;
         const matchesSmartPreset = !filters.smartPreset
           || (filters.smartPreset === "missing-key" && !(song.mainKey || song.keyWithCapo))
           || (filters.smartPreset === "missing-theme" && !song.mainTheme)
@@ -768,8 +772,8 @@ export function Songs() {
         song.pdfIndexStatus === "indexed" ? "si" : "no",
         song.pdfIndexStatus || "",
         song.internalNotes || "",
-        song.lastUsedAt || "",
-        realUsageBySong.get(song.id) || 0
+        realUsageBySong.get(song.id)?.lastDate || "",
+        realUsageBySong.get(song.id)?.count || 0
       ])
     ];
     downloadCsv(`repertorio-roca-eterna-${todayFile()}.csv`, rows);
@@ -1106,6 +1110,7 @@ export function Songs() {
                             ) : (
                               <p className="text-xs text-ink/50">Sin fuente</p>
                             )}
+                            <div className="mt-1"><SongLastSung date={realUsageBySong.get(song.id)?.lastDate} today={historyToday} /></div>
                             <SearchMatchStrip matches={matchLabels} />
                           </div>
                         </div>
@@ -1183,6 +1188,7 @@ export function Songs() {
                   </div>
                   {!isViewer ? <span className="rounded-xl bg-ink px-3 py-1 text-sm font-bold text-white">{song.mainKey || "--"}</span> : null}
                 </div>
+                <div className="mt-3"><SongLastSung date={realUsageBySong.get(song.id)?.lastDate} today={historyToday} /></div>
                 <SearchMatchStrip matches={matchLabels} />
                 {!isViewer ? <><div className="mt-4 flex flex-wrap gap-2">
                   {song.category ? <span className="rounded-full bg-ink/7 px-3 py-1 text-xs font-semibold text-ink/60">{song.category}</span> : null}

@@ -1,9 +1,9 @@
 {
-  "version": "1.0.38",
+  "version": "1.0.39",
   "displayVersion": "1.4",
-  "buildVersion": "1.0.38",
-  "releaseId": "2026-11-12-v1.4.1",
-  "date": "2026-11-12",
+  "buildVersion": "1.0.39",
+  "releaseId": "2026-11-13-repertoire-last-sung",
+  "date": "2026-11-13",
   "critical": true,
   "silent": false,
   "changes": [
