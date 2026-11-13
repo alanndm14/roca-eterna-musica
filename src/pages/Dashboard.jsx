@@ -254,7 +254,7 @@ export function Dashboard() {
         const label = plannedSongLabel(planned);
         const servicePath = scheduleRoute(special ? null : schedule, planned.plannedDate);
         const songPath = song?.id && !special ? `/repertorio/${song.id}` : servicePath;
-        const pdfUrl = getSongPdfUrl(song);
+        const pdfUrl = song ? getSongPdfUrl(song) : "";
         const Icon = special ? Sparkles : Music2;
         return (
         <Card
