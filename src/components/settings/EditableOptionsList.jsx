@@ -2,26 +2,33 @@ import { Plus, Trash2 } from "lucide-react";
 import { Button } from "../ui/Button";
 import { Input, Select } from "../ui/Field";
 
-export function EditableTextOptions({ title, description, values = [], onChange, placeholder }) {
+export function EditableTextOptions({ title, description, values = [], onChange, placeholder, trackRenames = false }) {
   const items = Array.isArray(values) ? values : [];
-  const update = (index, value) => onChange(items.map((item, current) => (current === index ? value : item)));
+  const update = (index, value) => {
+    const item = trackRenames ? { ...items[index], name: value } : value;
+    onChange(items.map((previous, current) => current === index ? item : previous));
+  };
   const remove = (index) => onChange(items.filter((_, current) => current !== index));
+  const add = () => onChange([...items, trackRenames ? { id: crypto.randomUUID(), originalName: "", name: "" } : ""]);
 
   return (
     <section className="rounded-2xl border border-ink/10 bg-ink/[0.025] p-4 dark:border-white/10 dark:bg-white/[0.035]">
       <h3 className="font-bold text-ink">{title}</h3>
       {description ? <p className="mt-1 text-sm leading-6 text-ink/55">{description}</p> : null}
       <div className="mt-4 grid gap-2">
-        {items.map((item, index) => (
-          <div key={`text-option-${index}`} className="grid grid-cols-[minmax(0,1fr)_40px] gap-2">
-            <Input value={item} onChange={(event) => update(index, event.target.value)} placeholder={placeholder} />
-            <Button variant="danger" className="h-10 w-10 px-0" onClick={() => remove(index)} aria-label={`Eliminar ${item || "opción"}`}>
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </div>
-        ))}
+        {items.map((item, index) => {
+          const name = trackRenames ? item.name : item;
+          return (
+            <div key={trackRenames ? item.id : index} className="grid grid-cols-[minmax(0,1fr)_40px] gap-2">
+              <Input value={name} onChange={(event) => update(index, event.target.value)} placeholder={placeholder} />
+              <Button variant="danger" className="h-10 w-10 px-0" onClick={() => remove(index)} aria-label={`Eliminar ${name || "opción"}`}>
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          );
+        })}
       </div>
-      <Button variant="secondary" className="mt-3" onClick={() => onChange([...items, ""])}>
+      <Button variant="secondary" className="mt-3" onClick={add}>
         <Plus className="h-4 w-4" />
         Agregar opción
       </Button>

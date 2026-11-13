@@ -35,6 +35,7 @@ import {
   toSongEntry
 } from "../services/smartRecommendations";
 import { getSongPdfUrl, normalizeSearchText } from "../services/songUtils";
+import { isPlannedSpecial } from "../services/plannedSong";
 
 const tabItems = [
   { id: "programar", label: "Asistente de programación", icon: Wand2, primary: true },
@@ -373,7 +374,7 @@ export function SmartCenter({ scheduleId = "", embedded = false, initialDate = "
     if (!planningReferenceSchedule?.date) return [];
     const referenceMs = new Date(`${planningReferenceSchedule.date}T00:00:00`).getTime();
     return plannedNewSongs.filter((item) => {
-      if (!item?.plannedDate) return false;
+      if (!item?.plannedDate || isPlannedSpecial(item)) return false;
       const days = Math.abs(new Date(`${item.plannedDate}T00:00:00`).getTime() - referenceMs) / (24 * 60 * 60 * 1000);
       return days <= 14 && !["estrenado", "cancelado"].includes(normalizeSearchText(item.status || ""));
     });

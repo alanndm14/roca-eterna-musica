@@ -1,14 +1,12 @@
 {
-  "version": "1.0.36",
-  "displayVersion": "1.3c",
-  "buildVersion": "1.0.36",
-  "releaseId": "2026-08-28-full-repertoire-ocr",
-  "date": "2026-08-28",
+  "version": "1.0.37",
+  "displayVersion": "1.4",
+  "buildVersion": "1.0.37",
+  "releaseId": "2026-11-12-v1.4",
+  "date": "2026-11-12",
   "critical": true,
   "silent": false,
   "changes": [
-    "Nuevo botón para generar y descargar el repertorio completo en PDF",
-    "Cantos ordenados alfabéticamente en un solo archivo",
-    "OCR automático para que los PDFs escaneados tengan texto seleccionable"
+    "Correcciones de errores en general"
   ]
 }

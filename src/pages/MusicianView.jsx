@@ -1,12 +1,13 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { pdf } from "@react-pdf/renderer";
-import { ArrowDown, ArrowRightLeft, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, Download, ExternalLink, Eye, FileStack, FileText, Headphones, Maximize2, Minimize2, Music2, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowRightLeft, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, Download, ExternalLink, Eye, FileStack, FileText, Headphones, Maximize2, Minimize2, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Field, Input, Select, Textarea } from "../components/ui/Field";
 import { Modal } from "../components/ui/Modal";
+import { PlannedSongBadge } from "../components/ui/PlannedSongBadge";
 import { SortableList, SortableHandle } from "../components/ui/SortableList";
 import { RecommendationCard } from "../components/smart/RecommendationCard";
 import { ScoreBadge } from "../components/smart/ScoreBadge";
@@ -19,6 +20,7 @@ import { VocalPracticeDialog } from "../components/practice/VocalPracticeDialog"
 import { useAuth } from "../hooks/useAuth";
 import { useMusicData } from "../hooks/useMusicData";
 import { formatDate, getCurrentOrNextSchedule, todayString } from "../services/dateUtils";
+import { isPlannedSpecial, plannedServiceLabel, plannedSongStatusLabel } from "../services/plannedSong";
 import { buildServiceSongs, getServiceDisplayLabel, getServiceFileName } from "../services/serviceSheetPdf";
 import { downloadBlob, getSongPdfSource, mergePdfFiles, mergeServiceLocalPdfs } from "../services/mergeServicePdfs";
 import { getOutstandingSongFollowUps, getReplacementCandidates, reviewServiceSchedule } from "../services/smartRecommendations";
@@ -95,7 +97,8 @@ function MusicianScheduleCalendar({ schedules, plannedNewSongs = [], selectedDat
   }, {});
   const plannedByDate = plannedNewSongs.reduce((acc, item) => {
     if (!item.plannedDate || item.status === "pospuesto") return acc;
-    acc[item.plannedDate] = (acc[item.plannedDate] || 0) + 1;
+    acc[item.plannedDate] = acc[item.plannedDate] || [];
+    acc[item.plannedDate].push(item);
     return acc;
   }, {});
   const today = todayString();
@@ -124,7 +127,9 @@ function MusicianScheduleCalendar({ schedules, plannedNewSongs = [], selectedDat
         {days.map((day) => {
           const dateString = toLocalDateString(day);
           const count = byDate[dateString]?.length || 0;
-          const plannedCount = plannedByDate[dateString] || 0;
+          const planned = plannedByDate[dateString] || [];
+          const specialCount = planned.filter(isPlannedSpecial).length;
+          const newCount = planned.length - specialCount;
           const isCurrentMonth = day.getMonth() === month;
           const isSelected = selectedDate === dateString;
           const isToday = dateString === today && isCurrentMonth;
@@ -149,10 +154,10 @@ function MusicianScheduleCalendar({ schedules, plannedNewSongs = [], selectedDat
                   {count}
                 </span>
               ) : null}
-              {plannedCount ? (
-                <span className="ml-1 mt-1 inline-flex h-4 min-w-4 items-center justify-center gap-0.5 rounded-full bg-brass px-1 text-[9px] font-bold text-white sm:h-5 sm:min-w-5 sm:text-[10px]" title={`${plannedCount} canto(s) nuevo(s) planeado(s)`}>
-                  <Music2 className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
-                  {plannedCount > 1 ? plannedCount : null}
+              {planned.length ? (
+                <span className="mt-1 flex flex-wrap gap-0.5">
+                  {newCount ? <PlannedSongBadge count={newCount} /> : null}
+                  {specialCount ? <PlannedSongBadge item={{ kind: "special" }} count={specialCount} /> : null}
                 </span>
               ) : null}
             </button>
@@ -554,7 +559,7 @@ export function MusicianView({ mediaMode = false }) {
       {mediaMode && dayPlannedNewSongs.length ? (
         <Card>
           <h2 className="text-xl font-bold text-ink">Servicios</h2>
-          <p className="mt-1 text-sm text-ink/55">Calendario, cantos nuevos, documentos y enlaces para cada servicio.</p>
+          <p className="mt-1 text-sm text-ink/55">Calendario, cantos planeados, documentos y enlaces para cada servicio.</p>
         </Card>
       ) : null}
       {selectedSchedule ? (
@@ -630,14 +635,15 @@ export function MusicianView({ mediaMode = false }) {
             )}
             {mediaMode && dayPlannedNewSongs.length ? (
               <div className="border-t border-ink/10 pt-3">
-                <p className="text-xs font-black uppercase tracking-wide text-brass">Cantos nuevos planeados</p>
+                <p className="text-xs font-black uppercase tracking-wide text-ink/55">Cantos nuevos y especiales</p>
                 <div className="mt-2 space-y-2">
                   {dayPlannedNewSongs.map((item) => (
-	                    <div key={item.id} className="rounded-2xl border border-brass/25 bg-brass/10 p-3 dark:border-brass/30 dark:bg-brass/10">
-	                      <p className="font-bold text-ink">{songs.find((song) => song.id === item.songId)?.title || item.songTitle}</p>
-	                      <p className="mt-1 text-xs text-ink/55">Canto nuevo planeado · {item.serviceType || "servicio"}</p>
-	                      <p className="mt-1 text-xs font-semibold capitalize text-ink/50">{item.status || "planeado"}</p>
-	                    </div>))}
+                    <div key={item.id} className="rounded-2xl border border-ink/10 bg-ink/5 p-3">
+                      <PlannedSongBadge item={item} />
+                      <p className="mt-1 font-bold text-ink">{songs.find((song) => song.id === item.songId)?.title || item.songTitle}</p>
+                      <p className="mt-1 text-xs font-semibold text-ink/55">{plannedServiceLabel(item.serviceType)} · {plannedSongStatusLabel(item)}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
             ) : null}

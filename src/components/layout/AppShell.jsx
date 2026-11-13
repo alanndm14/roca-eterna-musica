@@ -60,6 +60,7 @@ const notificationToNovelty = (notification = {}) => ({
   recipientEmail: notification.recipientEmail || notification.data?.recipientEmail || "",
   scheduleId: notification.scheduleId || "",
   songId: notification.songId || "",
+  plannedDate: notification.plannedDate || "",
   url: notification.songId ? `/#/repertorio/${notification.songId}` : notification.scheduleId ? "/#/programacion" : "",
   source: "internal",
   receivedAt: new Date().toISOString()
@@ -651,6 +652,9 @@ export function AppShell() {
     }
     if (notification.scheduleId) navigate(profile?.role === "viewer" ? `${viewerSchedulePath}?schedule=${notification.scheduleId}` : `/programacion?schedule=${notification.scheduleId}`);
     if (notification.songId) navigate(`/repertorio/${notification.songId}`);
+    if (!notification.scheduleId && !notification.songId && notification.plannedDate) {
+      navigate(`${profile?.role === "viewer" ? viewerSchedulePath : "/programacion"}?date=${encodeURIComponent(notification.plannedDate)}`);
+    }
   };
 
   const openNovelty = (novelty) => {
@@ -668,6 +672,8 @@ export function AppShell() {
       navigate(profile?.role === "viewer" ? `${viewerSchedulePath}?schedule=${novelty.scheduleId}` : `/programacion?schedule=${novelty.scheduleId}`);
     } else if (novelty.songId) {
       navigate(`/repertorio/${novelty.songId}`);
+    } else if (novelty.plannedDate) {
+      navigate(`${profile?.role === "viewer" ? viewerSchedulePath : "/programacion"}?date=${encodeURIComponent(novelty.plannedDate)}`);
     } else if (url.startsWith("/#/")) {
       navigate(url.replace("/#", ""));
     } else if (url.startsWith("#/")) {

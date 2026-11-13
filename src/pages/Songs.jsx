@@ -28,6 +28,7 @@ import {
   normalizeSearchText,
   normalizeSong
 } from "../services/songUtils";
+import { isPlannedSpecial } from "../services/plannedSong";
 import { isCountableSchedule } from "../services/dateUtils";
 import { canManageVocalPractice } from "../services/memberPresentation";
 import { downloadRepertoireLyricsPdf } from "../services/lyricsPdf";
@@ -528,7 +529,7 @@ export function Songs() {
   const [editingSong, setEditingSong] = useState(null);
   const [isAdding, setIsAdding] = useState(false);
   const activePlannedSongs = useMemo(
-    () => plannedNewSongs.filter((item) => !["estrenado", "cancelado"].includes(normalizeSearchText(item.status))),
+    () => plannedNewSongs.filter((item) => !isPlannedSpecial(item) && !["estrenado", "cancelado"].includes(normalizeSearchText(item.status))),
     [plannedNewSongs]
   );
   const plannedSongIds = useMemo(

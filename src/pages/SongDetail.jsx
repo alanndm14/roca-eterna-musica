@@ -23,6 +23,7 @@ import {
   getSongCategoryOptions,
   normalizeSong
 } from "../services/songUtils";
+import { isPlannedSpecial } from "../services/plannedSong";
 import { SongForm } from "./Songs";
 import { shouldShowMusicalKeyForUser } from "../services/memberPresentation";
 import { downloadSongLyricsPdf } from "../services/lyricsPdf";
@@ -77,7 +78,7 @@ export function SongDetail() {
     ? `Capo ${song.capo} · Suena en ${song.keyWithCapo || song.mainKey || "--"}`
     : `Sin capo · Tono ${song.mainKey || song.keyWithCapo || "--"}`;
   const plannedEntries = (Array.isArray(plannedNewSongs) ? plannedNewSongs : [])
-    .filter((item) => item.songId === song.id)
+    .filter((item) => item.songId === song.id && !isPlannedSpecial(item))
     .sort((a, b) => b.plannedDate.localeCompare(a.plannedDate));
   const activePlannedEntries = plannedEntries.filter((item) => ["planeado", "listo", "pospuesto"].includes(item.status));
   const introducedEntry = plannedEntries.find((item) => item.status === "estrenado");

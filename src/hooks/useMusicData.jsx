@@ -20,6 +20,7 @@ import {
 import { db, isFirebaseConfigured } from "../lib/firebase";
 import { sampleSchedules, sampleSettings, sampleSongs, sampleThemes, sampleUsers } from "../data/mockData";
 import { canonicalThemeKey, normalizeSong, normalizeThemeName, resolveAppLogoForNotification } from "../services/songUtils";
+import { isPlannedSpecial, plannedSongLabel } from "../services/plannedSong";
 import { extractLocalPdfText } from "../services/pdfTextIndex";
 import { sendExternalPush } from "../services/externalPush";
 import { ensurePushBroadcastSubscription } from "../services/pushNotifications";
@@ -572,6 +573,7 @@ export function MusicDataProvider({ children }) {
       entityId: notification.entityId || notification.scheduleId || notification.songId || "",
       scheduleId: notification.scheduleId || "",
       songId: notification.songId || "",
+      ...(notification.plannedDate ? { plannedDate: notification.plannedDate } : {}),
       active: notification.active !== false,
       deleted: false,
       relatedEntityDeleted: false,
@@ -817,9 +819,9 @@ export function MusicDataProvider({ children }) {
 
   const notifyPlannedNewSongBestEffort = (plannedSongPayload, plannedSongId) => {
     if (!plannedSongId || plannedSongPayload.status === "estrenado") return;
-    const songId = plannedSongPayload.songId || "";
+    const songId = isPlannedSpecial(plannedSongPayload) ? "" : plannedSongPayload.songId || "";
     const serviceLabel = formatPlannedNewSongLabel(plannedSongPayload);
-    const title = `Canto nuevo para ${serviceLabel}`;
+    const title = `${plannedSongLabel(plannedSongPayload)} para ${serviceLabel}`;
     const message = `${plannedSongPayload.songTitle} está planeado para ${serviceLabel}.`;
     const pushNotificationId = `planned-new-song-${plannedSongId}`;
     const notificationPayload = {
@@ -829,6 +831,7 @@ export function MusicDataProvider({ children }) {
       entityType: songId ? "song" : "planned_new_song",
       entityId: songId || plannedSongId,
       songId,
+      plannedDate: plannedSongPayload.plannedDate,
       isFutureSchedule: true,
       pushNotificationId
     };
@@ -838,7 +841,7 @@ export function MusicDataProvider({ children }) {
       type: "new_song",
       title,
       body: message,
-      url: songId ? `/#/repertorio/${songId}` : "/#/servicios",
+      url: songId ? `/#/repertorio/${songId}` : `/#/servicios?date=${plannedSongPayload.plannedDate}`,
       songId,
       notificationId: pushNotificationId,
       icon: resolveAppLogoForNotification(settings, "light"),
@@ -848,7 +851,7 @@ export function MusicDataProvider({ children }) {
 
   const assertCanEditPlannedNewSongs = () => {
     if (!["admin", "editor"].includes(profile?.role)) {
-      throw new Error("No tienes permiso para modificar cantos nuevos planeados.");
+      throw new Error("No tienes permiso para modificar cantos planeados.");
     }
   };
 
@@ -858,6 +861,7 @@ export function MusicDataProvider({ children }) {
     const payload = {
       songId: plannedSong.songId || null,
       songTitle: String(plannedSong.songTitle || "").trim(),
+      kind: isPlannedSpecial(plannedSong) ? "special" : "new",
       plannedDate: plannedSong.plannedDate || "",
       serviceType: plannedSong.serviceType || "",
       status: plannedSong.status || "planeado",
@@ -874,28 +878,29 @@ export function MusicDataProvider({ children }) {
     if (!payload.songTitle || !payload.plannedDate || !payload.serviceType || !payload.status) {
       throw new Error("Completa canto, fecha, servicio y estado.");
     }
+    const label = plannedSongLabel(payload);
 
     if (useLocal) {
       if (plannedSong.id) {
         setPlannedNewSongs((current) => current.map((item) => item.id === plannedSong.id ? { ...item, ...payload } : item));
-        await logAuditEvent({ actionType: "update", entityType: "planned_new_song", entityId: plannedSong.id, entityName: payload.songTitle, summary: `Canto nuevo planeado editado: ${payload.songTitle}`, beforeData: before, afterData: payload });
+        logAuditEventBestEffort({ actionType: "update", entityType: "planned_new_song", entityId: plannedSong.id, entityName: payload.songTitle, summary: `${label} · Edición de ${payload.songTitle}`, beforeData: before, afterData: payload });
         return plannedSong.id;
       }
       const id = makeId("planned-song");
       const created = { ...payload, id, createdAt: new Date().toISOString() };
       setPlannedNewSongs((current) => [...current, created].sort((a, b) => a.plannedDate.localeCompare(b.plannedDate)));
-      await logAuditEvent({ actionType: "create", entityType: "planned_new_song", entityId: id, entityName: payload.songTitle, summary: `Canto nuevo planeado creado: ${payload.songTitle}`, afterData: created });
+      logAuditEventBestEffort({ actionType: "create", entityType: "planned_new_song", entityId: id, entityName: payload.songTitle, summary: `${label} · Se planeó ${payload.songTitle}`, afterData: created });
       notifyPlannedNewSongBestEffort(created, id);
       return id;
     }
 
     if (plannedSong.id) {
       await updateDoc(doc(db, "plannedNewSongs", plannedSong.id), payload);
-      await logAuditEvent({ actionType: "update", entityType: "planned_new_song", entityId: plannedSong.id, entityName: payload.songTitle, summary: `Canto nuevo planeado editado: ${payload.songTitle}`, beforeData: before, afterData: payload });
+      logAuditEventBestEffort({ actionType: "update", entityType: "planned_new_song", entityId: plannedSong.id, entityName: payload.songTitle, summary: `${label} · Edición de ${payload.songTitle}`, beforeData: before, afterData: payload });
       return plannedSong.id;
     }
     const created = await addDoc(collection(db, "plannedNewSongs"), { ...payload, createdAt: serverTimestamp() });
-    await logAuditEvent({ actionType: "create", entityType: "planned_new_song", entityId: created.id, entityName: payload.songTitle, summary: `Canto nuevo planeado creado: ${payload.songTitle}`, afterData: payload });
+    logAuditEventBestEffort({ actionType: "create", entityType: "planned_new_song", entityId: created.id, entityName: payload.songTitle, summary: `${label} · Se planeó ${payload.songTitle}`, afterData: payload });
     notifyPlannedNewSongBestEffort(payload, created.id);
     return created.id;
   };
@@ -903,13 +908,13 @@ export function MusicDataProvider({ children }) {
   const markPlannedNewSongIntroduced = async (plannedSongId) => {
     assertCanEditPlannedNewSongs();
     const plannedSong = plannedNewSongs.find((item) => item.id === plannedSongId);
-    if (!plannedSong) throw new Error("No se encontró el canto nuevo planeado.");
+    if (!plannedSong) throw new Error("No se encontró el canto planeado.");
     return savePlannedNewSong({ ...plannedSong, status: "estrenado" });
   };
 
   const deletePlannedNewSong = async (plannedSongId) => {
     if (profile?.role !== "admin") {
-      throw new Error("Solo un administrador puede eliminar cantos nuevos planeados.");
+      throw new Error("Solo un administrador puede eliminar cantos planeados.");
     }
     const before = plannedNewSongs.find((item) => item.id === plannedSongId);
     if (useLocal) {
@@ -917,7 +922,7 @@ export function MusicDataProvider({ children }) {
     } else {
       await deleteDoc(doc(db, "plannedNewSongs", plannedSongId));
     }
-    await logAuditEvent({ actionType: "delete", entityType: "planned_new_song", entityId: plannedSongId, entityName: before?.songTitle || "", summary: `Canto nuevo planeado eliminado: ${before?.songTitle || plannedSongId}`, beforeData: before });
+    await logAuditEvent({ actionType: "delete", entityType: "planned_new_song", entityId: plannedSongId, entityName: before?.songTitle || "", summary: `Se quitó de la programación: ${before?.songTitle || plannedSongId}`, beforeData: before });
   };
 
   const syncScheduleSongNotes = async (entries = [], previousEntries = null) => {
@@ -1236,60 +1241,39 @@ export function MusicDataProvider({ children }) {
     await logAuditEvent({ actionType: "access_removed", entityType: "authorizedEmail", entityId: email, entityName: email, summary: `Acceso eliminado: ${email}`, beforeData: before });
   };
 
-  const saveSettings = async (nextSettings) => {
+  const saveSettings = async (nextSettings, categoryRenames = []) => {
     const before = settings;
+    const renameByKey = new Map(categoryRenames.map(([from, to]) => [from.toLowerCase(), to]));
+    const nextCategory = (song) => renameByKey.get(String(song.category || "").trim().toLowerCase());
+    const affectedSongs = renameByKey.size ? songs.filter((song) => nextCategory(song)) : [];
     if (useLocal) {
       setSettings(nextSettings);
-      await logAuditEvent({ actionType: "update", entityType: "settings", entityId: "main", entityName: "Configuración global", summary: "Configuración global actualizada", beforeData: before, afterData: nextSettings });
-      return;
-    }
-    await setDoc(doc(db, "settings", "main"), nextSettings, { merge: true });
-    await logAuditEvent({ actionType: "update", entityType: "settings", entityId: "main", entityName: "Configuración global", summary: "Configuración global actualizada", beforeData: before, afterData: nextSettings });
-  };
-
-  const renameSongCategories = async (categoryRenames = {}) => {
-    const entries = Object.entries(categoryRenames)
-      .map(([from, to]) => [String(from || "").trim(), String(to || "").trim()])
-      .filter(([from, to]) => from && to && from !== to);
-    if (!entries.length) return { updated: 0 };
-
-    const renameByKey = new Map(entries.map(([from, to]) => [from.toLowerCase(), to]));
-    const affectedSongs = songs.filter((song) => renameByKey.has(String(song.category || "").trim().toLowerCase()));
-    if (!affectedSongs.length) return { updated: 0 };
-
-    if (useLocal) {
-      setSongs((current) => current.map((song) => {
-        const nextCategory = renameByKey.get(String(song.category || "").trim().toLowerCase());
-        return nextCategory ? { ...song, category: nextCategory } : song;
+      if (affectedSongs.length) {
+        setSongs((current) => current.map((song) => {
+          const category = nextCategory(song);
+          return category ? { ...song, category } : song;
+        }));
+      }
+    } else {
+      const batch = writeBatch(db);
+      batch.set(doc(db, "settings", "main"), nextSettings, { merge: true });
+      affectedSongs.forEach((song) => batch.update(doc(db, "songs", song.id), {
+        category: nextCategory(song),
+        updatedAt: serverTimestamp()
       }));
-      await logAuditEvent({
+      await batch.commit();
+    }
+    logAuditEventBestEffort({ actionType: "update", entityType: "settings", entityId: "main", entityName: "Configuración global", summary: "Configuración global actualizada", beforeData: before, afterData: nextSettings });
+    if (affectedSongs.length) {
+      logAuditEventBestEffort({
         actionType: "song_categories_renamed",
         entityType: "song",
         entityId: "bulk",
         entityName: "Tipos de canto",
         summary: `Tipos de canto actualizados en ${affectedSongs.length} canto(s)`,
-        afterData: { renames: entries.map(([from, to]) => ({ from, to })), updated: affectedSongs.length }
+        afterData: { renames: categoryRenames.map(([from, to]) => ({ from, to })), updated: affectedSongs.length }
       });
-      return { updated: affectedSongs.length };
     }
-
-    const batch = writeBatch(db);
-    affectedSongs.forEach((song) => {
-      const nextCategory = renameByKey.get(String(song.category || "").trim().toLowerCase());
-      batch.update(doc(db, "songs", song.id), {
-        category: nextCategory,
-        updatedAt: serverTimestamp()
-      });
-    });
-    await batch.commit();
-    await logAuditEvent({
-      actionType: "song_categories_renamed",
-      entityType: "song",
-      entityId: "bulk",
-      entityName: "Tipos de canto",
-      summary: `Tipos de canto actualizados en ${affectedSongs.length} canto(s)`,
-      afterData: { renames: entries.map(([from, to]) => ({ from, to })), updated: affectedSongs.length }
-    });
     return { updated: affectedSongs.length };
   };
 
@@ -1570,7 +1554,6 @@ export function MusicDataProvider({ children }) {
       saveUser,
       removeUserAccess,
       saveSettings,
-      renameSongCategories,
       saveTheme,
       mergeTheme,
       importSongs,

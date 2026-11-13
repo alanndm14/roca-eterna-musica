@@ -14,6 +14,7 @@ import { AndroidNotificationPermissionWizard } from "../components/notifications
 import { isPushBackendConfigured, sendExternalPush } from "../services/externalPush";
 import { isAndroidDevice } from "../services/notificationDevice";
 import { resolveScheduleSongs } from "../services/scheduleSongSync";
+import { isPlannedSpecial, plannedSongLabel } from "../services/plannedSong";
 
 const currentMonth = () => todayString().slice(0, 7);
 const formatRemaining = (schedule, now = new Date()) => {
@@ -63,18 +64,11 @@ const plannedTypeMatchesSchedule = (plannedType = "", schedule = {}) => {
   return true;
 };
 
-const getNextPlannedNewSong = (plannedNewSongs = [], songs = [], schedules = [], now = new Date()) => {
-  const today = todayString();
-  const candidates = (Array.isArray(plannedNewSongs) ? plannedNewSongs : [])
-    .filter((item) => {
-      const status = normalizeSearchText(item?.status || "");
-      return item?.plannedDate >= today && !["estrenado", "cancelado", "pospuesto"].includes(status);
-    })
-    .sort((left, right) => String(left.plannedDate).localeCompare(String(right.plannedDate)));
-  const planned = candidates[0];
-  if (!planned) return null;
+const getPlannedSongPreview = (planned, songs, schedules, now) => {
   const song = songs.find((item) => item.id === planned.songId)
-    || songs.find((item) => normalizeSearchText(item.title) === normalizeSearchText(planned.songTitle || planned.title || ""));
+    || (!isPlannedSpecial(planned)
+      ? songs.find((item) => normalizeSearchText(item.title) === normalizeSearchText(planned.songTitle || planned.title || ""))
+      : null);
   const dateSchedules = schedules
     .filter((schedule) => schedule.date === planned.plannedDate && !schedule.deleted && schedule.active !== false)
     .sort((a, b) => String(a.time || "").localeCompare(String(b.time || "")));
@@ -116,13 +110,15 @@ export function Dashboard() {
     [songs, settings.keyPreference, upcoming]
   );
   const countdownActive = typeof remaining === "string" && remaining.includes(":");
-  const nextNewSong = useMemo(
-    () => getNextPlannedNewSong(plannedNewSongs, songs, schedules, now),
-    [now, plannedNewSongs, schedules, songs]
-  );
-  const nextNewSongPdf = getSongPdfUrl(nextNewSong?.song);
-  const nextNewSongYoutube = getSongYoutubeUrl(nextNewSong?.song);
-  const nextNewSongSpotify = getSongSpotifyUrl(nextNewSong?.song);
+  const plannedSongPreviews = useMemo(() => {
+    const today = todayString();
+    const candidates = plannedNewSongs
+      .filter((item) => item.plannedDate >= today && !["estrenado", "cancelado", "pospuesto"].includes(normalizeSearchText(item.status || "")))
+      .sort((left, right) => left.plannedDate.localeCompare(right.plannedDate));
+    return [candidates.find((item) => !isPlannedSpecial(item)), candidates.find(isPlannedSpecial)]
+      .filter(Boolean)
+      .map((item) => getPlannedSongPreview(item, songs, schedules, now));
+  }, [now, plannedNewSongs, schedules, songs]);
   const scheduleRoute = (schedule, fallbackDate = "") => {
     const base = profile?.role === "viewer" ? "/servicios" : "/programacion";
     if (schedule?.id) return `${base}?schedule=${schedule.id}`;
@@ -253,60 +249,65 @@ export function Dashboard() {
         </Card>
       ) : null}
 
-      {nextNewSong ? (
+      {plannedSongPreviews.map(({ planned, song, schedule, countdown }) => {
+        const special = isPlannedSpecial(planned);
+        const label = plannedSongLabel(planned);
+        const servicePath = scheduleRoute(special ? null : schedule, planned.plannedDate);
+        const songPath = song?.id && !special ? `/repertorio/${song.id}` : servicePath;
+        const pdfUrl = getSongPdfUrl(song);
+        const Icon = special ? Sparkles : Music2;
+        return (
         <Card
-          className="cursor-pointer overflow-hidden border-brass/30 bg-brass/10 p-0 dark:border-brass/35 dark:bg-zinc-900"
+          key={planned.id}
+          className={`cursor-pointer overflow-hidden p-0 dark:bg-zinc-900 ${special ? "border-violet-500/30 bg-violet-500/5" : "border-brass/30 bg-brass/10"}`}
           role="link"
           tabIndex={0}
-          onClick={() => navigate(nextNewSong.song?.id
-            ? `/repertorio/${nextNewSong.song.id}`
-            : scheduleRoute(nextNewSong.schedule, nextNewSong.planned.plannedDate))}
+          onClick={() => navigate(songPath)}
           onKeyDown={(event) => {
             if (event.key === "Enter" || event.key === " ") {
-              navigate(nextNewSong.song?.id
-                ? `/repertorio/${nextNewSong.song.id}`
-                : scheduleRoute(nextNewSong.schedule, nextNewSong.planned.plannedDate));
+              navigate(songPath);
             }
           }}
         >
           <div className="grid md:grid-cols-[180px_minmax(0,1fr)]">
             <button
               type="button"
-              className="flex items-center justify-center bg-brass px-5 py-6 text-center text-white"
+              className={`flex items-center justify-center px-5 py-6 text-center text-white ${special ? "bg-violet-700" : "bg-brass"}`}
               onClick={(event) => {
                 event.stopPropagation();
-                navigate(scheduleRoute(nextNewSong.schedule, nextNewSong.planned.plannedDate));
+                navigate(servicePath);
               }}
             >
               <div>
-                <Music2 className="mx-auto h-7 w-7" />
-                <p className="mt-2 text-xs font-black uppercase tracking-wide">Próximo canto nuevo</p>
-                <p className="mt-1 text-4xl font-black">{nextNewSong.countdown.value}</p>
-                <p className="text-sm font-bold">{nextNewSong.countdown.unit}</p>
+                <Icon className="mx-auto h-7 w-7" />
+                <p className="mt-2 text-xs font-black uppercase tracking-wide">{label}</p>
+                <p className="mt-1 text-4xl font-black">{countdown.value}</p>
+                <p className="text-sm font-bold">{countdown.unit}</p>
               </div>
             </button>
             <div className="p-5">
-              <p className="text-xs font-black uppercase tracking-wide text-brass">
-                {formatDate(nextNewSong.planned.plannedDate)}
+              <p className="text-xs font-black uppercase tracking-wide text-ink/65">
+                {formatDate(planned.plannedDate)}
               </p>
-              <h2 className="mt-2 text-2xl font-black text-ink">{nextNewSong.song?.title || nextNewSong.planned.songTitle || "Canto nuevo"}</h2>
-              {nextNewSong.song?.artistOrSource ? <p className="mt-1 text-sm text-ink/58">{nextNewSong.song.artistOrSource}</p> : null}
+              <h2 className="mt-2 text-2xl font-black text-ink">{song?.title || planned.songTitle || label}</h2>
+              {song?.artistOrSource ? <p className="mt-1 text-sm text-ink/58">{song.artistOrSource}</p> : null}
               <div className="mt-4 flex flex-wrap gap-2" onClick={(event) => event.stopPropagation()}>
-                {nextNewSongPdf ? (
-                  <a className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-ink/10 bg-white px-4 py-2 text-sm font-semibold text-ink hover:border-ink/25 dark:bg-white/10" href={nextNewSongPdf} target="_blank" rel="noreferrer">
+                {pdfUrl ? (
+                  <a className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-ink/10 bg-white px-4 py-2 text-sm font-semibold text-ink hover:border-ink/25 dark:bg-white/10" href={pdfUrl} target="_blank" rel="noreferrer">
                     PDF <ExternalLink className="h-4 w-4" />
                   </a>
                 ) : null}
                 <SongExternalLinks
-                  youtubeUrl={nextNewSongYoutube}
-                  spotifyUrl={nextNewSongSpotify}
-                  songTitle={nextNewSong.song?.title || nextNewSong.planned.songTitle}
+                  youtubeUrl={getSongYoutubeUrl(song)}
+                  spotifyUrl={getSongSpotifyUrl(song)}
+                  songTitle={song?.title || planned.songTitle}
                 />
               </div>
             </div>
           </div>
         </Card>
-      ) : null}
+        );
+      })}
 
       <section className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
         <Card

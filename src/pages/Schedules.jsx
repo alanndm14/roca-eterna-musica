@@ -7,6 +7,7 @@ import { Card } from "../components/ui/Card";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Field, Input, Select, Textarea } from "../components/ui/Field";
 import { Modal } from "../components/ui/Modal";
+import { PlannedSongBadge } from "../components/ui/PlannedSongBadge";
 import { SortableList, SortableHandle } from "../components/ui/SortableList";
 import { SongNameLink } from "../components/ui/SongNameLink";
 import { getRiskTone, ServiceReviewPanel } from "../components/smart/ServiceReviewPanel";
@@ -21,6 +22,7 @@ import { downloadBlob } from "../services/mergeServicePdfs";
 import { getOutstandingSongFollowUps, reviewServiceSchedule } from "../services/smartRecommendations";
 import { getServiceTypeOptions, getWorshipLeaderOptions } from "../services/serviceOptions";
 import { resolveScheduleSongs } from "../services/scheduleSongSync";
+import { isPlannedSpecial, plannedServiceLabel, plannedServiceOptions, plannedSongLabel, plannedSongStatusLabel } from "../services/plannedSong";
 import { SmartCenter } from "./SmartCenter";
 import {
   SPECIAL_PROGRAM_TYPES,
@@ -48,28 +50,16 @@ const blankSchedule = {
   status: "confirmed"
 };
 
-const plannedServiceOptions = [
-  { value: "domingo_am", label: "Domingo AM" },
-  { value: "domingo_pm", label: "Domingo PM" },
-  { value: "miercoles", label: "Miércoles" },
-  { value: "especial", label: "Especial" },
-  { value: "otro", label: "Otro" }
-];
-const plannedStatusOptions = [
-  { value: "planeado", label: "Planeado" },
-  { value: "listo", label: "Listo" },
-  { value: "estrenado", label: "Estrenado" },
-  { value: "pospuesto", label: "Pospuesto" }
-];
+const plannedStatuses = ["planeado", "listo", "estrenado", "pospuesto"];
 const blankPlannedNewSong = {
   songId: "",
   songTitle: "",
+  kind: "new",
   plannedDate: "",
   serviceType: "",
   status: "planeado",
   notes: ""
 };
-const plannedOptionLabel = (options, value) => options.find((option) => option.value === value)?.label || value || "--";
 
 const dateWeekday = (date) => (date ? new Date(`${date}T00:00:00`).getDay() : null);
 
@@ -308,6 +298,7 @@ function ScheduleForm({ initialSchedule, songs, schedules, settings, onSubmit, o
 function PlannedNewSongForm({ initialValue, songs, onSubmit, onCancel }) {
   const [draft, setDraft] = useState(() => ({ ...blankPlannedNewSong, ...initialValue }));
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
   const update = (field, value) => setDraft((current) => ({ ...current, [field]: value }));
   const submit = async (event) => {
     event.preventDefault();
@@ -318,14 +309,23 @@ function PlannedNewSongForm({ initialValue, songs, onSubmit, onCancel }) {
       return;
     }
     setError("");
+    setSaving(true);
     try {
       await onSubmit(payload);
     } catch (submitError) {
-      setError(submitError?.message || "No se pudo guardar el canto nuevo planeado.");
+      setError(submitError?.message || "No se pudo guardar el canto planeado.");
+    } finally {
+      setSaving(false);
     }
   };
   return (
     <form className="max-h-[76dvh] space-y-4 overflow-y-auto pr-1" onSubmit={submit}>
+      <Field label="Tipo">
+        <Select value={isPlannedSpecial(draft) ? "special" : "new"} onChange={(event) => update("kind", event.target.value)}>
+          <option value="new">Canto nuevo</option>
+          <option value="special">Especial del evento</option>
+        </Select>
+      </Field>
       <Field label="Canto existente">
         <Select value={draft.songId || ""} onChange={(event) => {
           const songId = event.target.value;
@@ -338,7 +338,7 @@ function PlannedNewSongForm({ initialValue, songs, onSubmit, onCancel }) {
       </Field>
       {!draft.songId ? (
         <Field label="Nombre del canto">
-          <Input value={draft.songTitle || ""} onChange={(event) => update("songTitle", event.target.value)} placeholder="Nombre del canto nuevo" />
+          <Input value={draft.songTitle || ""} onChange={(event) => update("songTitle", event.target.value)} placeholder="Nombre del canto" />
         </Field>
       ) : null}
       <div className="grid gap-4 sm:grid-cols-2">
@@ -354,7 +354,7 @@ function PlannedNewSongForm({ initialValue, songs, onSubmit, onCancel }) {
       </div>
       <Field label="Estado">
         <Select value={draft.status || ""} onChange={(event) => update("status", event.target.value)}>
-          {plannedStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          {plannedStatuses.map((status) => <option key={status} value={status}>{plannedSongStatusLabel({ kind: draft.kind, status })}</option>)}
         </Select>
       </Field>
       <Field label="Notas opcionales">
@@ -362,8 +362,8 @@ function PlannedNewSongForm({ initialValue, songs, onSubmit, onCancel }) {
       </Field>
       {error ? <p className="rounded-xl bg-red-500/10 p-3 text-sm font-semibold text-red-700 dark:text-red-200">{error}</p> : null}
       <div className="flex flex-wrap justify-end gap-2 border-t border-ink/10 pt-4">
-        <Button type="button" variant="secondary" onClick={onCancel}>Cancelar</Button>
-        <Button type="submit">Guardar</Button>
+        <Button type="button" variant="secondary" onClick={onCancel} disabled={saving}>Cancelar</Button>
+        <Button type="submit" disabled={saving}>{saving ? "Guardando…" : "Guardar"}</Button>
       </div>
     </form>
   );
@@ -372,22 +372,24 @@ function PlannedNewSongForm({ initialValue, songs, onSubmit, onCancel }) {
 function PlannedNewSongCard({ item, songs, canEdit, canDelete, onEdit, onMarkIntroduced, onDelete }) {
   const liveSong = songs.find((song) => song.id === item.songId);
   const displayTitle = liveSong?.title || item.songTitle;
+  const special = isPlannedSpecial(item);
   return (
-    <div className="rounded-2xl border border-brass/25 bg-brass/10 p-3 dark:border-brass/30 dark:bg-brass/10">
+    <div className={`rounded-2xl border p-3 ${special ? "border-violet-500/25 bg-violet-500/5" : "border-brass/25 bg-brass/10"}`}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <p className="font-bold text-ink">
+          <PlannedSongBadge item={item} />
+          <p className="mt-1 font-bold text-ink">
             {item.songId ? <SongNameLink songId={item.songId} title={displayTitle} songs={songs}>{displayTitle}</SongNameLink> : displayTitle}
           </p>
-          <p className="mt-1 text-sm font-semibold text-brass">
-            {plannedOptionLabel(plannedServiceOptions, item.serviceType)} · {plannedOptionLabel(plannedStatusOptions, item.status)}
+          <p className="mt-1 text-sm font-semibold text-ink/65">
+            {plannedServiceLabel(item.serviceType)} · {plannedSongStatusLabel(item)}
           </p>
           {item.notes ? <p className="mt-2 text-sm leading-6 text-ink/60">{item.notes}</p> : null}
         </div>
         {canEdit ? (
           <div className="flex flex-wrap gap-2">
             <Button variant="subtle" onClick={() => onEdit(item)}><Edit3 className="h-4 w-4" />Editar</Button>
-            {item.status !== "estrenado" ? <Button variant="secondary" onClick={() => onMarkIntroduced(item.id)}><CheckCircle2 className="h-4 w-4" />Marcar como estrenado</Button> : null}
+            {item.status !== "estrenado" ? <Button variant="secondary" onClick={() => onMarkIntroduced(item.id)}><CheckCircle2 className="h-4 w-4" />{special ? "Marcar como cantado" : "Marcar como estrenado"}</Button> : null}
             {canDelete ? <Button variant="danger" onClick={() => onDelete(item)}><Trash2 className="h-4 w-4" />Eliminar</Button> : null}
           </div>
         ) : null}
@@ -436,7 +438,9 @@ function MonthCalendar({ schedules, plannedNewSongs, selectedDate, onSelectDate 
         {days.map((day) => {
           const dateString = day.toISOString().slice(0, 10);
           const count = byDate[dateString]?.length || 0;
-          const plannedCount = plannedByDate[dateString]?.length || 0;
+          const planned = plannedByDate[dateString] || [];
+          const specialCount = planned.filter(isPlannedSpecial).length;
+          const newCount = planned.length - specialCount;
           const isCurrentMonth = day.getMonth() === month;
           const isSelected = selectedDate === dateString;
           const isToday = dateString === today && isCurrentMonth;
@@ -462,11 +466,10 @@ function MonthCalendar({ schedules, plannedNewSongs, selectedDate, onSelectDate 
                   <span className="hidden sm:inline">{count} prog.</span>
                 </span>
               ) : null}
-              {plannedCount ? (
-                <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-brass/15 px-1.5 py-1 text-[10px] font-bold text-brass sm:px-2 sm:text-[11px]">
-                  <Music2 className="h-3 w-3" />
-                  <span className="sm:hidden">{plannedCount}</span>
-                  <span className="hidden sm:inline">{plannedCount} {plannedCount === 1 ? "nuevo" : "nuevos"}</span>
+              {planned.length ? (
+                <span className="mt-1 flex flex-wrap gap-0.5">
+                  {newCount ? <PlannedSongBadge count={newCount} /> : null}
+                  {specialCount ? <PlannedSongBadge item={{ kind: "special" }} count={specialCount} /> : null}
                 </span>
               ) : null}
             </button>
@@ -657,6 +660,12 @@ export function Schedules() {
       setSelectedScheduleId(schedule.id);
       setSelectedDate(schedule.date);
       setTab("calendar");
+    } else {
+      const date = searchParams.get("date");
+      if (!date) return;
+      setSelectedScheduleId("");
+      setSelectedDate(date);
+      setTab("calendar");
     }
   }, [schedules, searchParams]);
 
@@ -713,8 +722,9 @@ export function Schedules() {
     return safePlannedNewSongs.filter((item) => normalizeSearchText([
       item.songTitle,
       item.plannedDate,
-      plannedOptionLabel(plannedServiceOptions, item.serviceType),
-      plannedOptionLabel(plannedStatusOptions, item.status),
+      plannedSongLabel(item),
+      plannedServiceLabel(item.serviceType),
+      plannedSongStatusLabel(item),
       item.notes
     ].join(" ")).includes(term));
   }, [query, safePlannedNewSongs]);
@@ -759,7 +769,7 @@ export function Schedules() {
     setPlannedNewSongDraft({ ...blankPlannedNewSong, plannedDate });
   };
   const removePlannedSong = async (item) => {
-    if (!confirm(`¿Eliminar este canto nuevo planeado?\n\n${item.songTitle}\n\nEsto no eliminará el canto del repertorio.`)) return;
+    if (!confirm(`¿Quitar de la programación «${item.songTitle}»?`)) return;
     await deletePlannedNewSong(item.id);
   };
 
@@ -870,7 +880,7 @@ export function Schedules() {
               {canEdit ? (
                 <Button variant="secondary" onClick={openNewPlannedSong}>
                   <Music2 className="h-4 w-4" />
-                  {tab === "calendar" ? "Canto nuevo para este día" : "Planear canto nuevo"}
+                  {tab === "calendar" ? "Canto nuevo para este día" : "Planear canto o especial"}
                 </Button>
               ) : null}
             </div>
@@ -944,7 +954,7 @@ export function Schedules() {
               <div className="mt-6 border-t border-ink/10 pt-5">
                 <div className="flex items-center gap-2">
                   <Music2 className="h-4 w-4 text-brass" />
-                  <h4 className="text-xs font-black uppercase tracking-wide text-ink/45">Cantos nuevos planeados</h4>
+                  <h4 className="text-xs font-black uppercase tracking-wide text-ink/45">Cantos nuevos y especiales</h4>
                 </div>
                 <div className="mt-3 space-y-3">
                   {visiblePlannedNewSongs.map((item) => (
@@ -994,7 +1004,7 @@ export function Schedules() {
         <Card>
           <div className="flex items-center gap-2">
             <Music2 className="h-5 w-5 text-brass" />
-            <h3 className="font-bold text-ink">Cantos nuevos planeados</h3>
+            <h3 className="font-bold text-ink">Cantos nuevos y especiales</h3>
           </div>
           <div className="mt-4 grid gap-3 lg:grid-cols-2">
             {visiblePlannedNewSongs.map((item) => (
@@ -1100,7 +1110,7 @@ export function Schedules() {
           }}
         />
       </Modal>
-      <Modal open={Boolean(plannedNewSongDraft)} title={plannedNewSongDraft?.id ? "Editar canto nuevo planeado" : "Agregar canto nuevo"} onClose={() => setPlannedNewSongDraft(null)}>
+      <Modal open={Boolean(plannedNewSongDraft)} title={plannedNewSongDraft?.id ? "Editar canto planeado" : "Planear canto o especial"} onClose={() => setPlannedNewSongDraft(null)}>
         <PlannedNewSongForm
           initialValue={plannedNewSongDraft || blankPlannedNewSong}
           songs={songs}

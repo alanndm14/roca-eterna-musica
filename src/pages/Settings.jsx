@@ -63,6 +63,13 @@ const permissionLabel = (value) => {
 };
 const yesNoLabel = (value) => (value ? "si" : "no");
 
+const getSettingsDraft = (settings) => ({
+  ...settings,
+  worshipLeaderOptions: Array.isArray(settings?.worshipLeaderOptions) ? settings.worshipLeaderOptions : defaultWorshipLeaderOptions,
+  serviceTypeOptions: Array.isArray(settings?.serviceTypeOptions) ? settings.serviceTypeOptions : defaultServiceTypeOptions,
+  songCategoryOptions: getSongCategoryOptions(settings).map((name) => ({ id: name, originalName: name, name }))
+});
+
 export function Settings() {
   const { profile, isAdmin, isFullAdmin, canManageAccess, signOut, saveUserPreferences } = useAuth();
   const isEditor = profile?.role === "editor";
@@ -79,17 +86,12 @@ export function Settings() {
     mergeTheme,
     importSongs,
     removeUserAccess,
-    renameSongCategories,
     indexLocalPdfTexts,
     logAuditEvent,
     seedExampleData
   } = useMusicData();
-  const [localSettings, setLocalSettings] = useState(() => ({
-    ...settings,
-    worshipLeaderOptions: Array.isArray(settings?.worshipLeaderOptions) ? settings.worshipLeaderOptions : defaultWorshipLeaderOptions,
-    serviceTypeOptions: Array.isArray(settings?.serviceTypeOptions) ? settings.serviceTypeOptions : defaultServiceTypeOptions,
-    songCategoryOptions: getSongCategoryOptions(settings)
-  }));
+  const [localSettings, setLocalSettings] = useState(() => getSettingsDraft(settings));
+  const [savingInstitutionalSettings, setSavingInstitutionalSettings] = useState(false);
   const [personalSettings, setPersonalSettings] = useState({
     preferredDisplayName: profile?.preferredDisplayName || "",
     themeMode: profile?.themeMode || localStorage.getItem("roca-eterna-theme-mode") || "system",
@@ -246,12 +248,7 @@ export function Settings() {
   const activeAdmins = userRows.filter((user) => user.active !== false && user.role === "admin").length;
 
   useEffect(() => {
-    setLocalSettings({
-      ...settings,
-      worshipLeaderOptions: Array.isArray(settings?.worshipLeaderOptions) ? settings.worshipLeaderOptions : defaultWorshipLeaderOptions,
-      serviceTypeOptions: Array.isArray(settings?.serviceTypeOptions) ? settings.serviceTypeOptions : defaultServiceTypeOptions,
-      songCategoryOptions: getSongCategoryOptions(settings)
-    });
+    setLocalSettings(getSettingsDraft(settings));
   }, [settings]);
 
   const saveInstitutionalSettings = async () => {
@@ -262,16 +259,15 @@ export function Settings() {
     const serviceTypeOptions = (localSettings.serviceTypeOptions || [])
       .map(normalizeServiceTypeOption)
       .filter(Boolean);
-    const seenSongCategories = new Set();
-    const songCategoryOptions = (localSettings.songCategoryOptions || [])
-      .map((value) => String(value || "").trim())
-      .filter(Boolean)
-      .filter((value) => {
-        const key = value.toLowerCase();
-        if (seenSongCategories.has(key)) return false;
-        seenSongCategories.add(key);
-        return true;
-      });
+    const categoryRows = localSettings.songCategoryOptions
+      .map((row) => ({ ...row, name: row.name.trim() }))
+      .filter((row) => row.name);
+    const categoriesByKey = new Map();
+    categoryRows.forEach(({ name }) => {
+      const key = name.toLowerCase();
+      if (!categoriesByKey.has(key)) categoriesByKey.set(key, name);
+    });
+    const songCategoryOptions = [...categoriesByKey.values()];
     if (!serviceTypeOptions.length) {
       alert("Debe quedar al menos un tipo de servicio.");
       return;
@@ -280,22 +276,22 @@ export function Settings() {
       alert("Debe quedar al menos un tipo de canto.");
       return;
     }
-    const previousSongCategoryOptions = Array.isArray(settings?.songCategoryOptions) && settings.songCategoryOptions.length
-      ? settings.songCategoryOptions.map((value) => String(value || "").trim()).filter(Boolean)
-      : getSongCategoryOptions(settings);
-    const categoryRenames = {};
-    previousSongCategoryOptions.forEach((previousValue, index) => {
-      const nextValue = songCategoryOptions[index];
-      if (!nextValue) return;
-      if (String(previousValue || "").trim() !== String(nextValue || "").trim()) {
-        categoryRenames[previousValue] = nextValue;
-      }
-    });
-    await saveSettings({ ...localSettings, worshipLeaderOptions, serviceTypeOptions, songCategoryOptions });
-    const renameResult = await renameSongCategories(categoryRenames);
-    setSettingsSaveStatus(renameResult?.updated
-      ? `Ajustes guardados. Se actualizaron ${renameResult.updated} canto(s) con el tipo renombrado.`
-      : "Ajustes guardados.");
+    const categoryRenames = categoryRows
+      .filter(({ originalName, name }) => originalName && originalName !== name)
+      .map(({ originalName, name }) => [originalName, categoriesByKey.get(name.toLowerCase())])
+      .filter(([from, to]) => from !== to);
+    setSavingInstitutionalSettings(true);
+    try {
+      const { updated } = await saveSettings({ ...localSettings, worshipLeaderOptions, serviceTypeOptions, songCategoryOptions }, categoryRenames);
+      setSettingsSaveStatus(updated
+        ? `Ajustes guardados. Se actualizaron ${updated} canto(s) con el tipo renombrado.`
+        : "Ajustes guardados.");
+    } catch (error) {
+      console.error("No se pudieron guardar los ajustes", error);
+      setSettingsSaveStatus("No se pudieron guardar los ajustes. Intenta de nuevo.");
+    } finally {
+      setSavingInstitutionalSettings(false);
+    }
   };
 
   useEffect(() => {
@@ -733,6 +729,7 @@ export function Settings() {
               values={localSettings.songCategoryOptions || []}
               onChange={(values) => updateSettings("songCategoryOptions", values)}
               placeholder="Ej. normal, himno, navidad"
+              trackRenames
             />
           </div>
           <p className="mt-4 text-xs leading-5 text-ink/55">
@@ -759,7 +756,9 @@ export function Settings() {
           {isAdmin ? (
             <div className="mt-5">
               <div className="flex flex-wrap gap-3">
-                <Button onClick={saveInstitutionalSettings}><Save className="h-4 w-4" />Guardar ajustes</Button>
+                <Button onClick={saveInstitutionalSettings} disabled={savingInstitutionalSettings}>
+                  <Save className="h-4 w-4" />{savingInstitutionalSettings ? "Guardando…" : "Guardar ajustes"}
+                </Button>
                 <Button variant="secondary" onClick={() => setLocalSettings((current) => ({ ...current, logoLightUrl: "", logoDarkUrl: "", logoAltText: "" }))}>Restaurar logo por defecto</Button>
               </div>
               {settingsSaveStatus ? (

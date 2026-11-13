@@ -58,12 +58,14 @@ export function Changelog() {
             </div>
             <span className="rounded-full bg-ink/5 px-3 py-1 text-xs font-semibold text-ink/55">{release.date}</span>
           </div>
-          <div className="mt-4 grid gap-4 md:grid-cols-4">
-            <ChangeList title="Agregado" items={release.added} />
-            <ChangeList title="Cambiado" items={release.changed} />
-            <ChangeList title="Corregido" items={release.fixed} />
-            <ChangeList title="Pendiente" items={release.pending} />
-          </div>
+          {[release.added, release.changed, release.fixed, release.pending].some((items) => items.length) ? (
+            <div className="mt-4 grid gap-4 md:grid-cols-4">
+              <ChangeList title="Agregado" items={release.added} />
+              <ChangeList title="Cambiado" items={release.changed} />
+              <ChangeList title="Corregido" items={release.fixed} />
+              <ChangeList title="Pendiente" items={release.pending} />
+            </div>
+          ) : null}
         </Card>
       ))}
     </div>

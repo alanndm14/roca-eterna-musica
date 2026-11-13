@@ -1,4 +1,5 @@
 import admin from "firebase-admin";
+import { isPlannedSpecial, plannedSongLabel } from "../src/services/plannedSong.js";
 
 const BROADCAST_TOPIC = "roca-eterna-updates";
 const TIME_ZONE = "America/Mexico_City";
@@ -114,11 +115,12 @@ function reminderKind(plannedSong, today) {
   const plannedDate = plannedSong.plannedDate || "";
   const days = diffDays(today, plannedDate);
   if (days === null || days < 0) return null;
+  const label = plannedSongLabel(plannedSong);
 
   if (days === 2) {
     return {
       id: "two-days",
-      title: "Canto nuevo en 2 días"
+      title: `${label} en 2 días`
     };
   }
 
@@ -131,7 +133,7 @@ function reminderKind(plannedSong, today) {
   if ((isWednesday && days === 6) || (isSunday && days === 3)) {
     return {
       id: "previous-thursday",
-      title: `Canto nuevo el próximo ${targetWeekdayWord(plannedSong.serviceType, plannedDate)}`
+      title: `${label} el próximo ${targetWeekdayWord(plannedSong.serviceType, plannedDate)}`
     };
   }
 
@@ -175,14 +177,15 @@ async function createInternalNotification(plannedSong, reminder, notificationId,
     .get();
   if (!existing.empty) return false;
 
+  const songId = isPlannedSpecial(plannedSong) ? "" : plannedSong.songId || "";
   await admin.firestore().collection("notifications").add({
     type: "new_song",
     title: reminder.title,
     message: body,
     pushNotificationId: notificationId,
-    entityType: plannedSong.songId ? "song" : "planned_new_song",
-    entityId: plannedSong.songId || plannedSong.id || "",
-    songId: plannedSong.songId || "",
+    entityType: songId ? "song" : "planned_new_song",
+    entityId: songId || plannedSong.id || "",
+    songId,
     plannedNewSongId: plannedSong.id || "",
     plannedDate: plannedSong.plannedDate || "",
     serviceType: plannedSong.serviceType || "",
@@ -203,9 +206,10 @@ async function createInternalNotification(plannedSong, reminder, notificationId,
 }
 
 async function sendReminder(plannedSong, reminder, notificationId, body) {
-  const songPath = plannedSong.songId
-    ? `/#/repertorio/${plannedSong.songId}`
-    : "/#/servicios";
+  const songId = isPlannedSpecial(plannedSong) ? "" : plannedSong.songId || "";
+  const songPath = songId
+    ? `/#/repertorio/${songId}`
+    : `/#/servicios?date=${plannedSong.plannedDate}`;
   const url = appLink(songPath);
   const icon = publicIconUrl();
   const message = {
@@ -217,9 +221,9 @@ async function sendReminder(plannedSong, reminder, notificationId, body) {
     data: {
       type: "new_song",
       notificationId,
-      entityType: plannedSong.songId ? "song" : "planned_new_song",
-      entityId: plannedSong.songId || plannedSong.id || "",
-      songId: plannedSong.songId || "",
+      entityType: songId ? "song" : "planned_new_song",
+      entityId: songId || plannedSong.id || "",
+      songId,
       plannedNewSongId: plannedSong.id || "",
       url,
       title: reminder.title,
@@ -293,7 +297,7 @@ export default async function handler(request, response) {
 
       due += 1;
       const notificationId = notificationIdFor(plannedSong, reminder);
-      const body = `${plannedSong.songTitle || "Canto nuevo"} · ${serviceName(plannedSong.serviceType)} · ${shortDate(plannedSong.plannedDate)}`;
+      const body = `${plannedSong.songTitle || plannedSongLabel(plannedSong)} · ${serviceName(plannedSong.serviceType)} · ${shortDate(plannedSong.plannedDate)}`;
 
       try {
         const reserved = await reserveDelivery(notificationId);
