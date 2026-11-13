@@ -15,13 +15,16 @@ import {
 } from "recharts";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
-import { Select } from "../components/ui/Field";
-import { SongNameLink, findSongForNavigation } from "../components/ui/SongNameLink";
+import { Field, Select } from "../components/ui/Field";
+import { SongNameLink } from "../components/ui/SongNameLink";
 import { StatCard } from "../components/ui/StatCard";
 import { RepertoireBalancePanel } from "../components/smart/RepertoireBalancePanel";
+import { RotationPanel } from "../components/smart/RotationPanel";
 import { useMusicData } from "../hooks/useMusicData";
-import { formatDate, formatScheduleDateWithService, getPastSchedules } from "../services/dateUtils";
-import { collectSongThemes, getSongPdfUrl, normalizeThemeName, stripAccents } from "../services/songUtils";
+import { getScheduleStartDate, todayString } from "../services/dateUtils";
+import { getRecordedServices, isActiveService } from "../services/songHistory";
+import { getRotationServiceLabel, getRotationStartDate, getSongThemeKeys, isChristmasSong, normalizeReviewValue, summarizeRotation } from "../services/rotationStats";
+import { canonicalThemeKey, collectSongThemes, getSongPdfUrl } from "../services/songUtils";
 
 const chartColors = ["#b6945f", "#60717d", "#8e989f", "#d7c7a7", "#6e6251", "#b8b0a4"];
 const reviewColors = { pendiente: "#8e989f", "en revisión": "#d7c7a7", completado: "#b6945f" };
@@ -40,20 +43,6 @@ const toChartData = (data) =>
   Object.entries(data)
     .map(([name, value]) => ({ name, value }))
     .sort((a, b) => b.value - a.value);
-
-const topWithOthers = (data, limit = 10) => {
-  const sorted = [...data].sort((a, b) => b.value - a.value);
-  const top = sorted.slice(0, limit);
-  const rest = sorted.slice(limit).reduce((sum, item) => sum + item.value, 0);
-  return rest ? [...top, { name: "Otros", value: rest }] : top;
-};
-
-const normalizeReviewValue = (value) => {
-  const normalized = stripAccents(value || "pendiente").trim().toLowerCase();
-  if (["revision", "en revision", "revisando"].includes(normalized)) return "en revisión";
-  if (["completo", "completado", "done", "listo", "terminado"].includes(normalized)) return "completado";
-  return "pendiente";
-};
 
 function useChartTheme() {
   const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains("dark"));
@@ -109,24 +98,15 @@ function chartTooltip(theme) {
   };
 }
 
-function BarGraph({ data, horizontal = false, theme }) {
+function BarGraph({ data, theme }) {
   return (
     <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-      <BarChart data={data} layout={horizontal ? "vertical" : "horizontal"} margin={horizontal ? { left: 42, right: 12, top: 8, bottom: 8 } : { left: 0, right: 12, top: 8, bottom: 8 }}>
+      <BarChart data={data} margin={{ left: 0, right: 12, top: 8, bottom: 8 }}>
         <CartesianGrid strokeDasharray="3 3" stroke={theme.muted} />
-        {horizontal ? (
-          <>
-            <XAxis type="number" allowDecimals={false} tick={{ fontSize: 12, fill: theme.axis }} axisLine={{ stroke: theme.muted }} tickLine={{ stroke: theme.muted }} />
-            <YAxis type="category" dataKey="name" width={118} tick={{ fontSize: 12, fill: theme.axis }} axisLine={{ stroke: theme.muted }} tickLine={{ stroke: theme.muted }} />
-          </>
-        ) : (
-          <>
-            <XAxis dataKey="name" tick={{ fontSize: 12, fill: theme.axis }} axisLine={{ stroke: theme.muted }} tickLine={{ stroke: theme.muted }} />
-            <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: theme.axis }} axisLine={{ stroke: theme.muted }} tickLine={{ stroke: theme.muted }} />
-          </>
-        )}
+        <XAxis dataKey="name" tick={{ fontSize: 12, fill: theme.axis }} axisLine={{ stroke: theme.muted }} tickLine={{ stroke: theme.muted }} />
+        <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: theme.axis }} axisLine={{ stroke: theme.muted }} tickLine={{ stroke: theme.muted }} />
         <Tooltip {...chartTooltip(theme)} />
-        <Bar dataKey="value" radius={horizontal ? [0, 8, 8, 0] : [8, 8, 0, 0]}>
+        <Bar dataKey="value" radius={[8, 8, 0, 0]}>
           {data.map((_, index) => <Cell key={index} fill={chartColors[index % chartColors.length]} />)}
         </Bar>
       </BarChart>
@@ -193,22 +173,55 @@ function SongTable({ rows, songs, columns }) {
 export function Stats() {
   const { songs, schedules, themes } = useMusicData();
   const chartTheme = useChartTheme();
-  const [view, setView] = useState("musicians");
+  const [view, setView] = useState("programming");
   const [keyMode, setKeyMode] = useState("main");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [themeFilter, setThemeFilter] = useState("");
+  const [period, setPeriod] = useState("year");
+  const [serviceLabel, setServiceLabel] = useState("");
+  const [season, setSeason] = useState("regular");
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
-  const categories = useMemo(() => [...new Set(songs.map((song) => song.category || "normal"))].sort((a, b) => a.localeCompare(b, "es")), [songs]);
-  const themeOptions = useMemo(() => collectSongThemes(songs, themes), [songs, themes]);
-  const filteredSongs = useMemo(() => songs.filter((song) => {
-    const songThemes = [song.mainTheme, ...(song.otherThemes || []), ...(song.tags || [])].map(normalizeThemeName);
-    return (!categoryFilter || (song.category || "normal") === categoryFilter) && (!themeFilter || songThemes.includes(normalizeThemeName(themeFilter)));
-  }), [categoryFilter, songs, themeFilter]);
+  const today = todayString(now);
+  const startDate = getRotationStartDate(period, today);
+  const catalog = useMemo(() => songs.filter((song) => !song.deleted && song.active !== false), [songs]);
+  const seasonSongs = useMemo(() => catalog.filter((song) =>
+    view !== "programming" || season === "all" || (season === "christmas") === isChristmasSong(song)
+  ), [catalog, season, view]);
+  const categories = useMemo(() => [...new Set(seasonSongs.map((song) => song.category || "normal"))].sort((a, b) => a.localeCompare(b, "es")), [seasonSongs]);
+  const themeOptions = useMemo(() => collectSongThemes(seasonSongs, view === "programming" ? [] : themes), [seasonSongs, themes, view]);
+  const selectedTheme = themeOptions.find((theme) => canonicalThemeKey(theme) === canonicalThemeKey(themeFilter)) || "";
+  const selectedCategory = categories.includes(categoryFilter) ? categoryFilter : "";
+  const filteredSongs = useMemo(() => seasonSongs.filter((song) =>
+    (!selectedCategory || (song.category || "normal") === selectedCategory)
+    && (!selectedTheme || getSongThemeKeys(song).has(canonicalThemeKey(selectedTheme)))
+  ), [selectedCategory, selectedTheme, seasonSongs]);
+  const recordedServices = useMemo(() => getRecordedServices(songs, schedules, now), [songs, schedules, now]);
+  const serviceOptions = useMemo(() => [...new Set(schedules.filter(isActiveService).map(getRotationServiceLabel))]
+    .sort((a, b) => a.localeCompare(b, "es")), [schedules]);
+  const rotation = useMemo(() => summarizeRotation(filteredSongs, recordedServices, { startDate, serviceLabel }),
+    [filteredSongs, recordedServices, startDate, serviceLabel]);
+  const nextSchedule = useMemo(() => schedules
+    .filter((schedule) => isActiveService(schedule) && (!serviceLabel || getRotationServiceLabel(schedule) === serviceLabel))
+    .map((schedule) => ({ schedule, start: getScheduleStartDate(schedule) }))
+    .filter(({ start }) => start && start > now)
+    .sort((a, b) => a.start - b.start)[0]?.schedule || null, [schedules, serviceLabel, now]);
+  const resetFilters = () => {
+    setCategoryFilter("");
+    setThemeFilter("");
+    if (view === "programming") {
+      setPeriod("year");
+      setServiceLabel("");
+      setSeason("regular");
+    }
+  };
 
-  const byTheme = topWithOthers(toChartData(countBy(filteredSongs, (song) => [song.mainTheme, ...(song.otherThemes || [])].map(normalizeThemeName))), 10);
   const byKey = toChartData(countBy(filteredSongs, (song) => [keyMode === "main" ? song.mainKey : song.keyWithCapo]));
   const byCapo = toChartData(countBy(filteredSongs, (song) => [`Capo ${Number(song.capo || 0)}`])).sort((a, b) => Number(a.name.replace("Capo ", "")) - Number(b.name.replace("Capo ", "")));
-  const byCategory = toChartData(countBy(filteredSongs, (song) => [song.category || "normal"]));
   const reviewData = useMemo(() => (
     [
       ["PDF", "pdfReviewStatus"],
@@ -222,38 +235,6 @@ export function Stats() {
     }))
   ), [filteredSongs]);
 
-  const realSchedules = getPastSchedules(schedules).filter((schedule) => !schedule.deleted);
-  const programmedSongEntries = realSchedules.flatMap((schedule) => (schedule.songs || []).map((entry) => ({ ...entry, schedule })));
-  const programmedThemes = toChartData(countBy(programmedSongEntries, (entry) => {
-    const song = findSongForNavigation({ songId: entry.songId, title: entry.titleSnapshot, songs });
-    return song ? [song.mainTheme, ...(song.otherThemes || [])].map(normalizeThemeName) : [];
-  }));
-  const realUsageBySong = useMemo(() => {
-    const counts = new Map();
-    programmedSongEntries.forEach((entry) => {
-      const song = findSongForNavigation({ songId: entry.songId, title: entry.titleSnapshot, songs });
-      if (!song?.id) return;
-      const current = counts.get(song.id) || { count: 0, lastUsedAt: "", lastSchedule: null };
-      current.count += 1;
-      if (!current.lastUsedAt || (entry.schedule?.date || "") >= current.lastUsedAt) {
-        current.lastUsedAt = entry.schedule?.date || "";
-        current.lastSchedule = entry.schedule || null;
-      }
-      counts.set(song.id, current);
-    });
-    return counts;
-  }, [programmedSongEntries, songs]);
-  const withRealUsage = filteredSongs.map((song) => ({
-    ...song,
-    realUsageCount: realUsageBySong.get(song.id)?.count || 0,
-    realLastUsedAt: realUsageBySong.get(song.id)?.lastUsedAt || "",
-    realLastSchedule: realUsageBySong.get(song.id)?.lastSchedule || null
-  }));
-  const mostUsed = [...withRealUsage].sort((a, b) => (b.realUsageCount || 0) - (a.realUsageCount || 0)).filter((song) => song.realUsageCount > 0).slice(0, 10);
-  const leastUsed = [...filteredSongs]
-    .map((song) => ({ ...song, realUsageCount: realUsageBySong.get(song.id)?.count || 0, realLastUsedAt: realUsageBySong.get(song.id)?.lastUsedAt || "", realLastSchedule: realUsageBySong.get(song.id)?.lastSchedule || null }))
-    .sort((a, b) => (a.realUsageCount || 0) - (b.realUsageCount || 0) || (a.realLastUsedAt || "0000").localeCompare(b.realLastUsedAt || "0000"))
-    .slice(0, 12);
   const changeKeySongs = filteredSongs.filter((song) => song.hasKeyChange);
   const incompleteMusicalData = filteredSongs.filter((song) =>
     !song.mainKey
@@ -268,51 +249,59 @@ export function Stats() {
   const musicDone = filteredSongs.filter((song) => normalizeReviewValue(song.musicReviewStatus) === "completado").length;
   const noCapo = filteredSongs.filter((song) => Number(song.capo || 0) === 0).length;
 
-  const leastUsedColumns = [
-    { key: "title", label: "Canto" },
-    { key: "category", label: "Categoría" },
-    { key: "mainTheme", label: "Tema" },
-    { key: "mainKey", label: "Tono" },
-    { key: "capo", label: "Capo", render: (song) => song.capo ?? 0 },
-    { key: "realUsageCount", label: "Usos reales", render: (song) => song.realUsageCount || 0 },
-    { key: "realLastUsedAt", label: "Última vez", render: (song) => song.realLastSchedule ? formatScheduleDateWithService(song.realLastSchedule) : song.realLastUsedAt ? formatDate(song.realLastUsedAt) : "Sin historial" },
-    { key: "sungBefore", label: "Histórico", render: (song) => song.sungBefore ? "Ya se ha cantado" : "No cantado históricamente" },
-    { key: "state", label: "Estado", render: (song) => song.realUsageCount ? "Poco usado en la app" : "Sin historial" }
-  ];
-
   return (
     <div className="space-y-5">
       <Card>
-        <div className="grid gap-4 xl:grid-cols-[1fr_220px_220px_auto] xl:items-end">
-          <div>
-            <h2 className="text-xl font-bold text-ink">Estadísticas</h2>
-            <p className="mt-1 text-sm text-ink/55">Analizando {filteredSongs.length} de {songs.length} cantos.</p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Button variant={view === "musicians" ? "primary" : "secondary"} onClick={() => setView("musicians")}>Para músicos</Button>
-              <Button variant={view === "programming" ? "primary" : "secondary"} onClick={() => setView("programming")}>Para programación</Button>
-              <Button variant={view === "balance" ? "primary" : "secondary"} onClick={() => setView("balance")}>Balance del repertorio</Button>
-            </div>
-          </div>
-          <label className="block">
-            <span className="mb-2 block text-xs font-semibold uppercase tracking-wide text-ink/55">Categoría</span>
-            <Select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
+        <h2 className="text-xl font-bold text-ink">Estadísticas</h2>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button variant={view === "programming" ? "primary" : "secondary"} onClick={() => setView("programming")}>Para programación</Button>
+          <Button variant={view === "musicians" ? "primary" : "secondary"} onClick={() => setView("musicians")}>Para músicos</Button>
+          <Button variant={view === "balance" ? "primary" : "secondary"} onClick={() => setView("balance")}>Preparación del repertorio</Button>
+        </div>
+        <div className="mt-4 grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+          {view === "programming" ? (
+            <>
+              <Field label="Periodo">
+                <Select value={period} onChange={(event) => setPeriod(event.target.value)}>
+                  <option value="year">Este año</option>
+                  <option value="30">Últimos 30 días</option>
+                  <option value="90">Últimos 90 días</option>
+                  <option value="all">Todo el historial</option>
+                </Select>
+              </Field>
+              <Field label="Tipo de servicio">
+                <Select value={serviceLabel} onChange={(event) => setServiceLabel(event.target.value)}>
+                  <option value="">Todos</option>
+                  {serviceOptions.map((label) => <option key={label}>{label}</option>)}
+                </Select>
+              </Field>
+              <Field label="Temporada">
+                <Select value={season} onChange={(event) => { setSeason(event.target.value); setCategoryFilter(""); setThemeFilter(""); }}>
+                  <option value="regular">Sin Navidad</option>
+                  <option value="christmas">Solo Navidad</option>
+                  <option value="all">Todas</option>
+                </Select>
+              </Field>
+            </>
+          ) : null}
+          <Field label="Categoría">
+            <Select value={selectedCategory} onChange={(event) => setCategoryFilter(event.target.value)}>
               <option value="">Todas</option>
               {categories.map((category) => <option key={category}>{category}</option>)}
             </Select>
-          </label>
-          <label className="block">
-            <span className="mb-2 block text-xs font-semibold uppercase tracking-wide text-ink/55">Tema</span>
-            <Select value={themeFilter} onChange={(event) => setThemeFilter(event.target.value)}>
+          </Field>
+          <Field label="Tema">
+            <Select value={selectedTheme} onChange={(event) => setThemeFilter(event.target.value)}>
               <option value="">Todos</option>
               {themeOptions.map((theme) => <option key={theme}>{theme}</option>)}
             </Select>
-          </label>
-          <Button variant="secondary" onClick={() => { setCategoryFilter(""); setThemeFilter(""); }}>Limpiar filtros</Button>
+          </Field>
+          <Button variant="secondary" className="min-h-11" onClick={resetFilters}>Limpiar filtros</Button>
         </div>
       </Card>
 
       {view === "balance" ? (
-        <RepertoireBalancePanel songs={filteredSongs} schedules={schedules} />
+        <RepertoireBalancePanel songs={filteredSongs} />
       ) : view === "musicians" ? (
         <>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -364,36 +353,7 @@ export function Stats() {
           </Card>
         </>
       ) : (
-        <>
-          <div className="grid gap-5 xl:grid-cols-2">
-            <Card>
-              <h2 className="text-lg font-bold text-ink">Cantos más usados</h2>
-              <p className="mt-1 text-sm text-ink/55">Uso registrado en la app desde programaciones realizadas o pasadas.</p>
-              <div className="mt-4">
-                {mostUsed.length ? <SongTable rows={mostUsed} songs={songs} columns={[
-                  { key: "title", label: "Canto" },
-                  { key: "realUsageCount", label: "Uso registrado", render: (song) => song.realUsageCount || 0 },
-                  { key: "realLastUsedAt", label: "Última vez", render: (song) => song.realLastSchedule ? formatScheduleDateWithService(song.realLastSchedule) : song.realLastUsedAt ? formatDate(song.realLastUsedAt) : "Sin historial" },
-                  { key: "category", label: "Categoría" },
-                  { key: "mainTheme", label: "Tema" }
-                ]} /> : <p className="rounded-2xl bg-ink/5 p-4 text-sm text-ink/55">Esta sección se actualizará conforme registres programaciones.</p>}
-              </div>
-            </Card>
-            <ChartCard title="Rotación por tema en programaciones">
-              <BarGraph data={topWithOthers(programmedThemes, 10)} horizontal theme={chartTheme} />
-            </ChartCard>
-            <ChartCard title="Repertorio por categoría">
-              <PieGraph data={byCategory} theme={chartTheme} />
-            </ChartCard>
-            <ChartCard title="Cantos por tema del repertorio">
-              <BarGraph data={byTheme} horizontal theme={chartTheme} />
-            </ChartCard>
-          </div>
-          <Card>
-            <h2 className="text-lg font-bold text-ink">Cantos menos usados</h2>
-            <div className="mt-4"><SongTable rows={leastUsed} songs={songs} columns={leastUsedColumns} /></div>
-          </Card>
-        </>
+        <RotationPanel summary={rotation} now={now} themeFilter={selectedTheme} onSelectTheme={setThemeFilter} nextSchedule={nextSchedule} />
       )}
     </div>
   );

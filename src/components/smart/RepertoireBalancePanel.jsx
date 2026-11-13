@@ -1,9 +1,7 @@
-import { Headphones, Lightbulb, ListChecks } from "lucide-react";
+import { Headphones, ListChecks } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { getPreparationGaps, getRepertoireInsights } from "../../services/repertoireInsights";
-import { normalizeSearchText } from "../../services/songUtils";
+import { getPreparationGaps } from "../../services/repertoireInsights";
 import { Button } from "../ui/Button";
-import { InsightCard } from "./InsightCard";
 import { SmartPanel } from "./SmartPanel";
 
 const gapFilterMap = {
@@ -18,46 +16,13 @@ const gapFilterMap = {
   ocr: "ocr-pending"
 };
 
-function inferInsightFilter(insight = {}) {
-  const text = normalizeSearchText(`${insight.title || ""} ${insight.message || ""} ${insight.action || ""}`);
-  if (text.includes("youtube") || text.includes("escucha")) return { filter: "missing-youtube" };
-  if (text.includes("documentos") || text.includes("pdf")) return { filter: "missing-drive-pdf" };
-  if (text.includes("himnos")) return { filter: "hymns-ready" };
-  if (text.includes("olvidados")) return { filter: "unused-ready" };
-  if (text.includes("repeticion") || text.includes("repetidos")) return { filter: "repeated" };
-  if (text.includes("navidad")) return { q: "navidad" };
-  return { q: insight.title || "" };
-}
-
-export function RepertoireBalancePanel({ songs = [], schedules = [] }) {
+export function RepertoireBalancePanel({ songs = [] }) {
   const navigate = useNavigate();
-  const insights = getRepertoireInsights(songs, schedules);
   const gaps = getPreparationGaps(songs);
   const openRepertoire = (params = {}) => navigate(`/repertorio?${new URLSearchParams(params).toString()}`);
 
   return (
     <div className="grid min-w-0 gap-5">
-      <SmartPanel>
-        <div className="flex items-start gap-3">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brass/15 text-brass">
-            <Lightbulb className="h-5 w-5" />
-          </span>
-          <div>
-            <h2 className="text-xl font-black text-ink">Balance del repertorio</h2>
-            <p className="mt-1 text-sm leading-6 text-ink/60">Tendencias, oportunidades y mantenimiento general del repertorio.</p>
-          </div>
-        </div>
-        <div className="mt-5 grid gap-3 md:grid-cols-2">
-          {insights.map((insight) => (
-            <InsightCard
-              key={insight.title}
-              insight={insight}
-              onAction={() => openRepertoire(inferInsightFilter(insight))}
-            />
-          ))}
-        </div>
-      </SmartPanel>
-
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
         <SmartPanel>
           <div className="flex items-center gap-2">
